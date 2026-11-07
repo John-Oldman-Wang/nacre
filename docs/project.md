@@ -162,7 +162,7 @@ V8 没有「强制严格」的编译选项（`v8::Script::Compile` 编译的是 
 | 借 | 不借 |
 | --- | --- |
 | `addEventListener` / `removeEventListener` / `dispatchEvent` 三个名字和基本语义 | `passive`（为浏览器滚动性能设计，我们没有可阻止的默认滚动） |
-| `EventTarget` 作基类，统一 `application`、scene、将来的 view 的接口 | `signal` / `AbortSignal`（牵出一整套规范，而我们连定时器都没有） |
+| `EventTarget` 作基类，统一 `application`、scene、将来的 view 的接口 | ~~`signal` / `AbortSignal`~~ ← **后来借了**：做网络请求时两个前提都变了，定时器有了，而 `NSURLSessionTask.cancel` 是实打实的能力 |
 | `Event` 带 `type` 和 `target` | `composed` / `composedPath()`（shadow DOM 概念） |
 | `once` 选项 | 捕获阶段（iOS 没有这个阶段） |
 | 事件名全小写的惯例 | 重入保护、监听器列表快照的精确语义（浏览器用来防御病态代码） |
@@ -358,7 +358,7 @@ Commit message 格式：
 | 5 | 页面跳转 | UINavigationController、继承 UIViewController | 待讨论 |
 | 6a | `URL` / `URLSearchParams` / `Headers` | NSURLComponents、WHATWG 语义 | 已在模拟器验证通过：37 条断言全过，和 Chrome 对撞过一批 URL |
 | 6b | `fetch` / `Request` / `Response` | NSURLSession、BackingStore 零拷贝 | 已在模拟器验证通过：对着本地服务器跑，20 个并发 36ms；`Blob` 挪到 6c |
-| 6c | `Blob` + `AbortController` 和取消 | NSURLSessionTask.cancel、原生对象包装 | 待实现 |
+| 6c | `Blob` + `AbortController` 和取消 | NSURLSessionTask.cancel、原生对象包装 | 已在模拟器验证通过：blob 零拷贝、取消、超时中止 |
 | 7 | 本地存储 | UserDefaults、文件读写 | 待讨论 |
 | 8 | 列表 | UICollectionView、DataSource（同步回调） | 待讨论 |
 | 9 | 输入框和键盘 | UITextField、keyboardLayoutGuide | 待讨论 |

@@ -43,6 +43,14 @@ Promise.reject(new Error('这条不应该被报告')).catch(() => {
 
 // 内置属性都是 non-enumerable，Object.keys 看不见，要用 getOwnPropertyNames。
 // 这份清单是 types/ 里 lib 配置的依据：运行时实际有什么，类型定义就声明什么。
+// 未处理拒绝的结算排在宿主队列尾部（对齐 Chromium），所以 setTimeout 里
+// 补上的 handler 来得及抑制上报。日志里不该出现这条。
+//
+// 这条用例特意放在顶层而不是和 fetch 混在一起：延后结算只保证「晚于当前
+// 已排队的任务」，并发网络请求的回调会插进来，那时就成了竞态。
+const 迟到的 = Promise.reject(new Error('这条不该被上报：handler 在 timer 里补上'));
+setTimeout(() => 迟到的.catch(() => {}), 0);
+
 console.log('globalThis 的全部属性 =',
             Object.getOwnPropertyNames(globalThis).sort().join(' '));
 console.log('这些不存在 =',
@@ -684,6 +692,57 @@ application.addEventListener('sceneconnect', (e) => {
       try { await fetch('/相对路径'); console.log('  ✗ 相对 URL 居然通过'); }
       catch (err) { 断言('相对 URL 被拒（没有 base）', err.constructor.name, 'TypeError'); }
 
+      // --- Blob：字节不进 V8 堆 ---
+      const blob = await (await fetch(根 + '/bytes')).blob();
+      断言('blob() 返回 Blob', blob instanceof Blob, true);
+      断言('blob.size', blob.size, 256);
+      const blobBuf = await blob.arrayBuffer();
+      断言('Blob 能取出字节', new Uint8Array(blobBuf)[255], 255);
+      const textBlob = new Blob(['前缀-', '后缀'], { type: 'text/plain' });
+      断言('new Blob 拼字符串', await textBlob.text(), '前缀-后缀');
+      断言('new Blob 的 type', textBlob.type, 'text/plain');
+      断言('new Blob 的 size（UTF-8 字节数）', textBlob.size, 13);  // 6+1+6
+      const bytesBlob = new Blob([new Uint8Array([1, 2, 3])]);
+      断言('new Blob 吃 TypedArray', bytesBlob.size, 3);
+
+      // --- AbortController ---
+      const ctrl = new AbortController();
+      断言('signal 初始未中止', ctrl.signal.aborted, false);
+      let 收到abort事件 = false;
+      ctrl.signal.addEventListener('abort', () => { 收到abort事件 = true; });
+      const 慢请求 = fetch(根 + '/slow', { signal: ctrl.signal });
+      setTimeout(() => ctrl.abort(), 50);
+      try {
+        await 慢请求;
+        console.log('  ✗ 取消了居然还成功');
+      } catch (err) {
+        断言('取消后拒绝，name 是 AbortError', err.name, 'AbortError');
+      }
+      断言('abort 事件派发了', 收到abort事件, true);
+      断言('中止后 aborted', ctrl.signal.aborted, true);
+      // reason 的类型是 unknown——任何值都能当中止原因，这是 Web 的语义
+      断言('reason 默认是 AbortError',
+           /** @type {Error} */ (ctrl.signal.reason).name, 'AbortError');
+      ctrl.abort();   // 重复中止是空操作，不该再派发
+      断言('重复 abort 不出错', ctrl.signal.aborted, true);
+
+      // 已经中止的 signal，请求根本不该发出去
+      try {
+        await fetch(根 + '/json', { signal: AbortSignal.abort() });
+        console.log('  ✗ 已中止的 signal 居然还发请求');
+      } catch (err) {
+        断言('已中止的 signal 直接拒绝', err.name, 'AbortError');
+      }
+      // 超时：有了定时器才做得了
+      try {
+        await fetch(根 + '/slow', { signal: AbortSignal.timeout(100) });
+        console.log('  ✗ 超时了居然还成功');
+      } catch (err) {
+        断言('AbortSignal.timeout 到点中止', err.name, 'AbortError');
+      }
+      try { AbortSignal.abort().throwIfAborted(); console.log('  ✗ throwIfAborted 没抛'); }
+      catch (err) { 断言('throwIfAborted 抛的是 reason', err.name, 'AbortError'); }
+
       // 并发：20 个一起发，验证不串行
       const t0 = Date.now();
       const 批 = await Promise.all(
@@ -738,10 +797,6 @@ application.addEventListener('sceneconnect', (e) => {
   try { setTimeout(123, 0); console.log('  ✗ 非函数居然通过'); }
   catch (err) { console.log('  ✓ setTimeout 拒绝非函数:', err.constructor.name); }
 
-  // 8. 未处理拒绝：排在队尾结算，所以 setTimeout 里补的 handler 来得及抑制
-  //    这条是「对齐 Chromium」的验收点——日志里不该出现这条的上报
-  const 迟到的 = Promise.reject(new Error('这条不该被上报：handler 在 timer 里补上'));
-  setTimeout(() => 迟到的.catch(() => {}), 0);
 
   // 9. 和原生事件的顺序：两者在同一个主队列里，按入队时刻 FIFO
   /** @type {string[]} */ const 混排 = [];
@@ -766,8 +821,8 @@ application.addEventListener('sceneconnect', (e) => {
          '同步,微任务,queueMicrotask,宏任务');
     断言('额外参数透传', 透传结果, '参数透传');
     断言('timer 和原生事件在同一队列', 混排.join(','), '窗口事件,timer');
-    console.log('  ✓ 上面不该出现「这条不该被上报」的 Uncaught',
-                '（从注册到跑满', Date.now() - 嵌套开始, 'ms，含启动时的主线程繁忙）');
+    console.log('  ✓ 定时器全部跑完（从注册到跑满',
+                Date.now() - 嵌套开始, 'ms，含启动时的主线程繁忙）');
   }
   等齐了再汇总(50);
 

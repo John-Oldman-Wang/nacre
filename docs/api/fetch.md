@@ -26,7 +26,7 @@ res.status;   // 404
 | 方法 | 做什么 | 拷贝 |
 | --- | --- | --- |
 | `arrayBuffer()` | 原生那块内存直接交给 V8 | **零** |
-| `blob()` | 同上，而且字节不进 V8 堆 | **零**（还没实现） |
+| `blob()` | 字节留在原生侧，JS 只拿句柄 | **零** |
 | `text()` | 后台线程 UTF-8 解码 | 一次 |
 | `json()` | `text()` 再加 `JSON.parse` | 一次 + 解析 |
 
@@ -90,9 +90,56 @@ didCompleteWithError: → 兑现 body 的 Promise
 | CORS、同源策略、`credentials`、`mode` | 浏览器为不受信任的页面设计的。[原则 8](../project.md#原则)：我们的 JS 和原生代码同等地位 |
 | `ReadableStream`（body 流式） | 一整套规范，第一版不做。body 整个下完才兑现 |
 | `FormData` | 还没做 |
-| `AbortController` | 下一步（6c）。原生层的取消通道已经铺好了 |
-| `blob()` | 需要 `Blob` 类，下一步 |
 | 重定向和缓存的精细控制 | 用系统默认 |
+
+## `Blob`：字节不进 V8 堆
+
+```js
+const blob = await (await fetch(url)).blob();
+blob.size;                        // 真的
+const buf = await blob.arrayBuffer();   // 只有显式要字节时才包成 ArrayBuffer（零拷贝）
+```
+
+JS 侧只拿一个句柄，字节留在原生的 `NSData` 里。复用的就是 `UIView` / `UIColor` 那套包装机制——**Chrome 为同样的事要跨进程传 UUID、要配额管理、要落盘，因为它的数据在 browser 进程而 JS 在渲染进程；我们同进程，直接持指针**。
+
+对视频切片这类场景的意义：fetch 一个切片拿到 Blob，交给播放器，字节从头到尾不进 V8 堆。
+
+也能自己造：
+
+```js
+new Blob(['前缀-', '后缀'], { type: 'text/plain' });   // size 是 UTF-8 字节数
+new Blob([new Uint8Array([1, 2, 3])]);                  // TypedArray 直接过字节
+```
+
+第一版**全内存**，不做落盘（Chrome 落盘是因为要扛任意页面的任意 blob，我们是单个 App，大小可控）。嵌套的 Blob（用别的 Blob 拼）也还没做。
+
+## 取消
+
+```js
+const ctrl = new AbortController();
+const p = fetch(url, { signal: ctrl.signal });
+ctrl.abort();                       // p 以 AbortError 拒绝
+
+await fetch(url, { signal: AbortSignal.timeout(5000) });   // 超时自动中止
+```
+
+`AbortSignal` 是个 `EventTarget`，中止时派发 `abort` 事件。`AbortSignal.timeout()` 要有定时器才做得了——这也是当初在事件模型那节写「不借 `AbortSignal`，而我们连定时器都没有」的原因，两个前提现在都变了。
+
+**`reason` 的类型是 `unknown`**：任何值都能当中止原因，这是 Web 的语义。默认给的是一个 `name` 为 `'AbortError'` 的 `Error`——Web 那边用 `DOMException`，我们没有那个类。
+
+### 一个实现中踩到的坑
+
+signal 在发请求**之前**就已经中止时，要记得把内部那个 Promise 也消化掉：
+
+```js
+if (signal.aborted) {
+  native.fetchCancel(requestId);
+  promise.catch(() => {});     // ← 少了这行就成了未处理的拒绝
+  return Promise.reject(signal.reason);
+}
+```
+
+内部 promise 会被原生层以「取消」拒绝，但它不会交到调用方手里。验收用例里真的报出来了。
 
 ## 内存：Response 被回收时原生那份数据才放掉
 

@@ -99,6 +99,17 @@ struct EngineHost {
                      int call_id)>
       call_async;
 
+  // 异步读一个原生对象的内容。kind 是 'text' / 'arrayBuffer'。
+  // 宿主在后台处理完之后兑现 call_id——UTF-8 解码是 CPU 活，不能在主线程干。
+  std::function<void(void* ptr, const std::string& kind, int call_id)>
+      read_object_async;
+  // 用一段字节建一个原生对象（Blob）。parts_json 是数组，字符串项直接给，
+  // 字节项留 null、真正的数据按同样的下标放在 buffers 里。
+  std::function<NativeObjectRef(const std::string& parts_json,
+                                const std::vector<std::pair<const void*, size_t>>& buffers,
+                                const std::string& type)>
+      create_blob;
+
   // ---- 网络 ----
   // 发起一个请求。options_json 带 method / headers / body 等；
   // headers 到达时宿主调 SettleJSON(call_id, ...)，失败时 RejectCall。

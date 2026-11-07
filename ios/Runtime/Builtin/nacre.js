@@ -1238,6 +1238,105 @@
     }
   });
 
+  // ---------- Blob ----------
+  //
+  // 字节在原生的 NSData 里，JS 侧只拿一个句柄。复用的就是 UIView / UIColor
+  // 那套包装机制——Chrome 为了同样的事要跨进程传 UUID，我们同进程直接持指针。
+  //
+  // 对视频切片这类场景的意义：fetch 一个切片拿到 Blob，交给播放器，
+  // 字节从头到尾不进 V8 堆。
+
+  defineNativeClass('Blob', class Blob extends NSObject {
+    constructor(parts, options) {
+      super();
+      if (allowNativeConstruct) return;   // 原生侧造好的（response.blob()）
+      const list = parts === undefined || parts === null ? [] : Array.from(parts);
+      const o = options === undefined || options === null ? {} : options;
+      const type = 'type' in o ? String(o.type) : '';
+      // 字符串走 JSON，ArrayBuffer / TypedArray 的字节按下标单独过去，
+      // 嵌套的 Blob 第一版不支持（要先把它的字节取出来）
+      const 预处理 = list.map((item) => {
+        if (item instanceof Blob) {
+          throw new TypeError('第一版的 Blob 还不能由别的 Blob 拼成');
+        }
+        return item;
+      });
+      const handle = native.createBlob(预处理, type, '');
+      if (handle) Object.defineProperty(this, kHandle, { value: handle[kHandle] });
+    }
+    get size() { requireNative(this, 'size'); return nativeGet(this, 'size'); }
+    get type() { requireNative(this, 'type'); return nativeGet(this, 'type'); }
+    // 字节本来就在内存里，但解码派到后台，所以还是 Promise
+    arrayBuffer() { return native.readObjectAsync(this[kHandle], 'arrayBuffer'); }
+    text() { return native.readObjectAsync(this[kHandle], 'text'); }
+  });
+
+  // ---------- AbortController ----------
+  //
+  // 当初在事件模型那节写过「不借 AbortSignal，牵出一整套规范，而我们连
+  // 定时器都没有」。两个前提都变了：定时器有了，而 NSURLSessionTask.cancel
+  // 是实打实的能力，按能力对齐该暴露。
+
+  const kAborted = Symbol('signal.aborted');
+  const kReason = Symbol('signal.reason');
+
+  const AbortSignal = define(globalThis, 'AbortSignal',
+    class AbortSignal extends EventTarget {
+      constructor() {
+        super();
+        if (!allowAbortSignalConstruct) {
+          throw new TypeError('AbortSignal 不能直接构造，用 new AbortController()');
+        }
+        this[kAborted] = false;
+        this[kReason] = undefined;
+      }
+      get aborted() { return this[kAborted]; }
+      get reason() { return this[kReason]; }
+      throwIfAborted() { if (this[kAborted]) throw this[kReason]; }
+      /** 已经中止的 signal，省掉建 controller。 */
+      static abort(reason) {
+        const s = makeSignal();
+        abortSignal(s, reason);
+        return s;
+      }
+      /** 到点自动中止。有了定时器之后才做得了这个。 */
+      static timeout(ms) {
+        const s = makeSignal();
+        setTimeout(() => {
+          const err = new Error('等待超时');
+          err.name = 'TimeoutError';
+          abortSignal(s, err);
+        }, Number(ms) || 0);
+        return s;
+      }
+    });
+
+  let allowAbortSignalConstruct = false;
+  function makeSignal() {
+    allowAbortSignalConstruct = true;
+    try { return new AbortSignal(); }
+    finally { allowAbortSignalConstruct = false; }
+  }
+  function abortSignal(signal, reason) {
+    if (signal[kAborted]) return;   // 只中止一次
+    signal[kAborted] = true;
+    if (reason === undefined) {
+      const err = new Error('操作已中止');
+      err.name = 'AbortError';   // Web 用 DOMException，我们没有那个类
+      signal[kReason] = err;
+    } else {
+      signal[kReason] = reason;
+    }
+    signal.dispatchEvent(new Event('abort'));
+  }
+
+  define(globalThis, 'AbortController', class AbortController {
+    constructor() {
+      Object.defineProperty(this, 'signal', { value: makeSignal(), enumerable: true });
+    }
+    abort(reason) { abortSignal(this.signal, reason); }
+  });
+
   // ---------- fetch ----------
   //
   // body 的四条路，各自的代价不一样：
@@ -1275,10 +1374,7 @@
     arrayBuffer() { return 读body(this, 'arrayBuffer'); }
     text() { return 读body(this, 'text'); }
     async json() { return JSON.parse(await 读body(this, 'text')); }
-    // blob 先按 arrayBuffer 走：Blob 类要等原生对象包装那条路，记在文档里
-    async blob() {
-      throw new TypeError('blob() 还没做，先用 arrayBuffer()');
-    }
+    blob() { return 读body(this, 'blob'); }
   }
 
   const Response = define(globalThis, 'Response', class Response extends Body {
@@ -1343,6 +1439,22 @@
     };
 
     const [promise, requestId] = native.fetchStart(req.url, JSON.stringify(options));
+
+    // 取消：signal 一中止就叫原生层 cancel，NSURLSessionTask 会以
+    // NSURLErrorCancelled 结束，原生层把它映射成 AbortError
+    const signal = init && init.signal;
+    if (signal) {
+      if (signal.aborted) {
+        native.fetchCancel(requestId);
+        // 内部那个 promise 也会被原生层拒绝（取消），但它不会交到调用方手里，
+        // 不自己消化掉就成了未处理的拒绝——验收用例里真的报出来了
+        promise.catch(() => {});
+        return Promise.reject(signal.reason);
+      }
+      signal.addEventListener('abort', () => native.fetchCancel(requestId),
+                              { once: true });
+    }
+
     return promise.then((info) => {
       const res = new Response(null, {
         status: info.status,

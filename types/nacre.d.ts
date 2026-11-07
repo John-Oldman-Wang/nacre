@@ -152,6 +152,52 @@ interface RequestInit {
   method?: string;
   headers?: HeadersInit;
   body?: string | null;
+  /** 中止信号。一中止就取消在途的请求，Promise 以 AbortError 拒绝。 */
+  signal?: AbortSignal | null;
+}
+
+/**
+ * 一块不可变的字节。**字节留在原生侧，JS 只拿句柄**——所以拿到一个 Blob
+ * 不会把内容压进 V8 堆。
+ *
+ * 视频切片这类场景正是为它设计的：fetch 一个切片拿到 Blob，交给播放器，
+ * 字节从头到尾不进 JS。
+ */
+declare class Blob {
+  constructor(parts?: readonly (string | ArrayBuffer | ArrayBufferView)[],
+              options?: { type?: string });
+  readonly size: number;
+  readonly type: string;
+  /** 零拷贝：原生那块内存直接交给 V8。 */
+  arrayBuffer(): Promise<ArrayBuffer>;
+  /** 后台 UTF-8 解码。 */
+  text(): Promise<string>;
+}
+
+/**
+ * 中止信号。是个 EventTarget，中止时派发 'abort' 事件。
+ *
+ * 不能直接构造，用 `new AbortController().signal`、`AbortSignal.abort()`
+ * 或 `AbortSignal.timeout(ms)`。
+ */
+declare class AbortSignal extends EventTarget {
+  private constructor();
+  readonly aborted: boolean;
+  /** 中止的原因。默认是一个 name 为 'AbortError' 的 Error。 */
+  readonly reason: unknown;
+  /** 已中止时抛出 reason。 */
+  throwIfAborted(): void;
+  /** 一个已经中止的 signal。 */
+  static abort(reason?: unknown): AbortSignal;
+  /** 到点自动中止，reason 的 name 是 'TimeoutError'。 */
+  static timeout(ms: number): AbortSignal;
+}
+
+declare class AbortController {
+  constructor();
+  readonly signal: AbortSignal;
+  /** 中止。重复调用是空操作。 */
+  abort(reason?: unknown): void;
 }
 
 /**
@@ -168,8 +214,8 @@ interface Body {
   text(): Promise<string>;
   /** text() 再加一次 JSON.parse。 */
   json(): Promise<any>;
-  /** 还没实现，先用 arrayBuffer()。 */
-  blob(): Promise<never>;
+  /** 零拷贝，而且字节不进 V8 堆——大响应首选这个。 */
+  blob(): Promise<Blob>;
 }
 
 declare class Response {

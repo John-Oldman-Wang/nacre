@@ -9,6 +9,19 @@
 
 #include "Engine/Engine.h"
 
+// Blob：JS 侧只拿一个句柄，字节留在这边的 NSData 里。
+//
+// Chrome 为此要跨进程、要 UUID、要配额管理，因为它的数据在 browser 进程、
+// JS 在渲染进程。我们同进程，直接持指针——而且这套包装机制已经在跑了，
+// UIView、UIColor 都是「JS 侧小包装 + 原生侧真数据 + 弱引用句柄表」。
+@interface NacreBlob : NSObject
+@property(nonatomic, strong) NSData* data;
+@property(nonatomic, copy) NSString* type;
+@end
+
+@implementation NacreBlob
+@end
+
 namespace {
 
 os_log_t JSLog() {
@@ -425,6 +438,14 @@ std::string ReadNativeProperty(id object, const std::string& name) {
       value = SizeToJSON(label.shadowOffset);
     } else if ([key isEqualToString:@"baselineAdjustment"]) {
       value = NameForBaselineAdjustment(label.baselineAdjustment);
+    }
+  }
+  if (value == nil && [object isKindOfClass:NacreBlob.class]) {
+    NacreBlob* blob = (NacreBlob*)object;
+    if ([key isEqualToString:@"size"]) {
+      value = @(blob.data.length);
+    } else if ([key isEqualToString:@"type"]) {
+      value = blob.type ?: @"";
     }
   }
   if (value == nil && [object isKindOfClass:UIFont.class]) {
@@ -1241,6 +1262,16 @@ std::string InfoDictionaryJSON() {
       dispatch_async(dispatch_get_main_queue(), ^{
         if (*engine) (*engine)->SettleJSON(callId, json);
       });
+    } else if ([kind isEqualToString:@"blob"]) {
+      // blob：字节压根不进 V8 堆，JS 侧只拿一个句柄
+      NacreBlob* blob = [NacreBlob new];
+      blob.data = data;
+      blob.type = @"";
+      dispatch_async(dispatch_get_main_queue(), ^{
+        if (!*engine) return;
+        (*engine)->SettleObject(
+            callId, {(void*)CFAutorelease(CFBridgingRetain(blob)), "Blob"});
+      });
     } else {
       // arrayBuffer：把 NSData 的内存直接交给 V8，零拷贝。
       // CFBridgingRetain 把所有权转过去，deleter 里再 release。
@@ -1286,6 +1317,69 @@ std::string InfoDictionaryJSON() {
     NacreFetchTask* entry = self->_fetchTasks[@(requestId)];
     [entry.task cancel];
   });
+}
+
+// ---- Blob ----
+
+- (void)readObjectAsync:(id)object kind:(const std::string&)kindText callId:(int)callId {
+  auto engine = _engine;
+  NSString* kind = @(kindText.c_str());
+  if (![object isKindOfClass:NacreBlob.class]) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+      if (*engine) (*engine)->RejectCall(callId, "TypeError", "这个对象读不出内容");
+    });
+    return;
+  }
+  NSData* data = ((NacreBlob*)object).data;
+  // 解码派到并发队列：大 Blob 的 UTF-8 解码是实打实的 CPU 活，
+  // 在主线程做会掉帧。这也是 arrayBuffer 零拷贝、text 才要后台的原因。
+  dispatch_async(_fetchWorkQueue, ^{
+    if ([kind isEqualToString:@"text"]) {
+      NSString* text =
+          [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] ?: @"";
+      const std::string json = EncodeJSON(text);
+      dispatch_async(dispatch_get_main_queue(), ^{
+        if (*engine) (*engine)->SettleJSON(callId, json);
+      });
+    } else {
+      const void* bytes = data.bytes;
+      const size_t length = data.length;
+      void* owned = (void*)CFBridgingRetain(data);
+      dispatch_async(dispatch_get_main_queue(), ^{
+        if (!*engine) {
+          CFRelease(owned);
+          return;
+        }
+        (*engine)->SettleBytes(
+            callId, (void*)bytes, length,
+            [](void* d, size_t len, void* info) { CFRelease(info); }, owned);
+      });
+    }
+  });
+}
+
+nacre::NativeObjectRef CreateBlob(
+    const std::string& partsJSON,
+    const std::vector<std::pair<const void*, size_t>>& buffers,
+    const std::string& type) {
+  id decoded = DecodeJSON(partsJSON);
+  NSArray* parts = [decoded isKindOfClass:NSArray.class] ? decoded : @[];
+  NSMutableData* out = [NSMutableData data];
+  for (NSUInteger i = 0; i < parts.count; i++) {
+    id item = parts[i];
+    if (i < buffers.size() && buffers[i].first != nullptr) {
+      // 字节项：JSON 里是 null，真正的数据在 buffers 里
+      [out appendBytes:buffers[i].first length:buffers[i].second];
+    } else if ([item isKindOfClass:NSString.class]) {
+      [out appendData:[item dataUsingEncoding:NSUTF8StringEncoding]];
+    } else if (item != nil && item != NSNull.null) {
+      [out appendData:[[item description] dataUsingEncoding:NSUTF8StringEncoding]];
+    }
+  }
+  NacreBlob* blob = [NacreBlob new];
+  blob.data = out;
+  blob.type = @(type.c_str());
+  return {(void*)CFAutorelease(CFBridgingRetain(blob)), "Blob"};
 }
 
 - (void)fetchRelease:(int)requestId {
@@ -1419,6 +1513,16 @@ std::string InfoDictionaryJSON() {
     host.fetch_release = [weakSelf](int requestId) {
       NacreRuntime* strongSelf = weakSelf;
       if (strongSelf) [strongSelf fetchRelease:requestId];
+    };
+    host.read_object_async = [weakSelf](void* ptr, const std::string& kind,
+                                        int callId) {
+      NacreRuntime* strongSelf = weakSelf;
+      if (strongSelf) [strongSelf readObjectAsync:(__bridge id)ptr kind:kind callId:callId];
+    };
+    host.create_blob = [](const std::string& partsJSON,
+                          const std::vector<std::pair<const void*, size_t>>& buffers,
+                          const std::string& type) {
+      return CreateBlob(partsJSON, buffers, type);
     };
     host.parse_url = [](const std::string& url, const std::string& base) {
       return ParseURL(url, base);

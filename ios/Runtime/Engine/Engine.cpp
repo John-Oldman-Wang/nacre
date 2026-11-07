@@ -560,6 +560,59 @@ struct Engine::Impl {
     return true;
   }
 
+  // 异步读原生对象的内容，返回 Promise
+  static void NativeReadObjectAsync(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
+    void* ptr = self->PtrForHandle(info, 0);
+    if (!ptr || !self->host.read_object_async || info.Length() < 2) return;
+    v8::Local<v8::Promise::Resolver> resolver;
+    if (!v8::Promise::Resolver::New(ctx).ToLocal(&resolver)) return;
+    const int call_id = self->next_call_id++;
+    self->pending_calls[call_id].Reset(isolate, resolver);
+    self->host.read_object_async(ptr, SafeToString(isolate, info[1]), call_id);
+    info.GetReturnValue().Set(resolver->GetPromise());
+  }
+
+  // new Blob(parts, { type })。parts 里字符串直接过 JSON，
+  // ArrayBuffer / TypedArray 的字节按下标单独传指针，避免多一次拷贝。
+  static void NativeCreateBlob(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
+    if (!self->host.create_blob || info.Length() < 3 || !info[0]->IsArray()) return;
+
+    v8::Local<v8::Array> parts = info[0].As<v8::Array>();
+    const uint32_t count = parts->Length();
+    std::vector<std::pair<const void*, size_t>> buffers(count, {nullptr, 0});
+    v8::Local<v8::Array> json_parts = v8::Array::New(isolate, count);
+    for (uint32_t i = 0; i < count; i++) {
+      v8::Local<v8::Value> item;
+      if (!parts->Get(ctx, i).ToLocal(&item)) continue;
+      if (item->IsArrayBufferView()) {
+        v8::Local<v8::ArrayBufferView> view = item.As<v8::ArrayBufferView>();
+        std::shared_ptr<v8::BackingStore> store = view->Buffer()->GetBackingStore();
+        buffers[i] = {static_cast<const uint8_t*>(store->Data()) + view->ByteOffset(),
+                      view->ByteLength()};
+        json_parts->Set(ctx, i, v8::Null(isolate)).Check();
+      } else if (item->IsArrayBuffer()) {
+        std::shared_ptr<v8::BackingStore> store =
+            item.As<v8::ArrayBuffer>()->GetBackingStore();
+        buffers[i] = {store->Data(), store->ByteLength()};
+        json_parts->Set(ctx, i, v8::Null(isolate)).Check();
+      } else {
+        json_parts->Set(ctx, i, item).Check();  // 字符串等走 JSON
+      }
+    }
+    v8::Local<v8::String> json;
+    if (!v8::JSON::Stringify(ctx, json_parts).ToLocal(&json)) return;
+    NativeObjectRef ref = self->host.create_blob(
+        SafeToString(isolate, json), buffers, SafeToString(isolate, info[1]));
+    v8::Local<v8::Object> wrapper = self->WrapNative(ctx, ref);
+    if (!wrapper.IsEmpty()) info.GetReturnValue().Set(wrapper);
+  }
+
   // fetch 的三个入口。真正的活在宿主那边，这里只过参数。
   static void NativeFetchStart(const v8::FunctionCallbackInfo<v8::Value>& info) {
     v8::Isolate* isolate = info.GetIsolate();
@@ -774,6 +827,8 @@ struct Engine::Impl {
         {"classObjProp", NativeClassObjectProperty},
         {"classCall", NativeClassCall},
         {"parseURL", NativeParseURL},
+        {"readObjectAsync", NativeReadObjectAsync},
+        {"createBlob", NativeCreateBlob},
         {"fetchStart", NativeFetchStart},
         {"fetchReadBody", NativeFetchReadBody},
         {"fetchCancel", NativeFetchCancel},
