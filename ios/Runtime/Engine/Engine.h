@@ -5,10 +5,17 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace nacre {
 
 enum class LogLevel { Debug, Log, Info, Warn, Error };
+
+// 一个原生对象的引用。Engine 只把它当不透明指针，retain / release 由宿主做。
+struct NativeObjectRef {
+  void* ptr = nullptr;     // iOS 上是 id
+  std::string class_name;  // 对应的 JS 类名，如 "UIWindowScene"
+};
 
 // 引擎需要宿主（iOS 层）提供的能力
 struct EngineHost {
@@ -21,9 +28,30 @@ struct EngineHost {
   std::function<std::string()> app_info_json;         // Info.plist，静态，JS 侧缓存
   std::function<std::string()> app_environment_json;  // 实时环境值，每次读取都问
 
-  // JS 发起的能力调用。宿主切到主线程执行，完成后在 JS 线程上调 Engine::SettleBool
+  // JS 发起的能力调用。完成后调 Engine::SettleBool 兑现对应的 Promise
   std::function<void(const std::string& url, int call_id)> open_url;
   std::function<void(bool disabled)> set_idle_timer_disabled;
+
+  // 原生对象的引用计数。JS 包装对象建立时 retain，被 GC 回收时 release。
+  // 统一用强引用：弱引用要处理原生对象先死的悬空问题，而强引用最坏只是
+  // 数据过期（比如场景已断开），不会崩。
+  std::function<void(void* ptr)> retain_native;
+  std::function<void(void* ptr)> release_native;
+
+  // 当前已连接的场景
+  std::function<std::vector<NativeObjectRef>()> app_scenes;
+
+  // 原生对象的属性读写。值用 JSON 编码，避免为每个属性加一个回调。
+  // 宿主内部用一张「类名 + 属性名」的分发表来实现。
+  std::function<std::string(void* ptr, const std::string& name)> read_property;
+  std::function<void(void* ptr, const std::string& name, const std::string& json)>
+      write_property;
+  // 属性值本身是原生对象时走这个
+  std::function<NativeObjectRef(void* ptr, const std::string& name)> read_object_property;
+  // 异步方法，完成后调 Engine::SettleBool
+  std::function<void(void* ptr, const std::string& name, const std::string& args_json,
+                     int call_id)>
+      call_async;
 };
 
 struct Script {
@@ -57,6 +85,15 @@ class Engine {
   // 把一个 App 级事件派发给 JS 里的 application。只能在 JS 线程上调用。
   // 内置脚本还没执行时静默忽略。
   void EmitAppEvent(const std::string& type);
+
+  // 把一个原生对象作为 payload 派发事件：JS 收到的事件上会有 event[key] = 包装对象。
+  // 只能在 JS 所在线程调用。
+  void EmitAppEventWithObject(const std::string& type, const std::string& key,
+                              const NativeObjectRef& ref);
+
+  // 把事件派发给某个原生对象自己的 JS 包装（而不是 application）。
+  // 场景的生命周期事件走这条路。
+  void EmitObjectEvent(const NativeObjectRef& target, const std::string& type);
 
   // 结束一个由 JS 发起的异步调用，用布尔值兑现它的 Promise。
   // 只能在 JS 线程上调用；call_id 不存在时静默忽略。

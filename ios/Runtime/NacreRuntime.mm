@@ -67,6 +67,16 @@ NSString* BackgroundRefreshName(UIBackgroundRefreshStatus status) {
   return @"unknown";
 }
 
+NSString* SceneActivationName(UISceneActivationState state) {
+  switch (state) {
+    case UISceneActivationStateUnattached: return @"unattached";
+    case UISceneActivationStateForegroundActive: return @"foregroundActive";
+    case UISceneActivationStateForegroundInactive: return @"foregroundInactive";
+    case UISceneActivationStateBackground: return @"background";
+  }
+  return @"unknown";
+}
+
 const char* StateName(int state) {
   switch (state) {
     case UIApplicationStateActive: return "active";
@@ -123,6 +133,80 @@ void RebuildEnvironment(const std::shared_ptr<AppSnapshot>& snapshot) {
                           : std::string("{}");
   std::lock_guard<std::mutex> lock(snapshot->mutex);
   snapshot->environmentJSON = std::move(json);
+}
+
+// 值和 JS 之间走 JSON。FragmentsAllowed 让顶层可以是字符串/数字/布尔，
+// 不用为标量再包一层数组。
+std::string EncodeJSON(id value) {
+  id safe = SanitizeForJSON(value ?: NSNull.null);
+  NSData* data = [NSJSONSerialization dataWithJSONObject:safe
+                                                 options:NSJSONWritingFragmentsAllowed
+                                                   error:nil];
+  if (!data) return "null";
+  return std::string(static_cast<const char*>(data.bytes), data.length);
+}
+
+id DecodeJSON(const std::string& json) {
+  NSData* data = [NSData dataWithBytes:json.data() length:json.size()];
+  id value = [NSJSONSerialization JSONObjectWithData:data
+                                             options:NSJSONReadingFragmentsAllowed
+                                               error:nil];
+  return (value == nil || value == NSNull.null) ? nil : value;
+}
+
+// 属性分发表。加一个属性只要在这里加一行，不用动 C++ 的桥。
+// 这是手写方案，撑得过 scene / window 这几个类；到 UIView 那一层
+// （成百上千个属性）就必须换成通用的能力暴露方案了。
+std::string ReadNativeProperty(id object, const std::string& name) {
+  NSString* key = @(name.c_str());
+  id value = nil;
+  if ([object isKindOfClass:UIScene.class]) {
+    UIScene* scene = (UIScene*)object;
+    if ([key isEqualToString:@"activationState"]) {
+      value = SceneActivationName(scene.activationState);
+    } else if ([key isEqualToString:@"title"]) {
+      value = scene.title;
+    } else if ([key isEqualToString:@"subtitle"]) {
+      value = scene.subtitle;
+    } else if ([key isEqualToString:@"isFullScreen"] &&
+               [scene isKindOfClass:UIWindowScene.class]) {
+      value = @(((UIWindowScene*)scene).isFullScreen);
+    }
+  } else if ([object isKindOfClass:UISceneSession.class]) {
+    UISceneSession* session = (UISceneSession*)object;
+    if ([key isEqualToString:@"role"]) {
+      value = session.role;
+    } else if ([key isEqualToString:@"persistentIdentifier"]) {
+      value = session.persistentIdentifier;
+    } else if ([key isEqualToString:@"userInfo"]) {
+      value = session.userInfo;
+    }
+  }
+  return EncodeJSON(value);
+}
+
+void WriteNativeProperty(id object, const std::string& name, const std::string& json) {
+  NSString* key = @(name.c_str());
+  id value = DecodeJSON(json);
+  if ([object isKindOfClass:UIScene.class]) {
+    UIScene* scene = (UIScene*)object;
+    if ([key isEqualToString:@"title"]) {
+      scene.title = [value isKindOfClass:NSString.class] ? value : nil;
+    } else if ([key isEqualToString:@"subtitle"]) {
+      scene.subtitle = [value isKindOfClass:NSString.class] ? value : @"";
+    }
+  } else if ([object isKindOfClass:UISceneSession.class]) {
+    if ([key isEqualToString:@"userInfo"]) {
+      ((UISceneSession*)object).userInfo = [value isKindOfClass:NSDictionary.class] ? value : nil;
+    }
+  }
+}
+
+nacre::NativeObjectRef ReadNativeObjectProperty(id object, const std::string& name) {
+  if ([object isKindOfClass:UIScene.class] && name == "session") {
+    return {(__bridge void*)((UIScene*)object).session, "UISceneSession"};
+  }
+  return {};
 }
 
 std::string InfoDictionaryJSON() {
@@ -205,6 +289,54 @@ std::string InfoDictionaryJSON() {
     host.set_idle_timer_disabled = [snapshot](bool disabled) {
       UIApplication.sharedApplication.idleTimerDisabled = disabled;
       RebuildEnvironment(snapshot);
+    };
+
+    // 原生对象的引用计数。统一强引用：JS 包装活着时原生对象就不会被释放，
+    // 这样不会有悬空指针。最坏情况只是数据过期（比如场景已断开）。
+    host.retain_native = [](void* ptr) {
+      if (ptr) CFRetain((CFTypeRef)ptr);
+    };
+    host.release_native = [](void* ptr) {
+      if (ptr) CFRelease((CFTypeRef)ptr);
+    };
+    host.app_scenes = []() {
+      std::vector<nacre::NativeObjectRef> refs;
+      for (UIScene* scene in UIApplication.sharedApplication.connectedScenes) {
+        if (![scene isKindOfClass:UIWindowScene.class]) continue;
+        refs.push_back({(__bridge void*)scene, "UIWindowScene"});
+      }
+      return refs;
+    };
+    host.read_property = [](void* ptr, const std::string& name) {
+      return ReadNativeProperty((__bridge id)ptr, name);
+    };
+    host.write_property = [](void* ptr, const std::string& name, const std::string& json) {
+      WriteNativeProperty((__bridge id)ptr, name, json);
+    };
+    host.read_object_property = [](void* ptr, const std::string& name) {
+      return ReadNativeObjectProperty((__bridge id)ptr, name);
+    };
+    host.call_async = [weakSelf](void* ptr, const std::string& name,
+                                 const std::string& argsJSON, int callId) {
+      NacreRuntime* strongSelf = weakSelf;
+      if (!strongSelf) return;
+      id object = (__bridge id)ptr;
+      if ([object isKindOfClass:UIScene.class] && name == "openURL") {
+        NSArray* args = DecodeJSON(argsJSON);
+        NSString* text = [args isKindOfClass:NSArray.class] ? args.firstObject : nil;
+        NSURL* url = [text isKindOfClass:NSString.class] ? [NSURL URLWithString:text] : nil;
+        if (!url) {
+          [strongSelf settleCall:callId with:NO];
+          return;
+        }
+        [(UIScene*)object openURL:url
+                          options:nil
+                completionHandler:^(BOOL success) {
+                  [strongSelf settleCall:callId with:success];
+                }];
+        return;
+      }
+      [strongSelf settleCall:callId with:NO];
     };
     *engine = std::make_unique<nacre::Engine>(std::move(host));
     double t2 = NowMs();
@@ -303,6 +435,62 @@ std::string InfoDictionaryJSON() {
                   std::string eventType = type.UTF8String;
                   [strongSelf postToJS:^{
                     if (*engine) (*engine)->EmitAppEvent(eventType);
+                  }];
+                }];
+    [self->_observers addObject:token];
+  }];
+
+  // 场景接入和断开。事件带着 scene 对象——这是 JS 拿到场景的唯一入口，
+  // 因为启动时 application.scenes 是空的。
+  NSDictionary<NSNotificationName, NSString*>* sceneEvents = @{
+    UISceneWillConnectNotification : @"sceneconnect",
+    UISceneDidDisconnectNotification : @"scenedisconnect",
+  };
+  [sceneEvents enumerateKeysAndObjectsUsingBlock:^(NSNotificationName name, NSString* type, BOOL* stop) {
+    id token = [NSNotificationCenter.defaultCenter
+        addObserverForName:name
+                    object:nil
+                     queue:NSOperationQueue.mainQueue
+                usingBlock:^(NSNotification* note) {
+                  UIScene* scene = note.object;
+                  if (![scene isKindOfClass:UIWindowScene.class]) return;
+                  NacreRuntime* strongSelf = weakSelf;
+                  if (!strongSelf) return;
+                  std::string eventType = type.UTF8String;
+                  // 块强引用 scene，保证投递到下一轮时它还活着
+                  [strongSelf postToJS:^{
+                    if (!*engine) return;
+                    (*engine)->EmitAppEventWithObject(
+                        eventType, "scene", {(__bridge void*)scene, "UIWindowScene"});
+                  }];
+                }];
+    [self->_observers addObject:token];
+  }];
+
+  // 场景自己的前后台状态变化。派发给 scene 对象本身，不是 application——
+  // application 上同名的四个是「所有场景的聚合状态」，语义不同。
+  // 按第 10 条完备性原则：activationState 可读，就必须有变化通知。
+  NSDictionary<NSNotificationName, NSString*>* sceneLifecycle = @{
+    UISceneDidActivateNotification : @"active",
+    UISceneWillDeactivateNotification : @"inactive",
+    UISceneWillEnterForegroundNotification : @"foreground",
+    UISceneDidEnterBackgroundNotification : @"background",
+  };
+  [sceneLifecycle enumerateKeysAndObjectsUsingBlock:^(NSNotificationName name, NSString* type, BOOL* stop) {
+    id token = [NSNotificationCenter.defaultCenter
+        addObserverForName:name
+                    object:nil
+                     queue:NSOperationQueue.mainQueue
+                usingBlock:^(NSNotification* note) {
+                  UIScene* scene = note.object;
+                  if (![scene isKindOfClass:UIWindowScene.class]) return;
+                  NacreRuntime* strongSelf = weakSelf;
+                  if (!strongSelf) return;
+                  std::string eventType = type.UTF8String;
+                  [strongSelf postToJS:^{
+                    if (!*engine) return;
+                    (*engine)->EmitObjectEvent({(__bridge void*)scene, "UIWindowScene"},
+                                               eventType);
                   }];
                 }];
     [self->_observers addObject:token];

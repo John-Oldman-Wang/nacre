@@ -263,7 +263,7 @@ Commit message 格式：
 | --- | --- | --- | --- |
 | 0 | 搭建 iOS 工程：App 启动、V8 启动、全局对象 `console`、执行 `main.js` 输出 hello world | — | 已完成（commit `eba1b23`） |
 | 1 | 运行时基础对象：`EventTarget`、`Event`、`Application` 和单例 `application`，以及全局错误出口 | Info.plist、应用状态、App 级通知、未捕获异常与未处理拒绝 | 已在模拟器验证通过，待提交 |
-| 2 | 窗口和根页面由 JS 创建 | 场景事件转发、UIWindow、UIViewController、UIColor | 进行中：线程模型已迁到主线程；待做原生对象包装机制、`UIWindowScene` 暴露 |
+| 2 | 窗口和根页面由 JS 创建 | 场景事件转发、UIWindow、UIViewController、UIColor | 进行中：线程模型已迁主线程、原生对象包装机制和 `UIWindowScene` 已完成；待做 `UIWindow` / `UIViewController` |
 | 3 | 文字、图片 | UILabel、UIImageView、Auto Layout | 待讨论 |
 | 4 | 按钮和点击事件 | Target-Action、JS 回调 | 待讨论 |
 | 5 | 页面跳转 | UINavigationController、继承 UIViewController | 待讨论 |

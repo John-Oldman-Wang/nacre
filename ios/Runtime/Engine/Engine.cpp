@@ -90,6 +90,23 @@ struct Engine::Impl {
   std::unordered_map<int, v8::Global<v8::Promise::Resolver>> pending_calls;
   int next_call_id = 1;
 
+  // ---- 原生对象的 JS 包装 ----
+  // 不用 V8 的 internal field：那样建对象就得绕过 JS 构造函数，
+  // EventTarget 的监听器表就初始化不了。改成给包装对象挂一个句柄 id，
+  // C++ 这边用 id 查原生指针。
+  v8::Global<v8::Function> wrapper_factory;  // 内置 JS 提供：(className, id) -> 包装对象
+  v8::Global<v8::Function> object_event_sink;  // 内置 JS 提供：(wrapper, type) -> void
+  std::unordered_map<int, void*> handle_to_ptr;
+  std::unordered_map<void*, int> ptr_to_handle;
+  std::unordered_map<int, v8::Global<v8::Object>> wrappers;  // weak
+  int next_handle = 1;
+
+  // 传给 weak 回调的身份信息
+  struct HandleKey {
+    Impl* impl;
+    int handle;
+  };
+
   static Impl* From(v8::Isolate* isolate) {
     return static_cast<Impl*>(isolate->GetData(0));
   }
@@ -239,6 +256,153 @@ struct Engine::Impl {
     return result->IsFalse();
   }
 
+  // 包装对象被 GC 时调用。只做 C++ 侧的清理，不碰 JS。
+  static void WrapperCollected(const v8::WeakCallbackInfo<HandleKey>& info) {
+    HandleKey* key = info.GetParameter();
+    key->impl->ReleaseHandle(key->handle);
+    delete key;
+  }
+
+  void ReleaseHandle(int handle) {
+    auto it = handle_to_ptr.find(handle);
+    if (it == handle_to_ptr.end()) return;
+    void* ptr = it->second;
+    ptr_to_handle.erase(ptr);
+    handle_to_ptr.erase(it);
+    wrappers.erase(handle);
+    if (host.release_native) host.release_native(ptr);
+  }
+
+  // 取或建一个原生对象的 JS 包装。同一个原生指针永远返回同一个 JS 对象，
+  // 这样 === 和挂在包装上的自定义属性才成立。
+  v8::Local<v8::Object> WrapNative(v8::Local<v8::Context> ctx,
+                                   const NativeObjectRef& ref) {
+    if (ref.ptr == nullptr || wrapper_factory.IsEmpty()) return {};
+
+    auto existing = ptr_to_handle.find(ref.ptr);
+    if (existing != ptr_to_handle.end()) {
+      auto w = wrappers.find(existing->second);
+      if (w != wrappers.end()) return w->second.Get(isolate);
+    }
+
+    int handle = next_handle++;
+    if (host.retain_native) host.retain_native(ref.ptr);
+
+    v8::TryCatch try_catch(isolate);
+    v8::Local<v8::Value> argv[] = {Utf8(isolate, ref.class_name),
+                                   v8::Integer::New(isolate, handle)};
+    v8::Local<v8::Value> result;
+    if (!wrapper_factory.Get(isolate)
+             ->Call(ctx, ctx->Global(), 2, argv)
+             .ToLocal(&result) ||
+        !result->IsObject()) {
+      try_catch.Reset();
+      if (host.release_native) host.release_native(ref.ptr);
+      return {};
+    }
+
+    v8::Local<v8::Object> wrapper = result.As<v8::Object>();
+    handle_to_ptr[handle] = ref.ptr;
+    ptr_to_handle[ref.ptr] = handle;
+    auto& global = wrappers[handle];
+    global.Reset(isolate, wrapper);
+    global.SetWeak(new HandleKey{this, handle}, WrapperCollected,
+                   v8::WeakCallbackType::kParameter);
+    return wrapper;
+  }
+
+  void* PtrForHandle(const v8::FunctionCallbackInfo<v8::Value>& info, int index) {
+    if (info.Length() <= index || !info[index]->IsInt32()) return nullptr;
+    auto it = handle_to_ptr.find(info[index].As<v8::Int32>()->Value());
+    return it == handle_to_ptr.end() ? nullptr : it->second;
+  }
+
+  static void NativeSetWrapperFactory(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    Impl* self = From(info.GetIsolate());
+    if (info.Length() > 0 && info[0]->IsFunction()) {
+      self->wrapper_factory.Reset(info.GetIsolate(), info[0].As<v8::Function>());
+    }
+  }
+
+  static void NativeScenes(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
+    std::vector<NativeObjectRef> refs =
+        self->host.app_scenes ? self->host.app_scenes() : std::vector<NativeObjectRef>{};
+    v8::Local<v8::Array> list = v8::Array::New(isolate, static_cast<int>(refs.size()));
+    uint32_t index = 0;
+    for (const NativeObjectRef& ref : refs) {
+      v8::Local<v8::Object> wrapper = self->WrapNative(ctx, ref);
+      if (wrapper.IsEmpty()) continue;
+      list->Set(ctx, index++, wrapper).Check();
+    }
+    info.GetReturnValue().Set(list);
+  }
+
+  static void NativeSetObjectEventSink(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    Impl* self = From(info.GetIsolate());
+    if (info.Length() > 0 && info[0]->IsFunction()) {
+      self->object_event_sink.Reset(info.GetIsolate(), info[0].As<v8::Function>());
+    }
+  }
+
+  // 通用属性读：(handle, name) -> JSON 文本，由 JS 侧 parse
+  static void NativeGetProperty(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    void* ptr = self->PtrForHandle(info, 0);
+    std::string name = info.Length() > 1 ? SafeToString(isolate, info[1]) : std::string();
+    std::string json = (ptr && self->host.read_property)
+                           ? self->host.read_property(ptr, name)
+                           : std::string("null");
+    info.GetReturnValue().Set(Utf8(isolate, json));
+  }
+
+  // 通用属性写：(handle, name, jsonValue)
+  static void NativeSetProperty(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    void* ptr = self->PtrForHandle(info, 0);
+    if (!ptr || !self->host.write_property || info.Length() < 3) return;
+    self->host.write_property(ptr, SafeToString(isolate, info[1]),
+                              SafeToString(isolate, info[2]));
+  }
+
+  // 属性值本身是原生对象：(handle, name) -> 包装对象或 null
+  static void NativeGetObjectProperty(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
+    void* ptr = self->PtrForHandle(info, 0);
+    if (!ptr || !self->host.read_object_property) return;
+    NativeObjectRef ref =
+        self->host.read_object_property(ptr, SafeToString(isolate, info[1]));
+    v8::Local<v8::Object> wrapper = self->WrapNative(ctx, ref);
+    if (!wrapper.IsEmpty()) info.GetReturnValue().Set(wrapper);
+  }
+
+  // 异步方法：(handle, name, jsonArgs) -> Promise<boolean>
+  static void NativeCallAsync(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
+
+    v8::Local<v8::Promise::Resolver> resolver;
+    if (!v8::Promise::Resolver::New(ctx).ToLocal(&resolver)) return;
+    info.GetReturnValue().Set(resolver->GetPromise());
+
+    void* ptr = self->PtrForHandle(info, 0);
+    if (!ptr || !self->host.call_async) {
+      (void)resolver->Resolve(ctx, v8::Boolean::New(isolate, false));
+      return;
+    }
+    int id = self->next_call_id++;
+    self->pending_calls[id].Reset(isolate, resolver);
+    self->host.call_async(ptr, SafeToString(isolate, info[1]),
+                          info.Length() > 2 ? SafeToString(isolate, info[2]) : "[]", id);
+  }
+
   void InstallNativeBridge(v8::Local<v8::Context> ctx) {
     v8::Local<v8::Object> bridge = v8::Object::New(isolate);
     struct Entry {
@@ -251,6 +415,13 @@ struct Engine::Impl {
         {"openURL", NativeOpenURL},
         {"setIdleTimerDisabled", NativeSetIdleTimerDisabled},
         {"setEventSink", NativeSetEventSink},
+        {"setWrapperFactory", NativeSetWrapperFactory},
+        {"scenes", NativeScenes},
+        {"setObjectEventSink", NativeSetObjectEventSink},
+        {"getProp", NativeGetProperty},
+        {"setProp", NativeSetProperty},
+        {"getObjProp", NativeGetObjectProperty},
+        {"callAsync", NativeCallAsync},
     };
     for (const Entry& e : entries) {
       v8::Local<v8::Function> fn = v8::Function::New(ctx, e.fn).ToLocalChecked();
@@ -423,6 +594,14 @@ Engine::Engine(EngineHost host) : impl_(std::make_unique<Impl>()) {
 Engine::~Engine() {
   // 所有 Global 都必须在 Isolate 销毁之前释放
   impl_->event_sink.Reset();
+  impl_->wrapper_factory.Reset();
+  impl_->object_event_sink.Reset();
+  impl_->wrappers.clear();
+  for (const auto& entry : impl_->handle_to_ptr) {
+    if (impl_->host.release_native) impl_->host.release_native(entry.second);
+  }
+  impl_->handle_to_ptr.clear();
+  impl_->ptr_to_handle.clear();
   impl_->pending_calls.clear();
   impl_->pending_rejections.clear();
   impl_->context.Reset();
@@ -473,6 +652,47 @@ void Engine::EmitAppEvent(const std::string& type) {
   v8::Context::Scope context_scope(ctx);
   {
     impl_->DispatchToJS(ctx, type.c_str(), v8::Undefined(isolate));
+  }
+  impl_->FlushRejections();
+}
+
+void Engine::EmitAppEventWithObject(const std::string& type, const std::string& key,
+                                    const NativeObjectRef& ref) {
+  v8::Isolate* isolate = impl_->isolate;
+  v8::Isolate::Scope isolate_scope(isolate);
+  v8::HandleScope handle_scope(isolate);
+  if (impl_->event_sink.IsEmpty()) return;
+
+  v8::Local<v8::Context> ctx = impl_->context.Get(isolate);
+  v8::Context::Scope context_scope(ctx);
+  v8::Local<v8::Object> wrapper = impl_->WrapNative(ctx, ref);
+  v8::Local<v8::Object> payload = v8::Object::New(isolate);
+  payload
+      ->Set(ctx, V8Str(isolate, key.c_str()),
+            wrapper.IsEmpty() ? v8::Local<v8::Value>(v8::Null(isolate)) : wrapper)
+      .Check();
+  impl_->DispatchToJS(ctx, type.c_str(), payload);
+  impl_->FlushRejections();
+}
+
+void Engine::EmitObjectEvent(const NativeObjectRef& target, const std::string& type) {
+  v8::Isolate* isolate = impl_->isolate;
+  v8::Isolate::Scope isolate_scope(isolate);
+  v8::HandleScope handle_scope(isolate);
+  if (impl_->object_event_sink.IsEmpty()) return;
+
+  v8::Local<v8::Context> ctx = impl_->context.Get(isolate);
+  v8::Context::Scope context_scope(ctx);
+  v8::Local<v8::Object> wrapper = impl_->WrapNative(ctx, target);
+  if (wrapper.IsEmpty()) return;
+  {
+    v8::TryCatch try_catch(isolate);
+    v8::Local<v8::Value> argv[] = {wrapper, Utf8(isolate, type)};
+    if (impl_->object_event_sink.Get(isolate)
+            ->Call(ctx, ctx->Global(), 2, argv)
+            .IsEmpty()) {
+      impl_->ReportException(ctx, try_catch);
+    }
   }
   impl_->FlushRejections();
 }

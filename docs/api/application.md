@@ -60,7 +60,7 @@ new Application()   // TypeError: Illegal constructor
 | 属性 | 类型 | 说明 | 对应 iOS | 状态 |
 | --- | --- | --- | --- | --- |
 | `supportsMultipleScenes` | boolean | **实际能力**＝声明 AND 环境允许。要读**声明值**用 `info.UIApplicationSceneManifest.UIApplicationSupportsMultipleScenes`——两者含义不同，运行时都提供，不替 JS 合并 | 同名 | 已实现 |
-| `scenes` | array | 当前已连接的场景，单场景时长度为 1 | `connectedScenes` | 已定·未实现 |
+| `scenes` | array | 当前已连接的场景。**启动时几乎总是空的**——场景在 `didFinishLaunching` 之后才接入，所以 UI 必须靠 `sceneconnect` 事件驱动。元素是 [`UIWindowScene`](ui-window-scene.md) | `connectedScenes` | 已实现 |
 | `layoutDirection` | `'ltr'` \| `'rtl'` | 界面方向 | `userInterfaceLayoutDirection` | 已实现 |
 | `contentSizeCategory` | string | 用户设置的字体大小（动态字体）。**目前原样透出系统值**，形如 `UICTContentSizeCategoryL` | `preferredContentSizeCategory` | 已实现 |
 | `prefersReducedResourceUsage` | boolean | 系统建议降低资源消耗。iOS 27 才有，更低版本读到 `false` | `systemPrefersReducedResourceUsage` | 已实现 |
@@ -100,6 +100,8 @@ new Application()   // TypeError: Illegal constructor
 | `protecteddataavailable` / `protecteddataunavailable` | 设备解锁 / 锁屏 | 同名通知 | 已实现·未验证 |
 | `backgroundrefreshstatuschange` | 用户改了后台刷新权限 | 同名通知 | 已实现·未验证 |
 | `reducedresourceusagechange` | 系统的资源消耗建议变了（iOS 27+） | `SystemPrefersReducedResourceUsageDidChange` | 已实现·未验证 |
+| `sceneconnect` | 场景接入，`event.scene` 是 [`UIWindowScene`](ui-window-scene.md) | `UISceneWillConnectNotification` | 已实现 |
+| `scenedisconnect` | 场景断开 | `UISceneDidDisconnectNotification` | 已实现 |
 | `willterminate` | App 即将被系统终止 | `UIApplicationWillTerminateNotification` | 已实现·未验证 |
 
 ### 错误类事件

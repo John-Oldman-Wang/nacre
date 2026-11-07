@@ -132,6 +132,95 @@
     }
   }
 
+  // ---------- 原生对象的包装 ----------
+  // 句柄 id 挂在闭包里的 Symbol 上，而不是 V8 的 internal field。
+  // 用 internal field 就得绕过 JS 构造函数来建对象，EventTarget 的
+  // 监听器表就初始化不了。
+  const kHandle = Symbol('nativeHandle');
+
+  const nativeClasses = Object.create(null);
+  let allowNativeConstruct = false;
+
+  function defineNativeClass(name, cls) {
+    nativeClasses[name] = cls;
+    define(globalThis, name, cls);
+    return cls;
+  }
+
+  // 原生属性的读写。值走 JSON 编码，所以字符串、数字、布尔、数组、字典都能过。
+  // 这样加一个属性不用动 C++，只要在 iOS 层的分发表里加一行。
+  function nativeGet(obj, name) {
+    return JSON.parse(native.getProp(obj[kHandle], name));
+  }
+  function nativeSet(obj, name, value) {
+    native.setProp(obj[kHandle], name,
+                   JSON.stringify(value === undefined ? null : value));
+  }
+  function nativeGetObject(obj, name) {
+    const result = native.getObjProp(obj[kHandle], name);
+    return result === undefined ? null : result;
+  }
+  function nativeCallAsync(obj, name, args) {
+    return native.callAsync(obj[kHandle], name, JSON.stringify(args || []));
+  }
+
+  function nativeOnly() {
+    if (!allowNativeConstruct) throw new TypeError('Illegal constructor');
+  }
+
+  // 场景的持久身份。场景对象会被系统销毁重建，session 活得更久——
+  // persistentIdentifier 用来认出「是不是之前那个窗口」。
+  defineNativeClass('UISceneSession', class UISceneSession extends EventTarget {
+    constructor() { nativeOnly(); super(); }
+    // 'UIWindowSceneSessionRoleApplication' 等，决定这个场景该画什么界面
+    get role() { return nativeGet(this, 'role'); }
+    get persistentIdentifier() { return nativeGet(this, 'persistentIdentifier'); }
+    get userInfo() { return nativeGet(this, 'userInfo'); }
+    set userInfo(value) { nativeSet(this, 'userInfo', value); }
+  });
+
+  // 系统创建并连接的场景。不可构造——SDK 自己就是 init NS_UNAVAILABLE，
+  // 注释写着「由 UIKit 调用，不打算让 App 调用」。
+  defineNativeClass('UIWindowScene', class UIWindowScene extends EventTarget {
+    constructor() { nativeOnly(); super(); }
+
+    // 这个场景自己的前后台状态，和 application.state（所有场景的聚合）不是一回事
+    get activationState() { return nativeGet(this, 'activationState'); }
+    get session() { return nativeGetObject(this, 'session'); }
+    // ObjC 的属性名是 fullScreen，getter 是 isFullScreen，这里用后者
+    get isFullScreen() { return nativeGet(this, 'isFullScreen'); }
+
+    // 多任务切换器的卡片上显示的标题
+    get title() { return nativeGet(this, 'title'); }
+    set title(value) { nativeSet(this, 'title', value); }
+    get subtitle() { return nativeGet(this, 'subtitle'); }
+    set subtitle(value) { nativeSet(this, 'subtitle', value); }
+
+    // 场景级的打开 URL。application.openURL 是 App 级的，两者都有
+    openURL(url, options) { return nativeCallAsync(this, 'openURL', [String(url)]); }
+  });
+
+  // 原生要给某个对象自己派发事件时回调这里（场景的生命周期事件走这条路）
+  native.setObjectEventSink(function (wrapper, type) {
+    wrapper.dispatchEvent(new Event(type));
+  });
+
+  // C++ 要建包装对象时回调这里。走正常的 new，EventTarget 的构造函数才会跑。
+  // 同一个原生指针 C++ 那边会复用已有的包装，所以 === 成立。
+  native.setWrapperFactory(function (className, handle) {
+    const Cls = nativeClasses[className];
+    if (Cls === undefined) return null;
+    allowNativeConstruct = true;
+    let wrapper;
+    try {
+      wrapper = new Cls();
+    } finally {
+      allowNativeConstruct = false;
+    }
+    Object.defineProperty(wrapper, kHandle, { value: handle });
+    return wrapper;
+  });
+
   // ---------- Application ----------
 
   function deepFreeze(value) {
@@ -188,6 +277,10 @@
     get idleTimerDisabled() { return env().idleTimerDisabled; }
     set idleTimerDisabled(value) { native.setIdleTimerDisabled(Boolean(value)); }
 
+    // 系统已连接的场景。**启动时通常是空的**——场景在 didFinishLaunching
+    // 之后才接入，所以 UI 必须靠 sceneconnect 事件驱动，不能在这里取。
+    get scenes() { return native.scenes(); }
+
     // --- 方法 ---
     // 打开 URL：跳 Safari、拨号、跳别的 App。URL 无效或系统拒绝时兑现为 false。
     // options 暂时没有可透传的键，先占位
@@ -208,8 +301,12 @@
     } else if (type === 'unhandledrejection') {
       event = new PromiseRejectionEvent(type, Object.assign({ cancelable: true }, payload));
     } else {
-      // 原生主线程派发的事件：跨线程异步，派发方拿不到结果，所以不可取消
+      // 原生通知派发的事件：运行时刻意延后一轮执行，派发方早已返回，所以不可取消
       event = new Event(type);
+      // payload 里的字段原样挂到事件上，比如 sceneconnect 的 event.scene
+      if (payload != null) {
+        for (const key of Object.keys(payload)) defineField(event, key, payload[key]);
+      }
     }
     return application.dispatchEvent(event);
   });
