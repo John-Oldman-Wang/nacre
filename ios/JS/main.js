@@ -155,7 +155,7 @@ console.log('prefersReducedResourceUsage =', application.prefersReducedResourceU
 console.log('--- idleTimerDisabled 读写 ---');
 console.log('写之前 =', application.idleTimerDisabled);
 application.idleTimerDisabled = true;
-console.log('刚写完立刻读 =', application.idleTimerDisabled, '（写入要切主线程，异步生效，这里大概率还是旧值）');
+console.log('刚写完立刻读 =', application.idleTimerDisabled, '（JS 已在主线程，写入同步生效，应该是 true）');
 
 console.log('--- openURL 返回 Promise ---');
 const p1 = application.openURL('https://example.com');

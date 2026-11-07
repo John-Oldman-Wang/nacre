@@ -389,7 +389,10 @@ struct Engine::Impl {
 void Engine::InitializeV8Once() {
   std::call_once(g_init_once, [] {
     // 预编译的 V8 是 lite mode 构建，已隐含 jitless，不要再传 --jitless（只读标志，设置会崩溃）
-    g_platform = v8::platform::NewDefaultPlatform();
+    // kEnabled 打开空闲任务队列：V8 会把增量 GC 这类工作排进去，
+    // 等宿主调 RunIdleTasks 时才执行。默认是 kDisabled，等于没有空闲 GC。
+    g_platform = v8::platform::NewDefaultPlatform(
+        0, v8::platform::IdleTaskSupport::kEnabled);
     v8::V8::InitializePlatform(g_platform.get());
     v8::V8::Initialize();
   });
@@ -496,6 +499,11 @@ void Engine::SettleBool(int call_id, bool value) {
   // 否则 await 后面的代码要等到下一次有 JS 执行时才继续
   isolate->PerformMicrotaskCheckpoint();
   impl_->FlushRejections();
+}
+
+void Engine::RunIdleTasks(double idle_time_in_seconds) {
+  v8::Isolate::Scope isolate_scope(impl_->isolate);
+  v8::platform::RunIdleTasks(g_platform.get(), impl_->isolate, idle_time_in_seconds);
 }
 
 void Engine::PumpMessageLoop() {

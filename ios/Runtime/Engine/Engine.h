@@ -47,8 +47,12 @@ class Engine {
   // 执行一段脚本。出现未捕获异常时通过 host.log 输出错误并返回 false
   bool Evaluate(const Script& script);
 
-  // 处理 V8 平台投递的任务（每个 JS 线程任务结束后调用）
+  // 处理 V8 平台投递的任务（每轮 JS 任务结束后调用）
   void PumpMessageLoop();
+
+  // 在主线程即将空闲时调用，把这段空闲时间交给 V8 做增量 GC 等后台工作。
+  // Chrome 就是这么在帧间隙做 GC 的。只能在 JS 所在线程调用。
+  void RunIdleTasks(double idle_time_in_seconds);
 
   // 把一个 App 级事件派发给 JS 里的 application。只能在 JS 线程上调用。
   // 内置脚本还没执行时静默忽略。

@@ -8,7 +8,6 @@
 #include <string>
 
 #include "Engine/Engine.h"
-#include "Engine/JSThread.h"
 
 namespace {
 
@@ -141,12 +140,13 @@ std::string InfoDictionaryJSON() {
 }  // namespace
 
 @implementation NacreRuntime {
-  std::unique_ptr<nacre::JSThread> _thread;
-  // 只在 JS 线程上创建、使用和销毁
+  BOOL _started;
+  // JS 跑在主线程，所以这些都只在主线程上创建、使用和销毁
   std::shared_ptr<std::unique_ptr<nacre::Engine>> _engine;
-  // 主线程写、JS 线程读
   std::shared_ptr<AppSnapshot> _snapshot;
   NSMutableArray* _observers;
+  // 主线程即将空闲时把时间交给 V8 做增量 GC
+  CFRunLoopObserverRef _idleObserver;
 }
 
 - (instancetype)init {
@@ -159,28 +159,21 @@ std::string InfoDictionaryJSON() {
 }
 
 - (void)startWithScriptsDirectory:(NSURL *)directory {
-  if (_thread) return;
+  if (_started) return;
+  _started = YES;
 
-  // 在主线程把 UIKit / Foundation 的值抓好，之后 JS 线程只读这份快照
+  // 环境快照。JS 现在和 UIKit 同线程，本可以直接读，
+  // 但保留快照能让 environmentJSON 一次拿齐，少几次 UIKit 往返。
   _snapshot->infoJSON = InfoDictionaryJSON();
   RebuildEnvironment(_snapshot);
-
-  // JS 线程是裸 pthread，没有 run loop，也就没有系统自动提供的自动释放池。
-  // 这里给每一轮任务包一个池：这一轮里产生的 autorelease 对象在轮末就释放，
-  // 不会一直堆积。池由 iOS 层注入，Runtime/Engine/ 仍然只依赖 V8。
-  _thread = std::make_unique<nacre::JSThread>([](const nacre::JSThread::Task& body) {
-    @autoreleasepool {
-      body();
-    }
-  });
 
   auto engine = _engine;
   auto snapshot = _snapshot;
   NSURL* dir = [directory copy];
   __weak NacreRuntime* weakSelf = self;
 
-  // 1. 在 JS 线程上初始化 V8、创建 Isolate / Context、准备全局对象
-  _thread->Post([engine, snapshot, weakSelf]() {
+  // 1. 初始化 V8、创建 Isolate / Context、准备全局对象
+  [self postToJS:^{
     double t0 = NowMs();
     nacre::Engine::InitializeV8Once();
     double t1 = NowMs();
@@ -192,44 +185,36 @@ std::string InfoDictionaryJSON() {
       std::lock_guard<std::mutex> lock(snapshot->mutex);
       return snapshot->environmentJSON;
     };
-    // JS 发起 → 切主线程执行 → 完成后投回 JS 线程兑现 Promise
+    // 系统要用 completionHandler 回答，所以这个天然是异步的，返回 Promise
     host.open_url = [weakSelf](const std::string& url, int callId) {
       NSString* text = [NSString stringWithUTF8String:url.c_str()];
       NSURL* target = text.length ? [NSURL URLWithString:text] : nil;
-      dispatch_async(dispatch_get_main_queue(), ^{
-        NacreRuntime* strongSelf = weakSelf;
-        if (!strongSelf) return;
-        if (!target) {
-          [strongSelf settleCall:callId with:NO];
-          return;
-        }
-        [UIApplication.sharedApplication openURL:target
-                                         options:@{}
-                               completionHandler:^(BOOL success) {
-                                 [strongSelf settleCall:callId with:success];
-                               }];
-      });
+      NacreRuntime* strongSelf = weakSelf;
+      if (!strongSelf) return;
+      if (!target) {
+        [strongSelf settleCall:callId with:NO];
+        return;
+      }
+      [UIApplication.sharedApplication openURL:target
+                                       options:@{}
+                             completionHandler:^(BOOL success) {
+                               [strongSelf settleCall:callId with:success];
+                             }];
     };
-    host.set_idle_timer_disabled = [weakSelf, snapshot](bool disabled) {
-      dispatch_async(dispatch_get_main_queue(), ^{
-        UIApplication.sharedApplication.idleTimerDisabled = disabled;
-        RebuildEnvironment(snapshot);
-      });
+    // JS 和 UIKit 同线程，直接写就行，不用再切线程
+    host.set_idle_timer_disabled = [snapshot](bool disabled) {
+      UIApplication.sharedApplication.idleTimerDisabled = disabled;
+      RebuildEnvironment(snapshot);
     };
     *engine = std::make_unique<nacre::Engine>(std::move(host));
     double t2 = NowMs();
 
     WriteRuntimeLog([NSString stringWithFormat:@"V8 %s initialized in %.1f ms, context ready in %.1f ms",
                                                nacre::Engine::V8Version(), t1 - t0, t2 - t1]);
-  });
-
-  // 每个任务结束后处理 V8 平台投递的任务
-  _thread->SetAfterEachTask([engine]() {
-    if (*engine) (*engine)->PumpMessageLoop();
-  });
+  }];
 
   // 2. 执行内置脚本，装上 EventTarget / Event / Application / application
-  _thread->Post([engine]() {
+  [self postToJS:^{
     if (!*engine) return;
     NSURL* url = [NSBundle.mainBundle URLForResource:@"nacre" withExtension:@"js" subdirectory:@"Builtin"];
     NSString* source = url ? [NSString stringWithContentsOfURL:url encoding:NSUTF8StringEncoding error:nil] : nil;
@@ -242,10 +227,10 @@ std::string InfoDictionaryJSON() {
     double t0 = NowMs();
     bool ok = (*engine)->Evaluate({"nacre:internal/nacre.js", source.UTF8String});
     WriteRuntimeLog([NSString stringWithFormat:@"内置脚本 %@ in %.1f ms", ok ? @"ready" : @"failed", NowMs() - t0]);
-  });
+  }];
 
   // 3. 加载并执行 main.js
-  _thread->Post([engine, dir]() {
+  [self postToJS:^{
     if (!*engine) return;
     NSURL* url = [dir URLByAppendingPathComponent:@"main.js"];
     NSError* error = nil;
@@ -257,9 +242,22 @@ std::string InfoDictionaryJSON() {
     double t0 = NowMs();
     bool ok = (*engine)->Evaluate({"main.js", source.UTF8String});
     WriteRuntimeLog([NSString stringWithFormat:@"main.js %@ in %.1f ms", ok ? @"finished" : @"failed", NowMs() - t0]);
-  });
+  }];
 
+  [self installIdleObserver];
   [self installNotificationObservers];
+}
+
+// 主线程 run loop 即将进入等待（没事可做了）时，把这段空闲交给 V8。
+// Chrome 就是这样在帧间隙做增量 GC 的——没有空闲任务时这个调用几乎零成本。
+- (void)installIdleObserver {
+  auto engine = _engine;
+  _idleObserver = CFRunLoopObserverCreateWithHandler(
+      kCFAllocatorDefault, kCFRunLoopBeforeWaiting, /*repeats=*/true, /*order=*/0,
+      ^(CFRunLoopObserverRef observer, CFRunLoopActivity activity) {
+        if (*engine) (*engine)->RunIdleTasks(0.005);
+      });
+  CFRunLoopAddObserver(CFRunLoopGetMain(), _idleObserver, kCFRunLoopCommonModes);
 }
 
 // 原生通知在主线程到达 → 投递到 JS 线程的任务队列 → 在 JS 线程上派发给 application。
@@ -336,20 +334,27 @@ std::string InfoDictionaryJSON() {
   }];
 }
 
+// JS 现在就在主线程上跑。仍然用 dispatch_async 而不是直接调用：
+// 保证每轮 JS 执行都是独立的一轮，不会在 UIKit 操作中途重入。
 - (void)postToJS:(dispatch_block_t)block {
-  if (!_thread) return;
-  _thread->Post([block]() { block(); });
+  auto engine = _engine;
+  dispatch_async(dispatch_get_main_queue(), ^{
+    block();
+    // 每轮任务结束后处理 V8 平台投递的任务（微任务由 kAuto 自动排空）
+    if (*engine) (*engine)->PumpMessageLoop();
+  });
 }
 
 - (void)dealloc {
   for (id token in _observers) [NSNotificationCenter.defaultCenter removeObserver:token];
   [_observers removeAllObjects];
-  // Engine 必须在 JS 线程上销毁；随后 JSThread 析构时会等待队列执行完并退出线程
-  if (_thread) {
-    auto engine = _engine;
-    _thread->Post([engine]() { engine->reset(); });
-    _thread.reset();
+  if (_idleObserver) {
+    CFRunLoopRemoveObserver(CFRunLoopGetMain(), _idleObserver, kCFRunLoopCommonModes);
+    CFRelease(_idleObserver);
+    _idleObserver = NULL;
   }
+  // Engine 和 JS 在同一个线程（主线程），dealloc 也在主线程，直接销毁
+  _engine->reset();
 }
 
 @end

@@ -44,6 +44,12 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.orbitlabs.nacre.dev
+        # JS 跑在主线程，而真机 iOS 的主线程栈默认只有 1MB，V8 按约 1MB 计算栈上限，
+        # 没有余量。下面的 -stack_size 把它写进 LC_MAIN，实测运行时生效。
+        # 代价：必须关掉 Xcode 的 debug dylib，否则链接器报
+        # "-stack_size option can only be used when linking a main executable"。
+        # Debug 增量构建会因此变慢。
+        ENABLE_DEBUG_DYLIB: NO
         TARGETED_DEVICE_FAMILY: "1"
         SWIFT_VERSION: "5.0"
         SWIFT_OBJC_BRIDGING_HEADER: App/Nacre-Bridging-Header.h
@@ -61,6 +67,7 @@ targets:
         LIBRARY_SEARCH_PATHS: ["$(inherited)", "$(SRCROOT)/Vendor/v8/lib/$(PLATFORM_NAME)"]
         OTHER_LDFLAGS:
           - "$(inherited)"
+          - "-Wl,-stack_size,0x800000"
           - "-lc++"
           - "-lz"
           # Chromium 的 zlib（V8 的快照校验和反优化数据解压依赖它）
