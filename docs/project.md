@@ -42,6 +42,8 @@ Nacre 仓库包含一个**没有具体业务的 iOS App**，它覆盖常见 App 
 | 工程管理 | XcodeGen：`ios/project.yml` 描述工程，`Nacre.xcodeproj` 由它生成，不提交 |
 | 代码分层 | Swift：启动壳；ObjC++：运行时入口和 iOS 桥接；C++：引擎封装（`Runtime/Engine/` 只依赖 V8，不依赖 iOS） |
 | 生命周期 | 只使用 Scene 生命周期 |
+| JS 全局对象 | `globalThis` 保留不动；运行时注入 `Application` 类及其**唯一实例** `application`（单例）。**不叫 `window`**：`UIWindow` 在 iOS 里是真实存在的另一个东西，会撞。结构见下 |
+| 原生 API 命名空间 | **不设命名空间**，按 ObjC 类名裸暴露在全局：`new UIWindow(...)`、`NSString`。理由见下 |
 | 暂不考虑 | 插槽、CLI、开发模式、启动屏、iPad、Mac Catalyst，以后按需再做 |
 
 ### JS 线程为什么不挂 run loop
@@ -79,6 +81,30 @@ JS 线程用的是条件变量 + 任务队列，相当于 Chromium 的 `MessageP
 | `Intl`，以及所有 `toLocale*` 的本地化能力 | 预编译包关掉了 i18n 支持，ICU 被排除。实测 `new Date(0).toLocaleString('zh-CN')` 完全忽略 locale |
 | `WebAssembly` | lite mode / jitless 下不能编译 wasm |
 
+### `application` 的结构
+
+- `Application` 是一个类，能力做在 **`Application.prototype`** 上，不是挂一堆零散的全局函数
+- `application` 是它的**唯一实例**，由运行时创建并注入全局，对应 `UIApplication.sharedApplication` 的单例语义
+- **运行时保证只实例化一次**，JS 侧再 `new Application()` 应当失败（具体是抛 `TypeError` 还是返回同一实例，待定）
+- 原型上具体放哪些能力**待定**，候选见下面 `UIApplication` 的能力清单
+
+和裸暴露的原生 API 是两类东西，不要混：`application` 是一个**有状态的实例**（当前场景、生命周期阶段）；`UIWindow`、`NSString` 这些是**无状态的类型**，直接在全局上。需要底层对象时，`UIApplication` 本身仍然可以通过裸暴露拿到。
+
+### 原生 API 为什么裸暴露在全局
+
+ObjC 没有 namespace 机制，Apple 用**类名前缀**代替：`NS`（Foundation）、`UI`（UIKit）、`CA`（Core Animation）、`CL`（Core Location）、`AV`、`MK`、`SK`、`WK` 等。这些前缀已经承担了命名空间的职责，再套一层 `ios.` 是双重前缀。
+
+裸暴露之后，JS 里写的名字和 Apple 文档、Xcode 补全、Stack Overflow 答案一一对应，心智负担最低。NativeScript 用的就是这个方案。
+
+曾经定过扁平的 `ios.*`，理由是和将来的 `android.*` 平级。**这个理由不成立**：一个运行时实例只跑在一个平台上，JS 里不会同时出现两套原生 API，不需要平台前缀来消歧。
+
+实现上有两个硬性要求：
+
+1. **懒加载**。不能启动时把几千个类塞进 `globalThis`。做法是给 `Context::New` 传一个带属性拦截器的全局模板（`ObjectTemplate::SetHandler(NamedPropertyHandlerConfiguration)`，含 getter / query / enumerator），JS 第一次访问 `UIWindow` 时才去元数据里解析并建类，之后缓存。这两个 API 已在 `Vendor/v8/include` 中核实存在。
+2. **撞名检查**。bindgen 生成符号时必须和 ECMAScript 内置比对，**冲突时报错，不允许静默覆盖**——ES 内置优先。
+
+实测目前 `globalThis` 上的 65 个内置属性里，没有任何一个以 `NS` / `UI` / `CA` / `CL` / `AV` / `MK` 开头，所以 ObjC 的**类**不会撞。真正要盯的是 C 函数、枚举和常量——它们不一定都有前缀；而且 ECMAScript 以后还会添新的内置名，所以撞名检查要固化进 bindgen，不能只查一次了事。
+
 ## 3. Android 扩展计划（未开始，仅记录方向）
 
 iOS 的功能清单完成后再开始 Android。以下是目前的方向，开始前需要按 SOP 重新讨论确认：
@@ -90,7 +116,7 @@ iOS 的功能清单完成后再开始 Android。以下是目前的方向，开�
 | 引擎复用 | `ios/Runtime/Engine/` 是纯 C++，只依赖 V8。开始做 Android 时把它抽到公共目录（如 `core/`），两端共用 |
 | 能力暴露 | Java/Kotlin 有反射机制，和 ObjC 运行时一样可以动态调用，思路可以对应 |
 | 排版 | 同样按 Android 原生方式（View 体系、ConstraintLayout），不做跨平台布局抽象 |
-| JS 命名空间 | Android 能力放在 `android.*` 下，与 `ios.*` 平级 |
+| JS 命名空间 | iOS 按 ObjC 类名裸暴露在全局，Android 按 Java 包路径（`android.*`、`java.*`）暴露。两套命名体系天然不冲突，都不需要平台前缀 |
 | 双端统一 | 由 JS 层（或社区库）自己处理，运行时不强制统一 |
 | JS 代码 | 同一份业务 JS，按平台分支调用各自的原生能力 |
 
@@ -219,14 +245,13 @@ Commit message 格式：
 - 纯 ObjC 运行时动态桥接：不需要元数据，但拿不到 C 函数、枚举、常量
 - 手写绑定：简单可控，但覆盖面有限
 
-JS 层结构的六个设计点（目前的推荐方案，未确认）：
+命名空间和全局对象已经定了（见第 2 节），JS 层结构还剩五个设计点（目前的推荐方案，未确认）：
 
-1. 命名空间：所有原生 API 放在扁平的 `ios.*` 下
-2. 方法名映射：selector 各段拼接，如 `insertSubviewAtIndex(view, 0)`，另保留 `send(selector, ...args)` 兜底
-3. 创建与继承：`new X()` 等于 `alloc().init()`；继承原生类用 ES class
-4. 线程语义：JS 线程同步切换到主线程执行 UIKit 调用，类型签名保持同步
-5. 类型转换：字符串、数字、布尔值自动转换；数组和字典作为参数时自动转换，返回值保留原生对象；结构体按值复制；`NSError **` 转为抛出异常
-6. 类型来源：运行时自带的 API 手写；`ios.*` 由 bindgen 从 SDK 头文件生成，TypeScript 定义放在 `ios/Types/`
+1. 方法名映射：selector 各段拼接，如 `insertSubviewAtIndex(view, 0)`，另保留 `send(selector, ...args)` 兜底
+2. 创建与继承：`new X()` 等于 `alloc().init()`；继承原生类用 ES class
+3. 线程语义：JS 线程同步切换到主线程执行 UIKit 调用，类型签名保持同步
+4. 类型转换：字符串、数字、布尔值自动转换；数组和字典作为参数时自动转换，返回值保留原生对象；结构体按值复制；`NSError **` 转为抛出异常
+5. 类型来源：运行时自带的 API（`console`、`application`）手写；原生符号由 bindgen 从 SDK 头文件生成，TypeScript 定义放在 `ios/Types/`
 
 另外四个来自第 0 步的待定问题：
 
