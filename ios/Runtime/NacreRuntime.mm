@@ -186,9 +186,8 @@ CGRect JSONToRect(id v) {
 //
 // 查不到名字时返回 NO，调用方据此让 JS 抛异常。
 //
-// 参数位的枚举（字重、文本样式）还要给 JS 列出可选值，所以可选值列表和
-// 真正用来查的表必须是同一份，否则两边会慢慢漂开。属性位的枚举暂时还由
-// JS 侧凑错误信息，所以上面那几个宏只生成查表函数，不生成名字列表。
+// 错误信息里的可选值列表和真正用来查的表必须是同一份，否则两边会慢慢
+// 漂开。所以 NamesForXxx 从同一张表派生，JS 侧不再抄一份。
 //
 // 名字按枚举数值排序，顺序才稳定——NSDictionary 的遍历顺序是不保证的。
 NSString* JoinEnumNames(NSDictionary<NSString*, NSNumber*>* table) {
@@ -229,7 +228,8 @@ std::string EnumError(NSString* what, id given, NSString* choices) {
       if (table[key].integerValue == (NSInteger)value) return key;            \
     }                                                                         \
     return nil;                                                               \
-  }
+  }                                                                           \
+  NSString* NamesFor##FuncName(void) { return JoinEnumNames(FuncName##Table()); }
 
 NACRE_ENUM_MAP(TextAlignment, NSTextAlignment,
                @"left": @(NSTextAlignmentLeft),
@@ -452,113 +452,135 @@ std::string ReadNativeProperty(id object, const std::string& name) {
   return EncodeJSON(value);
 }
 
-// 返回 NO 表示没写进去（名字不认识，或枚举给了个不存在的值）。
-// JS 侧据此抛异常——写不进去又不报错是最难查的那种错。
-bool WriteNativeProperty(id object, const std::string& name, const std::string& json) {
+// 写不进去就往 error 里写一句话，引擎据此抛 TypeError——写不进去又不报错
+// 是最难查的那种错。两种情况都在这里凑话：这个对象没有这个可写属性，或者
+// 枚举给了个不认识的名字。
+//
+// 错误信息只能在这里凑：可选值列表就在上面那几张表里，而且这里知道上下文
+// （哪个类、哪个属性），所以不会有 UIControl.state 和 UIGestureRecognizer
+// .state 这种按属性名索引就会撞的问题。
+void WriteNativeProperty(id object, const std::string& name, const std::string& json,
+                         std::string* error) {
   NSString* key = @(name.c_str());
   id value = DecodeJSON(json);
-  // 每个分支写完就 return true，末尾统一 return false——
-  // 这样「名字不认识」和「枚举值不认识」都会让 JS 抛异常，
-  // 不会出现写不进去又不报错的情况。
+  // 每个分支写完就 return，末尾统一填「没有这个属性」。
   if ([object isKindOfClass:UIScene.class]) {
     UIScene* scene = (UIScene*)object;
     if ([key isEqualToString:@"title"]) {
       scene.title = [value isKindOfClass:NSString.class] ? value : nil;
-      return true;
+      return;
     }
     if ([key isEqualToString:@"subtitle"]) {
       scene.subtitle = [value isKindOfClass:NSString.class] ? value : @"";
-      return true;
+      return;
     }
   }
   if ([object isKindOfClass:UIWindow.class]) {
     if ([key isEqualToString:@"windowLevel"]) {
       ((UIWindow*)object).windowLevel = [value doubleValue];
-      return true;
+      return;
     }
   }
   if ([object isKindOfClass:UISceneSession.class]) {
     if ([key isEqualToString:@"userInfo"]) {
       ((UISceneSession*)object).userInfo =
           [value isKindOfClass:NSDictionary.class] ? value : nil;
-      return true;
+      return;
     }
   }
   if ([object isKindOfClass:UIView.class]) {
     UIView* view = (UIView*)object;
-    if ([key isEqualToString:@"frame"]) { view.frame = JSONToRect(value); return true; }
-    if ([key isEqualToString:@"bounds"]) { view.bounds = JSONToRect(value); return true; }
-    if ([key isEqualToString:@"center"]) { view.center = JSONToPoint(value); return true; }
-    if ([key isEqualToString:@"alpha"]) { view.alpha = [value doubleValue]; return true; }
-    if ([key isEqualToString:@"isHidden"]) { view.hidden = [value boolValue]; return true; }
+    if ([key isEqualToString:@"frame"]) { view.frame = JSONToRect(value); return; }
+    if ([key isEqualToString:@"bounds"]) { view.bounds = JSONToRect(value); return; }
+    if ([key isEqualToString:@"center"]) { view.center = JSONToPoint(value); return; }
+    if ([key isEqualToString:@"alpha"]) { view.alpha = [value doubleValue]; return; }
+    if ([key isEqualToString:@"isHidden"]) { view.hidden = [value boolValue]; return; }
     if ([key isEqualToString:@"clipsToBounds"]) {
       view.clipsToBounds = [value boolValue];
-      return true;
+      return;
     }
-    if ([key isEqualToString:@"isOpaque"]) { view.opaque = [value boolValue]; return true; }
+    if ([key isEqualToString:@"isOpaque"]) { view.opaque = [value boolValue]; return; }
     if ([key isEqualToString:@"isUserInteractionEnabled"]) {
       view.userInteractionEnabled = [value boolValue];
-      return true;
+      return;
     }
-    if ([key isEqualToString:@"tag"]) { view.tag = [value integerValue]; return true; }
+    if ([key isEqualToString:@"tag"]) { view.tag = [value integerValue]; return; }
     if ([key isEqualToString:@"contentMode"]) {
       UIViewContentMode mode;
-      if (!ContentModeFromName(value, &mode)) return false;
+      if (!ContentModeFromName(value, &mode)) {
+        *error = EnumError(@"contentMode", value, NamesForContentMode());
+        return;
+      }
       view.contentMode = mode;
-      return true;
+      return;
     }
   }
   if ([object isKindOfClass:UILabel.class]) {
     UILabel* label = (UILabel*)object;
     if ([key isEqualToString:@"text"]) {
       label.text = [value isKindOfClass:NSString.class] ? value : nil;
-      return true;
+      return;
     }
     if ([key isEqualToString:@"textAlignment"]) {
       NSTextAlignment a;
-      if (!TextAlignmentFromName(value, &a)) return false;
+      if (!TextAlignmentFromName(value, &a)) {
+        *error = EnumError(@"textAlignment", value, NamesForTextAlignment());
+        return;
+      }
       label.textAlignment = a;
-      return true;
+      return;
     }
     if ([key isEqualToString:@"lineBreakMode"]) {
       NSLineBreakMode m;
-      if (!LineBreakModeFromName(value, &m)) return false;
+      if (!LineBreakModeFromName(value, &m)) {
+        *error = EnumError(@"lineBreakMode", value, NamesForLineBreakMode());
+        return;
+      }
       label.lineBreakMode = m;
-      return true;
+      return;
     }
     if ([key isEqualToString:@"baselineAdjustment"]) {
       UIBaselineAdjustment b;
-      if (!BaselineAdjustmentFromName(value, &b)) return false;
+      if (!BaselineAdjustmentFromName(value, &b)) {
+        *error = EnumError(@"baselineAdjustment", value, NamesForBaselineAdjustment());
+        return;
+      }
       label.baselineAdjustment = b;
-      return true;
+      return;
     }
     if ([key isEqualToString:@"numberOfLines"]) {
       label.numberOfLines = [value integerValue];
-      return true;
+      return;
     }
     if ([key isEqualToString:@"adjustsFontSizeToFitWidth"]) {
       label.adjustsFontSizeToFitWidth = [value boolValue];
-      return true;
+      return;
     }
     if ([key isEqualToString:@"minimumScaleFactor"]) {
       label.minimumScaleFactor = [value doubleValue];
-      return true;
+      return;
     }
     if ([key isEqualToString:@"isHighlighted"]) {
       label.highlighted = [value boolValue];
-      return true;
+      return;
     }
-    if ([key isEqualToString:@"isEnabled"]) { label.enabled = [value boolValue]; return true; }
+    if ([key isEqualToString:@"isEnabled"]) { label.enabled = [value boolValue]; return; }
     if ([key isEqualToString:@"preferredMaxLayoutWidth"]) {
       label.preferredMaxLayoutWidth = [value doubleValue];
-      return true;
+      return;
     }
     if ([key isEqualToString:@"shadowOffset"]) {
       label.shadowOffset = JSONToSize(value);
-      return true;
+      return;
     }
   }
-  return false;
+  // 注意：走正常的 JS 路径到不了这里。JS 侧的属性是一个个显式定义的
+  // 取值器，名字不认识的赋值压根不会过桥，而是在包装对象上挂一个普通
+  // 属性（JS 包装对象还是可扩展的，见 project.md 的 TODO）。这句话是
+  // 给直接调 __nacre_native.setProp 的情况兜底的。
+  *error = [NSString stringWithFormat:@"%@ 上没有 %@ 这个可写属性",
+                                      NSStringFromClass([object class]), key]
+               .UTF8String;
 }
 
 nacre::NativeObjectRef ReadNativeObjectProperty(id object, const std::string& name) {
@@ -978,8 +1000,9 @@ std::string InfoDictionaryJSON() {
     host.read_property = [](void* ptr, const std::string& name) {
       return ReadNativeProperty((__bridge id)ptr, name);
     };
-    host.write_property = [](void* ptr, const std::string& name, const std::string& json) {
-      return WriteNativeProperty((__bridge id)ptr, name, json);
+    host.write_property = [](void* ptr, const std::string& name,
+                             const std::string& json, std::string* error) {
+      WriteNativeProperty((__bridge id)ptr, name, json, error);
     };
     host.read_object_property = [](void* ptr, const std::string& name) {
       return ReadNativeObjectProperty((__bridge id)ptr, name);

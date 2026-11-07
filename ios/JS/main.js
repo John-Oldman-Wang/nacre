@@ -388,8 +388,34 @@ application.addEventListener('sceneconnect', (e) => {
   console.log('  contentMode 写入后读回 =', box.contentMode);
   try { box.contentMode = 'cover'; console.log('  ✗ 瞎写的枚举值居然通过'); }
   catch (err) { console.log('  ✓ 认不出的枚举值被拒:', err.message); }
+  // 已知缺口：属性名拼错了不报错。JS 包装对象是可扩展的，赋值就在 JS
+  // 对象上挂了个普通属性，根本不走桥，原生层那句「没有这个可写属性」
+  // 现在触发不到
+  box.noSuchPropertyOops = 1;
+  console.log('  属性名拼错 =', box.noSuchPropertyOops,
+              '← 悄悄挂在 JS 对象上了，没到原生层（已知缺口）');
   console.log('  普通 UIView 的 intrinsicContentSize =',
               '' + box.intrinsicContentSize, '（-1 表示没有固有尺寸）');
+
+  console.log('  --- 严格模式 ---');
+  // 只读属性：iOS 层就是 readonly，写不进去是对的，但不能静默
+  try {
+    box.superview = null;
+    console.log('  ✗ 写只读属性居然没动静');
+  } catch (err) {
+    console.log('  ✓ 写只读属性被拒:', err.constructor.name);
+  }
+  // 结构体字段：这条本来就抛（自带 throwing setter），严格模式下照样抛
+  try { box.frame.x = 10; console.log('  ✗ 改结构体字段居然通过'); }
+  catch (err) { console.log('  ✓ 改结构体字段被拒:', err.message); }
+  // 未声明的赋值：非严格模式下会悄悄建一个全局
+  try {
+    undeclaredOops = 1;
+    console.log('  ✗ 未声明的赋值建出了 globalThis.undeclaredOops =',
+                globalThis.undeclaredOops);
+  } catch (err) {
+    console.log('  ✓ 未声明的赋值被拒:', err.constructor.name);
+  }
 
   console.log('  --- UIFont ---');
   const f17 = UIFont.systemFontOfSize(17);

@@ -153,30 +153,14 @@
   function nativeGet(obj, name) {
     return JSON.parse(native.getProp(obj[kHandle], name));
   }
-  // 写不进去就抛。原生层返回 false 的情况目前只有一种：枚举给了个
-  // 不认识的名字。名字→数值的映射在原生层（NSTextAlignment 的数值随
-  // ABI 变，JS 里写死索引会错），这里的 ENUM_VALUES 只用来凑错误信息。
+  // 写不进去时原生层自己抛，这里什么都不用做。错误信息也由原生层凑：
+  // 可选值列表就在它那张表里，而且它知道是哪个类的哪个属性——按属性名
+  // 索引的表会撞（UIControl.state 和 UIGestureRecognizer.state 是两个
+  // 毫无关系的枚举）。
   function nativeSet(obj, name, value) {
-    const ok = native.setProp(obj[kHandle], name,
-                              JSON.stringify(value === undefined ? null : value));
-    if (ok) return;
-    const choices = ENUM_VALUES[name];
-    throw new TypeError(
-      choices
-        ? name + ' 没有 ' + JSON.stringify(value) + ' 这个值，可选：' + choices.join(' / ')
-        : name + ' 写不进去：这个对象没有这个属性，或者值 ' +
-          JSON.stringify(value) + ' 不被接受');
+    native.setProp(obj[kHandle], name,
+                   JSON.stringify(value === undefined ? null : value));
   }
-  // 只为错误信息服务，不参与映射——真正的表在 NacreRuntime.mm 里。
-  const ENUM_VALUES = {
-    textAlignment: ['left', 'center', 'right', 'justified', 'natural'],
-    lineBreakMode: ['byWordWrapping', 'byCharWrapping', 'byClipping',
-                    'byTruncatingHead', 'byTruncatingTail', 'byTruncatingMiddle'],
-    contentMode: ['scaleToFill', 'scaleAspectFit', 'scaleAspectFill', 'redraw',
-                  'center', 'top', 'bottom', 'left', 'right',
-                  'topLeft', 'topRight', 'bottomLeft', 'bottomRight'],
-    baselineAdjustment: ['alignBaselines', 'alignCenters', 'none'],
-  };
   function nativeGetObject(obj, name) {
     const result = native.getObjProp(obj[kHandle], name);
     return result === undefined ? null : result;

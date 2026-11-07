@@ -85,11 +85,14 @@ typedef NS_ENUM(NSInteger, NSTextAlignment) {
 
 ## 实现：带外的错误出口
 
-三条调用通道（`call_method`、`call_object_method`、`call_class_object_method`）都多带一个 `std::string* error` 出参。宿主往里写一句话，就表示这次调用的参数不被接受，引擎据此抛 `TypeError`，返回值丢掉。
+属性写入和三条调用通道（`call_method`、`call_object_method`、`call_class_object_method`）都多带一个 `std::string* error` 出参。宿主往里写一句话，就表示这次写入或调用不被接受，引擎据此抛 `TypeError`，返回值丢掉。
 
-属性写入走的是另一条路：`write_property` 返回 `bool`，JS 侧据此抛。
+**错误信息全部由原生层凑**，JS 侧一份副本都不留。两个原因：
 
-> 两条路的错误信息现在来自两个地方——参数位由原生层凑（可选值直接取自查表用的那张表），属性位由 `nacre.js` 里的 `ENUM_VALUES` 凑。**这份 JS 副本是个隐患**：它和原生层的表是两份数据，会漂。统一的做法是把 `write_property` 也改成带外错误、删掉 `ENUM_VALUES`，还没做。
+1. 可选值列表就在原生层那张表里，抄一份到 JS 就是两份数据，会漂
+2. 原生层知道上下文——是哪个类的哪个属性。按属性名索引的表迟早会撞：`UIControl.state` 是 `UIControlState`，`UIGestureRecognizer.state` 是 `UIGestureRecognizerState`，两个毫无关系的枚举；`UITableView.style`、`UIBlurEffect.style`、`UIActivityIndicatorView.style` 是三个不相干的枚举
+
+> 那枚举的可选值要不要**暴露给 JS**（比如做成类的静态属性）？暂时不做。ObjC 运行时本身没有枚举反射——`NS_ENUM` 编译完就是整数常量，问不出「`NSTextAlignment` 有哪些值」。我们手里这张表是从头文件抄的，所以暴露它不是补齐 iOS 的能力，而是发明一个新 API，那属于上层。等 bindgen 把枚举类型名作为符号暴露出来时，可选值自然挂在它身上，和 TypeScript 定义一起做。
 
 ## 位掩码
 

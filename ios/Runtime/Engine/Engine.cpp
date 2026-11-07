@@ -365,9 +365,10 @@ struct Engine::Impl {
     Impl* self = From(isolate);
     void* ptr = self->PtrForHandle(info, 0);
     if (!ptr || !self->host.write_property || info.Length() < 3) return;
-    bool ok = self->host.write_property(ptr, SafeToString(isolate, info[1]),
-                                        SafeToString(isolate, info[2]));
-    info.GetReturnValue().Set(ok);
+    std::string error;
+    self->host.write_property(ptr, SafeToString(isolate, info[1]),
+                              SafeToString(isolate, info[2]), &error);
+    Rejected(isolate, error);
   }
 
   // 属性值本身是原生对象：(handle, name) -> 包装对象或 null
@@ -442,8 +443,8 @@ struct Engine::Impl {
   }
 
   // 带参数的类方法，返回原生对象
-  // 宿主拒绝了这次调用（参数不被接受）。抛 TypeError，和属性写不进去那条
-  // 路一致——Web IDL 的 enum 参数给错值也是 TypeError。
+  // 宿主拒绝了这次写入或调用：没有这个属性，或者值不被接受。统一抛
+  // TypeError——Web IDL 的 enum 参数给错值也是 TypeError。
   static bool Rejected(v8::Isolate* isolate, const std::string& error) {
     if (error.empty()) return false;
     isolate->ThrowException(v8::Exception::TypeError(Utf8(isolate, error)));
@@ -779,13 +780,25 @@ bool Engine::Evaluate(const Script& script) {
   bool ok = false;
   {
     v8::TryCatch try_catch(isolate);
+    // 所有脚本都跑在严格模式下。V8 没有「强制 strict」的编译选项，所以
+    // 前置一行指令——ECMAScript 规定它必须是脚本的第一条语句，没有别的
+    // 开启方式。
+    //
+    // 为什么要强制：只读属性写入、写冻结对象，在非严格模式下是**静默
+    // 失败**，严格模式才抛 TypeError；未声明的赋值在非严格模式下会悄悄
+    // 建一个全局变量。这些正是运行时一路在拒绝的那类错，而 ECMAScript
+    // 自己的判断就是它们该抛。
+    //
+    // 代价是源码多了一行，所以 ScriptOrigin 的 line_offset 设 -1 抵回来，
+    // 报错行号仍和文件里的行号对得上。
+    const std::string source_text = "'use strict';\n" + script.source;
     v8::Local<v8::String> source;
-    if (!v8::String::NewFromUtf8(isolate, script.source.data(), v8::NewStringType::kNormal,
-                                 static_cast<int>(script.source.size()))
+    if (!v8::String::NewFromUtf8(isolate, source_text.data(), v8::NewStringType::kNormal,
+                                 static_cast<int>(source_text.size()))
              .ToLocal(&source)) {
       if (impl_->host.log) impl_->host.log(LogLevel::Error, "Failed to load " + script.name);
     } else {
-      v8::ScriptOrigin origin(V8Str(isolate, script.name.c_str()));
+      v8::ScriptOrigin origin(V8Str(isolate, script.name.c_str()), -1);
       v8::Local<v8::Script> compiled;
       v8::Local<v8::Value> result;
       if (!v8::Script::Compile(ctx, source, &origin).ToLocal(&compiled)) {

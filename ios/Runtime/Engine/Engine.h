@@ -44,9 +44,11 @@ struct EngineHost {
   // 原生对象的属性读写。值用 JSON 编码，避免为每个属性加一个回调。
   // 宿主内部用一张「类名 + 属性名」的分发表来实现。
   std::function<std::string(void* ptr, const std::string& name)> read_property;
-  // 返回 false 表示这个值没能写进去（比如枚举给了个不认识的名字），
-  // JS 侧据此抛异常——写不进去又不报错是最难查的那种错。
-  std::function<bool(void* ptr, const std::string& name, const std::string& json)>
+  // 写不进去就往 error 里写一句话（没有这个属性，或者枚举给了个不认识的
+  // 名字），引擎据此抛 TypeError——写不进去又不报错是最难查的那种错。
+  // 和下面三条调用通道共用同一套约定，见 call_method。
+  std::function<void(void* ptr, const std::string& name, const std::string& json,
+                     std::string* error)>
       write_property;
   // 属性值本身是原生对象时走这个
   std::function<NativeObjectRef(void* ptr, const std::string& name)> read_object_property;

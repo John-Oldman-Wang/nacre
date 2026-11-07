@@ -91,6 +91,7 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 | 代码分层 | Swift：启动壳；ObjC++：运行时入口和 iOS 桥接；C++：引擎封装（`Runtime/Engine/` 只依赖 V8，不依赖 iOS） |
 | 生命周期 | 只使用 Scene 生命周期 |
 | 场景数量 | 运行时**不写死**，配置是什么就读到什么。两个事实都提供给 JS：**声明值**在 `application.info.UIApplicationSceneManifest.UIApplicationSupportsMultipleScenes`，**实际能力**在 `application.supportsMultipleScenes`（＝声明 AND 环境允许；iPhone 上多场景主要靠外接显示器，iPad 是常态）。原生层只提供事实，由 JS 自行判断。当前项目声明为 `false` |
+| JS 执行模式 | **严格模式**。运行时给每个脚本（内置脚本和用户脚本）前置一行 `'use strict'`，行号用 `ScriptOrigin` 的 `line_offset = -1` 抵回来。理由见下 |
 | JS 全局对象 | `globalThis` 保留不动；运行时注入 `Application` 类及其**唯一实例** `application`（单例）。**不叫 `window`**：`UIWindow` 在 iOS 里是真实存在的另一个东西，会撞。详见 [API 文档](api/application.md) |
 | 原生 API 命名空间 | **不设命名空间**，按 ObjC 类名裸暴露在全局：`new UIWindow(...)`、`NSString`。理由见下 |
 | 暂不考虑 | 插槽、CLI、开发模式、启动屏、iPad、Mac Catalyst，以后按需再做 |
@@ -131,6 +132,22 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 
   **不要为此把启动改成同步执行**：那会把约 70 ms 挪进启动阻塞，而且 `main.js` 是用户代码，慢起来有触发看门狗的风险。实测场景接入晚于 `main.js` 执行完约 111 ms，但这个时间差不是正确性的依据——队列的 FIFO 才是。
 - **影子树降级为优化**。独立线程方案里它是必须的（否则跨线程开销爆炸、同步询问无解）；JS 上主线程后直接操作真实 `UIView` 即可。批量提交仍有价值（减少 layout 次数），但不再是正确性要求
+
+### JS 为什么强制严格模式
+
+非严格模式下这三件事是**静默失败**的，严格模式才抛：
+
+| 写法 | 非严格 | 严格 |
+| --- | --- | --- |
+| 写只读属性（`view.superview = x`） | 什么都不发生 | `TypeError` |
+| 写冻结对象的字段 | 什么都不发生 | `TypeError` |
+| 未声明的赋值（`x = 1`） | 悄悄建一个全局变量 | `ReferenceError` |
+
+这正是这个项目一路在拒绝的那类错——**写不进去又不报错**。而判据不是我们自己定的：ECMAScript 在 ES5 引入严格模式时，就是把这几件事从静默失败改成了抛，理由和我们的一样。
+
+一个关键的实测事实：**抛不抛由「写的那一方」决定，不是「定义的那一方」。** `nacre.js` 里的 class 体天然是严格的，但用户在 `main.js` 里写 `label.intrinsicContentSize = x` 时，决定行为的是 `main.js` 的模式。所以只能在脚本这一层开。
+
+V8 没有「强制严格」的编译选项（`v8::Script::Compile` 编译的是 classic script，默认非严格），ECMAScript 也只认 `'use strict'` 这一种开启方式，所以运行时在源码前面拼这一行。连带的好处是结构体不必再靠逐字段抛异常的取值器来防静默失败——不过那套实现更强（两种模式下都抛），留着。
 
 ### 事件模型：借什么、不借什么
 
@@ -314,6 +331,7 @@ iOS 层是一张**写死的名字表**，不是用名字拼 selector 再 `perfor
 | `call_class_object_method` | 带参数的类方法，比如 `UIFont.systemFontOfSize(17)`。参数规则和 `call_method` 一样 |
 | `write_property` 改为返回 `bool` | 写不进去时 JS 抛异常。目前只有枚举名不认识会触发 |
 | 三条调用通道加 `std::string* error` 出参 | 参数不被接受时抛 `TypeError`。不能靠「返回空值」表示失败——空值本身是合法答案（`fontWithName` 找不到字体、`hitTest` 没命中都该返回 `null`），「没有这个东西」和「你问错了」必须分得开 |
+| `write_property` 也收进同一个出口 | 原来返回 `bool` 让 JS 凑错误信息，需要 JS 侧抄一份可选值列表。改成带外错误后，错误信息由原生层凑——那张表就在它手里，而且它知道是哪个类的哪个属性。按属性名索引的表迟早会撞：`UIControl.state` 和 `UIGestureRecognizer.state` 是两个毫无关系的枚举，三个不相干的枚举都叫 `style` |
 
 枚举的决定见上面的设计点 3。
 
@@ -466,6 +484,18 @@ Web 能双向字符串化是因为 CSSOM 自己留着声明串，我们没有这
 暂时**没有副作用**：JS 侧的方法和属性照样工作（它们在 JS 原型链上），原生侧也不需要知道子类存在。真正出问题要等到需要**覆写原生方法**的时候（比如自定义 `drawRect:`、`layoutSubviews`），那时得动态生成 ObjC 子类并把方法转发回 JS。
 
 所以**不限制继承**，先记在这里。限制了反而挡住「用 ES class 给原生类加便利方法」这种合理用法。这条和设计点 1「创建与继承」是同一件事。
+
+**TODO：属性名拼错了不报错。** 原生对象的 JS 包装对象是**可扩展**的，所以：
+
+```js
+view.backgroundColour = 'red';   // 英式拼法，悄悄挂在 JS 对象上，什么都不会发生
+```
+
+JS 侧的属性是一个个显式定义的取值器，名字不认识的赋值压根不过桥——原生层那句「没有这个可写属性」现在触发不到。这和只读属性静默失败是同一类错，但**严格模式救不了它**：给一个可扩展对象加新属性，ECMAScript 认为是完全合法的。
+
+要堵只能靠 `Object.preventExtensions`，而那是个真实的取舍：JS 开发者习惯往对象上挂自己的数据（`view.myData = {...}`），禁止扩展就挂不了，连 ES 子类的 `this.xxx = ...` 也一起挡掉。候选是给原生对象留一个专门的地方放用户数据，或者干脆接受这个缺口。
+
+和[子类化原生类](#待讨论的设计问题)那条相关，一起定。
 
 **TODO：`UITraitCollection` 还没暴露。** 这一条挡着三件事：
 
