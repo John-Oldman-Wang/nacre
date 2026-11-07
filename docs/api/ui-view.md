@@ -49,6 +49,7 @@ ObjC 里 `view.frame.x = 10` 是编译错误（改的是一个临时副本）。
 | `convertRect(r, { toView })` | → `CGRect` | |
 | `convertRect(r, { fromView })` | → `CGRect` | |
 | `hitTest(point)` | → `UIView` \| `null` | 递归找这个点上的目标视图 |
+| `intrinsicContentSize` | `CGSize` 只读 | 「我天生多大」。普通 `UIView` 返回 `(-1, -1)`，表示没有固有尺寸；`UILabel` 按文字算 |
 
 `sizeThatFits:` 值得单独说：它是**同步**读布局，而这正是[技术选型](../project.md)里「JS 必须跑在主线程」那条的具体形态。
 
@@ -85,13 +86,13 @@ ObjC 里 `view.frame.x = 10` 是编译错误（改的是一个临时副本）。
 | `isOpaque` | `boolean` 读写 | `true` |
 | `isUserInteractionEnabled` | `boolean` 读写 | `true` |
 | `tag` | `number` 读写 | `0` |
+| `contentMode` | 枚举字符串 读写 | `'scaleToFill'`，见[枚举文档](enums.md) |
 
 > **`alpha` 读回来会有浮点误差**：写 `0.6`，读回 `0.6000000238418579`。这是 UIKit 自己的行为——`alpha` 背后是 `CALayer.opacity`，那是个 32 位 float。不是我们这一层的编码问题。
 
 ## 还没做
 
-- **`contentMode`**：是枚举。枚举怎么暴露给 JS 还没定（字符串还是数字），和 bindgen 一起定
-- **Auto Layout**：`leadingAnchor` 等 12 个锚点、`NSLayoutConstraint`、`intrinsicContentSize`、内容抱紧和抗压缩优先级、`translatesAutoresizingMaskIntoConstraints`。这是一整个子系统，要先有 `NSLayoutConstraint`、三种 anchor 类和 `UILayoutGuide`
+- **Auto Layout**：`leadingAnchor` 等 12 个锚点、`NSLayoutConstraint`、内容抱紧和抗压缩优先级、`translatesAutoresizingMaskIntoConstraints`。这是一整个子系统，要先有 `NSLayoutConstraint`、三种 anchor 类和 `UILayoutGuide`
 - **`transform` / `transform3D`**：要 `CGAffineTransform` / `CATransform3D` 结构体
 - **`layer`**：每个 `UIView` 背后都有一个 `CALayer`，真正画东西的是它。要先有 `CALayer` 类
 - **`maskView`、`tintColor`、`drawRect:`**

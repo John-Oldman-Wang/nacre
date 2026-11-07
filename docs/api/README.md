@@ -18,7 +18,10 @@ Nacre 的 API 分两层：
 | [`UISceneSession`](ui-window-scene.md#uiscenesession) | 场景的持久身份：角色、标识、自定义数据 |
 | [`UIWindow`](ui-window.md) | 视图树的根，挂在场景上 |
 | [`UIView`](ui-view.md) | 视图。几何、层级、外观 |
+| [`UILabel`](ui-label.md) | 文字 |
+| [`UIFont`](ui-font.md) | 字体 |
 | [结构体](structs.md) | `CGPoint`、`CGSize`、`CGRect`、`UIEdgeInsets`，只读 |
+| [枚举](enums.md) | 一律用字符串 |
 | [`UIColor`](ui-color.md) | 颜色。基础色、系统色、语义色 |
 | `UIViewController` | 页面。目前只有可构造和只读的 `view`（文档待补） |
 | `NSObject` | ObjC 的根类，所有原生类的基类（继承 `EventTarget`） |

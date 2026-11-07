@@ -267,7 +267,9 @@ Commit message 格式：
 | 1 | 运行时基础对象：`EventTarget`、`Event`、`Application` 和单例 `application`，以及全局错误出口 | Info.plist、应用状态、App 级通知、未捕获异常与未处理拒绝 | 已在模拟器验证通过，待提交 |
 | 2 | 窗口和根页面由 JS 创建 | 场景事件转发、UIWindow、UIViewController、UIColor | 已在模拟器验证通过：JS 创建窗口和根页面，并设好底色，屏幕不再是黑的 |
 | 2.5 | `UIView` 的几何、层级、外观 | 结构体、带参数的方法通道、对象数组 | 已在模拟器验证通过：JS 建子视图、设 frame 和颜色，屏幕上出现色块 |
-| 3 | 文字、图片 | UILabel、UIImageView、Auto Layout | 待讨论 |
+| 3a | 文字 | UILabel、UIFont、枚举、带参数的类方法 | 已在模拟器验证通过：JS 设字体、颜色、对齐和行数，文字上屏并正确截断；顺带补上 `UIWindow` 的四个 key/可见性事件 |
+| 3b | 图片 | UIImageView、UIImage、读 Bundle 文件 | 待讨论 |
+| 3c | Auto Layout | NSLayoutConstraint、锚点、UILayoutGuide | 待讨论 |
 | 4 | 按钮和点击事件 | Target-Action、JS 回调 | 待讨论 |
 | 5 | 页面跳转 | UINavigationController、继承 UIViewController | 待讨论 |
 | 6 | 网络请求 | `fetch`（基于 NSURLSession） | 待讨论 |
@@ -304,6 +306,16 @@ iOS 层是一张**写死的名字表**，不是用名字拼 selector 再 `perfor
 - **结构体的线上格式是扁平的**（`CGRect` 是 `x`/`y`/`width`/`height`，不是嵌套的 `origin`/`size`）。嵌套视图由 JS 侧的 `CGRect` 类用原型取值器提供，所以不参与 `JSON.stringify`。线上格式是内部约定，以后换编码不影响 JS。
 
 实测到一条 UIKit 自己的行为：**`UIView.alpha` 写 `0.6` 读回 `0.6000000238418579`**。`alpha` 背后是 `CALayer.opacity`，那是 32 位 float，不是我们这层的编码问题。
+
+#### 第 3a 步新增的机制
+
+| 通道 | 用途 |
+| --- | --- |
+| `call_class_object_method` | 带参数的类方法，比如 `UIFont.systemFontOfSize(17)`。参数规则和 `call_method` 一样 |
+| `write_property` 改为返回 `bool` | 写不进去时 JS 抛异常。目前只有枚举名不认识会触发 |
+| 三条调用通道加 `std::string* error` 出参 | 参数不被接受时抛 `TypeError`。不能靠「返回空值」表示失败——空值本身是合法答案（`fontWithName` 找不到字体、`hitTest` 没命中都该返回 `null`），「没有这个东西」和「你问错了」必须分得开 |
+
+枚举的决定见上面的设计点 3。
 
 ### 第 0 步的审阅问题（已修复并验证）
 
@@ -371,7 +383,7 @@ view.convertPoint(p, { fromView: other })         // convertPoint:fromView:
 
 不漂亮的地方是参数同质的构造类方法：`UIColor.colorWithRed(1, { green: 0, blue: 0, alpha: 1 })`。但这类方法上层已经用字符串绕开了（见 [`UIColor` 文档](api/ui-color.md#上层怎么写颜色方向已定未实现)），JS 开发者基本不碰；要原样调用还有 `send(selector, ...args)` 兜底。
 
-**2. 结构体：JS 类 + 冻结。** `CGRect` / `CGPoint` / `CGSize` 等做成 JS 类，实例上同时提供嵌套访问和扁平访问，并且**冻结**：
+**2. 结构体：JS 类 + 只读字段。** `CGRect` / `CGPoint` / `CGSize` 等做成 JS 类，实例上同时提供嵌套访问和扁平访问，字段**写入即抛**：
 
 ```js
 box.frame = new CGRect(40, 100, 200, 120);
@@ -380,7 +392,25 @@ box.frame.origin.x;     // 40  ← 和 ObjC 的 {CGPoint origin; CGSize size;} �
 box.frame.x = 10;       // TypeError
 ```
 
-冻结是关键。ObjC 里 `view.frame.x = 10` 是编译错误（不能改返回的临时结构体），用普通对象表示的话它会变成**静默无效**——我们一路在拒绝的那种错。代价是每次读 `frame` 要建一个对象，jitless 下有成本，正确性优先。
+写入即抛是关键。ObjC 里 `view.frame.x = 10` 是编译错误（不能改返回的临时结构体），用普通对象表示的话它会变成**静默无效**——我们一路在拒绝的那种错。
+
+注意这里**不能用 `Object.freeze`**：冻结对象的赋值只在严格模式下抛，而用户的 `main.js` 是普通脚本（sloppy），冻结反而会静默失败。实现用的是逐字段抛异常的取值器加 `Object.preventExtensions`。代价是每次读 `frame` 要建一个对象，jitless 下有成本，正确性优先。
+
+**3. 枚举：一律用字符串。** 名字是 ObjC 常量去掉类型前缀、首字母小写；位掩码用字符串数组；认不出的值直接抛，不静默忽略也不退回默认值。
+
+```js
+label.textAlignment = 'center';            // NSTextAlignmentCenter
+view.contentMode = 'scaleAspectFit';       // UIViewContentModeScaleAspectFit
+view.autoresizingMask = ['flexibleWidth', 'flexibleHeight'];   // 位掩码（未实现）
+```
+
+和已有的 `scene.activationState` / `application.state` 一致。
+
+参数位的枚举（`UIFont.systemFontOfSize(17, { weight })`）和属性位一样抛。Web 在这一点上自己就是分两套的——CSS 属性值给错了静默保持原值，而 Web IDL 的 enum 参数（`Request` 的 `mode`、`animate` 的 `fill`）一律抛 `TypeError`。我们的 options 键在形状上就是后者。实测对照记在[枚举文档](api/enums.md#为什么不学-css)。
+
+**名字 ↔ 数值的映射只能放在原生层**：`NSTextAlignment` 的数值随 ABI 变（`TARGET_ABI_USES_IOS_VALUES`——iOS 上 `Center` 是 1，macOS 上是 2），JS 里按数组下标映射换个平台就全错。为此 `write_property` 改成返回 `bool`：原生层查不到名字就返回 `false`，JS 据此抛异常。写不进去又不报错是最难查的那种错。
+
+详见 [枚举文档](api/enums.md)。
 
 还剩三个设计点（推荐方案，未确认）：
 
@@ -430,6 +460,20 @@ Web 能双向字符串化是因为 CSSOM 自己留着声明串，我们没有这
 为了做到 B 去耦合垃圾回收，复杂度和收益不成比例。倾向先做 A，再把 `isEqual()` 作为逃生口暴露出去（从 `NSObject` 继承，一行的事），两个加起来既便宜又没有静默的坑。
 
 实测数据见 [`UIColor` 文档的「实测：相等性和 `description`」](api/ui-color.md#实测相等性和-description)。真正动手要等视图层起来、看清真实代码里怎么写颜色。
+
+**TODO：JS 子类化原生类。** 现在 `class MyLabel extends UILabel {}` 之后 `new MyLabel()` 建出来的原生对象是 `UILabel`，不是 `MyLabel` 的对应物——每个原生类的构造函数写死了自己的类名。
+
+暂时**没有副作用**：JS 侧的方法和属性照样工作（它们在 JS 原型链上），原生侧也不需要知道子类存在。真正出问题要等到需要**覆写原生方法**的时候（比如自定义 `drawRect:`、`layoutSubviews`），那时得动态生成 ObjC 子类并把方法转发回 JS。
+
+所以**不限制继承**，先记在这里。限制了反而挡住「用 ES class 给原生类加便利方法」这种合理用法。这条和设计点 1「创建与继承」是同一件事。
+
+**TODO：`UITraitCollection` 还没暴露。** 这一条挡着三件事：
+
+- JS 读不到当前是深色还是浅色、文字大小是多少、对比度设置
+- JS 收不到外观变化的通知，没法自己做判断（换图、换布局）
+- `overrideUserInterfaceStyle` 写不了，局部强制深浅做不到
+
+**注意区分**：动态色和动态字体本身**不需要** JS 做任何事——`view.backgroundColor = UIColor.systemBackgroundColor` 之后，深色模式切换时 UIKit 自己重新解析并重绘；标签跟随文字大小靠 `UILabel.adjustsFontForContentSizeCategory` 这个属性。trait 事件服务的是**JS 自己要对外观做反应**的场合，不是颜色和字体的刷新。
 
 另外四个来自第 0 步的待定问题：
 
