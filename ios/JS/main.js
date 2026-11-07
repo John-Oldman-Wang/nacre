@@ -214,6 +214,20 @@ application.addEventListener('sceneconnect', (e) => {
   console.log('  persistentIdentifier =', session.persistentIdentifier);
   console.log('  session 身份也一致 =', scene.session === session);
 
+  console.log('  --- session.userInfo 往返 ---');
+  console.log('  初始值 =', JSON.stringify(session.userInfo));
+  session.userInfo = { 类型: '收件箱', 数量: 42, 已读: true, 列表: [1, 2] };
+  console.log('  写入后读回 =', JSON.stringify(session.userInfo));
+  try {
+    session.userInfo = { 有个空值: null };
+    console.log('  含 null 写入后读回 =', JSON.stringify(session.userInfo),
+                '（plist 不接受 NSNull，看会不会出问题）');
+  } catch (e) {
+    console.log('  ✗ 含 null 写入抛异常:', e.message);
+  }
+  session.userInfo = null;
+  console.log('  置空后 =', JSON.stringify(session.userInfo));
+
   console.log('  --- 可读写属性 ---');
   console.log('  isFullScreen =', scene.isFullScreen);
   console.log('  title 原值 =', JSON.stringify(scene.title));

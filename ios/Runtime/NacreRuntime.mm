@@ -89,7 +89,10 @@ const char* StateName(int state) {
 // Info.plist 里绝大多数是字符串/数字/布尔/数组/字典，但不保证全都能 JSON 序列化
 // （NSDate、NSData 就不行）。这里递归过一遍，不认识的转成字符串，避免整个序列化失败。
 id SanitizeForJSON(id value) {
-  if ([value isKindOfClass:NSString.class] || [value isKindOfClass:NSNumber.class]) {
+  // NSNull 本来就是合法的 JSON null，必须原样放行。
+  // 漏掉它会落到最后那行 [value description]，把 null 变成字符串 "<null>"。
+  if ([value isKindOfClass:NSString.class] || [value isKindOfClass:NSNumber.class] ||
+      value == NSNull.null) {
     return value;
   }
   if ([value isKindOfClass:NSArray.class]) {

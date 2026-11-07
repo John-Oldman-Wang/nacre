@@ -70,10 +70,31 @@ application.addEventListener('sceneconnect', (e) => {
 | --- | --- | --- | --- |
 | `role` | string | `'UIWindowSceneSessionRoleApplication'`（普通窗口）、`'UIWindowSceneSessionRoleExternalDisplayNonInteractive'`（外接显示器）等。**决定这个场景该画什么界面** | 已实现 |
 | `persistentIdentifier` | string | 跨销毁重建保持不变，用来认出是不是同一个窗口 | 已实现 |
-| `userInfo` | object，**可写** | 自己存的数据，随 session 持久化 | 已实现 |
+| `userInfo` | object，**可写** | 给这个窗口打标记：「它在看什么」。随 session 持久化，详见下 | 已实现 |
 | `configuration` / `stateRestorationActivity` | | | 待做，依赖对应的类 |
 
 `UISceneSession` 同样不可构造，身份同样一致（`scene.session === scene.session`）。
+
+### `userInfo` 怎么用
+
+`UISceneSession` 实现了 `NSSecureCoding`，整个 session 会被系统**持久化**。所以 `userInfo` 里的东西能活过「场景断开重连」「App 被杀掉重开」「多任务切换器里的卡片」。
+
+它的用途是**给每个窗口打标记，说明这个窗口在看什么**——多窗口时尤其重要：
+
+```js
+application.addEventListener('sceneconnect', (e) => {
+  const info = e.scene.session.userInfo;
+  if (info.类型 === '邮件详情') {
+    打开邮件(info.邮件ID);      // 恢复到关掉前那封邮件
+  } else {
+    打开收件箱();
+  }
+});
+```
+
+它和旁边的 `stateRestorationActivity` 分工：`userInfo` 是纯本地的普通字典，标记「这个窗口是什么」；`stateRestorationActivity` 是 `NSUserActivity`，更结构化，还能兼做 Handoff / Spotlight。
+
+> **值必须是 plist 类型**（SDK 原话：`objects must be plist types`）——字符串、数字、布尔、数组、字典。**`null` 不是 plist 类型**，写进去系统可能在持久化时丢弃它。JSON 能表达的其余类型都在安全范围内。
 
 ## 事件
 
