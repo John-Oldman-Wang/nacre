@@ -84,10 +84,10 @@ application.addEventListener('sceneconnect', (e) => {
 ```js
 application.addEventListener('sceneconnect', (e) => {
   const info = e.scene.session.userInfo;
-  if (info.类型 === '邮件详情') {
-    打开邮件(info.邮件ID);      // 恢复到关掉前那封邮件
+  if (info.kind === 'mailDetail') {
+    openMail(info.mailId);      // 恢复到关掉前那封邮件
   } else {
-    打开收件箱();
+    openInbox();
   }
 });
 ```
@@ -132,12 +132,32 @@ application.addEventListener('sceneconnect', (e) => {
 ```js
 application.addEventListener('sceneconnect', (e) => {
   e.scene === application.scenes[0];   // true
-  e.scene.我的数据 = { 页面: '首页' };
-  application.scenes[0].我的数据.页面;  // '首页'
+  e.scene.myData = { page: 'home' };
+  application.scenes[0].myData.page;   // 'home'
 });
 ```
 
 这不是细节——没有这条保证，`===` 比较会失效，挂在包装对象上的自定义属性会凭空消失，用 `Map` / `WeakMap` 做缓存也会失败。
+
+## 屏幕方向（待做，方案已定）
+
+方向是第一个能完整走通「读 + 写 + 变化通知」三格的能力，而且「写」那一格会把**「系统要同步返回值，就转成 JS 预先声明的状态」**这个模式第一次落地。
+
+**注意 iOS 26 挪过位置**：`UIWindowScene.interfaceOrientation` 已废弃，方向现在在 `effectiveGeometry` 上；旧的 `windowScene:didUpdateCoordinateSpace:interfaceOrientation:traitCollection:` 也废弃了，换成 `windowScene:didUpdateEffectiveGeometry:`。
+
+| 格 | JS 形态 | 原生怎么实现 |
+| --- | --- | --- |
+| **读** | `scene.effectiveGeometry.interfaceOrientation` | 新增 `UIWindowSceneGeometry` 类，先只暴露 `interfaceOrientation` 和 `isInterfaceOrientationLocked` 两个基本类型成员，`systemFrame` 等结构体等有结构体支持再说 |
+| **写** | `scene.supportedOrientations = ['portrait', 'landscapeLeft']` | 运行时存下这个值；`SceneDelegate` 实现 `supportedInterfaceOrientationsForWindowScene:`，**直接返回存的值，不回 JS**；写入时调 `setNeedsUpdateOfSupportedInterfaceOrientations` 告诉系统「变了，再问一次」 |
+| **变化通知** | `scene` 上的 `geometrychange` 事件 | 实现 `windowScene:didUpdateEffectiveGeometry:` |
+
+「写」这一格的关键在于：**系统的回调是同步的，但回调的内容来自异步设置的状态**。这正是 Apple 官方推荐的写法——`shouldAutorotate` 的废弃说明里原话就是「更新你支持的方向，然后调 `setNeedsUpdateOfSupportedInterfaceOrientations` 来表示变了」。React Native 生态的方向库也是这个模式，只是它要求 App 开发者手改 `AppDelegate`，而我们做进运行时。
+
+用**属性**而不是方法（`scene.supportedOrientations = [...]` 而不是 `scene.setSupportedOrientations([...])`），因为它表达的是状态而非动作——第 2 节原则 2「能力导向」。
+
+还有一个要分清的：**设备方向 ≠ 界面方向**。`UIDevice.orientation` 是物理朝向（还含面朝上/朝下），`interfaceOrientation` 是界面实际显示的方向。App 锁竖屏时设备横过来，设备方向变了但界面方向不变。要不要同时暴露设备方向，单独定。
+
+另外实际开发中更常用的是**每个页面**的方向（`UIViewController.supportedInterfaceOrientations`），scene 这层管的是窗口整体。等 `UIViewController` 做了再补那一层。
 
 ## 实现说明
 

@@ -118,12 +118,12 @@ new Application()   // TypeError: Illegal constructor
 
 ```js
 application.addEventListener('error', (e) => {
-  上报崩溃(e.message, e.filename, e.lineno, e.error);
+  reportCrash(e.message, e.filename, e.lineno, e.error);
   e.preventDefault();          // 不再打运行时的默认日志
 });
 
 application.addEventListener('unhandledrejection', (e) => {
-  上报崩溃(e.reason);
+  reportCrash(e.reason);
   e.preventDefault();
 });
 ```
@@ -162,7 +162,7 @@ if (application.supportsMultipleScenes) {
 
 // 监听内存警告
 application.addEventListener('memorywarning', () => {
-  缓存.clear();
+  cache.clear();
 });
 
 // 一次性监听
@@ -173,7 +173,7 @@ const ok = await application.openURL('https://example.com');
 
 // 后台任务，生命周期自动配对
 await application.runInBackground('上传日志', async () => {
-  await 上传();
+  await uploadLogs();
 });
 ```
 
