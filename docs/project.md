@@ -20,7 +20,7 @@ Nacre 仓库包含一个**没有具体业务的 iOS App**，它覆盖常见 App 
 | 类别 | 内容 |
 | --- | --- |
 | 启动壳 | AppDelegate、SceneDelegate：只负责启动运行时，并把系统事件转发给 JS |
-| 运行时 | V8 初始化、JS 线程、线程切换、内存管理 |
+| 运行时 | V8 初始化、事件循环、内存管理 |
 | 能力暴露 | 把 iOS API 暴露给 JS 的桥接代码 |
 
 **不允许**出现在原生层：界面创建、页面跳转、网络请求、数据处理等任何决定"App 做什么"的代码。
@@ -80,7 +80,7 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 | 系统与设备 | iOS 26+，只支持 iPhone，只支持 arm64（真机和 Apple Silicon 模拟器），Xcode 26+ |
 | JS 引擎 | V8 14.9.207.39，使用 [NativeScript/v8-buildscripts](https://github.com/NativeScript/v8-buildscripts) 发布的预编译静态库；lite mode 构建，即 jitless。**不要传 `--jitless`**（只读标志，设置会崩溃） |
 | V8 获取方式 | `ios/scripts/fetch-v8.sh` 下载并校验 SHA256，放到 `ios/Vendor/v8`，不提交 |
-| 线程模型 | JS 运行在独立线程（8MB 栈，裸任务队列，不挂 run loop），所有 V8 操作只在 JS 线程上执行；UIKit 只在主线程调用；**主线程永远不同步等待 JS**；每一轮任务由 iOS 层包一个自动释放池 |
+| 线程模型 | **JS 运行在主线程**，和 UIKit 同线程，所以同步读布局和同步回调天然成立。主线程栈用链接器参数 `-Wl,-stack_size,0x800000` 设为 8MB（真机默认 1MB，不够 V8 用）。V8 的空闲任务在 run loop 即将等待时执行，做增量 GC。理由和代价见下 |
 | UI 框架 | UIKit（不用 SwiftUI 作为渲染目标；需要 SwiftUI 组件时通过 `UIHostingController` 嵌入） |
 | 排版 | iOS 原生方式：Auto Layout 约束、UIStackView、CALayer 属性。**不实现 DOM、CSS、flexbox** |
 | 加载模型 | JS 在构建时打进 App Bundle，启动时从本地读取。不通过 HTTP 加载，没有 URL、origin、`location`、`history` |
@@ -93,24 +93,78 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 | 原生 API 命名空间 | **不设命名空间**，按 ObjC 类名裸暴露在全局：`new UIWindow(...)`、`NSString`。理由见下 |
 | 暂不考虑 | 插槽、CLI、开发模式、启动屏、iPad、Mac Catalyst，以后按需再做 |
 
-### JS 线程为什么不挂 run loop
+### JS 为什么跑在主线程
 
-JS 线程用的是条件变量 + 任务队列，相当于 Chromium 的 `MessagePumpDefault`。Chromium 的做法是「自己的任务队列 + 可插拔的 pump」；在 macOS 上它给渲染进程主线程（跑 V8 的那个）选的确实是 `MessagePumpNSRunLoop`，原因写在 `content/renderer/renderer_main.cc` 的注释里：Cocoa 绘制滚动条要靠 NSTimer，需要 Foundation 级别的循环。
+最初定的是 JS 跑在独立线程（裸任务队列、不挂 run loop），理由是「JS 不卡 UI」。后来发现这条路和一个更早的决定冲突，必须改。
 
-逐条核对步骤 0–11，Nacre 的 JS 线程没有这个需求：
+**冲突点**：本节定了「排版用 Auto Layout，不实现 DOM、CSS、flexbox」。于是：
 
-- `NSURLSession`（第 5 步）的回调投到 session 自己的队列，不要求调用线程有 run loop
-- `setTimeout` 只需要给任务队列加延时任务（`wait_until`），不需要 run loop
-- UIKit 全部在主线程，不相关
-- `CLLocationManager`（第 10 步）确实要求所在线程有 run loop，但它可以在主线程创建，回调再切回 JS 线程
+- 布局引擎在 UIKit 里，只在主线程
+- JS 要**同步读布局**（`view.frame`、`sizeThatFits`）就必须在主线程
+- **同步回调**同理——`cellForRowAtIndexPath:` 必须立刻返回一个 cell，没有声明式替代
 
-反过来，CFRunLoop 是可重入的：嵌套的 run loop 会在 JS 调用栈中间执行队列里的其他任务，破坏「JS 线程串行执行 JS」。裸队列没有这个问题。
+对比三个成熟运行时，分水岭正在这里：
 
-**判据：只有当某个要暴露的能力必须在有 run loop 的线程上工作、且无法放到主线程时，才把 JS 线程改为 run loop 支撑。** 目前步骤 0–11 中没有这样的能力。
+| | 布局引擎在哪 | JS 能不能独立线程 |
+| --- | --- | --- |
+| React Native（Fabric） | 自己的 Yoga，在 C++ 影子树里 | 能——布局结果在影子树，同线程可读 |
+| Chrome | Blink 的布局，和 JS 同线程 | 不需要，本来就同线程 |
+| **Nacre** | **Auto Layout，在 UIKit 里** | **不能** |
 
-自动释放池不依赖这个选择：没有 run loop 就没有系统提供的池，所以由 iOS 层给每一轮任务注入 `@autoreleasepool`。React Native 在 `RCTMessageThread.mm` 里给每轮 run loop 包池、Chromium 在 message pump 里给每个 work item 建池，都是同一个做法。`JSThread` 通过 `TaskScope` 接收这个包装，`Runtime/Engine/` 仍然只依赖 V8。
+要在独立线程下同时支持「同步读布局」和「同步回调」，唯一出路是自己实现布局引擎——那推翻的是更早的决定。所以 JS 上主线程。
 
-> 当前 JS 全局环境里有什么、没什么（实测清单），见 [API 文档](api/README.md)。
+**代价，都要正视：**
+
+- **jitless 让代价比浏览器大**。我们是 lite mode，只有 Ignition 解释器，没有 TurboFan。浏览器敢把 JS 放主线程是建立在 JIT 之上的。UI 编排代码问题不大，但 App 里一旦有重计算就会卡住界面
+- **滚动会跟着卡**。浏览器有合成器线程兜底，JS 卡住滚动照样流畅；iOS 的 `UIScrollView` 滚动是主线程驱动的，没有这个兜底
+- **栈**。真机 iOS 主线程栈默认 1MB，刚好卡在 V8 的默认假设上，零余量。用 `-Wl,-stack_size,0x800000` 写进 `LC_MAIN`，实测运行时生效（模拟器上从 8176 KB 变成 8192 KB）。代价是必须关掉 `ENABLE_DEBUG_DYLIB`，否则链接器报「`-stack_size` 只能用于主可执行文件」，Debug 增量构建也会变慢。**真机是否同样生效尚未验证**
+- **启动**。V8 初始化实测 10 ms、context 15 ms，直接计入启动耗时
+
+**连带的变化：**
+
+- **空闲 GC 从可选变成必须**。平台初始化改成 `IdleTaskSupport::kEnabled`（默认 `kDisabled`，等于没有空闲 GC），用 `CFRunLoopObserver` 在 `kCFRunLoopBeforeWaiting` 时调 `RunIdleTasks`。Chrome 就是这样在帧间隙做增量 GC 的
+- **原来「JS 线程不挂 run loop」的判据作废**。那条写的是「只有当某个能力必须在有 run loop 的线程上工作、且无法放到主线程时才改」，现在 JS 就在主线程上
+- **自动释放池不再需要手动包**，主线程 run loop 每轮自带。`JSThread` 整个类已删除
+- **影子树降级为优化**。独立线程方案里它是必须的（否则跨线程开销爆炸、同步询问无解）；JS 上主线程后直接操作真实 `UIView` 即可。批量提交仍有价值（减少 layout 次数），但不再是正确性要求
+
+### 事件模型：借什么、不借什么
+
+`EventTarget` 和 `Event` **不是 ECMAScript 的一部分**（实测 `globalThis` 的 65 个内置里没有），要由运行时自己实现并注入全局——这是继 `console` 之后第二个注入的非标准全局。Node 22、Deno、Bun 都提供全局 `EventTarget`，所以它是跨运行时的通用基础设施，引入它不违背「不实现 DOM」。
+
+判据见第 2 节原则 9：**从 iOS 的能力出发，问「这个能力怎么表达最自然」；W3C 的方案是重要的答案来源，但只是来源之一。** 下面是把这条原则落到事件模型上的结果。
+
+| 借 | 不借 |
+| --- | --- |
+| `addEventListener` / `removeEventListener` / `dispatchEvent` 三个名字和基本语义 | `passive`（为浏览器滚动性能设计，我们没有可阻止的默认滚动） |
+| `EventTarget` 作基类，统一 `application`、scene、将来的 view 的接口 | `signal` / `AbortSignal`（牵出一整套规范，而我们连定时器都没有） |
+| `Event` 带 `type` 和 `target` | `composed` / `composedPath()`（shadow DOM 概念） |
+| `once` 选项 | 捕获阶段（iOS 没有这个阶段） |
+| 事件名全小写的惯例 | 重入保护、监听器列表快照的精确语义（浏览器用来防御病态代码） |
+
+#### `cancelable` 按派发来源定
+
+实测标准 `EventTarget`：`preventDefault()` 本身**不自动阻止任何事**，它只是置一个标志位，让 `dispatchEvent()` 返回 `false`；**默认动作由派发方自己实现**，派发方看返回值决定做不做。整个机制依赖 `dispatchEvent` 是**同步**的。
+
+所以有效性不取决于是不是 DOM 元素，而取决于派发方能否同步拿到答案：
+
+| 事件来源 | `cancelable` | 原因 |
+| --- | --- | --- |
+| JS 执行期间 Nacre 自己派发 | 可以 `true` | 同步，派发方立刻拿到返回值，和 Web 一样 |
+| 原生通知派发 | **必须 `false`** | 运行时刻意延后一轮执行，避免在 UIKit 操作中途重入 JS，所以派发方早已返回；这类通知本来也没有可取消的默认行为 |
+| 原生能推迟默认动作的场合 | 可以 `true` | 原生先不做、派发事件、等 JS 回调回主线程再查 `defaultPrevented`。但 UIKit 多数 delegate 是同步返回 BOOL，推不了 |
+
+#### 传播：先只做 target 阶段
+
+`addEventListener` 注册在具体对象上，事件只派发到那一个对象，不传播。不是因为规范允许省略，而是因为 `UIControl` 的 target-action 本来就是这个语义，覆盖了按钮、开关、输入框等绝大多数需求。将来加冒泡是**扩展**，不是破坏性修改。
+
+**view 层是否继承 `EventTarget` 待定。** 调研结论先记下，免得重查：
+
+- iOS 有四套并存的机制：hit-testing（自上而下找目标）、responder chain（自下而上传未处理的事件）、`UIGestureRecognizer`（平行、抢占）、`UIControl` 的 target-action（直接注册，不走链）
+- **hit-testing 不是捕获阶段**：`hitTest:withEvent:` 递归调 `pointInside:` 只为找出 target，全程不派发事件、不触发回调
+- **responder chain 的默认语义和冒泡相反**：它是「你不处理我才给下一个」，不调 `super` 链条就断；Web 是默认continue、显式 `stopPropagation()` 才停
+- **responder chain ≠ 视图树**：会经过 `UIViewController`（它不在视图树里），且 `nextResponder` 可被覆写
+- **手势抢占在 Web 里没有参照**：`cancelsTouchesInView` 默认 YES（手势识别成功会给 view 发 `touchesCancelled:`）、`delaysTouchesEnded` 默认 YES（`touchesEnded` 延迟到手势失败后才发）。这是把 Web 事件模型套到 iOS 上最大的阻抗失配
+- `UIControl` 的 19 种 `UIControlEvents`（`TouchUpInside`、`ValueChanged`、`EditingChanged`、`PrimaryActionTriggered` 等）最接近 `addEventListener`，第 3 步可直接映射
 
 ### 原生 API 为什么裸暴露在全局
 
@@ -206,7 +260,7 @@ Commit message 格式：
 | --- | --- | --- | --- |
 | 0 | 搭建 iOS 工程：App 启动、V8 启动、全局对象 `console`、执行 `main.js` 输出 hello world | — | 已完成（commit `eba1b23`） |
 | 1 | 运行时基础对象：`EventTarget`、`Event`、`Application` 和单例 `application`，以及全局错误出口 | Info.plist、应用状态、App 级通知、未捕获异常与未处理拒绝 | 已在模拟器验证通过，待提交 |
-| 2 | 窗口和根页面由 JS 创建 | 场景事件转发、UIWindow、UIViewController、UIColor | 待讨论 |
+| 2 | 窗口和根页面由 JS 创建 | 场景事件转发、UIWindow、UIViewController、UIColor | 进行中：线程模型已迁到主线程；待做原生对象包装机制、`UIWindowScene` 暴露 |
 | 3 | 文字、图片 | UILabel、UIImageView、Auto Layout | 待讨论 |
 | 4 | 按钮和点击事件 | Target-Action、JS 回调 | 待讨论 |
 | 5 | 页面跳转 | UINavigationController、继承 UIViewController | 待讨论 |
@@ -268,18 +322,17 @@ Commit message 格式：
 - 纯 ObjC 运行时动态桥接：不需要元数据，但拿不到 C 函数、枚举、常量
 - 手写绑定：简单可控，但覆盖面有限
 
-命名空间和全局对象已经定了（见第 3 节和 [API 文档](api/application.md)），JS 层结构还剩五个设计点（目前的推荐方案，未确认）：
+命名空间和全局对象已经定了（见第 3 节和 [API 文档](api/application.md)），线程语义也定了（JS 在主线程，见第 3 节）。JS 层结构还剩四个设计点（目前的推荐方案，未确认）：
 
 1. 方法名映射：selector 各段拼接，如 `insertSubviewAtIndex(view, 0)`，另保留 `send(selector, ...args)` 兜底
 2. 创建与继承：`new X()` 等于 `alloc().init()`；继承原生类用 ES class
-3. 线程语义：JS 线程同步切换到主线程执行 UIKit 调用，类型签名保持同步
-4. 类型转换：字符串、数字、布尔值自动转换；数组和字典作为参数时自动转换，返回值保留原生对象；结构体按值复制；`NSError **` 转为抛出异常
-5. 类型来源：运行时自带的 API（`console`、`application`）手写；原生符号由 bindgen 从 SDK 头文件生成，TypeScript 定义放在 `ios/Types/`
+3. 类型转换：字符串、数字、布尔值自动转换；数组和字典作为参数时自动转换，返回值保留原生对象；结构体按值复制；`NSError **` 转为抛出异常
+4. 类型来源：运行时自带的 API（`console`、`application`）手写；原生符号由 bindgen 从 SDK 头文件生成，TypeScript 定义放在 `ios/Types/`
 
 另外四个来自第 0 步的待定问题：
 
 - **本地化（`Intl`）怎么补**：预编译的 V8 不带 ICU，`Intl` 缺失且 `toLocale*` 退化成非本地化实现。三条路——换带 i18n 的 V8 构建（ICU 数据几 MB 到几十 MB，包体积涨得多，还得自己编译）、JS 层 polyfill（同样要带 locale 数据，而且慢）、把 `NSDateFormatter` / `NSNumberFormatter` 暴露给 JS（数据来自系统，包体积零增长）。倾向第三条，它和第 1 节「原生 API 完整暴露给 JS」的定位一致，和能力暴露方案一起定。
 
 - **原生对象和循环引用怎么打印**：第 1 步出现原生对象之后，`JSON.stringify` 这条路就没有意义了（`UIView.superview` 这类天然循环）。和能力暴露方案一起定。
-- **未处理拒绝的结算是否再延一轮任务**：实测 Chromium 152，上报晚于当时已排队的 timer task，`setTimeout(() => p.catch(...), 0)` 补的 handler 能完全抑制上报；HTML 规范只要求在微任务检查点之后。Nacre 现在是微任务排空后就结算，等 JS 线程有了延时任务能力再决定是否向 Chromium 对齐。
+- **未处理拒绝的结算是否再延一轮任务**：实测 Chromium 152，上报晚于当时已排队的 timer task，`setTimeout(() => p.catch(...), 0)` 补的 handler 能完全抑制上报；HTML 规范只要求在微任务检查点之后。Nacre 现在是微任务排空后就结算，等有了定时器能力再决定是否向 Chromium 对齐。
 - ~~**JS 层的未处理拒绝钩子**~~：**已实现**。采用 Web 命名，`application` 上的 `unhandledrejection` 和 `error` 事件，事件对象是 `PromiseRejectionEvent` / `ErrorEvent`，可 `preventDefault()` 抑制运行时的默认日志。详见 [API 文档](api/application.md)。还没做的是 `rejectionhandled`（已上报之后才挂 handler 时发出的更正）。

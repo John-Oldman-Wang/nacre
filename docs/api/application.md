@@ -51,8 +51,8 @@ new Application()   // TypeError: Illegal constructor
 | --- | --- | --- | --- | --- |
 | `state` | `'active'` \| `'inactive'` \| `'background'` | 当前前后台状态，用字符串而非数字枚举 | `applicationState` | 已实现 |
 
-> `backgroundTimeRemaining` 是**连续变化**的值，快照没有意义，而实时读又必须在主线程同步取——这和「主线程永远不同步等待 JS」冲突。等有了合适的机制（比如进入后台时推送一次剩余时间）再做。
-| `backgroundTimeRemaining` | number | 进入后台后还可执行的秒数 | 同名 | **暂不做** |
+> `backgroundTimeRemaining` 是**连续变化**的值，快照没有意义。早先 JS 在独立线程时这是个死结（实时读必须在主线程同步取）；**JS 迁到主线程后这个障碍消失了**，可以在 getter 里直接读。只是还没做。
+| `backgroundTimeRemaining` | number | 进入后台后还可执行的秒数 | 同名 | 可实现，待做 |
 | `protectedDataAvailable` | boolean | 锁屏期间文件不可读，此时为 `false` | 同名 | 已实现 |
 
 ## 环境与偏好
@@ -89,7 +89,7 @@ new Application()   // TypeError: Illegal constructor
 
 事件名**全小写无分隔**，与 Web 惯例一致。
 
-**所有原生派发的事件 `cancelable` 均为 `false`**——原生在主线程派发、JS 在 JS 线程异步处理，派发方拿不到 `preventDefault()` 的结果，而「主线程永远不同步等待 JS」是硬约束。JS 自己 `dispatchEvent` 的事件不受此限。
+**所有原生派发的事件 `cancelable` 均为 `false`**。JS 虽然和 UIKit 同在主线程，但原生通知到达时运行时会把派发**延后一轮**执行，避免在 UIKit 操作中途重入 JS——所以派发方（通知中心）早已返回，拿不到 `preventDefault()` 的结果。而且这些通知本来就没有可取消的默认行为。JS 自己 `dispatchEvent` 的事件不受此限。
 
 | 事件 | 触发时机 | 对应 iOS | 状态 |
 | --- | --- | --- | --- |
@@ -104,7 +104,7 @@ new Application()   // TypeError: Illegal constructor
 
 ### 错误类事件
 
-这两个事件由运行时在 **JS 线程上同步派发**，派发方拿得到返回值，所以**可以取消**——调 `preventDefault()` 就不会再打运行时的默认日志。这是上面 `cancelable` 规则第三行的实例。
+这两个事件由运行时**在 JS 的执行栈里同步派发**（异常和未处理拒绝都是运行时自己检测到的），派发方拿得到返回值，所以**可以取消**——调 `preventDefault()` 就不会再打运行时的默认日志。
 
 | 事件 | 事件对象 | 触发时机 | 状态 |
 | --- | --- | --- | --- |
@@ -184,6 +184,7 @@ await application.runInBackground('上传日志', async () => {
 
 ## 实现说明
 
+- **JS 跑在主线程**，和 UIKit 同线程。理由和代价见[项目说明第 3 节](../project.md)。
 - **上层 API 在内置 JS 里定义**。`EventTarget`、`Event`、`Application` 都写在 `ios/Runtime/Builtin/nacre.js`，由 iOS 层在 `main.js` **之前**执行。不用 C++ 的 `FunctionTemplate`，因为那样每个实例要在 internal field 上挂 C++ 监听器表，里面的 `v8::Global<Function>` 是强引用，必须用 weak callback 在对象被 GC 时手动释放——漏了就是回调永不释放。JS 实现交给 GC 全自动。Node 的 `EventTarget` 同样是 JS 实现的（`node:internal/event_target`）。
 - **脚本名用 `nacre:internal/nacre.js`**，不是文件路径。这样调用栈里一眼能看出哪些帧是运行时内部，和 Node 的 `node:internal/…` 一个做法。实测效果：
 
@@ -194,9 +195,9 @@ await application.runInBackground('上传日志', async () => {
   ```
 
 - **C++ 只提供一个极小的数据桥**。`Engine` 在 Context 上装 `globalThis.__nacre_native`，只有 4 个取值函数（`infoJSON`、`state`、`supportsMultipleScenes`、`setEventSink`）。内置脚本用完**立即 `delete`**，用户代码完全拿不到——实测 `typeof __nacre_native` 为 `undefined`、不在 `globalThis` 上、`getOwnPropertyNames` 也找不到。
-- **UIKit 的值在主线程抓快照**。`info`、`supportsMultipleScenes` 启动时抓一次；`state` 由前后台通知在主线程更新到一个 `std::atomic`。JS 线程上的回调只读快照，绝不碰 UIKit。
+- **环境值走快照**。`info` 启动时抓一次；其余实时值在相关通知到达时重建成一份 JSON，JS 读取时解析。JS 现在和 UIKit 同线程，本可以直接读，保留快照是为了一次拿齐、少几次 UIKit 往返。
 - **`state` 启动时读到的是 `background`**，不是 `inactive`——scene 生命周期下，`didFinishLaunchingWithOptions:` 执行时场景还没连接。场景激活后才变成 `active`。
-- **原生事件的投递**：主线程的 `NSNotificationCenter` 观察者 → `JSThread::Post` 进任务队列 → JS 线程上调 `Engine::EmitAppEvent` → 内置脚本注册的入口 → `application.dispatchEvent`。单向，不等结果。
+- **原生事件的投递**：`NSNotificationCenter` 观察者 → `dispatch_async` 到主队列延后一轮 → `Engine::EmitAppEvent` → 内置脚本注册的入口 → `application.dispatchEvent`。延后一轮是为了不在 UIKit 操作中途重入 JS。单向，不等结果。
 
 ## 验证结果
 
@@ -208,7 +209,7 @@ await application.runInBackground('上传日志', async () => {
 - `EventTarget`：重复注册只触发一次、移除后不再触发、`once` 只触发一次、监听器抛异常不影响后续监听器也不冒到派发方
 - `preventDefault()`：JS 自己派发且 `cancelable: true` 时生效（`dispatchEvent` 返回 `false`）；`cancelable: false` 时静默失效（返回 `true`）
 - **错误出口**：`error` 和 `unhandledrejection` 都能收到；`preventDefault()` 后运行时的默认日志确实消失，不调则照常输出。`ErrorEvent` 的 `message` / `filename` / `lineno` / `error` 和 `PromiseRejectionEvent` 的 `reason` / `promise` 都正确
-- **JS 发起的异步调用**走 Promise：C++ 用 `v8::Promise::Resolver` 当场造一个 Promise 返回给 JS，同时把 resolver 按 id 存起来；iOS 层切到主线程执行，完成后把结果投回 JS 线程兑现。兑现时不在任何 JS 调用栈里，`kAuto` 不会自动排空微任务，所以要显式调一次 `PerformMicrotaskCheckpoint()`，否则 `await` 后面的代码会一直卡住。
+- **JS 发起的异步调用**走 Promise：C++ 用 `v8::Promise::Resolver` 当场造一个 Promise 返回给 JS，同时把 resolver 按 id 存起来；iOS 层执行（像 `openURL` 那样本身就带 `completionHandler` 的，要等系统回调），完成后兑现。兑现时不在任何 JS 调用栈里，`kAuto` 不会自动排空微任务，所以要显式调一次 `PerformMicrotaskCheckpoint()`，否则 `await` 后面的代码会一直卡住。
 - **实时环境值每次读取都重新向原生要一份 JSON 并解析**。这些值变化稀疏、读取不频繁，先用最简单的做法；连续读多个属性会重复解析，成为热点再优化。
 - `openURL` 返回真正的 Promise：合法 URL 兑现 `true`，非法 URL 兑现 `false`；兑现发生在 `main.js` 执行结束**之后**，证明微任务检查点生效
 - `idleTimerDisabled` 写入异步生效：刚写完读到旧值，稍后读到 `true`
