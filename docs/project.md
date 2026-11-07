@@ -39,11 +39,13 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 | --- | --- | --- |
 | 是什么 | 裸暴露的原生符号：`UIWindow`、`CLLocationManager`、`NSString` | Nacre 定义的标准：`application`、`console` 等 |
 | 谁定义 | **Apple**，我们只做无损映射 | **我们** |
-| 设计目标 | 完整、一一对应、不丢能力 | 好用、一致、面向能力 |
+| 设计目标 | **能力完整**，不丢任何 iOS 能力 | 好用、一致、面向能力 |
 | 服务谁 | iOS 开发者的亲切感 | JS 开发者的轻松感 |
 | 变化来源 | 跟着 iOS SDK 走 | 我们自己的版本承诺 |
 
 **每遇到一个新能力，第一个问题是「它属于哪层」。** 上层没覆盖的，底层一定要能补上——这是「原生 API 完整暴露」这条承诺的含义。
+
+**承诺的是能力对齐，不是 API 形状一致。** iOS 层有的能力，JS 层就应该有，除非那个能力在 JS 侧完全没必要（比如 `retain` / `release`：ARC 下已不可调用，而且运行时的包装机制本来就在管生命周期）。但怎么把它表达成 JS，是我们的自由——方法名可以重排，长参数列表可以换成 options 对象，出参可以改成返回值或抛异常。判据是「JS 开发者能不能做到 iOS 开发者能做到的事」，不是「签名长得像不像」。
 
 ### 原则
 
@@ -263,7 +265,7 @@ Commit message 格式：
 | --- | --- | --- | --- |
 | 0 | 搭建 iOS 工程：App 启动、V8 启动、全局对象 `console`、执行 `main.js` 输出 hello world | — | 已完成（commit `eba1b23`） |
 | 1 | 运行时基础对象：`EventTarget`、`Event`、`Application` 和单例 `application`，以及全局错误出口 | Info.plist、应用状态、App 级通知、未捕获异常与未处理拒绝 | 已在模拟器验证通过，待提交 |
-| 2 | 窗口和根页面由 JS 创建 | 场景事件转发、UIWindow、UIViewController、UIColor | 进行中：线程模型已迁主线程、原生对象包装机制和 `UIWindowScene` 已完成；待做 `UIWindow` / `UIViewController` |
+| 2 | 窗口和根页面由 JS 创建 | 场景事件转发、UIWindow、UIViewController、UIColor | 已在模拟器验证通过：JS 创建窗口和根页面，并设好底色，屏幕不再是黑的 |
 | 3 | 文字、图片 | UILabel、UIImageView、Auto Layout | 待讨论 |
 | 4 | 按钮和点击事件 | Target-Action、JS 回调 | 待讨论 |
 | 5 | 页面跳转 | UINavigationController、继承 UIViewController | 待讨论 |
@@ -275,7 +277,15 @@ Commit message 格式：
 | 11 | 系统能力 | 相机、相册、定位、权限请求 | 待讨论 |
 | 12 | App 生命周期 | 前后台切换、深链接 | 待讨论 |
 
-注意：第 0 步中的 `App/RootViewController.swift` 由原生创建根页面，不符合第 1 节的边界。第 2 步会把它移到 JS 中。
+注意：第 0 步中的 `App/RootViewController.swift` 由原生创建根页面，不符合第 1 节的边界。第 2 步已把它移到 JS 中，该文件已删除，`SceneDelegate` 只剩空壳。
+
+#### 第 2 步新增的机制：类级成员
+
+原来的桥全是基于 handle 的，只能访问实例成员；而 `UIColor` 的颜色常量是 ObjC 的类级只读属性（`@property(class, readonly)`），没有实例可用。于是加了一条 `(类名, 属性名) → 原生对象` 的通道（`native.classObjProp`）。
+
+iOS 层是一张**写死的名字表**，不是用名字拼 selector 再 `performSelector:`——后者等于把任意 ObjC 调用的入口开给 JS，在通用的能力暴露方案做好之前不开这个口子。
+
+**带参数的类方法**（`colorWithRed:green:blue:alpha:`）还没做，它卡在下面「selector 方法名怎么映射」那条待定项上。
 
 ### 第 0 步的审阅问题（已修复并验证）
 
@@ -325,12 +335,40 @@ Commit message 格式：
 - 纯 ObjC 运行时动态桥接：不需要元数据，但拿不到 C 函数、枚举、常量
 - 手写绑定：简单可控，但覆盖面有限
 
-命名空间和全局对象已经定了（见第 3 节和 [API 文档](api/application.md)），线程语义也定了（JS 在主线程，见第 3 节）。JS 层结构还剩四个设计点（目前的推荐方案，未确认）：
+命名空间和全局对象已经定了（见第 3 节和 [API 文档](api/application.md)），线程语义也定了（JS 在主线程，见第 3 节）。
 
-1. 方法名映射：selector 各段拼接，如 `insertSubviewAtIndex(view, 0)`，另保留 `send(selector, ...args)` 兜底
-2. 创建与继承：`new X()` 等于 `alloc().init()`；继承原生类用 ES class
-3. 类型转换：字符串、数字、布尔值自动转换；数组和字典作为参数时自动转换，返回值保留原生对象；结构体按值复制；`NSError **` 转为抛出异常
-4. 类型来源：运行时自带的 API（`console`、`application`）手写；原生符号由 bindgen 从 SDK 头文件生成，TypeScript 定义放在 `ios/Types/`
+**已定的两条**（2026-11-07 确认，开始做 `UIView` 的几何与层级之前定的，因为这两条一旦写进 JS 代码就改不动了）：
+
+**1. 方法名映射：第一段 + options 对象。** selector 的第一段做方法名，其余段作为 options 对象的键，键名就是 ObjC 的段名原文：
+
+```js
+view.addSubview(box)                              // addSubview:
+view.insertSubview(box, { atIndex: 0 })           // insertSubview:atIndex:
+view.insertSubview(box, { belowSubview: other })  // insertSubview:belowSubview:
+view.convertPoint(p, { toView: other })           // convertPoint:toView:
+view.convertPoint(p, { fromView: other })         // convertPoint:fromView:
+```
+
+这样看 Apple 文档能直接写出调用，重载也自然消歧——只取第一段的方案在 `convertPoint:toView:` / `convertPoint:fromView:` 上就会撞，而且就撞在 `UIView` 里。和[原则 6](#原则)（options 对象，不是长参数列表）一致。
+
+不漂亮的地方是参数同质的构造类方法：`UIColor.colorWithRed(1, { green: 0, blue: 0, alpha: 1 })`。但这类方法上层已经用字符串绕开了（见 [`UIColor` 文档](api/ui-color.md#上层怎么写颜色方向已定未实现)），JS 开发者基本不碰；要原样调用还有 `send(selector, ...args)` 兜底。
+
+**2. 结构体：JS 类 + 冻结。** `CGRect` / `CGPoint` / `CGSize` 等做成 JS 类，实例上同时提供嵌套访问和扁平访问，并且**冻结**：
+
+```js
+box.frame = new CGRect(40, 100, 200, 120);
+box.frame.x;            // 40
+box.frame.origin.x;     // 40  ← 和 ObjC 的 {CGPoint origin; CGSize size;} 对得上
+box.frame.x = 10;       // TypeError
+```
+
+冻结是关键。ObjC 里 `view.frame.x = 10` 是编译错误（不能改返回的临时结构体），用普通对象表示的话它会变成**静默无效**——我们一路在拒绝的那种错。代价是每次读 `frame` 要建一个对象，jitless 下有成本，正确性优先。
+
+还剩三个设计点（推荐方案，未确认）：
+
+1. 创建与继承：`new X()` 等于 `alloc().init()`；继承原生类用 ES class
+2. 其余类型转换：字符串、数字、布尔值自动转换；数组和字典作为参数时自动转换，返回值保留原生对象；`NSError **` 转为抛出异常
+3. 类型来源：运行时自带的 API（`console`、`application`）手写；原生符号由 bindgen 从 SDK 头文件生成，TypeScript 定义放在 `ios/Types/`
 
 **接口设计要回头 review（TODO）**：底层的「一一对应」和使用场景的简洁之间有张力。现在让窗口显示出来是四步仪式——建 window、设 `rootViewController`、`makeKeyAndVisible()`、保持引用——每个 App 都要原样抄一遍，这正是原则 2「能力导向而非实现导向」要消灭的东西。
 
@@ -347,6 +385,33 @@ review 时参考 **Phaser** 的对象模型，有三点和我们正在纠结的�
 Phaser 的 Scene 还有一套明确的状态机（PENDING → INIT → START → LOADING → CREATING → RUNNING → PAUSED / SLEEPING → SHUTDOWN → DESTROYED），比我们现在只有 `activationState` 一个枚举细得多，值得看看哪些状态对我们有意义。
 
 参考：[Scenes 概念文档](https://docs.phaser.io/phaser/concepts/scenes)、[Scene Manager 的状态列表](https://rexrainbow.github.io/phaser3-rex-notes/docs/site/scenemanager)、[为什么用 init 而不是构造函数](https://phaser.discourse.group/t/why-does-phaser3-use-init-instead-of-the-constructor/6278)。
+
+**上层已经定下来的第一条：颜色怎么写。** 写入接受字符串（`'#5856D6'`、`'light-dark(#fff, #000)'`、`'systemBackground'`）或 `UIColor` 对象，读出永远是 `UIColor` 对象。
+
+字符串是构造的简写，不是颜色的表示法。读出不跟着做成字符串，是因为**要么失败、要么静默丢东西**：图案色会失败（`getRed:green:blue:alpha:` 返回 `NO`，一个分量都拿不到）；动态色转得出来但会降精度——外观不止明暗一维，`accessibilityContrast`、`userInterfaceLevel` 也影响取值，两个样本盖不住，而且丢了不报错。这是取舍不是硬约束，我们选择不接受静默的错。
+
+Web 能双向字符串化是因为 CSSOM 自己留着声明串，我们没有这一层——`UIView` 只存一个 `UIColor`。推导过程见 [`UIColor` 文档](api/ui-color.md#上层怎么写颜色方向已定未实现)。
+
+顺带两个事实也记在那边：`UIColor` **不可变**（属性全 `readonly`、无 setter、派生方法返回新对象），所以读出的对象不用防御性复制；但不可变不等于定值——动态色持有的是 `UITraitCollection → UIColor` 的函数，明暗主题挂在**视图层级的 trait** 上，不在颜色上。
+
+连带结论：底层的 `colorWithRed:green:blue:alpha:` 不急——日常写颜色走字符串，它只作为「完整暴露」的承诺留着。
+
+**TODO：不可变原生值对象的相等性怎么给 JS。** 以颜色为起点，但这是通用问题——所有不可变的「值类对象」（将来的 `NSString`、`CGColor`、`NSNumber`）都会遇到。
+
+现状：主要路径的 `===` 已经成立，因为常量是原生单例、`copy` 对不可变对象返回自己、包装机制保证指针到 JS 对象一对一。缺口只剩**重复构造同值颜色**，以及**常量 vs 构造的同值色**（`UIColor.redColor` 和 `colorWithRed(1,0,0,1)` 实测 `isEqual:` 为 YES 但指针不同）。
+
+两个候选，都不急着做：
+
+| | 做法 | 代价 |
+| --- | --- | --- |
+| A | `Map<构造参数, WeakRef>`，只池化我们自己构造的颜色 | O(1)、零风险，但盖不住「常量 vs 构造」 |
+| B | 新建对象后用 `isEqual:` 和池子里的逐个比，相等就返回池里的、让新对象被回收 | 语义最准（实测 `isEqual:` 连动态色和图案色都处理得对），但**需要一个可遍历的弱集合** |
+
+**B 卡在 JS 上，不是卡在 iOS 上。** `WeakSet` 只有 `add` / `has` / `delete`，不可遍历、也不能按值查；`WeakRef` / `FinalizationRegistry` 同样不可枚举。这是 ECMAScript 的有意设计——遍历弱集合会泄漏 GC 时机。所以 B 要么用强引用的池子（泄漏，且每次构造要跨桥 O(n) 次 `isEqual:`），要么退化成「按 key 查」，而那就是 A。
+
+为了做到 B 去耦合垃圾回收，复杂度和收益不成比例。倾向先做 A，再把 `isEqual()` 作为逃生口暴露出去（从 `NSObject` 继承，一行的事），两个加起来既便宜又没有静默的坑。
+
+实测数据见 [`UIColor` 文档的「实测：相等性和 `description`」](api/ui-color.md#实测相等性和-description)。真正动手要等视图层起来、看清真实代码里怎么写颜色。
 
 另外四个来自第 0 步的待定问题：
 
