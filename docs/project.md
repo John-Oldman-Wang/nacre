@@ -27,7 +27,49 @@ Nacre 仓库包含一个**没有具体业务的 iOS App**，它覆盖常见 App 
 
 每一步的验收标准都包括：**功能可用，并且原生层没有新增任何调度代码，只新增了能力暴露代码。**
 
-## 2. iOS 技术选型（已确定）
+## 2. API 设计原则
+
+Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套把系统能力暴露给 JS 的标准**。所以我们吸收 W3C 的**方法论**——它为这个问题积累了三十年——但不照搬它的具体设计。
+
+**面向谁**：主要面向 JS 开发者和用户侧开发者。目标是**让 JS 开发者轻松，让 iOS 开发者亲切**。这两件事由分层解决，不用二选一。
+
+### 两层 API
+
+| | 底层 | 上层 |
+| --- | --- | --- |
+| 是什么 | 裸暴露的原生符号：`UIWindow`、`CLLocationManager`、`NSString` | Nacre 定义的标准：`application`、`console` 等 |
+| 谁定义 | **Apple**，我们只做无损映射 | **我们** |
+| 设计目标 | 完整、一一对应、不丢能力 | 好用、一致、面向能力 |
+| 服务谁 | iOS 开发者的亲切感 | JS 开发者的轻松感 |
+| 变化来源 | 跟着 iOS SDK 走 | 我们自己的版本承诺 |
+
+**每遇到一个新能力，第一个问题是「它属于哪层」。** 上层没覆盖的，底层一定要能补上——这是「原生 API 完整暴露」这条承诺的含义。
+
+### 原则
+
+**1. 职责分离：每个对象一个名词、一件事。** 浏览器里 `document` 管文档树、`navigator` 管设备信息、`location` 管地址、`history` 管导航栈、`screen` 管显示器，没有一个装两百个方法的 god object。我们照这个**方法**分，但分出来的对象是我们自己的——浏览器没有「App 实例」这个概念，`application` 是我们定义的。
+
+**2. 能力导向，不是实现导向。** `fetch()` 背后是 DNS、TLS、连接池、多路复用，API 只表达「取一个资源」。上层 API 表达**要做什么**，底层裸暴露表达**系统怎么做的**。
+
+**3. 横切关注点抽成统一基类。** W3C 不让每个对象发明自己的回调风格，而是定义 `EventTarget` 让所有会发事件的东西继承。遇到重复出现的模式，先问能不能抽成基类或协议。
+
+**4. 异步只有一种形态：Promise。** W3C 走过回调 → 事件 → Promise 的弯路，我们有后发优势。**所有异步 API 返回 Promise，不要回调参数，不要 `onSuccess` / `onError` 属性。**
+
+**5. Promise 和事件的分工：一次性的请求-响应用 Promise，重复发生的通知用事件。** `fetch()` 是 Promise，`click` 是事件；`application.openURL()` 是 Promise，`memorywarning` 是事件。这条能消除大量「用哪个」的纠结。
+
+**6. options 对象，不是长参数列表。** `addEventListener(type, cb, { once })`。超过两个参数或带可选项时用 options 对象：可扩展、可读、不用记顺序。ObjC 的 selector 命名（`insertSubview:atIndex:`）在底层保留，那是另一层的事。
+
+**7. 运行时提供事实，JS 做判断。** `application.supportsMultipleScenes` 给出运行环境的真实能力，由 JS 决定 UI 怎么做。原生层不替 JS 做决策——这是第 1 节「原生层不调度」的直接推论。
+
+**8. 不照搬浏览器的安全模型。** 同源策略、CORS、CSP、Permissions API 都是因为浏览器要运行**不受信任**的代码。我们的 JS 是开发者自己打包进 App 的，和原生代码同等地位。权限走 iOS 的系统权限，`fetch` 不用背跨域包袱。
+
+**9. iOS 独有的机制，按 iOS 的事实定义，不去 Web 规范里找近似物。** 手势抢占、responder chain、first responder 在 Web 里没有对应概念。硬套 `preventDefault` 或 pointer capture 只会得到一个既不像 Web 也不像 iOS 的东西。
+
+### 怎么用这一节
+
+这是给 SOP 第 1 步（讨论）用的判据。**往后每一步新增能力，都要对照本节说明设计理由**：它属于哪层、职责边界在哪、异步形态是什么、有没有照搬了不该照搬的东西。
+
+## 3. iOS 技术选型（已确定）
 
 | 方面 | 选型 |
 | --- | --- |
@@ -42,7 +84,8 @@ Nacre 仓库包含一个**没有具体业务的 iOS App**，它覆盖常见 App 
 | 工程管理 | XcodeGen：`ios/project.yml` 描述工程，`Nacre.xcodeproj` 由它生成，不提交 |
 | 代码分层 | Swift：启动壳；ObjC++：运行时入口和 iOS 桥接；C++：引擎封装（`Runtime/Engine/` 只依赖 V8，不依赖 iOS） |
 | 生命周期 | 只使用 Scene 生命周期 |
-| JS 全局对象 | `globalThis` 保留不动；运行时注入 `Application` 类及其**唯一实例** `application`（单例）。**不叫 `window`**：`UIWindow` 在 iOS 里是真实存在的另一个东西，会撞。结构见下 |
+| 场景数量 | **支持多场景**。`Info.plist` 声明 `UIApplicationSupportsMultipleScenes: true`；实际能不能多开由环境决定（iPhone 上主要是外接显示器，iPad 是常态），运行时的真实答案由 `application.supportsMultipleScenes` 给出，**JS 自行判断**。原生层只提供事实，不做决策 |
+| JS 全局对象 | `globalThis` 保留不动；运行时注入 `Application` 类及其**唯一实例** `application`（单例）。**不叫 `window`**：`UIWindow` 在 iOS 里是真实存在的另一个东西，会撞。详见第 4 节 |
 | 原生 API 命名空间 | **不设命名空间**，按 ObjC 类名裸暴露在全局：`new UIWindow(...)`、`NSString`。理由见下 |
 | 暂不考虑 | 插槽、CLI、开发模式、启动屏、iPad、Mac Catalyst，以后按需再做 |
 
@@ -81,14 +124,44 @@ JS 线程用的是条件变量 + 任务队列，相当于 Chromium 的 `MessageP
 | `Intl`，以及所有 `toLocale*` 的本地化能力 | 预编译包关掉了 i18n 支持，ICU 被排除。实测 `new Date(0).toLocaleString('zh-CN')` 完全忽略 locale |
 | `WebAssembly` | lite mode / jitless 下不能编译 wasm |
 
-### `application` 的结构
+### 事件模型：借什么、不借什么
 
-- `Application` 是一个类，能力做在 **`Application.prototype`** 上，不是挂一堆零散的全局函数
-- `application` 是它的**唯一实例**，由运行时创建并注入全局，对应 `UIApplication.sharedApplication` 的单例语义
-- **运行时保证只实例化一次**，JS 侧再 `new Application()` 应当失败（具体是抛 `TypeError` 还是返回同一实例，待定）
-- 原型上具体放哪些能力**待定**，候选见下面 `UIApplication` 的能力清单
+`EventTarget` 和 `Event` **不是 ECMAScript 的一部分**（实测 `globalThis` 的 65 个内置里没有），要由运行时自己实现并注入全局——这是继 `console` 之后第二个注入的非标准全局。Node 22、Deno、Bun 都提供全局 `EventTarget`，所以它是跨运行时的通用基础设施，引入它不违背「不实现 DOM」。
 
-和裸暴露的原生 API 是两类东西，不要混：`application` 是一个**有状态的实例**（当前场景、生命周期阶段）；`UIWindow`、`NSString` 这些是**无状态的类型**，直接在全局上。需要底层对象时，`UIApplication` 本身仍然可以通过裸暴露拿到。
+判据见第 2 节原则 9：**从 iOS 的能力出发，问「这个能力怎么表达最自然」；W3C 的方案是重要的答案来源，但只是来源之一。** 下面是把这条原则落到事件模型上的结果。
+
+| 借 | 不借 |
+| --- | --- |
+| `addEventListener` / `removeEventListener` / `dispatchEvent` 三个名字和基本语义 | `passive`（为浏览器滚动性能设计，我们没有可阻止的默认滚动） |
+| `EventTarget` 作基类，统一 `application`、scene、将来的 view 的接口 | `signal` / `AbortSignal`（牵出一整套规范，而我们连定时器都没有） |
+| `Event` 带 `type` 和 `target` | `composed` / `composedPath()`（shadow DOM 概念） |
+| `once` 选项 | 捕获阶段（iOS 没有这个阶段） |
+| 事件名全小写的惯例 | 重入保护、监听器列表快照的精确语义（浏览器用来防御病态代码） |
+
+#### `cancelable` 按派发来源定
+
+实测标准 `EventTarget`：`preventDefault()` 本身**不自动阻止任何事**，它只是置一个标志位，让 `dispatchEvent()` 返回 `false`；**默认动作由派发方自己实现**，派发方看返回值决定做不做。整个机制依赖 `dispatchEvent` 是**同步**的。
+
+所以有效性不取决于是不是 DOM 元素，而取决于派发方能否同步拿到答案：
+
+| 事件来源 | `cancelable` | 原因 |
+| --- | --- | --- |
+| JS 线程内 Nacre 自己派发 | 可以 `true` | 同步，派发方立刻拿到返回值，和 Web 一样 |
+| 原生主线程派发 | **必须 `false`** | 跨线程异步，原生侧早已返回；而「主线程永远不同步等待 JS」是硬约束 |
+| 原生能推迟默认动作的场合 | 可以 `true` | 原生先不做、派发事件、等 JS 回调回主线程再查 `defaultPrevented`。但 UIKit 多数 delegate 是同步返回 BOOL，推不了 |
+
+#### 传播：先只做 target 阶段
+
+`addEventListener` 注册在具体对象上，事件只派发到那一个对象，不传播。不是因为规范允许省略，而是因为 `UIControl` 的 target-action 本来就是这个语义，覆盖了按钮、开关、输入框等绝大多数需求。将来加冒泡是**扩展**，不是破坏性修改。
+
+**view 层是否继承 `EventTarget` 待定。** 调研结论先记下，免得重查：
+
+- iOS 有四套并存的机制：hit-testing（自上而下找目标）、responder chain（自下而上传未处理的事件）、`UIGestureRecognizer`（平行、抢占）、`UIControl` 的 target-action（直接注册，不走链）
+- **hit-testing 不是捕获阶段**：`hitTest:withEvent:` 递归调 `pointInside:` 只为找出 target，全程不派发事件、不触发回调
+- **responder chain 的默认语义和冒泡相反**：它是「你不处理我才给下一个」，不调 `super` 链条就断；Web 是默认continue、显式 `stopPropagation()` 才停
+- **responder chain ≠ 视图树**：会经过 `UIViewController`（它不在视图树里），且 `nextResponder` 可被覆写
+- **手势抢占在 Web 里没有参照**：`cancelsTouchesInView` 默认 YES（手势识别成功会给 view 发 `touchesCancelled:`）、`delaysTouchesEnded` 默认 YES（`touchesEnded` 延迟到手势失败后才发）。这是把 Web 事件模型套到 iOS 上最大的阻抗失配
+- `UIControl` 的 19 种 `UIControlEvents`（`TouchUpInside`、`ValueChanged`、`EditingChanged`、`PrimaryActionTriggered` 等）最接近 `addEventListener`，第 3 步可直接映射
 
 ### 原生 API 为什么裸暴露在全局
 
@@ -105,7 +178,145 @@ ObjC 没有 namespace 机制，Apple 用**类名前缀**代替：`NS`（Foundati
 
 实测目前 `globalThis` 上的 65 个内置属性里，没有任何一个以 `NS` / `UI` / `CA` / `CL` / `AV` / `MK` 开头，所以 ObjC 的**类**不会撞。真正要盯的是 C 函数、枚举和常量——它们不一定都有前缀；而且 ECMAScript 以后还会添新的内置名，所以撞名检查要固化进 bindgen，不能只查一次了事。
 
-## 3. Android 扩展计划（未开始，仅记录方向）
+## 4. 全局对象 `application`
+
+`application` 是 Nacre 注入全局的 **App 实例**，代表当前运行的这个 App 本身。浏览器里没有对应物——页面不是 App——所以这是我们自己定义的概念。
+
+它管 **App 级**的状态、事件和能力；**窗口和界面不在这里，属于 scene**。这个分工是刻意对照浏览器 `document` / `location` / `navigator` 的职责分离做的。
+
+> 本章是**上层 API**，由 Nacre 定义，面向 JS 开发者。底层的 `UIApplication` 仍可通过裸暴露直接拿到，两者并存，不是替代关系。
+
+### 继承关系
+
+```
+EventTarget
+  └─ Application
+       └─ application（唯一实例）
+```
+
+`EventTarget` 和 `Event` 不是 ECMAScript 的一部分，V8 不提供，由 Nacre 实现并注入全局。
+
+### 构造
+
+`application` 由运行时在 Context 建好时创建并注入，**JS 侧不能再构造**：
+
+```js
+new Application()   // TypeError: Illegal constructor
+```
+
+抛 `TypeError` 而不是返回同一实例，和 Web 平台对不可构造接口的处理一致（`new Navigator()` 同样抛 `Illegal constructor`），避免「以为拿到了新对象」的误解。
+
+### 实例属性
+
+未注明的均为**只读**。「状态」一列：**已定**＝已确认，**建议**＝推荐方案但未确认。
+
+#### 应用信息
+
+| 属性 | 类型 | 说明 | 状态 |
+| --- | --- | --- | --- |
+| `info` | object | `NSBundle.mainBundle.infoDictionary` 的只读快照。是**运行时已解析**的那份（25 个键，含 `MinimumOSVersion`、`DTPlatformVersion` 等构建元数据），不是 `App/Info.plist` 源文件（13 个键，还带着 `$(PRODUCT_BUNDLE_IDENTIFIER)` 这类未展开的变量） | 已定 |
+| `bundleIdentifier` | string | 等价于 `info.CFBundleIdentifier`，常用所以给快捷方式 | 建议 |
+| `version` | string | 等价于 `info.CFBundleShortVersionString` | 建议 |
+| `build` | string | 等价于 `info.CFBundleVersion` | 建议 |
+
+#### 运行状态
+
+| 属性 | 类型 | 说明 | 对应 iOS | 状态 |
+| --- | --- | --- | --- | --- |
+| `state` | `'active'` \| `'inactive'` \| `'background'` | 当前前后台状态，用字符串而非数字枚举 | `applicationState` | 建议 |
+| `backgroundTimeRemaining` | number | 进入后台后还可执行的秒数；非后台时为 `Infinity` | 同名 | 建议 |
+| `protectedDataAvailable` | boolean | 锁屏期间文件不可读，此时为 `false` | 同名 | 建议 |
+
+#### 环境与偏好
+
+| 属性 | 类型 | 说明 | 对应 iOS | 状态 |
+| --- | --- | --- | --- | --- |
+| `supportsMultipleScenes` | boolean | **声明与环境同时满足**才为 `true`。JS 据此决定要不要做多窗口 UI | 同名 | 已定 |
+| `scenes` | array | 当前已连接的场景，单场景时长度为 1 | `connectedScenes` | 已定 |
+| `layoutDirection` | `'ltr'` \| `'rtl'` | 界面方向 | `userInterfaceLayoutDirection` | 建议 |
+| `contentSizeCategory` | string | 用户设置的字体大小（动态字体） | `preferredContentSizeCategory` | 建议 |
+| `prefersReducedResourceUsage` | boolean | 系统建议降低资源消耗（iOS 27+） | `systemPrefersReducedResourceUsage` | 建议 |
+
+#### 可写
+
+| 属性 | 类型 | 说明 | 状态 |
+| --- | --- | --- | --- |
+| `idleTimerDisabled` | boolean | 设为 `true` 阻止设备自动锁屏 | 待定 |
+
+> 这个名字是双重否定，不好用。能力导向的替代是 Web 的 Screen Wake Lock 模式：`const lock = await application.requestWakeLock()` / `lock.release()`，还能配合 `using` 自动释放（`DisposableStack` 在我们的内置里）。两种方案待定。
+
+### 实例方法
+
+| 方法 | 返回 | 说明 | 状态 |
+| --- | --- | --- | --- |
+| `openURL(url, options?)` | `Promise<boolean>` | 打开 URL：跳 Safari、拨号、跳别的 App | 建议 |
+| `runInBackground(name, fn)` | `Promise` | 申请后台执行时间来跑 `fn`，结束后自动归还 | 建议 |
+
+> `runInBackground` 是「能力导向而非实现导向」的例子。iOS 的原形 `beginBackgroundTaskWithName:expirationHandler:` 返回一个 identifier，必须手动配对调用 `endBackgroundTask:`，忘了调会被系统杀进程。包成接收函数的形式后，配对由运行时保证。
+>
+> **不提供 `canOpenURL`**：iOS 27 已废弃，官方建议直接尝试打开并处理失败。
+
+### 事件
+
+事件名**全小写无分隔**，与 Web 惯例一致。
+
+**所有原生派发的事件 `cancelable` 均为 `false`**——原生在主线程派发、JS 在 JS 线程异步处理，派发方拿不到 `preventDefault()` 的结果，而「主线程永远不同步等待 JS」是硬约束。JS 自己 `dispatchEvent` 的事件不受此限。
+
+| 事件 | 触发时机 | 对应 iOS | 状态 |
+| --- | --- | --- | --- |
+| `memorywarning` | 内存吃紧，应主动释放缓存 | `DidReceiveMemoryWarning` 通知 | 建议 |
+| `screenshot` | 用户截屏 | `UserDidTakeScreenshot` 通知 | 建议 |
+| `significanttimechange` | 跨午夜、时区变更、夏令时切换 | 同名通知 | 建议 |
+| `contentsizecategorychange` | 用户改了系统字体大小 | 同名通知 | 建议 |
+| `protecteddataavailable` / `protecteddataunavailable` | 设备解锁 / 锁屏 | 同名通知 | 建议 |
+| `backgroundrefreshstatuschange` | 用户改了后台刷新权限 | 同名通知 | 建议 |
+
+**前后台事件不在这里。** iOS 26 起 `UIApplicationDelegate` 的前后台回调已全部废弃并指向 Scene，所以这组事件挂在 **scene 对象**上。只有需要「所有场景的聚合状态」时才用 App 级，走 `UIApplication` 的通知。
+
+### 示例
+
+```js
+// 读取应用信息
+console.log(application.bundleIdentifier, application.version);
+
+// 按运行环境决定 UI，而不是按设备型号猜
+if (application.supportsMultipleScenes) {
+  // 做多窗口布局
+}
+
+// 监听内存警告
+application.addEventListener('memorywarning', () => {
+  缓存.clear();
+});
+
+// 一次性监听
+application.addEventListener('screenshot', onShot, { once: true });
+
+// 异步能力统一返回 Promise
+const ok = await application.openURL('https://example.com');
+
+// 后台任务，生命周期自动配对
+await application.runInBackground('上传日志', async () => {
+  await 上传();
+});
+```
+
+### 设计说明
+
+- **为什么不叫 `window`**：`UIWindow` 在 iOS 里是真实存在的另一个东西（scene 里的窗口容器），会撞名。浏览器的 `window` 同时是全局对象和窗口对象，是历史债，不值得模仿
+- **为什么不叫 `app`**：`app` 是 JS 里最常见的局部变量名之一，被遮蔽的概率高
+- **命名不照搬 ObjC**：上层面向 JS 开发者，用 `state` 而不是 `applicationState`，用 `layoutDirection` 而不是 `userInterfaceLayoutDirection`。要 ObjC 原名的话，底层裸暴露里有
+- **异步一律 Promise**：不提供 completion handler 形态的重载
+
+### 待定
+
+- `Application.prototype` 的最终能力范围（上表标「建议」的都未确认）
+- `idleTimerDisabled` 用属性还是 WakeLock 模式
+- scene 对象的 API：属性、事件、以及和 `UIWindowScene` 的关系
+- 事件对象用 `Event` 还是带 `detail` 的 `CustomEvent`
+- 要不要暴露 `delegate` 这类底层逃生舱
+
+## 5. Android 扩展计划（未开始，仅记录方向）
 
 iOS 的功能清单完成后再开始 Android。以下是目前的方向，开始前需要按 SOP 重新讨论确认：
 
@@ -120,7 +331,7 @@ iOS 的功能清单完成后再开始 Android。以下是目前的方向，开�
 | 双端统一 | 由 JS 层（或社区库）自己处理，运行时不强制统一 |
 | JS 代码 | 同一份业务 JS，按平台分支调用各自的原生能力 |
 
-## 4. 目录约定
+## 6. 目录约定
 
 ```
 nacre/
@@ -149,7 +360,7 @@ nacre/
 | `Vendor/` | 由 `fetch-v8.sh` 下载的 V8 | 不提交 |
 | `build/` | 构建产物 | 不提交 |
 
-## 5. 开发流程 SOP
+## 7. 开发流程 SOP
 
 **原则：先讨论，明确清楚，再确定实现。没有确认就不写代码。**
 
@@ -174,7 +385,7 @@ Commit message 格式：
 
 例如：`ios: 搭建 iOS 工程，启动 V8 引擎并执行 main.js`。范围可以是 `ios`、`docs`、`repo` 等。
 
-## 6. 进度
+## 8. 进度
 
 ### 功能清单
 
@@ -226,8 +437,8 @@ Commit message 格式：
 
 第一个 commit 之前做了一次通读，改掉了四处：
 
-1. **AI 规则文件有两份且互相矛盾**：根目录的 `claude-rules.new.md` 是 `.claude/CLAUDE.md` 的草稿，两者对「AI 能不能执行命令」的说法相反。已用草稿替换正式文件并删除草稿——保留的是允许在 Claude Code 中执行构建运行类命令、但改变仓库状态的命令需先征得同意的那一版，与第 5 节第 6 步一致。
-2. **根 `README.md` 与本文件冲突**：它描述了 `nacre.json`、`nacre ios --out ./ios` 这样的 CLI 用法（第 2 节里 CLI 是「暂不考虑」，第 4 节明确禁止把生成产物命名为 `ios/`），还把 `ios/` 说成 Swift Package。已按当前决策重写。
+1. **AI 规则文件有两份且互相矛盾**：根目录的 `claude-rules.new.md` 是 `.claude/CLAUDE.md` 的草稿，两者对「AI 能不能执行命令」的说法相反。已用草稿替换正式文件并删除草稿——保留的是允许在 Claude Code 中执行构建运行类命令、但改变仓库状态的命令需先征得同意的那一版，与第 7 节第 6 步一致。
+2. **根 `README.md` 与本文件冲突**：它描述了 `nacre.json`、`nacre ios --out ./ios` 这样的 CLI 用法（第 3 节里 CLI 是「暂不考虑」，第 6 节明确禁止把生成产物命名为 `ios/`），还把 `ios/` 说成 Swift Package。已按当前决策重写。
 3. **`ios/README.md` 过时**：Xcode / iOS 版本、不存在的 `examples/` 目录、`console` 的旧描述。已重写，并补上 JS 线程和未处理 Promise 拒绝的说明。
 4. **`V8Prelude.h` 是空操作，已删除**。实测方式：对同一个 `#include <v8.h>`，加和不加这个前缀头各预处理一次，比对 V8 头文件实际看到的宏。结论是它只多定义 8 个宏，其中 7 个在全部公开头文件里出现 0 次（是编译 V8 自身用的 GN 标志），剩下的 `V8_HAVE_TARGET_OS` 只决定 `v8config.h` 走哪条分支、两条分支结论相同。`V8_TARGET_ARCH_ARM64` 和 `V8_TARGET_OS_IOS` 不加也会被自动推导出来。
 
@@ -245,7 +456,7 @@ Commit message 格式：
 - 纯 ObjC 运行时动态桥接：不需要元数据，但拿不到 C 函数、枚举、常量
 - 手写绑定：简单可控，但覆盖面有限
 
-命名空间和全局对象已经定了（见第 2 节），JS 层结构还剩五个设计点（目前的推荐方案，未确认）：
+命名空间和全局对象已经定了（见第 3 节和第 4 节），JS 层结构还剩五个设计点（目前的推荐方案，未确认）：
 
 1. 方法名映射：selector 各段拼接，如 `insertSubviewAtIndex(view, 0)`，另保留 `send(selector, ...args)` 兜底
 2. 创建与继承：`new X()` 等于 `alloc().init()`；继承原生类用 ES class
