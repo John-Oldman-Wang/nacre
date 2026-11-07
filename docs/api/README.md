@@ -24,6 +24,7 @@ Nacre 的 API 分两层：
 | [枚举](enums.md) | 一律用字符串 |
 | [定时器](timers.md) | `setTimeout` 系列。调度参考 Chromium |
 | [`URL` / `Headers`](url.md) | WHATWG 三件套。和浏览器有五处已知差异 |
+| [`fetch`](fetch.md) | 网络请求。线程分工是实测定下来的 |
 | [`UIColor`](ui-color.md) | 颜色。基础色、系统色、语义色 |
 | `UIViewController` | 页面。目前只有可构造和只读的 `view`（文档待补） |
 | `NSObject` | ObjC 的根类，所有原生类的基类（继承 `EventTarget`） |

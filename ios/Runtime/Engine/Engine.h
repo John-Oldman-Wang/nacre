@@ -99,6 +99,22 @@ struct EngineHost {
                      int call_id)>
       call_async;
 
+  // ---- 网络 ----
+  // 发起一个请求。options_json 带 method / headers / body 等；
+  // headers 到达时宿主调 SettleJSON(call_id, ...)，失败时 RejectCall。
+  // 返回一个 id，用来取消和读 body。
+  std::function<int(const std::string& url, const std::string& options_json,
+                    int call_id)>
+      fetch_start;
+  // 读某个请求的 body。kind 是 'text' / 'arrayBuffer' / 'blob'，
+  // 宿主在 body 下载完（并在后台处理完）之后兑现 call_id。
+  std::function<void(int request_id, const std::string& kind, int call_id)>
+      fetch_read_body;
+  // 取消。已完成的请求上调用是空操作。
+  std::function<void(int request_id)> fetch_cancel;
+  // JS 侧的 Blob 对象被回收时通知宿主放掉那份数据
+  std::function<void(int request_id)> fetch_release;
+
   // 解析一个 URL。base 为空串表示没有基准——我们没有 location，所以
   // 相对 URL 无依可循，这种情况返回解析失败而不是编一个出来。
   // 成功返回各部分的 JSON，失败返回空串。
@@ -162,6 +178,22 @@ class Engine {
   // 结束一个由 JS 发起的异步调用，用布尔值兑现它的 Promise。
   // 只能在 JS 线程上调用；call_id 不存在时静默忽略。
   void SettleBool(int call_id, bool value);
+
+  // ---- 异步调用的兑现 ----
+  // 都只能在 JS 线程上调用；call_id 不存在时静默忽略（可能已经被取消）。
+  // 每个 call_id 只能被兑现一次，之后就从待定表里摘掉了。
+
+  // 用一个 JSON 值兑现，比如 fetch 的 {status, headers, url}
+  void SettleJSON(int call_id, const std::string& json);
+  // 用一个原生对象兑现，比如 Blob
+  void SettleObject(int call_id, const NativeObjectRef& ref);
+  // 用一段字节兑现成 ArrayBuffer。**零拷贝**：V8 直接接管这块内存，
+  // GC 回收时调 deleter，所以调用方把所有权交出来就别再碰了。
+  void SettleBytes(int call_id, void* data, size_t byte_length,
+                   void (*deleter)(void* data, size_t length, void* info),
+                   void* deleter_info);
+  // 拒绝。name 是错误类型（'TypeError' / 'AbortError' …），JS 侧据此建对应的 Error
+  void RejectCall(int call_id, const std::string& name, const std::string& message);
 
   // ---- 定时器 ----
   // 宿主被 schedule_wakeup 叫醒后调这个。执行到期的定时器，

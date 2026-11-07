@@ -13,7 +13,6 @@
 // 实测 globalThis 之后确认不存在（iOS 26 模拟器，V8 14.9.207.39 lite）：
 //
 //   Intl                                        V8 lite 构建不带 ICU
-//   fetch / Request / Response                  网络还没做（URL 和 Headers 已经有了）
 //   TextEncoder / TextDecoder                    WHATWG 的，不是 ECMAScript
 //   structuredClone                              HTML 规范的
 //   WebAssembly                                  lite 模式不含
@@ -139,6 +138,78 @@ declare class Headers {
     thisArg?: unknown,
   ): void;
 }
+
+// ---------------------------------------------------------------------------
+// fetch
+// ---------------------------------------------------------------------------
+//
+// 没有 CORS、没有同源策略、没有 credentials——那套是浏览器为不受信任的页面
+// 设计的，这里的 JS 和原生代码同等地位。
+//
+// 也没有 ReadableStream：body 整个下完才兑现。流式第一版不做。
+
+interface RequestInit {
+  method?: string;
+  headers?: HeadersInit;
+  body?: string | null;
+}
+
+/**
+ * body 的四种读法。每个 body 只能读一次，读第二次会拒绝。
+ *
+ * 这是 interface 不是 class：和 Web 一样，`Body` 不是全局类，只是
+ * `Request` 和 `Response` 共有的那组成员，靠下面的声明合并并进去。
+ */
+interface Body {
+  readonly bodyUsed: boolean;
+  /** 零拷贝：原生那块内存直接交给 V8，不经过复制。 */
+  arrayBuffer(): Promise<ArrayBuffer>;
+  /** 后台 UTF-8 解码，一次拷贝。 */
+  text(): Promise<string>;
+  /** text() 再加一次 JSON.parse。 */
+  json(): Promise<any>;
+  /** 还没实现，先用 arrayBuffer()。 */
+  blob(): Promise<never>;
+}
+
+declare class Response {
+  constructor(body?: null, init?: { status?: number; statusText?: string; headers?: HeadersInit });
+  readonly status: number;
+  readonly statusText: string;
+  readonly url: string;
+  readonly headers: Headers;
+  /**
+   * 只有 2xx 才是 true。
+   *
+   * **404 和 500 不会让 fetch 拒绝**——那是服务器正常答复了，只是答复的内容
+   * 是个错误。fetch 只在网络层失败（DNS 挂了、连不上、被取消）时才拒绝。
+   * 这是 Web 的语义，也是最常被误解的一条。
+   */
+  readonly ok: boolean;
+  /** 重定向由系统处理，我们看不到中间过程，恒为 false。 */
+  readonly redirected: boolean;
+  /** 没有 CORS，恒为 'basic'。 */
+  readonly type: string;
+}
+
+declare class Request {
+  constructor(input: string | URL | Request, init?: RequestInit);
+  readonly url: string;
+  readonly method: string;
+  readonly headers: Headers;
+  clone(): Request;
+}
+
+/**
+ * 发一个 HTTP 请求。
+ *
+ * URL 必须是绝对的——没有 location 就没有 base，`fetch('/api')` 会拒绝。
+ */
+// 声明合并：把 Body 的成员并进这两个类
+interface Response extends Body {}
+interface Request extends Body {}
+
+declare function fetch(input: string | URL | Request, init?: RequestInit): Promise<Response>;
 
 // ---------------------------------------------------------------------------
 // 定时器

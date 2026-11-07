@@ -5,6 +5,8 @@
 // V8_ENABLE_SANDBOX 在这个预编译包里是关闭的，使用方也不定义，两边正好一致。
 // 换 V8 构建时必须重新核对这两个宏——不一致会导致对象布局不匹配而崩溃。
 #include <libplatform/libplatform.h>
+#include <v8-array-buffer.h>
+#include <v8-json.h>
 #include <v8.h>
 
 #include <algorithm>
@@ -156,6 +158,21 @@ struct Engine::Impl {
   // 未处理拒绝改成排到宿主队列尾部结算，而不是当场。
   // 这样 setTimeout(() => p.catch(...), 0) 补的 handler 来得及抑制上报，
   // 和 Chromium 一致。代价是队列忙的时候上报会被推后。
+  // 取走一个待定调用的 resolver。取不到说明已经兑现过或被取消了。
+  v8::Local<v8::Promise::Resolver> TakePending(int call_id) {
+    auto it = pending_calls.find(call_id);
+    if (it == pending_calls.end()) return {};
+    v8::Local<v8::Promise::Resolver> r = it->second.Get(isolate);
+    pending_calls.erase(it);
+    return r;
+  }
+  // 兑现之后的收尾。这里不在任何 JS 调用栈上，kAuto 不会自动排空微任务，
+  // 不显式跑一次的话 await 后面的代码要等到下次有 JS 执行才继续。
+  void AfterSettle() {
+    isolate->PerformMicrotaskCheckpoint();
+    ScheduleRejectionFlush();
+  }
+
   int AddTimer(v8::Local<v8::Function> callback, double delay_ms, bool repeats);
   void RemoveTimer(int id);
 
@@ -543,6 +560,58 @@ struct Engine::Impl {
     return true;
   }
 
+  // fetch 的三个入口。真正的活在宿主那边，这里只过参数。
+  static void NativeFetchStart(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
+    if (!self->host.fetch_start || info.Length() < 2) return;
+
+    v8::Local<v8::Promise::Resolver> resolver;
+    if (!v8::Promise::Resolver::New(ctx).ToLocal(&resolver)) return;
+    const int call_id = self->next_call_id++;
+    self->pending_calls[call_id].Reset(isolate, resolver);
+
+    const int request_id = self->host.fetch_start(
+        SafeToString(isolate, info[0]), SafeToString(isolate, info[1]), call_id);
+    // 返回 [promise, requestId]：JS 侧要拿 requestId 去读 body 和取消
+    v8::Local<v8::Array> pair = v8::Array::New(isolate, 2);
+    pair->Set(ctx, 0, resolver->GetPromise()).Check();
+    pair->Set(ctx, 1, v8::Integer::New(isolate, request_id)).Check();
+    info.GetReturnValue().Set(pair);
+  }
+
+  static void NativeFetchReadBody(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
+    if (!self->host.fetch_read_body || info.Length() < 2) return;
+
+    v8::Local<v8::Promise::Resolver> resolver;
+    if (!v8::Promise::Resolver::New(ctx).ToLocal(&resolver)) return;
+    const int call_id = self->next_call_id++;
+    self->pending_calls[call_id].Reset(isolate, resolver);
+    self->host.fetch_read_body(info[0]->Int32Value(ctx).FromMaybe(0),
+                               SafeToString(isolate, info[1]), call_id);
+    info.GetReturnValue().Set(resolver->GetPromise());
+  }
+
+  static void NativeFetchCancel(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
+    if (!self->host.fetch_cancel || info.Length() < 1) return;
+    self->host.fetch_cancel(info[0]->Int32Value(ctx).FromMaybe(0));
+  }
+
+  static void NativeFetchRelease(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
+    if (!self->host.fetch_release || info.Length() < 1) return;
+    self->host.fetch_release(info[0]->Int32Value(ctx).FromMaybe(0));
+  }
+
   // URL 解析。字符串进，各部分的 JSON 出；解析不了返回 null。
   static void NativeParseURL(const v8::FunctionCallbackInfo<v8::Value>& info) {
     v8::Isolate* isolate = info.GetIsolate();
@@ -705,6 +774,10 @@ struct Engine::Impl {
         {"classObjProp", NativeClassObjectProperty},
         {"classCall", NativeClassCall},
         {"parseURL", NativeParseURL},
+        {"fetchStart", NativeFetchStart},
+        {"fetchReadBody", NativeFetchReadBody},
+        {"fetchCancel", NativeFetchCancel},
+        {"fetchRelease", NativeFetchRelease},
         {"addTimer", NativeAddTimer},
         {"removeTimer", NativeRemoveTimer},
         {"call", NativeCall},
@@ -1025,6 +1098,84 @@ void Engine::SettleBool(int call_id, bool value) {
   isolate->PerformMicrotaskCheckpoint();
   impl_->ScheduleRejectionFlush();
 }
+
+// ---------------------------------------------------------------------------
+// 异步调用的兑现
+// ---------------------------------------------------------------------------
+
+// 四个 Settle 的开头都一样：进 isolate、进 context、取 resolver。
+#define NACRE_SETTLE_PROLOGUE(call_id)                       \
+  v8::Isolate* isolate = impl_->isolate;                     \
+  v8::Isolate::Scope isolate_scope(isolate);                 \
+  v8::HandleScope handle_scope(isolate);                     \
+  v8::Local<v8::Context> ctx = impl_->context.Get(isolate);  \
+  v8::Context::Scope context_scope(ctx);                     \
+  v8::Local<v8::Promise::Resolver> resolver = impl_->TakePending(call_id)
+
+void Engine::SettleJSON(int call_id, const std::string& json) {
+  NACRE_SETTLE_PROLOGUE(call_id);
+  if (resolver.IsEmpty()) return;
+  v8::TryCatch try_catch(isolate);
+  v8::Local<v8::Value> value;
+  if (!v8::JSON::Parse(ctx, Utf8(isolate, json)).ToLocal(&value)) {
+    try_catch.Reset();
+    value = v8::Undefined(isolate);
+  }
+  if (resolver->Resolve(ctx, value).IsNothing()) try_catch.Reset();
+  impl_->AfterSettle();
+}
+
+void Engine::SettleObject(int call_id, const NativeObjectRef& ref) {
+  NACRE_SETTLE_PROLOGUE(call_id);
+  if (resolver.IsEmpty()) return;
+  v8::TryCatch try_catch(isolate);
+  v8::Local<v8::Object> wrapper = impl_->WrapNative(ctx, ref);
+  v8::Local<v8::Value> value =
+      wrapper.IsEmpty() ? v8::Local<v8::Value>(v8::Null(isolate)) : wrapper;
+  if (resolver->Resolve(ctx, value).IsNothing()) try_catch.Reset();
+  impl_->AfterSettle();
+}
+
+void Engine::SettleBytes(int call_id, void* data, size_t byte_length,
+                         void (*deleter)(void*, size_t, void*), void* deleter_info) {
+  NACRE_SETTLE_PROLOGUE(call_id);
+  if (resolver.IsEmpty()) {
+    // 没人等了（比如请求被取消），但内存还得还回去
+    if (deleter) deleter(data, byte_length, deleter_info);
+    return;
+  }
+  v8::TryCatch try_catch(isolate);
+  // 零拷贝：V8 接管这块内存，GC 回收 ArrayBuffer 时调 deleter。
+  // 所以调用方把所有权交出来之后就不能再碰这块内存了。
+  std::unique_ptr<v8::BackingStore> store =
+      v8::ArrayBuffer::NewBackingStore(data, byte_length, deleter, deleter_info);
+  v8::Local<v8::ArrayBuffer> buffer = v8::ArrayBuffer::New(isolate, std::move(store));
+  if (resolver->Resolve(ctx, buffer).IsNothing()) try_catch.Reset();
+  impl_->AfterSettle();
+}
+
+void Engine::RejectCall(int call_id, const std::string& name,
+                        const std::string& message) {
+  NACRE_SETTLE_PROLOGUE(call_id);
+  if (resolver.IsEmpty()) return;
+  v8::TryCatch try_catch(isolate);
+  // TypeError 要建成真正的 TypeError 实例，不能只是改个 name——Web 规范里
+  // fetch 的网络失败拒绝的就是 TypeError，用户代码会 instanceof 它。
+  // 其余的（AbortError 之类）Web 用的是 DOMException，我们没有那个类，
+  // 退而求其次用 Error 加 name，JS 侧靠 err.name 分辨。
+  v8::Local<v8::Value> error =
+      name == "TypeError" ? v8::Exception::TypeError(Utf8(isolate, message))
+                          : v8::Exception::Error(Utf8(isolate, message));
+  if (error->IsObject() && !name.empty() && name != "TypeError") {
+    error.As<v8::Object>()
+        ->Set(ctx, Utf8(isolate, "name"), Utf8(isolate, name))
+        .Check();
+  }
+  if (resolver->Reject(ctx, error).IsNothing()) try_catch.Reset();
+  impl_->AfterSettle();
+}
+
+#undef NACRE_SETTLE_PROLOGUE
 
 // ---------------------------------------------------------------------------
 // 定时器

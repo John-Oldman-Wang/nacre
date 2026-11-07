@@ -629,6 +629,72 @@ application.addEventListener('sceneconnect', (e) => {
     断言('首尾空白被去掉', new Headers({ a: '  v  ' }).get('a'), 'v');
   }
 
+  // ===== fetch =====
+  // 对着本地测试服务器跑。服务器没起的时候这几条会全红，是预期的。
+  (async () => {
+    const 根 = 'http://127.0.0.1:8099';
+    console.log('  --- fetch ---');
+    try {
+      const res = await fetch(根 + '/json');
+      断言('status', res.status, 200);
+      断言('ok', res.ok, true);
+      断言('url 是绝对的', res.url, 根 + '/json');
+      断言('响应首部大小写不敏感', res.headers.get('CONTENT-TYPE'), 'application/json');
+      断言('同名多值合并', res.headers.get('x-multi'), 'one, two');
+      const data = await res.json();
+      断言('json() 解析出中文', data.hello, '世界');
+      断言('json() 解析出数字', data.n, 42);
+      断言('body 读过之后 bodyUsed', res.bodyUsed, true);
+      try { await res.json(); console.log('  ✗ body 居然能读第二次'); }
+      catch (err) { 断言('body 不能读第二次', err.constructor.name, 'TypeError'); }
+
+      const t = await (await fetch(根 + '/text')).text();
+      断言('text()', t, '纯文本 body');
+
+      // 404 不是网络错误：fetch 照样兑现，只是 ok 为 false
+      const r404 = await fetch(根 + '/404');
+      断言('404 不拒绝，只是 ok=false', r404.ok, false);
+      断言('404 的 status', r404.status, 404);
+
+      // arrayBuffer 走零拷贝那条路
+      const buf = await (await fetch(根 + '/bytes')).arrayBuffer();
+      断言('arrayBuffer 是 ArrayBuffer', buf instanceof ArrayBuffer, true);
+      断言('arrayBuffer 长度', buf.byteLength, 256);
+      const view = new Uint8Array(buf);
+      断言('arrayBuffer 内容对得上', view[0] + ',' + view[255], '0,255');
+
+      // POST 带 body 和自定义首部
+      const post = await fetch(根 + '/echo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 来自: 'nacre' }),
+      });
+      const echo = await post.json();
+      断言('POST 的 method 到了服务器', echo.method, 'POST');
+      断言('POST 的 body 到了服务器', JSON.parse(echo['收到']).来自, 'nacre');
+      断言('自定义首部到了服务器', echo.ct, 'application/json');
+
+      // 网络层失败才拒绝
+      try {
+        await fetch('http://127.0.0.1:1/nope');
+        console.log('  ✗ 连不上居然没拒绝');
+      } catch (err) {
+        断言('连不上时拒绝', err.constructor.name, 'TypeError');
+      }
+      try { await fetch('/相对路径'); console.log('  ✗ 相对 URL 居然通过'); }
+      catch (err) { 断言('相对 URL 被拒（没有 base）', err.constructor.name, 'TypeError'); }
+
+      // 并发：20 个一起发，验证不串行
+      const t0 = Date.now();
+      const 批 = await Promise.all(
+        Array.from({ length: 20 }, () => fetch(根 + '/json').then((r) => r.json())));
+      断言('20 个并发请求都成功', 批.every((d) => d.n === 42), true);
+      console.log('  ✓ 20 个并发请求耗时', Date.now() - t0, 'ms（串行的话要 20 倍）');
+    } catch (err) {
+      console.log('  ✗ fetch 用例整体出错:', err && err.message);
+    }
+  })();
+
   // ===== 定时器 =====
   console.log('  --- 定时器 ---');
 

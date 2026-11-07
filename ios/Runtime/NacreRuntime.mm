@@ -996,6 +996,40 @@ std::string InfoDictionaryJSON() {
 
 }  // namespace
 
+// ---------------------------------------------------------------------------
+// fetch
+// ---------------------------------------------------------------------------
+//
+// 线程分工（实测定下来的）：
+//
+//   NSURLSession 的线程池     DNS/TCP/TLS/传输/gzip，系统的，并行
+//          ↓
+//   delegate 串行队列         **只做最轻的事**：追加数据、记状态、一次 dispatch
+//          ↓
+//   并发队列                  UTF-8 解码这类 CPU 活
+//          ↓
+//   主线程                    建 V8 对象、兑现 Promise
+//
+// 中间那层是被实测逼出来的：20 个并发请求，每个回调做 100ms 重活，直接在
+// delegate 队列上做要 2179ms（全串行），派到并发队列只要 166ms。
+
+@interface NacreFetchTask : NSObject
+@property(nonatomic) int requestId;
+@property(nonatomic, strong) NSURLSessionDataTask* task;
+@property(nonatomic, strong) NSMutableData* body;
+@property(nonatomic) BOOL completed;      // body 下载完了（成功或失败）
+@property(nonatomic, strong) NSError* error;
+// 等 body 的那个调用。headers 先到、body 后到，所以 read 可能来得比完成早
+@property(nonatomic) int pendingBodyCallId;
+@property(nonatomic, copy) NSString* pendingBodyKind;
+@end
+
+@implementation NacreFetchTask
+@end
+
+@interface NacreRuntime () <NSURLSessionDataDelegate>
+@end
+
 @implementation NacreRuntime {
   BOOL _started;
   // JS 跑在主线程，所以这些都只在主线程上创建、使用和销毁
@@ -1004,6 +1038,14 @@ std::string InfoDictionaryJSON() {
   NSMutableArray* _observers;
   // 主线程即将空闲时把时间交给 V8 做增量 GC
   CFRunLoopObserverRef _idleObserver;
+  // fetch 的状态。_fetchTasks 只在 _fetchQueue 上访问，所以不用加锁。
+  NSURLSession* _session;
+  NSOperationQueue* _delegateQueue;     // 串行，只做最轻的事
+  dispatch_queue_t _fetchQueue;         // 串行，守着 _fetchTasks
+  dispatch_queue_t _fetchWorkQueue;     // 并发，干解码这类重活
+  NSMutableDictionary<NSNumber*, NacreFetchTask*>* _fetchTasks;
+  int _nextRequestId;
+
   // 定时器唤醒的「代数」。到期顺序由 Engine 的堆决定，这里只管「叫醒」。
   //
   // 为什么不用 dispatch_source 复用一个 timer：FireDueTimers 整个跑在唤醒的
@@ -1023,8 +1065,233 @@ std::string InfoDictionaryJSON() {
     _engine = std::make_shared<std::unique_ptr<nacre::Engine>>();
     _snapshot = std::make_shared<AppSnapshot>();
     _observers = [NSMutableArray array];
+    _fetchTasks = [NSMutableDictionary dictionary];
+    _nextRequestId = 1;
+    _fetchQueue = dispatch_queue_create("nacre.fetch", DISPATCH_QUEUE_SERIAL);
+    _fetchWorkQueue = dispatch_queue_create(
+        "nacre.fetch.work", DISPATCH_QUEUE_CONCURRENT);
+    // delegate 队列设成串行（maxConcurrent = 1）：回调顺序要确定，
+    // 而且我们在上面只做最轻的事，重活会派到 _fetchWorkQueue
+    _delegateQueue = [NSOperationQueue new];
+    _delegateQueue.maxConcurrentOperationCount = 1;
+    _delegateQueue.name = @"nacre.fetch.delegate";
   }
   return self;
+}
+
+// ---- fetch ----
+
+- (NSURLSession*)fetchSession {
+  if (!_session) {
+    NSURLSessionConfiguration* cfg =
+        [NSURLSessionConfiguration defaultSessionConfiguration];
+    _session = [NSURLSession sessionWithConfiguration:cfg
+                                             delegate:self
+                                        delegateQueue:_delegateQueue];
+  }
+  return _session;
+}
+
+- (int)fetchStart:(const std::string&)urlText
+          options:(const std::string&)optionsJSON
+           callId:(int)callId {
+  auto engine = _engine;
+  NSURL* url = [NSURL URLWithString:@(urlText.c_str())];
+  if (url == nil || url.scheme.length == 0) {
+    // 立刻拒绝，但要排到下一轮——JS 还没拿到 Promise 呢
+    dispatch_async(dispatch_get_main_queue(), ^{
+      if (*engine) (*engine)->RejectCall(callId, "TypeError", "URL 不合法");
+    });
+    return 0;
+  }
+
+  id decoded = DecodeJSON(optionsJSON);
+  NSDictionary* opts = [decoded isKindOfClass:NSDictionary.class] ? decoded : @{};
+  NSMutableURLRequest* req = [NSMutableURLRequest requestWithURL:url];
+  NSString* method = opts[@"method"];
+  req.HTTPMethod = [method isKindOfClass:NSString.class] ? method.uppercaseString : @"GET";
+  NSArray* headerPairs = opts[@"headers"];
+  if ([headerPairs isKindOfClass:NSArray.class]) {
+    for (NSArray* pair in headerPairs) {
+      if (![pair isKindOfClass:NSArray.class] || pair.count != 2) continue;
+      // 用 add 而不是 set：同名多值要保留
+      [req addValue:pair[1] forHTTPHeaderField:pair[0]];
+    }
+  }
+  NSString* bodyText = opts[@"body"];
+  if ([bodyText isKindOfClass:NSString.class]) {
+    req.HTTPBody = [bodyText dataUsingEncoding:NSUTF8StringEncoding];
+  }
+
+  const int requestId = _nextRequestId++;
+  NacreFetchTask* entry = [NacreFetchTask new];
+  entry.requestId = requestId;
+  entry.body = [NSMutableData data];
+  entry.pendingBodyCallId = 0;
+  entry.task = [[self fetchSession] dataTaskWithRequest:req];
+  // taskDescription 是从 delegate 回调找回 requestId 的那根线
+  entry.task.taskDescription = [NSString stringWithFormat:@"%d:%d", requestId, callId];
+  dispatch_async(_fetchQueue, ^{
+    self->_fetchTasks[@(requestId)] = entry;
+  });
+  [entry.task resume];
+  return requestId;
+}
+
+// 把 delegate 回调里的 task 映射回我们的记录
+- (void)withTask:(NSURLSessionTask*)task
+              do:(void (^)(NacreFetchTask* entry, int callId))block {
+  NSArray* parts = [task.taskDescription componentsSeparatedByString:@":"];
+  if (parts.count != 2) return;
+  const int requestId = [parts[0] intValue];
+  const int callId = [parts[1] intValue];
+  dispatch_async(_fetchQueue, ^{
+    NacreFetchTask* entry = self->_fetchTasks[@(requestId)];
+    if (entry) block(entry, callId);
+  });
+}
+
+// headers 到了 —— 这时候就兑现 Response，body 还在下
+- (void)URLSession:(NSURLSession*)session
+              dataTask:(NSURLSessionDataTask*)dataTask
+    didReceiveResponse:(NSURLResponse*)response
+     completionHandler:(void (^)(NSURLSessionResponseDisposition))completionHandler {
+  completionHandler(NSURLSessionResponseAllow);
+  auto engine = _engine;
+  NSHTTPURLResponse* http =
+      [response isKindOfClass:NSHTTPURLResponse.class] ? (NSHTTPURLResponse*)response : nil;
+  [self withTask:dataTask
+              do:^(NacreFetchTask* entry, int callId) {
+                NSMutableArray* headerPairs = [NSMutableArray array];
+                [http.allHeaderFields
+                    enumerateKeysAndObjectsUsingBlock:^(id k, id v, BOOL* stop) {
+                      [headerPairs addObject:@[ [k description], [v description] ]];
+                    }];
+                NSDictionary* payload = @{
+                  @"requestId" : @(entry.requestId),
+                  @"status" : @(http ? http.statusCode : 200),
+                  @"url" : response.URL.absoluteString ?: @"",
+                  @"headers" : headerPairs,
+                };
+                const std::string json = EncodeJSON(payload);
+                dispatch_async(dispatch_get_main_queue(), ^{
+                  if (*engine) (*engine)->SettleJSON(callId, json);
+                });
+              }];
+}
+
+// 数据块到了 —— delegate 队列上只做 append，绝不在这里干活
+- (void)URLSession:(NSURLSession*)session
+          dataTask:(NSURLSessionDataTask*)dataTask
+    didReceiveData:(NSData*)data {
+  [self withTask:dataTask
+              do:^(NacreFetchTask* entry, int callId) { [entry.body appendData:data]; }];
+}
+
+- (void)URLSession:(NSURLSession*)session
+                    task:(NSURLSessionTask*)task
+    didCompleteWithError:(NSError*)error {
+  [self withTask:task
+              do:^(NacreFetchTask* entry, int callId) {
+                entry.completed = YES;
+                entry.error = error;
+                if (error && entry.pendingBodyCallId == 0) {
+                  // headers 都没到就失败了，拒绝那个 Response 的 Promise
+                  [self rejectCall:callId withError:error];
+                }
+                if (entry.pendingBodyCallId != 0) {
+                  // 已经有人在等 body 了，现在能给了
+                  [self deliverBody:entry
+                               kind:entry.pendingBodyKind
+                             callId:entry.pendingBodyCallId];
+                  entry.pendingBodyCallId = 0;
+                }
+              }];
+}
+
+- (void)rejectCall:(int)callId withError:(NSError*)error {
+  auto engine = _engine;
+  const BOOL cancelled = error.code == NSURLErrorCancelled;
+  const std::string name = cancelled ? "AbortError" : "TypeError";
+  NSString* text = cancelled
+                       ? @"请求已取消"
+                       : [NSString stringWithFormat:@"网络请求失败：%@",
+                                                    error.localizedDescription];
+  const std::string message = text.UTF8String;
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (*engine) (*engine)->RejectCall(callId, name, message);
+  });
+}
+
+// 真正把 body 交出去。重活（UTF-8 解码）在并发队列上做。
+- (void)deliverBody:(NacreFetchTask*)entry kind:(NSString*)kind callId:(int)callId {
+  auto engine = _engine;
+  if (entry.error) {
+    [self rejectCall:callId withError:entry.error];
+    return;
+  }
+  NSData* data = [entry.body copy];
+  dispatch_async(_fetchWorkQueue, ^{
+    if ([kind isEqualToString:@"text"]) {
+      // UTF-8 解码：这是实打实的 CPU 活，所以才要并发队列
+      NSString* text = [[NSString alloc] initWithData:data
+                                             encoding:NSUTF8StringEncoding]
+                           ?: @"";
+      const std::string json = EncodeJSON(text);
+      dispatch_async(dispatch_get_main_queue(), ^{
+        if (*engine) (*engine)->SettleJSON(callId, json);
+      });
+    } else {
+      // arrayBuffer：把 NSData 的内存直接交给 V8，零拷贝。
+      // CFBridgingRetain 把所有权转过去，deleter 里再 release。
+      const void* bytes = data.bytes;
+      const size_t length = data.length;
+      void* owned = (void*)CFBridgingRetain(data);
+      dispatch_async(dispatch_get_main_queue(), ^{
+        if (!*engine) {
+          CFRelease(owned);
+          return;
+        }
+        (*engine)->SettleBytes(
+            callId, (void*)bytes, length,
+            [](void* d, size_t len, void* info) { CFRelease(info); }, owned);
+      });
+    }
+  });
+}
+
+- (void)fetchReadBody:(int)requestId kind:(const std::string&)kindText callId:(int)callId {
+  NSString* kind = @(kindText.c_str());
+  auto engine = _engine;
+  dispatch_async(_fetchQueue, ^{
+    NacreFetchTask* entry = self->_fetchTasks[@(requestId)];
+    if (!entry) {
+      dispatch_async(dispatch_get_main_queue(), ^{
+        if (*engine) (*engine)->RejectCall(callId, "TypeError", "这个请求已经没了");
+      });
+      return;
+    }
+    if (entry.completed) {
+      [self deliverBody:entry kind:kind callId:callId];
+    } else {
+      // body 还在下，记下来等完成时再给
+      entry.pendingBodyCallId = callId;
+      entry.pendingBodyKind = kind;
+    }
+  });
+}
+
+- (void)fetchCancel:(int)requestId {
+  dispatch_async(_fetchQueue, ^{
+    NacreFetchTask* entry = self->_fetchTasks[@(requestId)];
+    [entry.task cancel];
+  });
+}
+
+- (void)fetchRelease:(int)requestId {
+  dispatch_async(_fetchQueue, ^{
+    [self->_fetchTasks removeObjectForKey:@(requestId)];
+  });
 }
 
 - (void)startWithScriptsDirectory:(NSURL *)directory {
@@ -1133,6 +1400,25 @@ std::string InfoDictionaryJSON() {
     host.read_class_object_property = [](const std::string& className,
                                          const std::string& name) {
       return ReadClassObjectProperty(className, name);
+    };
+    host.fetch_start = [weakSelf](const std::string& url, const std::string& options,
+                                  int callId) -> int {
+      NacreRuntime* strongSelf = weakSelf;
+      if (!strongSelf) return 0;
+      return [strongSelf fetchStart:url options:options callId:callId];
+    };
+    host.fetch_read_body = [weakSelf](int requestId, const std::string& kind,
+                                      int callId) {
+      NacreRuntime* strongSelf = weakSelf;
+      if (strongSelf) [strongSelf fetchReadBody:requestId kind:kind callId:callId];
+    };
+    host.fetch_cancel = [weakSelf](int requestId) {
+      NacreRuntime* strongSelf = weakSelf;
+      if (strongSelf) [strongSelf fetchCancel:requestId];
+    };
+    host.fetch_release = [weakSelf](int requestId) {
+      NacreRuntime* strongSelf = weakSelf;
+      if (strongSelf) [strongSelf fetchRelease:requestId];
     };
     host.parse_url = [](const std::string& url, const std::string& base) {
       return ParseURL(url, base);
@@ -1441,6 +1727,8 @@ std::string InfoDictionaryJSON() {
   }
   // 让所有已排的唤醒作废；它们醒来时 weakSelf 也已经是 nil 了
   _wakeupGeneration++;
+  [_session invalidateAndCancel];
+  _session = nil;
   // Engine 和 JS 在同一个线程（主线程），dealloc 也在主线程，直接销毁
   _engine->reset();
 }

@@ -1238,6 +1238,124 @@
     }
   });
 
+  // ---------- fetch ----------
+  //
+  // body 的四条路，各自的代价不一样：
+  //   arrayBuffer()  原生那块内存直接交给 V8，**零拷贝**
+  //   blob()         同上，而且 JS 侧只拿句柄，字节不进 V8 堆
+  //   text()         后台 UTF-8 解码，一次拷贝
+  //   json()         text 再加一次 JSON.parse（C++ runtime，jitless 不影响）
+  //
+  // 没有 ReadableStream：body 整个下完才兑现。流式是一整套规范，第一版不做。
+
+  const kRequestId = Symbol('fetch.requestId');
+  const kBodyText = Symbol('request.bodyText');
+  const kBodyUsed = Symbol('fetch.bodyUsed');
+  const kResponseInit = Symbol('fetch.responseInit');
+
+  // 请求结束后要放掉原生那份数据。JS 对象被回收时通知原生层——
+  // 否则一个没读 body 的 Response 会把 NSData 一直钉在内存里。
+  const bodyRegistry = new FinalizationRegistry((requestId) => {
+    native.fetchRelease(requestId);
+  });
+
+  function 读body(target, kind) {
+    if (target[kBodyUsed]) {
+      // Web 规范：body 只能读一次。读过第二次要抛，不能静默给空的
+      return Promise.reject(new TypeError('body 已经读过了，不能再读一次'));
+    }
+    target[kBodyUsed] = true;
+    const id = target[kRequestId];
+    if (!id) return Promise.reject(new TypeError('这个对象没有 body'));
+    return native.fetchReadBody(id, kind);
+  }
+
+  class Body {
+    get bodyUsed() { return this[kBodyUsed]; }
+    arrayBuffer() { return 读body(this, 'arrayBuffer'); }
+    text() { return 读body(this, 'text'); }
+    async json() { return JSON.parse(await 读body(this, 'text')); }
+    // blob 先按 arrayBuffer 走：Blob 类要等原生对象包装那条路，记在文档里
+    async blob() {
+      throw new TypeError('blob() 还没做，先用 arrayBuffer()');
+    }
+  }
+
+  const Response = define(globalThis, 'Response', class Response extends Body {
+    constructor(body, init) {
+      super();
+      const o = init === undefined || init === null ? {} : init;
+      this[kRequestId] = 0;
+      this[kBodyUsed] = false;
+      this[kResponseInit] = {
+        status: 'status' in o ? Number(o.status) : 200,
+        statusText: 'statusText' in o ? String(o.statusText) : '',
+        url: '',
+        headers: new Headers(o.headers),
+      };
+    }
+    get status() { return this[kResponseInit].status; }
+    get statusText() { return this[kResponseInit].statusText; }
+    get url() { return this[kResponseInit].url; }
+    get headers() { return this[kResponseInit].headers; }
+    // 2xx 才算成功。404 也会走到这里——fetch 只在网络层失败时才拒绝，
+    // 这是 Web 的语义，常被误解，所以文档里专门写了一段
+    get ok() { return this.status >= 200 && this.status < 300; }
+    get redirected() { return false; }   // 重定向由系统处理，我们看不到中间过程
+    get type() { return 'basic'; }       // 没有 CORS，一律 basic
+  });
+
+  const Request = define(globalThis, 'Request', class Request extends Body {
+    constructor(input, init) {
+      super();
+      const o = init === undefined || init === null ? {} : init;
+      const 来自请求 = input instanceof Request;
+      this[kRequestId] = 0;
+      this[kBodyUsed] = false;
+      this.url = 来自请求 ? input.url : new URL(String(input)).href;
+      this.method = ('method' in o ? String(o.method) : 来自请求 ? input.method : 'GET')
+                      .toUpperCase();
+      this.headers = new Headers(
+        'headers' in o ? o.headers : 来自请求 ? input.headers : undefined);
+      const body = 'body' in o ? o.body : 来自请求 ? input[kBodyText] : undefined;
+      this[kBodyText] = body === undefined || body === null ? null : String(body);
+      // 不 Object.freeze：bodyUsed 是读 body 时才置上的，冻了就写不进去。
+      // Web 的 Request 用内部槽存这个状态，我们用 Symbol 属性，所以不能冻。
+    }
+    clone() {
+      return new Request(this.url, {
+        method: this.method, headers: this.headers, body: this[kBodyText],
+      });
+    }
+  });
+
+  define(globalThis, 'fetch', function fetch(input, init) {
+    let req;
+    try { req = new Request(input, init); }
+    catch (err) { return Promise.reject(err); }
+
+    const headerPairs = [];
+    for (const [k, v] of req.headers) headerPairs.push([k, v]);
+    const options = {
+      method: req.method,
+      headers: headerPairs,
+      body: req[kBodyText],
+    };
+
+    const [promise, requestId] = native.fetchStart(req.url, JSON.stringify(options));
+    return promise.then((info) => {
+      const res = new Response(null, {
+        status: info.status,
+        headers: info.headers,
+      });
+      res[kResponseInit].url = info.url;
+      res[kRequestId] = requestId;
+      // 原生那份 NSData 的生死跟着这个 Response 走
+      bodyRegistry.register(res, requestId);
+      return res;
+    });
+  });
+
   // ---------- 定时器 ----------
   //
   // 这是 Web 的 API，不是我们设计的——按[原则 4]所有「我们设计的」异步 API
