@@ -1,0 +1,15 @@
+{
+  "name": "@nacre/types",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Nacre 运行时的 TypeScript 类型定义",
+  "types": "./index.d.ts",
+  "files": [
+    "index.d.ts",
+    "nacre.d.ts",
+    "ios.d.ts",
+    "README.md"
+  ],
+  "license": "MIT",
+  "sideEffects": false
+}

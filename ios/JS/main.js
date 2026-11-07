@@ -29,6 +29,7 @@ console.log(circular);                                      // [object Object]
 // v8::String::Utf8Value 的构造函数内部自带 TryCatch，异常在那里就被吞掉了，
 // 我们拿到的是空指针，所以打 <unprintable> 而不是 <throws on toString>。
 const hostile = { toString() { throw new Error('boom'); } };
+// @ts-expect-error 对象字面量上加属性
 hostile.self = hostile;
 console.log(hostile);                                       // <unprintable>
 
@@ -40,9 +41,14 @@ Promise.reject(new Error('这条不应该被报告')).catch(() => {
   console.log('已处理的拒绝：catch 正常执行');
 });
 
-console.log('globalThis', Object.keys(globalThis))
-console.log('typeof Date', typeof Date)
-console.log('typeof Intl', typeof Intl)
+// 内置属性都是 non-enumerable，Object.keys 看不见，要用 getOwnPropertyNames。
+// 这份清单是 types/ 里 lib 配置的依据：运行时实际有什么，类型定义就声明什么。
+console.log('globalThis 的全部属性 =',
+            Object.getOwnPropertyNames(globalThis).sort().join(' '));
+console.log('这些不存在 =',
+            ['setTimeout', 'setInterval', 'queueMicrotask', 'Intl', 'fetch', 'URL',
+             'TextEncoder', 'structuredClone', 'WebAssembly', 'SharedArrayBuffer']
+              .filter(n => !(n in globalThis)).join(' '));
 // ===== 第 1 步：EventTarget 和 application 的验收用例 =====
 
 console.log('--- 全局类型 ---');
@@ -51,6 +57,7 @@ console.log('EventTarget', typeof EventTarget, '| Event', typeof Event,
 console.log('application instanceof EventTarget =', application instanceof EventTarget);
 
 console.log('--- 原生桥不应该暴露给用户代码 ---');
+// @ts-expect-error 原生桥故意不声明在类型里，用户代码不该碰它
 console.log('typeof __nacre_native =', typeof __nacre_native);
 console.log('globalThis 上还有吗 =', '__nacre_native' in globalThis);
 console.log('能从属性名找到吗 =',
@@ -70,7 +77,10 @@ console.log('info 已冻结 =', Object.isFrozen(application.info),
             '| 嵌套也冻结 =', Object.isFrozen(application.info.UIApplicationSceneManifest));
 
 console.log('--- 多场景：声明值 vs 实际能力 ---');
-console.log('声明值 =', application.info.UIApplicationSceneManifest.UIApplicationSupportsMultipleScenes);
+// info 是 Info.plist 的原样内容，运行时不知道里面长什么样，所以是 unknown。
+// 取嵌套字段要自己断言——这正是类型定义该有的诚实。
+const manifest = /** @type {any} */ (application.info.UIApplicationSceneManifest);
+console.log('声明值 =', manifest.UIApplicationSupportsMultipleScenes);
 console.log('实际能力 =', application.supportsMultipleScenes);
 
 console.log('--- 运行状态 ---');
@@ -121,7 +131,9 @@ application.addEventListener('memorywarning', (e) => {
 
 console.log('--- unhandledrejection ---');
 application.addEventListener('unhandledrejection', (e) => {
-  const msg = e.reason && e.reason.message;
+  // reason 是 unknown：JS 允许拒绝任何值，不保证是 Error
+  const reason = /** @type {any} */ (e.reason);
+  const msg = reason && reason.message;
   console.log('✓ 收到 unhandledrejection | reason =', msg,
               '| promise 是 Promise =', e.promise instanceof Promise,
               '| cancelable =', e.cancelable);
@@ -185,6 +197,7 @@ console.log('--- 已监听 active / inactive / background / foreground ---');
 
 console.log('--- UIWindowScene 类 ---');
 console.log('typeof UIWindowScene =', typeof UIWindowScene);
+// @ts-expect-error 场景由系统创建，不可直接构造
 try { new UIWindowScene(); console.log('✗ 居然构造成功了'); }
 catch (e) { console.log('✓ 不可构造:', e.constructor.name + ':', e.message); }
 
@@ -204,9 +217,10 @@ application.addEventListener('sceneconnect', (e) => {
   console.log('  === application.scenes[0] =', scene === fromList);
 
   // 身份一致的实际意义：挂在包装上的自定义属性要能读回来
+  // @ts-expect-error 往原生对象上挂自定义属性，运行时允许（见 project.md 的 TODO）
   scene.我的数据 = { 页面: '首页' };
   console.log('  自定义属性能从另一处读回 =',
-              application.scenes[0].我的数据?.页面 === '首页');
+              /** @type {any} */ (application.scenes[0]).我的数据?.页面 === '首页');
 
   console.log('  再取一次还是同一个 =', application.scenes[0] === fromList);
 
@@ -294,7 +308,7 @@ application.addEventListener('sceneconnect', (e) => {
 
   win.makeKeyAndVisible();
   console.log('  makeKeyAndVisible 后 isKeyWindow =', win.isKeyWindow);
-  console.log('  scene.windows.length =', e.scene.windows ? e.scene.windows.length : '(未暴露)');
+  // UIWindowScene.windows 还没暴露（ObjC 里有，我们没做），所以这里没得看
 
   console.log('  --- UIColor：类级属性 ---');
   const bg = UIColor.systemBackgroundColor;
@@ -302,7 +316,9 @@ application.addEventListener('sceneconnect', (e) => {
               '| instanceof NSObject =', bg instanceof NSObject);
   console.log('  两次取同一个常量是同一个对象 =', bg === UIColor.systemBackgroundColor);
   console.log('  不同常量是不同对象 =', bg !== UIColor.labelColor);
+  // @ts-expect-error 没有这个颜色常量
   console.log('  不存在的颜色 =', UIColor.nosuchColor);
+  // @ts-expect-error UIColor 不可直接构造
   try { new UIColor(); console.log('  ✗ UIColor 居然能构造'); }
   catch (err) { console.log('  ✓ UIColor 不可直接构造:', err.message); }
 
@@ -318,8 +334,10 @@ application.addEventListener('sceneconnect', (e) => {
   const r = new CGRect(10, 20, 100, 50);
   console.log('  ' + r, '| origin =', '' + r.origin, '| size =', '' + r.size);
   console.log('  origin / size 不参与 JSON =', JSON.stringify(r));
+  // @ts-expect-error 结构体字段只读
   try { r.x = 999; console.log('  ✗ 结构体居然能改'); }
   catch (err) { console.log('  ✓ 改结构体被拒:', err.message); }
+  // @ts-expect-error 缺 height，结构体字段要齐
   try { vc.view.frame = { x: 0, y: 0, width: 10 }; console.log('  ✗ 缺字段居然通过'); }
   catch (err) { console.log('  ✓ 缺字段被拒:', err.message); }
 
@@ -366,6 +384,7 @@ application.addEventListener('sceneconnect', (e) => {
               vc.view.subviews.length);
   console.log('  box3 在 box 之后 =',
               vc.view.subviews.indexOf(box3) > vc.view.subviews.indexOf(box));
+  // @ts-expect-error options 必须指明插到哪
   try { vc.view.insertSubview(box3, {}); console.log('  ✗ 空 options 居然通过'); }
   catch (err) { console.log('  ✓ 空 options 被拒:', err.message); }
 
@@ -386,12 +405,15 @@ application.addEventListener('sceneconnect', (e) => {
   console.log('  --- 枚举：字符串 ---');
   box.contentMode = 'scaleAspectFit';
   console.log('  contentMode 写入后读回 =', box.contentMode);
+  // @ts-expect-error 'cover' 不是 UIViewContentMode
   try { box.contentMode = 'cover'; console.log('  ✗ 瞎写的枚举值居然通过'); }
   catch (err) { console.log('  ✓ 认不出的枚举值被拒:', err.message); }
   // 已知缺口：属性名拼错了不报错。JS 包装对象是可扩展的，赋值就在 JS
   // 对象上挂了个普通属性，根本不走桥，原生层那句「没有这个可写属性」
   // 现在触发不到
+  // @ts-expect-error 这正是下面说的缺口：运行时不拦，类型检查拦得住
   box.noSuchPropertyOops = 1;
+  // @ts-expect-error 同上
   console.log('  属性名拼错 =', box.noSuchPropertyOops,
               '← 悄悄挂在 JS 对象上了，没到原生层（已知缺口）');
   console.log('  普通 UIView 的 intrinsicContentSize =',
@@ -400,19 +422,22 @@ application.addEventListener('sceneconnect', (e) => {
   console.log('  --- 严格模式 ---');
   // 只读属性：iOS 层就是 readonly，写不进去是对的，但不能静默
   try {
+    // @ts-expect-error superview 只读
     box.superview = null;
     console.log('  ✗ 写只读属性居然没动静');
   } catch (err) {
     console.log('  ✓ 写只读属性被拒:', err.constructor.name);
   }
   // 结构体字段：这条本来就抛（自带 throwing setter），严格模式下照样抛
+  // @ts-expect-error 结构体字段只读
   try { box.frame.x = 10; console.log('  ✗ 改结构体字段居然通过'); }
   catch (err) { console.log('  ✓ 改结构体字段被拒:', err.message); }
   // 未声明的赋值：非严格模式下会悄悄建一个全局
   try {
+    // @ts-expect-error 未声明的变量
     undeclaredOops = 1;
     console.log('  ✗ 未声明的赋值建出了 globalThis.undeclaredOops =',
-                globalThis.undeclaredOops);
+                /** @type {any} */ (globalThis).undeclaredOops);
   } catch (err) {
     console.log('  ✓ 未声明的赋值被拒:', err.constructor.name);
   }
@@ -428,17 +453,20 @@ application.addEventListener('sceneconnect', (e) => {
               '（跟随系统文字大小设置）');
   console.log('  同一个 systemFontOfSize(17) 取两次 ===',
               UIFont.systemFontOfSize(17) === f17);
+  // @ts-expect-error UIFont 不可直接构造，走类方法
   try { new UIFont(); console.log('  ✗ UIFont 居然能构造'); }
   catch (err) { console.log('  ✓ UIFont 不可直接构造:', err.message); }
 
   // 参数位的枚举和属性位一样抛，不静默返回 null、也不退回默认值
   try {
+    // @ts-expect-error 'extrabold' 不是 UIFontWeight
     UIFont.systemFontOfSize(17, { weight: 'extrabold' });
     console.log('  ✗ 瞎写的字重居然通过');
   } catch (err) {
     console.log('  ✓ 认不出的字重被拒:', err.constructor.name + ':', err.message);
   }
   try {
+    // @ts-expect-error 'subtitle' 不是 UIFontTextStyle
     UIFont.preferredFontForTextStyle('subtitle');
     console.log('  ✗ 瞎写的文本样式居然通过');
   } catch (err) {

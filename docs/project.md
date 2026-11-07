@@ -87,6 +87,7 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 | 排版 | iOS 原生方式：Auto Layout 约束、UIStackView、CALayer 属性。**不实现 DOM、CSS、flexbox** |
 | 加载模型 | JS 在构建时打进 App Bundle，启动时从本地读取。不通过 HTTP 加载，没有 URL、origin、`location`、`history` |
 | 模块化 | 运行时只负责执行 JS 文件，模块化和打包交给社区工具 |
+| 类型定义 | `types/` 下的 `@nacre/types`，手写，靠 `ios/scripts/check-api.sh` 核对三边一致。还没发布到 npm。验证工具用 `npx -y -p typescript tsc`，不写进仓库 |
 | 工程管理 | XcodeGen：`ios/project.yml` 描述工程，`Nacre.xcodeproj` 由它生成，不提交 |
 | 代码分层 | Swift：启动壳；ObjC++：运行时入口和 iOS 桥接；C++：引擎封装（`Runtime/Engine/` 只依赖 V8，不依赖 iOS） |
 | 生命周期 | 只使用 Scene 生命周期 |
@@ -201,7 +202,60 @@ ObjC 没有 namespace 机制，Apple 用**类名前缀**代替：`NS`（Foundati
 1. **懒加载**。不能启动时把几千个类塞进 `globalThis`。做法是给 `Context::New` 传一个带属性拦截器的全局模板（`ObjectTemplate::SetHandler(NamedPropertyHandlerConfiguration)`，含 getter / query / enumerator），JS 第一次访问 `UIWindow` 时才去元数据里解析并建类，之后缓存。这两个 API 已在 `Vendor/v8/include` 中核实存在。
 2. **撞名检查**。bindgen 生成符号时必须和 ECMAScript 内置比对，**冲突时报错，不允许静默覆盖**——ES 内置优先。
 
-实测目前 `globalThis` 上的 65 个内置属性里，没有任何一个以 `NS` / `UI` / `CA` / `CL` / `AV` / `MK` 开头，所以 ObjC 的**类**不会撞。真正要盯的是 C 函数、枚举和常量——它们不一定都有前缀；而且 ECMAScript 以后还会添新的内置名，所以撞名检查要固化进 bindgen，不能只查一次了事。
+实测 `globalThis` 上一共 86 个属性，其中 22 个是运行时注入的（`console`、`application`、事件类、结构体、原生类），剩下 64 个是 ECMAScript 内置。这 64 个里没有任何一个以 `NS` / `UI` / `CA` / `CL` / `AV` / `MK` 开头，所以 ObjC 的**类**不会撞。真正要盯的是 C 函数、枚举和常量——它们不一定都有前缀；而且 ECMAScript 以后还会添新的内置名，所以撞名检查要固化进 bindgen，不能只查一次了事。
+
+## 3.5 类型定义
+
+`types/` 是一份**纯类型**的 npm 包（`@nacre/types`），没有任何运行时代码。Nacre 的 API 由运行时注入到 `globalThis`，这份定义只是把它们声明出来。
+
+它和 `ios/` 平级，**不在 `ios/` 里面**：使用者是拿 Nacre 写 App 的人，不是改运行时的人。
+
+| 文件 | 内容 |
+| --- | --- |
+| `nacre.d.ts` | 运行时自己的 API：`console`、`EventTarget`、`Event`、`Application`。跨平台，将来 Android 也用这份 |
+| `ios.d.ts` | iOS 原生符号：`UIView`、`UIColor`、`UIFont`、结构体、枚举 |
+| `index.d.ts` | 入口，现在把两份都引上 |
+
+**还没按平台拆导出。** 只有 iOS 的时候那条路验证不到，形状多半会定歪；文件已经分开，将来加 `android.d.ts` 时再定，那时有真实需求。
+
+**还没发布到 npm**（`package.json` 标着 `private`）。包名 `@nacre/types` 没被占用，但 scope 要先注册。无前缀的 `nacre` 已经被一个 2022 年的 "Intuitive Shell" 占了。
+
+### 怎么保证三边不漂
+
+同一套 API 现在有三个面：
+
+| | 角色 |
+| --- | --- |
+| `NacreRuntime.mm` 的分发表 | 真相，决定运行时实际能做什么 |
+| `nacre.js` 的取值器 | 桥，JS 能碰到的东西 |
+| `types/*.d.ts` | 契约，开发者看到的东西 |
+
+手写绑定的时期这三份只能分别维护，所以必须有东西盯着。`ios/scripts/check-api.sh` 比对类是否齐、成员是否对得上、只读/读写是否一致、枚举可选值是否相同。**脚本本身验证过**：故意删一个属性、把只读改成读写、枚举少一个值，三种都能抓到。
+
+**它只比对符号，不比对类型。** 参数类型写错了、返回类型写反了，脚本看不出来——那一层靠 `main.js` 的实际使用和 `tsc` 兜着。所以两件事都要做，缺一个都有漏网的。
+
+等 bindgen 从 SDK 头文件生成，三份都变成产物，这个脚本就可以退休。
+
+### `main.js` 是第一个用户
+
+`ios/JS/tsconfig.json` 直接 include 仓库里的类型定义，不走 npm。开了 `checkJs`，所以 `main.js` 的每一行都被检查。
+
+验收用例里那些**故意写错**的地方（枚举给错值、写只读属性、构造不可构造的类）全部标了 `@ts-expect-error`，于是它们变成了类型定义的测试——**双向的**：
+
+- 类型定义写错了 → 正常报错
+- 类型定义漏了某条 → `@ts-expect-error` 报 `Unused '@ts-expect-error' directive`
+
+实测确认：把 `UIViewContentMode` 放宽成 `string`、把 `superview` 改成可写，两种都会被反过来抓到。
+
+### 运行时没有什么
+
+实测 `globalThis` 得到的事实，类型定义据此配 `lib`：
+
+**没有**：定时器（`setTimeout` / `setInterval` / `queueMicrotask` 一个都没有）、`Intl`、`fetch` / `URL`、`TextEncoder` / `TextDecoder`、`structuredClone`、`WebAssembly`、DOM 的一切。
+
+**有**：ECMAScript 的新特性基本是全的，`Float16Array`、`Iterator` 辅助方法、`DisposableStack`、`SuppressedError` 都在，所以 `lib` 用 `ESNext` 而不是 `ES2023`。
+
+`Intl` 比较特殊：TypeScript 的 ES lib 自带它的类型，**没办法从 `lib` 里减掉**，所以类型上看着存在、运行时会抛 `ReferenceError`。这是已知的不对齐，记在 `types/README.md` 里。
 
 ## 4. Android 扩展计划（未开始，仅记录方向）
 
@@ -225,11 +279,13 @@ nacre/
 ├─ .claude/           AI 协作规则（CLAUDE.md）
 ├─ README.md
 ├─ docs/              项目说明和 API 文档
+├─ types/             TypeScript 类型定义（@nacre/types），面向使用运行时的开发者
 ├─ ios/               iOS 运行时源码 + App
 └─ android/           以后再加
 ```
 
 - **`ios/`、`android/` 永远表示运行时源码，必须提交。**
+- **`types/` 是对外的交付物，不是源码树的一部分**，所以和 `ios/` 平级而不在它里面：它的使用者是拿 Nacre 写 App 的人，不是改运行时的人。必须提交。
 - 以后工具生成的原生工程等产物，放在 `build/` 或 `.nacre/` 下，**不能命名为 `ios/`**，避免和源码混淆。
 - `.gitignore` 只忽略生成的和下载的内容，**不能忽略任何源码目录**。根目录的 `.gitignore` 里不能出现平台目录名。
 
@@ -256,8 +312,15 @@ nacre/
 1. **讨论**：说明这一步要解决什么问题，列出可选方案和各自的取舍。
 2. **明确**：确定这一步做什么、不做什么，以及验收标准（运行后应该看到什么）。只做这一步，不夹带后续功能。
 3. **确认**：用户明确同意方案和范围后，才进入实现。
-4. **实现**：编写代码并写入仓库。写入前先读取仓库中的现有文件，不覆盖用户的改动。
-5. **检查**：能检查的先检查，比如 C++ 对照 V8 头文件做语法检查、脚本做语法检查。没有实际运行过的内容，要明确标注"未验证"。
+4. **实现**：编写代码并写入仓库。写入前先读取仓库中的现有文件，不覆盖用户的改动。**新增或改动任何 JS 能碰到的 API，同一步里更新 `types/`**——类型定义和实现是同一件事的两个面，分两步做必然漂。
+5. **检查**：能检查的先检查，比如 C++ 对照 V8 头文件做语法检查、脚本做语法检查。另外两条固定要跑：
+
+   ```bash
+   bash ios/scripts/check-api.sh                              # 三边符号核对
+   npx -y -p typescript tsc --project ios/JS/tsconfig.json    # 类型检查
+   ```
+
+   没有实际运行过的内容，要明确标注"未验证"。
 6. **验证**：在 Mac 上运行 `cd ios && bash scripts/run-sim.sh`（用户执行，或在 Claude Code 中由 AI 执行），根据终端输出或报错判断是否通过。
 7. **提交**：验收通过后由用户提交，一步一个 commit。
 8. **记录**：新的决策写进本文件（`docs/project.md`），更新进度表。
@@ -434,7 +497,7 @@ view.autoresizingMask = ['flexibleWidth', 'flexibleHeight'];   // 位掩码（�
 
 1. 创建与继承：`new X()` 等于 `alloc().init()`；继承原生类用 ES class
 2. 其余类型转换：字符串、数字、布尔值自动转换；数组和字典作为参数时自动转换，返回值保留原生对象；`NSError **` 转为抛出异常
-3. 类型来源：运行时自带的 API（`console`、`application`）手写；原生符号由 bindgen 从 SDK 头文件生成，TypeScript 定义放在 `ios/Types/`
+3. ~~类型来源~~：**已定并实现**，见下面「类型定义」一节。目录是 `types/` 不是 `ios/Types/`
 
 **接口设计要回头 review（TODO）**：底层的「一一对应」和使用场景的简洁之间有张力。现在让窗口显示出来是四步仪式——建 window、设 `rootViewController`、`makeKeyAndVisible()`、保持引用——每个 App 都要原样抄一遍，这正是原则 2「能力导向而非实现导向」要消灭的东西。
 
