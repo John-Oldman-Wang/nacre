@@ -13,7 +13,7 @@
 // 实测 globalThis 之后确认不存在（iOS 26 模拟器，V8 14.9.207.39 lite）：
 //
 //   Intl                                        V8 lite 构建不带 ICU
-//   fetch / URL / Headers / Request / Response   网络是第 6 步的事
+//   fetch / Request / Response                  网络还没做（URL 和 Headers 已经有了）
 //   TextEncoder / TextDecoder                    WHATWG 的，不是 ECMAScript
 //   structuredClone                              HTML 规范的
 //   WebAssembly                                  lite 模式不含
@@ -27,6 +27,117 @@
 declare namespace Intl {
   /** @deprecated Nacre 没有 Intl：V8 lite 构建不带 ICU，运行时会抛 ReferenceError。 */
   interface NacreNotAvailable {}
+}
+
+// ---------------------------------------------------------------------------
+// URL
+// ---------------------------------------------------------------------------
+//
+// WHATWG 的 URL，解析底子是 NSURLComponents。**和浏览器有几处已知差异**，
+// 见 docs/api/url.md——最要紧的一条是：**没有 base**。
+//
+//   new URL('/x')                    // 抛 TypeError
+//   new URL('/x', 'https://a.com')   // 可以
+//
+// 浏览器里相对 URL 能解析是因为有当前文档的 base，这个运行时不通过 HTTP
+// 加载 JS，没有 location，编不出 base 来。
+
+declare class URL {
+  /** base 省略时 url 必须是绝对的，否则抛 TypeError。 */
+  constructor(url: string | URL, base?: string | URL);
+  href: string;
+  /** 只读。非 http(s) 一律是 'null'（字符串）。 */
+  readonly origin: string;
+  /** 带冒号，比如 'https:'。 */
+  protocol: string;
+  username: string;
+  password: string;
+  /** hostname[:port]，默认端口会被省掉。 */
+  host: string;
+  hostname: string;
+  /** 默认端口（http 的 80、https 的 443…）读出来是空串。 */
+  port: string;
+  pathname: string;
+  /** 带问号，空的时候是空串。 */
+  search: string;
+  /** 和 search 双向绑定：改这个，search 跟着变。 */
+  readonly searchParams: URLSearchParams;
+  /** 带井号，空的时候是空串。 */
+  hash: string;
+  toString(): string;
+  toJSON(): string;
+  /** 不抛的版本，省掉 try/catch。 */
+  static canParse(url: string | URL, base?: string | URL): boolean;
+  /** 解析不了返回 null，不抛。 */
+  static parse(url: string | URL, base?: string | URL): URL | null;
+}
+
+type URLSearchParamsInit =
+  | string
+  | URLSearchParams
+  | readonly (readonly [string, string])[]
+  | Record<string, string>;
+
+declare class URLSearchParams {
+  constructor(init?: URLSearchParamsInit);
+  readonly size: number;
+  append(name: string, value: string): void;
+  /** 传了 value 就只删名值都匹配的。 */
+  delete(name: string, value?: string): void;
+  /** 同名多值时返回第一个；没有返回 null。 */
+  get(name: string): string | null;
+  getAll(name: string): string[];
+  has(name: string, value?: string): boolean;
+  /** 替换第一个同名的、删掉其余同名的，位置保持。 */
+  set(name: string, value: string): void;
+  /** 按名字排序，同名之间保持原有顺序。 */
+  sort(): void;
+  forEach(
+    callback: (value: string, name: string, parent: URLSearchParams) => void,
+    thisArg?: unknown,
+  ): void;
+  keys(): IterableIterator<string>;
+  values(): IterableIterator<string>;
+  entries(): IterableIterator<[string, string]>;
+  [Symbol.iterator](): IterableIterator<[string, string]>;
+  /** application/x-www-form-urlencoded 编码——注意空格是 '+' 不是 '%20'。 */
+  toString(): string;
+}
+
+// ---------------------------------------------------------------------------
+// Headers
+// ---------------------------------------------------------------------------
+
+type HeadersInit =
+  | Headers
+  | readonly (readonly [string, string])[]
+  | Record<string, string>;
+
+/**
+ * HTTP 首部集合。名字大小写不敏感，同名多值。
+ *
+ * 不做浏览器那套 forbidden header 检查（`Host`、`Cookie`、`Origin` 都能设）：
+ * 那是防不受信任的页面伪造请求，而这里的 JS 和原生代码同等地位。
+ */
+declare class Headers {
+  constructor(init?: HeadersInit);
+  append(name: string, value: string): void;
+  set(name: string, value: string): void;
+  delete(name: string): void;
+  has(name: string): boolean;
+  /** 同名多值用 ', ' 合并成一个串；没有返回 null。 */
+  get(name: string): string | null;
+  /** Set-Cookie 不能合并，所以单独给一个取数组的方法。 */
+  getSetCookie(): string[];
+  /** 按名字排序迭代；Set-Cookie 不合并，有几条出几条。 */
+  entries(): IterableIterator<[string, string]>;
+  keys(): IterableIterator<string>;
+  values(): IterableIterator<string>;
+  [Symbol.iterator](): IterableIterator<[string, string]>;
+  forEach(
+    callback: (value: string, name: string, parent: Headers) => void,
+    thisArg?: unknown,
+  ): void;
 }
 
 // ---------------------------------------------------------------------------

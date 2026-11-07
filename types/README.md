@@ -27,7 +27,7 @@ JS 项目一样能用，把 `allowJs` 和 `checkJs` 打开即可。
 | 缺的 | 原因 |
 | --- | --- |
 | `Intl` | V8 lite 构建不带 ICU |
-| `fetch` / `URL` / `Headers` / `Request` / `Response` | 网络还没做 |
+| `fetch` / `Request` / `Response` | 网络还没做（`URL`、`URLSearchParams`、`Headers` 已经有了） |
 | `TextEncoder` / `TextDecoder` / `structuredClone` | WHATWG / HTML 规范的，不是 ECMAScript |
 | `WebAssembly` | lite 模式不含 |
 | DOM 的一切 | `window`、`document`、`location`、`history` 都没有 |

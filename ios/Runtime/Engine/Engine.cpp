@@ -543,6 +543,17 @@ struct Engine::Impl {
     return true;
   }
 
+  // URL 解析。字符串进，各部分的 JSON 出；解析不了返回 null。
+  static void NativeParseURL(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    if (!self->host.parse_url || info.Length() < 2) return;
+    const std::string json = self->host.parse_url(SafeToString(isolate, info[0]),
+                                                  SafeToString(isolate, info[1]));
+    if (json.empty()) return;  // JS 侧收到 undefined，当作解析失败
+    info.GetReturnValue().Set(Utf8(isolate, json));
+  }
+
   // setTimeout / setInterval 的底座。参数处理（额外参数透传、类型检查）
   // 在 nacre.js 里做，这里只认 (Function, number, boolean)。
   static void NativeAddTimer(const v8::FunctionCallbackInfo<v8::Value>& info) {
@@ -693,6 +704,7 @@ struct Engine::Impl {
         {"callVoid", NativeCallVoid},
         {"classObjProp", NativeClassObjectProperty},
         {"classCall", NativeClassCall},
+        {"parseURL", NativeParseURL},
         {"addTimer", NativeAddTimer},
         {"removeTimer", NativeRemoveTimer},
         {"call", NativeCall},

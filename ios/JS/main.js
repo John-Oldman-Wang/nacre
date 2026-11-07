@@ -352,6 +352,9 @@ application.addEventListener('sceneconnect', (e) => {
   console.log('  new UIView() 成功, instanceof UIView =', box instanceof UIView,
               '| instanceof UIResponder =', box instanceof UIResponder);
   box.frame = new CGRect(40, 120, 200, 120);
+  setInterval(() => {
+    box.frame = new CGRect(box.frame.x, box.frame.y + 1, box.frame.width, box.frame.height)
+  } , 16)
   box.backgroundColor = UIColor.systemIndigoColor;
   console.log('  写入 frame 后读回 =', '' + box.frame);
   console.log('  写入时用普通对象也行：');
@@ -534,6 +537,98 @@ application.addEventListener('sceneconnect', (e) => {
   vc.view.addSubview(mono);
   console.log('  等宽字体 =', mono.font.fontName);
 
+  // 断言要能失败：只打印数值的「用例」给不了任何保证
+  /**
+   * @param {string} 说明
+   * @param {unknown} 实际
+   * @param {unknown} 期望
+   */
+  function 断言(说明, 实际, 期望) {
+    const 过了 = String(实际) === String(期望);
+    console.log((过了 ? '  ✓ ' : '  ✗ ') + 说明 + ' = ' + 实际 +
+                (过了 ? '' : '（期望 ' + 期望 + '）'));
+  }
+
+  // ===== URL / URLSearchParams / Headers =====
+  console.log('  --- URL ---');
+  {
+    const u = new URL('https://u:p@EXAMPLE.com:443/a/b/../c?x=1&y=2#f');
+    断言('host 小写化且去掉默认端口', u.host, 'example.com');
+    断言('点段规范化', u.pathname, '/a/c');
+    断言('port 为默认时读出空串', u.port, '');
+    断言('protocol 带冒号', u.protocol, 'https:');
+    断言('search 带问号', u.search, '?x=1&y=2');
+    断言('hash 带井号', u.hash, '#f');
+    断言('origin 不含 userinfo', u.origin, 'https://example.com');
+    断言('username', u.username, 'u');
+    断言('href 能拼回去', u.href, 'https://u:p@example.com/a/c?x=1&y=2#f');
+
+    断言('空路径补成斜杠', new URL('https://a.com').pathname, '/');
+    断言('非特殊 scheme 的 origin 是 null', new URL('foo://bar/baz').origin, 'null');
+    断言('已编码的不重复编码', new URL('https://a.com/%7Eu').pathname, '/%7Eu');
+    断言('空格编码', new URL('https://a.com/a b').pathname, '/a%20b');
+
+    // 没有 base 是这个运行时的硬事实，不是 bug。
+    // 注意这里不标 @ts-expect-error：类型上 new URL(string) 完全合法，
+    // 它是**运行时**才抛——这正是和浏览器的差异所在，类型系统看不出来。
+    try { new URL('/x'); console.log('  ✗ 相对 URL 居然解析成功'); }
+    catch (err) { 断言('相对 URL 无 base 时抛', err.constructor.name, 'TypeError'); }
+    断言('有 base 就能解析', new URL('/x', 'https://a.com').href, 'https://a.com/x');
+    断言('base 下的点段', new URL('../y', 'https://a.com/a/b/c').pathname, '/a/y');
+    断言('canParse 不抛', String(URL.canParse('/x')), 'false');
+    断言('parse 失败返回 null', String(URL.parse('/x')), 'null');
+
+    const w = new URL('https://a.com/p');
+    w.pathname = 'q';           // 不带斜杠也要补上
+    w.hash = 'top';             // 不带井号也要补上
+    断言('setter 会规范化', w.href, 'https://a.com/q#top');
+  }
+
+  console.log('  --- URLSearchParams ---');
+  {
+    const q = new URLSearchParams('a=1&b=2&a=3');
+    断言('get 取第一个', q.get('a'), '1');
+    断言('getAll 取全部', q.getAll('a').join(','), '1,3');
+    断言('size', q.size, 3);
+    q.set('a', '9');
+    断言('set 替换首个、删其余、位置不变', q.toString(), 'a=9&b=2');
+    q.append('c', '中 文');
+    断言('空格编码成加号', q.toString(), 'a=9&b=2&c=%E4%B8%AD+%E6%96%87');
+    断言('读回来是解码的', q.get('c'), '中 文');
+    q.delete('a');
+    断言('delete', q.toString(), 'b=2&c=%E4%B8%AD+%E6%96%87');
+
+    // 和宿主 URL 双向绑定
+    const u2 = new URL('https://a.com/?k=1');
+    u2.searchParams.append('k2', 'v2');
+    断言('改 searchParams，search 跟着变', u2.search, '?k=1&k2=v2');
+    u2.search = '?z=9';
+    断言('改 search，searchParams 跟着变', u2.searchParams.get('z'), '9');
+  }
+
+  console.log('  --- Headers ---');
+  {
+    const h = new Headers({ 'Content-Type': 'application/json' });
+    断言('名字大小写不敏感', h.get('CONTENT-TYPE'), 'application/json');
+    h.append('Accept', 'a');
+    h.append('accept', 'b');
+    断言('同名多值合并', h.get('Accept'), 'a, b');
+    h.append('Set-Cookie', 'x=1');
+    h.append('Set-Cookie', 'y=2');
+    断言('Set-Cookie 不合并', h.getSetCookie().join('|'), 'x=1|y=2');
+    断言('迭代按名字排序', [...h.keys()].join(','),
+         'accept,content-type,set-cookie,set-cookie');
+    h.set('Accept', '只剩这个');
+    断言('set 覆盖全部同名', h.get('accept'), '只剩这个');
+    h.delete('ACCEPT');
+    断言('delete 大小写不敏感', String(h.has('accept')), 'false');
+    try { h.set('坏 名字', 'v'); console.log('  ✗ 非法首部名居然通过'); }
+    catch (err) { 断言('非法首部名被拒', err.constructor.name, 'TypeError'); }
+    try { h.set('X', '值里有\r\n换行'); console.log('  ✗ CRLF 居然通过'); }
+    catch (err) { 断言('首部值里的 CRLF 被拒', err.constructor.name, 'TypeError'); }
+    断言('首尾空白被去掉', new Headers({ a: '  v  ' }).get('a'), 'v');
+  }
+
   // ===== 定时器 =====
   console.log('  --- 定时器 ---');
 
@@ -587,17 +682,6 @@ application.addEventListener('sceneconnect', (e) => {
   setTimeout(() => 混排.push('timer'), 0);
   win.addEventListener('becomekey', () => 混排.push('窗口事件'), { once: true });
 
-  // 断言要能失败：只打印数值的「用例」给不了任何保证
-  /**
-   * @param {string} 说明
-   * @param {unknown} 实际
-   * @param {unknown} 期望
-   */
-  function 断言(说明, 实际, 期望) {
-    const 过了 = String(实际) === String(期望);
-    console.log((过了 ? '  ✓ ' : '  ✗ ') + 说明 + ' = ' + 实际 +
-                (过了 ? '' : '（期望 ' + 期望 + '）'));
-  }
   // 不用固定延迟汇总：App 启动时主线程很忙（首次布局、字体、首帧渲染），
   // 实测 0ms 的定时器可能等 250ms 才轮到。用轮询等条件齐了再汇总，
   // 既不依赖绝对时间，本身也是一次「定时器确实在推进」的验证。

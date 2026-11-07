@@ -99,6 +99,12 @@ struct EngineHost {
                      int call_id)>
       call_async;
 
+  // 解析一个 URL。base 为空串表示没有基准——我们没有 location，所以
+  // 相对 URL 无依可循，这种情况返回解析失败而不是编一个出来。
+  // 成功返回各部分的 JSON，失败返回空串。
+  std::function<std::string(const std::string& url, const std::string& base)>
+      parse_url;
+
   // ---- 任务调度 ----
   // 这两条是定时器要用的。调度逻辑（到期堆、排序、预算）全在 Engine 里，
   // 平台层只负责「怎么把自己叫醒」和「怎么排一个任务」——前者各平台的
