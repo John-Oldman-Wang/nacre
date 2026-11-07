@@ -57,6 +57,10 @@ struct EngineHost {
       construct_native;
   // 无参无返回值的方法，比如 makeKeyAndVisible
   std::function<void(void* ptr, const std::string& name)> call_void_method;
+
+  // 类级属性。没有实例，所以用类名定位，比如 UIColor.whiteColor
+  std::function<NativeObjectRef(const std::string& class_name, const std::string& name)>
+      read_class_object_property;
   // 异步方法，完成后调 Engine::SettleBool
   std::function<void(void* ptr, const std::string& name, const std::string& args_json,
                      int call_id)>

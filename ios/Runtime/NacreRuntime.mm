@@ -232,6 +232,74 @@ nacre::NativeObjectRef ReadNativeObjectProperty(id object, const std::string& na
   if ([object isKindOfClass:UIViewController.class] && name == "view") {
     return {(__bridge void*)((UIViewController*)object).view, "UIView"};
   }
+  // UIWindow 也是 UIView，所以这条放在 UIWindow 的分支之后，名字不重叠。
+  if ([object isKindOfClass:UIView.class] && name == "backgroundColor") {
+    return {(__bridge void*)((UIView*)object).backgroundColor, "UIColor"};
+  }
+  return {};
+}
+
+// 类级只读属性。目前只有 UIColor 的颜色常量，手写成表：
+// 用名字拼 selector 再 performSelector 等于把任意 ObjC 调用的入口开给 JS，
+// 通用的能力暴露方案做好之前不开这个口子。
+NSDictionary<NSString*, UIColor*>* NamedColors() {
+  static NSDictionary<NSString*, UIColor*>* colors = nil;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    colors = @{
+      // UIColor.h：基础色
+      @"blackColor": UIColor.blackColor,
+      @"darkGrayColor": UIColor.darkGrayColor,
+      @"lightGrayColor": UIColor.lightGrayColor,
+      @"whiteColor": UIColor.whiteColor,
+      @"grayColor": UIColor.grayColor,
+      @"redColor": UIColor.redColor,
+      @"greenColor": UIColor.greenColor,
+      @"blueColor": UIColor.blueColor,
+      @"cyanColor": UIColor.cyanColor,
+      @"yellowColor": UIColor.yellowColor,
+      @"magentaColor": UIColor.magentaColor,
+      @"orangeColor": UIColor.orangeColor,
+      @"purpleColor": UIColor.purpleColor,
+      @"brownColor": UIColor.brownColor,
+      @"clearColor": UIColor.clearColor,
+      // UIInterface.h：系统色
+      @"systemRedColor": UIColor.systemRedColor,
+      @"systemGreenColor": UIColor.systemGreenColor,
+      @"systemBlueColor": UIColor.systemBlueColor,
+      @"systemOrangeColor": UIColor.systemOrangeColor,
+      @"systemYellowColor": UIColor.systemYellowColor,
+      @"systemPinkColor": UIColor.systemPinkColor,
+      @"systemPurpleColor": UIColor.systemPurpleColor,
+      @"systemTealColor": UIColor.systemTealColor,
+      @"systemIndigoColor": UIColor.systemIndigoColor,
+      @"systemBrownColor": UIColor.systemBrownColor,
+      @"systemMintColor": UIColor.systemMintColor,
+      @"systemCyanColor": UIColor.systemCyanColor,
+      @"systemGrayColor": UIColor.systemGrayColor,
+      // UIInterface.h：语义色，按绘制时的外观动态解析
+      @"labelColor": UIColor.labelColor,
+      @"secondaryLabelColor": UIColor.secondaryLabelColor,
+      @"tertiaryLabelColor": UIColor.tertiaryLabelColor,
+      @"quaternaryLabelColor": UIColor.quaternaryLabelColor,
+      @"placeholderTextColor": UIColor.placeholderTextColor,
+      @"separatorColor": UIColor.separatorColor,
+      @"opaqueSeparatorColor": UIColor.opaqueSeparatorColor,
+      @"linkColor": UIColor.linkColor,
+      @"systemBackgroundColor": UIColor.systemBackgroundColor,
+      @"secondarySystemBackgroundColor": UIColor.secondarySystemBackgroundColor,
+      @"tertiarySystemBackgroundColor": UIColor.tertiarySystemBackgroundColor,
+    };
+  });
+  return colors;
+}
+
+nacre::NativeObjectRef ReadClassObjectProperty(const std::string& className,
+                                               const std::string& name) {
+  if (className == "UIColor") {
+    UIColor* color = NamedColors()[@(name.c_str())];
+    if (color != nil) return {(__bridge void*)color, "UIColor"};
+  }
   return {};
 }
 
@@ -244,6 +312,9 @@ void WriteNativeObjectProperty(id object, const std::string& name, void* valuePt
     } else if (name == "windowScene") {
       window.windowScene = [value isKindOfClass:UIWindowScene.class] ? value : nil;
     }
+  }
+  if ([object isKindOfClass:UIView.class] && name == "backgroundColor") {
+    ((UIView*)object).backgroundColor = [value isKindOfClass:UIColor.class] ? value : nil;
   }
 }
 
@@ -389,6 +460,10 @@ std::string InfoDictionaryJSON() {
     host.construct_native = [](const std::string& className,
                                const std::vector<void*>& args) {
       return ConstructNative(className, args);
+    };
+    host.read_class_object_property = [](const std::string& className,
+                                         const std::string& name) {
+      return ReadClassObjectProperty(className, name);
     };
     host.call_void_method = [](void* ptr, const std::string& name) {
       CallVoidMethod((__bridge id)ptr, name);

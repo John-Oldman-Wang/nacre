@@ -433,6 +433,18 @@ struct Engine::Impl {
     self->host.write_object_property(ptr, SafeToString(isolate, info[1]), value);
   }
 
+  // 类级属性：(className, name) -> 包装对象或 undefined
+  static void NativeClassObjectProperty(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
+    if (!self->host.read_class_object_property || info.Length() < 2) return;
+    NativeObjectRef ref = self->host.read_class_object_property(
+        SafeToString(isolate, info[0]), SafeToString(isolate, info[1]));
+    v8::Local<v8::Object> wrapper = self->WrapNative(ctx, ref);
+    if (!wrapper.IsEmpty()) info.GetReturnValue().Set(wrapper);
+  }
+
   static void NativeCallVoid(const v8::FunctionCallbackInfo<v8::Value>& info) {
     v8::Isolate* isolate = info.GetIsolate();
     Impl* self = From(isolate);
@@ -483,6 +495,7 @@ struct Engine::Impl {
         {"setObjProp", NativeSetObjectProperty},
         {"construct", NativeConstruct},
         {"callVoid", NativeCallVoid},
+        {"classObjProp", NativeClassObjectProperty},
         {"callAsync", NativeCallAsync},
     };
     for (const Entry& e : entries) {

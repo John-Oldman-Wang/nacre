@@ -169,6 +169,11 @@
   function nativeCallVoid(obj, name) {
     native.callVoid(obj[kHandle], name);
   }
+  // 类级属性（ObjC 的 @property(class, readonly)）。没有实例，用类名定位。
+  function nativeClassObject(className, name) {
+    const result = native.classObjProp(className, name);
+    return result === undefined ? null : result;
+  }
   // JS 构造原生对象：先有 this，再让原生造出对象并和 this 绑定。
   // 和包装工厂方向相反——那边是原生对象先有、JS 包装后建。
   function constructNative(wrapper, className, args) {
@@ -200,8 +205,14 @@
 
   // ---- 继承链的空壳 ----
   // 照搬 ObjC 的继承关系，现在先空着，以后往上加成员时子类自动继承。
+  // NSObject 是 ObjC 的根类，所以也是这里所有原生类的根。
+  // 让它继承 EventTarget：原生对象要发事件是常态，按原则 3 抽到基类，
+  // 不让每个类各自发明一套回调。
+  const NSObject = defineNativeClass('NSObject', class NSObject extends EventTarget {
+    constructor() { shellOnly(new.target, NSObject); super(); }
+  });
   // UIResponder 在 ObjC 里的定义就是「能接收事件的对象」，和 EventTarget 语义吻合。
-  const UIResponder = defineNativeClass('UIResponder', class UIResponder extends EventTarget {
+  const UIResponder = defineNativeClass('UIResponder', class UIResponder extends NSObject {
     constructor() { shellOnly(new.target, UIResponder); super(); }
   });
   const UIScene = defineNativeClass('UIScene', class UIScene extends UIResponder {
@@ -209,11 +220,50 @@
   });
   const UIView = defineNativeClass('UIView', class UIView extends UIResponder {
     constructor() { shellOnly(new.target, UIView); super(); }
+    // 背景色。nil 表示透明，JS 侧用 null 表示。
+    get backgroundColor() {
+      requireNative(this, 'backgroundColor');
+      return nativeGetObject(this, 'backgroundColor');
+    }
+    set backgroundColor(value) {
+      requireNative(this, 'backgroundColor');
+      nativeSetObject(this, 'backgroundColor', value);
+    }
   });
+
+  // 颜色。基础色和语义色都是 ObjC 的类级只读属性，按原名暴露。
+  // 语义色（systemBackgroundColor、labelColor 等）是动态颜色：
+  // 它在绘制时按当时的外观（深色/浅色）解析，所以取一次就能一直用。
+  // 带参数的类方法（colorWithRed:green:blue:alpha:）等方法名映射定了再加。
+  const UIColor = defineNativeClass('UIColor', class UIColor extends NSObject {
+    constructor() { nativeOnly(); super(); }
+  });
+  for (const name of [
+    // UIColor.h：基础色
+    'blackColor', 'darkGrayColor', 'lightGrayColor', 'whiteColor', 'grayColor',
+    'redColor', 'greenColor', 'blueColor', 'cyanColor', 'yellowColor',
+    'magentaColor', 'orangeColor', 'purpleColor', 'brownColor', 'clearColor',
+    // UIInterface.h：系统色
+    'systemRedColor', 'systemGreenColor', 'systemBlueColor', 'systemOrangeColor',
+    'systemYellowColor', 'systemPinkColor', 'systemPurpleColor', 'systemTealColor',
+    'systemIndigoColor', 'systemBrownColor', 'systemMintColor', 'systemCyanColor',
+    'systemGrayColor',
+    // UIInterface.h：语义色
+    'labelColor', 'secondaryLabelColor', 'tertiaryLabelColor', 'quaternaryLabelColor',
+    'placeholderTextColor', 'separatorColor', 'opaqueSeparatorColor', 'linkColor',
+    'systemBackgroundColor', 'secondarySystemBackgroundColor',
+    'tertiarySystemBackgroundColor',
+  ]) {
+    Object.defineProperty(UIColor, name, {
+      configurable: true,
+      enumerable: false,
+      get: () => nativeClassObject('UIColor', name),
+    });
+  }
 
   // 场景的持久身份。场景对象会被系统销毁重建，session 活得更久——
   // persistentIdentifier 用来认出「是不是之前那个窗口」。
-  defineNativeClass('UISceneSession', class UISceneSession extends EventTarget {
+  defineNativeClass('UISceneSession', class UISceneSession extends NSObject {
     constructor() { nativeOnly(); super(); }
     // 'UIWindowSceneSessionRoleApplication' 等，决定这个场景该画什么界面
     get role() { return nativeGet(this, 'role'); }

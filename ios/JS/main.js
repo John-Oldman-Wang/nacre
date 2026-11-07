@@ -285,8 +285,26 @@ application.addEventListener('sceneconnect', (e) => {
   console.log('  makeKeyAndVisible 后 isKeyWindow =', win.isKeyWindow);
   console.log('  scene.windows.length =', e.scene.windows ? e.scene.windows.length : '(未暴露)');
 
+  console.log('  --- UIColor：类级属性 ---');
+  const bg = UIColor.systemBackgroundColor;
+  console.log('  UIColor.systemBackgroundColor instanceof UIColor =', bg instanceof UIColor,
+              '| instanceof NSObject =', bg instanceof NSObject);
+  console.log('  两次取同一个常量是同一个对象 =', bg === UIColor.systemBackgroundColor);
+  console.log('  不同常量是不同对象 =', bg !== UIColor.labelColor);
+  console.log('  不存在的颜色 =', UIColor.nosuchColor);
+  try { new UIColor(); console.log('  ✗ UIColor 居然能构造'); }
+  catch (err) { console.log('  ✓ UIColor 不可直接构造:', err.message); }
+
+  vc.view.backgroundColor = UIColor.systemBackgroundColor;
+  console.log('  写入后读回是同一个 =',
+              vc.view.backgroundColor === UIColor.systemBackgroundColor);
+  vc.view.backgroundColor = null;
+  console.log('  置 null 后读回 =', vc.view.backgroundColor);
+  vc.view.backgroundColor = UIColor.systemIndigoColor;
+  console.log('  最终底色 = systemIndigoColor');
+
   mainWindow = win;
-  console.log('✓ 界面已由 JS 创建，屏幕应该不再是黑的');
+  console.log('✓ 界面已由 JS 创建，屏幕应该是靛蓝色');
 });
 
 application.addEventListener('scenedisconnect', (e) => {
