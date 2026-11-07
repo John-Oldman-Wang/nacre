@@ -16,6 +16,8 @@ Nacre 的 API 分两层：
 | [`application`](application.md) | App 实例：App 级的状态、事件和能力 |
 | [`UIWindowScene`](ui-window-scene.md) | 场景：App 的一个 UI 实例，JS 创建界面的入口 |
 | [`UISceneSession`](ui-window-scene.md#uiscenesession) | 场景的持久身份：角色、标识、自定义数据 |
+| [`UIWindow`](ui-window.md) | 视图树的根，挂在场景上 |
+| `UIViewController` | 页面。目前只有可构造和只读的 `view`（文档待补） |
 | `EventTarget` / `Event` | 事件基类，见 [`application`](application.md) 的「继承关系」 |
 | `ErrorEvent` / `PromiseRejectionEvent` | 错误类事件对象，见 [`application`](application.md) 的「事件」 |
 | `console` | 输出到 stdout 和系统日志（文档待补） |

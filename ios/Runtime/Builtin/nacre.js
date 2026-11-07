@@ -178,6 +178,14 @@
   }
 
   // 只有被原生侧创建时才允许构造。用于系统给的对象（场景、session）。
+  // 原生对象还没创建时，除了 windowScene 之外的访问都没有事实可依据，
+  // 与其返回一个编出来的值，不如直接报错
+  function requireNative(obj, what) {
+    if (obj[kHandle] === undefined) {
+      throw new TypeError(what + '：这个对象还没连接到场景，原生对象尚未创建');
+    }
+  }
+
   function nativeOnly() {
     if (!allowNativeConstruct) throw new TypeError('Illegal constructor');
   }
@@ -247,35 +255,74 @@
 
   // 视图树的根。必须绑定到一个场景——initWithWindowScene: 是唯一未废弃的
   // 初始化方法，init 和 initWithFrame: 在 iOS 26 都废弃了。
+  // 视图树的根。
+  //
+  // scene 参数可选，两种用法：
+  //   new UIWindow(scene)   参数齐全，立刻创建原生对象（＝ initWithWindowScene:）
+  //   new UIWindow()        JS 对象先存在，等 window.windowScene = scene 时才创建
+  //
+  // 后者让「构造」和「绑定」解耦，而且没有发明新 API——windowScene 本来就是
+  // ObjC 的可写属性，没有 scene 的 window 在 ObjC 里也本来就是合法状态
+  // （windowScene 是 nullable）。
   defineNativeClass('UIWindow', class UIWindow extends UIView {
     constructor(scene) {
       super();
       if (allowNativeConstruct) return;
-      if (scene == null) {
-        throw new TypeError("new UIWindow(scene)：必须指定一个 UIWindowScene");
-      }
-      constructNative(this, 'UIWindow', [scene]);
+      if (scene != null) constructNative(this, 'UIWindow', [scene]);
     }
 
-    // 可写：换 scene 就是换显示目标。典型 App 一绑到死，
-    // 需要改的场景是把窗口移到外接显示器（setScreen: 废弃后的替代品就是它）
-    get windowScene() { return nativeGetObject(this, 'windowScene'); }
-    set windowScene(value) { nativeSetObject(this, 'windowScene', value); }
+    // 换 scene 就是换显示目标。典型 App 一绑到死，需要改的场景是把窗口
+    // 移到外接显示器（setScreen: 废弃后的替代品就是它）。
+    // 首次赋值还兼做「创建原生对象」的触发点。
+    get windowScene() {
+      return this[kHandle] === undefined ? null : nativeGetObject(this, 'windowScene');
+    }
+    set windowScene(value) {
+      if (this[kHandle] === undefined) {
+        if (value != null) constructNative(this, 'UIWindow', [value]);
+        return;
+      }
+      nativeSetObject(this, 'windowScene', value);
+    }
 
     // 窗口唯一的内容入口，不设就没内容
-    get rootViewController() { return nativeGetObject(this, 'rootViewController'); }
-    set rootViewController(value) { nativeSetObject(this, 'rootViewController', value); }
+    get rootViewController() {
+      requireNative(this, 'rootViewController');
+      return nativeGetObject(this, 'rootViewController');
+    }
+    set rootViewController(value) {
+      requireNative(this, 'rootViewController');
+      nativeSetObject(this, 'rootViewController', value);
+    }
 
     // 多窗口的叠放顺序。键盘、alert 都是 level 更高的窗口
-    get windowLevel() { return nativeGet(this, 'windowLevel'); }
-    set windowLevel(value) { nativeSet(this, 'windowLevel', value); }
+    get windowLevel() {
+      requireNative(this, 'windowLevel');
+      return nativeGet(this, 'windowLevel');
+    }
+    set windowLevel(value) {
+      requireNative(this, 'windowLevel');
+      nativeSet(this, 'windowLevel', value);
+    }
 
-    get isKeyWindow() { return nativeGet(this, 'isKeyWindow'); }
-    get canBecomeKeyWindow() { return nativeGet(this, 'canBecomeKeyWindow'); }
+    get isKeyWindow() {
+      requireNative(this, 'isKeyWindow');
+      return nativeGet(this, 'isKeyWindow');
+    }
+    get canBecomeKeyWindow() {
+      requireNative(this, 'canBecomeKeyWindow');
+      return nativeGet(this, 'canBecomeKeyWindow');
+    }
 
     // 程序创建的 UIWindow 默认 hidden=YES，不调这个屏幕就是黑的
-    makeKeyAndVisible() { nativeCallVoid(this, 'makeKeyAndVisible'); }
-    makeKeyWindow() { nativeCallVoid(this, 'makeKeyWindow'); }
+    makeKeyAndVisible() {
+      requireNative(this, 'makeKeyAndVisible()');
+      nativeCallVoid(this, 'makeKeyAndVisible');
+    }
+    makeKeyWindow() {
+      requireNative(this, 'makeKeyWindow()');
+      nativeCallVoid(this, 'makeKeyWindow');
+    }
   });
 
   // 原生要给某个对象自己派发事件时回调这里（场景的生命周期事件走这条路）

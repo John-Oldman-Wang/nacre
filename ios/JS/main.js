@@ -267,8 +267,14 @@ application.addEventListener('sceneconnect', (e) => {
   console.log('  windowScene === 传进去的 scene =', win.windowScene === e.scene);
   console.log('  windowLevel =', win.windowLevel, '| isKeyWindow =', win.isKeyWindow);
 
-  try { new UIWindow(); console.log('  ✗ 无参构造居然成功了'); }
-  catch (err) { console.log('  ✓ 无参构造被拒:', err.message); }
+  console.log('  --- 延迟创建：不传 scene ---');
+  const lazy = new UIWindow();
+  console.log('  无参构造成功，windowScene =', lazy.windowScene, '（还没连上）');
+  try { lazy.makeKeyAndVisible(); console.log('  ✗ 未连接就能调方法'); }
+  catch (err) { console.log('  ✓ 未连接时调方法被拒:', err.message); }
+  lazy.windowScene = e.scene;
+  console.log('  赋值 windowScene 后原生对象才创建，isKeyWindow =', lazy.isKeyWindow);
+  console.log('  windowScene === scene =', lazy.windowScene === e.scene);
 
   const vc = new UIViewController();
   console.log('  new UIViewController() 成功, instanceof =', vc instanceof UIViewController);

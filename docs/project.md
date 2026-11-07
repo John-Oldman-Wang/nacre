@@ -332,6 +332,14 @@ Commit message 格式：
 3. 类型转换：字符串、数字、布尔值自动转换；数组和字典作为参数时自动转换，返回值保留原生对象；结构体按值复制；`NSError **` 转为抛出异常
 4. 类型来源：运行时自带的 API（`console`、`application`）手写；原生符号由 bindgen 从 SDK 头文件生成，TypeScript 定义放在 `ios/Types/`
 
+**接口设计要回头 review（TODO）**：底层的「一一对应」和使用场景的简洁之间有张力。现在让窗口显示出来是四步仪式——建 window、设 `rootViewController`、`makeKeyAndVisible()`、保持引用——每个 App 都要原样抄一遍，这正是原则 2「能力导向而非实现导向」要消灭的东西。
+
+真正的简化应该在**上层**（比如一行 `scene.rootViewController = vc`，窗口由运行时自己建），但上层抽象要等 hello world 跑通、看清视图层该怎么抽象之后再设计，现在造容易造歪；而且在 `UIWindowScene` 上加 ObjC 没有的属性会把上层掺进底层，那个边界糊了很难收回。
+
+期间底层已经做了一次不发明 API 的简化：`new UIWindow(scene)` 的参数改为可选，`windowScene` 首次赋值兼做创建时机，让构造和绑定解耦。
+
+review 时可以参考 Phaser 这类前端框架的对象模型（它有 `Scene` / `Game` 的分层）。**待确认**：记录时没核实这是不是指 Phaser。
+
 另外四个来自第 0 步的待定问题：
 
 - **本地化（`Intl`）怎么补**：预编译的 V8 不带 ICU，`Intl` 缺失且 `toLocale*` 退化成非本地化实现。三条路——换带 i18n 的 V8 构建（ICU 数据几 MB 到几十 MB，包体积涨得多，还得自己编译）、JS 层 polyfill（同样要带 locale 数据，而且慢）、把 `NSDateFormatter` / `NSNumberFormatter` 暴露给 JS（数据来自系统，包体积零增长）。倾向第三条，它和第 1 节「原生 API 完整暴露给 JS」的定位一致，和能力暴露方案一起定。
