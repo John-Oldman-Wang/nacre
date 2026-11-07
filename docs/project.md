@@ -338,7 +338,15 @@ Commit message 格式：
 
 期间底层已经做了一次不发明 API 的简化：`new UIWindow(scene)` 的参数改为可选，`windowScene` 首次赋值兼做创建时机，让构造和绑定解耦。
 
-review 时可以参考 Phaser 这类前端框架的对象模型（它有 `Scene` / `Game` 的分层）。**待确认**：记录时没核实这是不是指 Phaser。
+review 时参考 **Phaser** 的对象模型，有三点和我们正在纠结的问题直接对应：
+
+1. **实例化和启动是分开的**。Scene Manager 持有 scene 实例，「start 一个 scene」和「创建这个 scene 对象」是两件事，所以 scene 可以重启而不重建对象。这正是「JS 对象实例化 ≠ 原生对象实例化」那条，我们在 `UIWindow` 上已经做了一半（`windowScene` 首次赋值才创建原生对象）
+2. **初始化用生命周期方法而不是构造函数**。Phaser 3 的 Scene 用 `init` / `preload` / `create` / `update`，构造函数只负责建 JS 对象。他们的论坛专门有一帖解释为什么不用构造函数——和我们「构造时要不要立刻创建原生对象」是同一个问题
+3. **全局管理器 vs 场景级系统的分层**。texture / cache / sound 是跨场景共享的，display list / cameras / input / tweens 是每个场景一份。这和我们 `application`（App 级）vs `scene`（每窗口）的分工高度相似，可以对照着看我们的边界划对了没有
+
+Phaser 的 Scene 还有一套明确的状态机（PENDING → INIT → START → LOADING → CREATING → RUNNING → PAUSED / SLEEPING → SHUTDOWN → DESTROYED），比我们现在只有 `activationState` 一个枚举细得多，值得看看哪些状态对我们有意义。
+
+参考：[Scenes 概念文档](https://docs.phaser.io/phaser/concepts/scenes)、[Scene Manager 的状态列表](https://rexrainbow.github.io/phaser3-rex-notes/docs/site/scenemanager)、[为什么用 init 而不是构造函数](https://phaser.discourse.group/t/why-does-phaser3-use-init-instead-of-the-constructor/6278)。
 
 另外四个来自第 0 步的待定问题：
 
