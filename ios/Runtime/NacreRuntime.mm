@@ -921,6 +921,18 @@ std::string InfoDictionaryJSON() {
   NSMutableArray* _observers;
   // 主线程即将空闲时把时间交给 V8 做增量 GC
   CFRunLoopObserverRef _idleObserver;
+  // 定时器唤醒的「代数」。到期顺序由 Engine 的堆决定，这里只管「叫醒」。
+  //
+  // 为什么不用 dispatch_source 复用一个 timer：FireDueTimers 整个跑在唤醒的
+  // 回调里，而它结尾要安排下一次唤醒——那就是在 dispatch_source 的 handler
+  // 内部重设这个 source 自己，实测会把这次约定丢掉，于是定时器只触发一次。
+  //
+  // 改成每次 dispatch_after 一个新 block，用代数作废旧的约定。代价是被作废
+  // 的 block 还要等到原定时刻才空转一次，但它只做一次整数比较。
+  //
+  // dispatch_after 和 postToJS: 的 dispatch_async 都提交到主队列，按入队时刻
+  // FIFO——实测验证过，所以定时器和原生事件的先后顺序是确定的。
+  uint64_t _wakeupGeneration;
 }
 
 - (instancetype)init {
@@ -1039,6 +1051,20 @@ std::string InfoDictionaryJSON() {
                                          const std::string& name) {
       return ReadClassObjectProperty(className, name);
     };
+    // 「delay_ms 之后叫我」。每次覆盖上一次的约定，负数表示撤销。
+    host.schedule_wakeup = [weakSelf](double delayMs) {
+      NacreRuntime* strongSelf = weakSelf;
+      if (strongSelf) [strongSelf scheduleWakeupAfter:delayMs];
+    };
+    // 把任务排到主队列尾部。未处理拒绝的延后结算走这条。
+    host.post_task = [weakSelf](std::function<void()> task) {
+      NacreRuntime* strongSelf = weakSelf;
+      if (!strongSelf) return;
+      auto engine = strongSelf->_engine;
+      dispatch_async(dispatch_get_main_queue(), ^{
+        if (*engine) task();
+      });
+    };
     host.call_void_method = [](void* ptr, const std::string& name) {
       CallVoidMethod((__bridge id)ptr, name);
     };
@@ -1108,6 +1134,33 @@ std::string InfoDictionaryJSON() {
 
 // 主线程 run loop 即将进入等待（没事可做了）时，把这段空闲交给 V8。
 // Chrome 就是这样在帧间隙做增量 GC 的——没有空闲任务时这个调用几乎零成本。
+// Engine 说「delay_ms 之后叫我」。重设唯一的那个 dispatch_source。
+- (void)scheduleWakeupAfter:(double)delayMs {
+  // 每次都让旧约定失效：代数变了，之前排的 block 醒来会发现自己过期，直接返回。
+  const uint64_t generation = ++_wakeupGeneration;
+  if (delayMs < 0) return;  // 堆空了，只作废不排新的
+
+  auto engine = _engine;
+  __weak NacreRuntime* weakSelf = self;
+  dispatch_block_t wake = ^{
+    NacreRuntime* strongSelf = weakSelf;
+    if (!strongSelf || strongSelf->_wakeupGeneration != generation) return;
+    if (*engine) (*engine)->FireDueTimers();
+  };
+  // 0 延迟走 dispatch_async，不走 dispatch_after。
+  //
+  // 这两个不等价：dispatch_after 即使延迟为 0 也要过一次内核 timer，排进
+  // 队列的时刻比当场 dispatch_async 晚。实测的后果是 setTimeout(fn, 0) 会
+  // 落到之后才排队的任务后面——未处理拒绝的延后结算就撞上了这个：补在
+  // timer 里的 handler 本该抑制上报，结果上报先跑了。
+  if (delayMs <= 0) {
+    dispatch_async(dispatch_get_main_queue(), wake);
+  } else {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delayMs * NSEC_PER_MSEC)),
+                   dispatch_get_main_queue(), wake);
+  }
+}
+
 - (void)installIdleObserver {
   auto engine = _engine;
   _idleObserver = CFRunLoopObserverCreateWithHandler(
@@ -1300,6 +1353,8 @@ std::string InfoDictionaryJSON() {
     CFRelease(_idleObserver);
     _idleObserver = NULL;
   }
+  // 让所有已排的唤醒作废；它们醒来时 weakSelf 也已经是 nil 了
+  _wakeupGeneration++;
   // Engine 和 JS 在同一个线程（主线程），dealloc 也在主线程，直接销毁
   _engine->reset();
 }

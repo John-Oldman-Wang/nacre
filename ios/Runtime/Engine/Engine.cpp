@@ -7,7 +7,10 @@
 #include <libplatform/libplatform.h>
 #include <v8.h>
 
+#include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdio>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -18,6 +21,14 @@
 namespace nacre {
 
 namespace {
+
+// 一次唤醒里最多占用主线程多久。超了就让出去，让 run loop 有机会提交
+// CA 事务（渲染）和响应触摸。60fps 一帧 16.7ms，这里取大约一半。
+constexpr double kTimerBudgetMs = 8.0;
+// 单个回调超过这个时长就记一笔。参照 Chromium 的 Long Task（50ms）——
+// 取 8ms 会被正常的布局计算刷屏，取 50ms 基本只有真卡才响。
+// 运行时不替应用优化，但要让它看得见。
+constexpr double kLongTaskMs = 50.0;
 
 std::unique_ptr<v8::Platform> g_platform;
 std::once_flag g_init_once;
@@ -79,6 +90,87 @@ struct Engine::Impl {
     v8::Global<v8::Value> value;
   };
   std::vector<PendingRejection> pending_rejections;
+  // 未处理拒绝的结算已经排进宿主队列了，别重复排
+  bool rejection_flush_scheduled = false;
+
+  // ---- 定时器 ----
+  // 一个最小堆 + 一个唤醒源，这是 Chromium MessagePump 的结构。
+  // 不用「每个定时器一个系统 timer」，因为那样同时到期的顺序不确定，
+  // 而 HTML 规范要求按注册顺序执行。
+  struct TimerEntry {
+    int id = 0;
+    double due_ms = 0;       // 到期时刻（单调时钟）
+    double interval_ms = 0;  // repeats 的间隔；一次性的为 0
+    uint64_t seq = 0;        // 插入序号——同时到期时就靠它定顺序
+    v8::Global<v8::Function> callback;
+  };
+  // 比较器给 std::*_heap 用，要的是「大顶在前」的反义，所以反过来写
+  struct LaterFirst {
+    bool operator()(const TimerEntry& a, const TimerEntry& b) const {
+      if (a.due_ms != b.due_ms) return a.due_ms > b.due_ms;
+      return a.seq > b.seq;
+    }
+  };
+  std::vector<TimerEntry> timers;  // 最小堆，堆顶是最早到期的
+  uint64_t next_timer_seq = 0;
+  int next_timer_id = 1;
+  double scheduled_wakeup_at = -1;  // 已经和宿主约好的唤醒时刻，-1 表示没约
+  // 正在跑 FireDueTimers。期间回调里新注册的定时器不要立刻去重设唤醒源——
+  // 那等于在 dispatch_source 的 handler 里重设它自己，实测会丢掉这次约定。
+  // 统一等 FireDueTimers 结尾安排一次。
+  bool firing_timers = false;
+  // 正在执行的那个定时器的 id，以及它有没有在自己的回调里被取消。
+  // setInterval 的回调里调 clearInterval(自己) 是最常见的写法，而那一刻
+  // entry 已经被 pop 出堆了——遍历 timers 找不到它，取消会被无声吞掉，
+  // 回调返回后又被重新入堆，于是永远停不下来。
+  int firing_timer_id = 0;
+  bool firing_timer_cancelled = false;
+
+  // 单调时钟，单位毫秒。不能用 iOS 的 CACurrentMediaTime——这一层不依赖 iOS。
+  static double NowMs() {
+    using namespace std::chrono;
+    return duration<double, std::milli>(steady_clock::now().time_since_epoch()).count();
+  }
+
+  // 按堆顶重新和宿主约唤醒时间。堆空了就撤销。
+  void ScheduleNextWakeup() {
+    if (!host.schedule_wakeup || firing_timers) return;
+    // 跳过已经取消的（callback 被 Reset 过），它们是惰性删除的残留
+    while (!timers.empty() && timers.front().callback.IsEmpty()) {
+      std::pop_heap(timers.begin(), timers.end(), LaterFirst{});
+      timers.pop_back();
+    }
+    if (timers.empty()) {
+      if (scheduled_wakeup_at >= 0) {
+        scheduled_wakeup_at = -1;
+        host.schedule_wakeup(-1);
+      }
+      return;
+    }
+    const double due = timers.front().due_ms;
+    if (scheduled_wakeup_at >= 0 && std::abs(scheduled_wakeup_at - due) < 0.5) return;
+    scheduled_wakeup_at = due;
+    host.schedule_wakeup(std::max(0.0, due - NowMs()));
+  }
+
+  // 未处理拒绝改成排到宿主队列尾部结算，而不是当场。
+  // 这样 setTimeout(() => p.catch(...), 0) 补的 handler 来得及抑制上报，
+  // 和 Chromium 一致。代价是队列忙的时候上报会被推后。
+  int AddTimer(v8::Local<v8::Function> callback, double delay_ms, bool repeats);
+  void RemoveTimer(int id);
+
+  void ScheduleRejectionFlush() {
+    if (pending_rejections.empty() || rejection_flush_scheduled) return;
+    if (!host.post_task) {  // 宿主没提供队列，退回当场结算
+      FlushRejections();
+      return;
+    }
+    rejection_flush_scheduled = true;
+    host.post_task([this] {
+      rejection_flush_scheduled = false;
+      FlushRejections();
+    });
+  }
 
   // 内置脚本注册的事件入口，用来把事件送进 application。
   // 签名是 (type, payload) -> boolean，返回 false 表示 JS 调了 preventDefault
@@ -451,6 +543,27 @@ struct Engine::Impl {
     return true;
   }
 
+  // setTimeout / setInterval 的底座。参数处理（额外参数透传、类型检查）
+  // 在 nacre.js 里做，这里只认 (Function, number, boolean)。
+  static void NativeAddTimer(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
+    if (info.Length() < 3 || !info[0]->IsFunction()) return;
+    const double delay = info[1]->NumberValue(ctx).FromMaybe(0.0);
+    const int id = self->AddTimer(info[0].As<v8::Function>(), delay,
+                                  info[2]->BooleanValue(isolate));
+    info.GetReturnValue().Set(id);
+  }
+
+  static void NativeRemoveTimer(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
+    if (info.Length() < 1) return;
+    self->RemoveTimer(info[0]->Int32Value(ctx).FromMaybe(0));
+  }
+
   static void NativeClassCall(const v8::FunctionCallbackInfo<v8::Value>& info) {
     v8::Isolate* isolate = info.GetIsolate();
     Impl* self = From(isolate);
@@ -580,6 +693,8 @@ struct Engine::Impl {
         {"callVoid", NativeCallVoid},
         {"classObjProp", NativeClassObjectProperty},
         {"classCall", NativeClassCall},
+        {"addTimer", NativeAddTimer},
+        {"removeTimer", NativeRemoveTimer},
         {"call", NativeCall},
         {"callObj", NativeCallObject},
         {"getObjArray", NativeObjectArrayProperty},
@@ -657,6 +772,10 @@ struct Engine::Impl {
   // 只能在微任务队列排空之后调用：这时还留在表里的，才是真的没人处理。
   void FlushRejections() {
     if (pending_rejections.empty()) return;
+    // 必须自己进 isolate：这个函数现在有两条调用路径——同步的（JS 调用栈
+    // 上，外层已经有 Isolate::Scope）和异步的（post_task 投递过来的，什么
+    // scope 都没有）。嵌套进入是安全的，缺了就会在 Context::Enter 里段错误。
+    v8::Isolate::Scope isolate_scope(isolate);
     // 先取走：上报过程中（JSON.stringify、toString）可能又产生新的拒绝，
     // 那些留给下一次结算。
     std::vector<PendingRejection> pending;
@@ -812,7 +931,7 @@ bool Engine::Evaluate(const Script& script) {
   }
 
   // 微任务策略是默认的 kAuto：Run 返回时微任务已经跑完，这里可以结算拒绝。
-  impl_->FlushRejections();
+  impl_->ScheduleRejectionFlush();
   return ok;
 }
 
@@ -827,7 +946,7 @@ void Engine::EmitAppEvent(const std::string& type) {
   {
     impl_->DispatchToJS(ctx, type.c_str(), v8::Undefined(isolate));
   }
-  impl_->FlushRejections();
+  impl_->ScheduleRejectionFlush();
 }
 
 void Engine::EmitAppEventWithObject(const std::string& type, const std::string& key,
@@ -846,7 +965,7 @@ void Engine::EmitAppEventWithObject(const std::string& type, const std::string& 
             wrapper.IsEmpty() ? v8::Local<v8::Value>(v8::Null(isolate)) : wrapper)
       .Check();
   impl_->DispatchToJS(ctx, type.c_str(), payload);
-  impl_->FlushRejections();
+  impl_->ScheduleRejectionFlush();
 }
 
 void Engine::EmitObjectEvent(const NativeObjectRef& target, const std::string& type) {
@@ -868,7 +987,7 @@ void Engine::EmitObjectEvent(const NativeObjectRef& target, const std::string& t
       impl_->ReportException(ctx, try_catch);
     }
   }
-  impl_->FlushRejections();
+  impl_->ScheduleRejectionFlush();
 }
 
 void Engine::SettleBool(int call_id, bool value) {
@@ -892,7 +1011,119 @@ void Engine::SettleBool(int call_id, bool value) {
   // 这里不在任何 JS 调用栈里，kAuto 不会自动排空微任务，必须显式跑一次，
   // 否则 await 后面的代码要等到下一次有 JS 执行时才继续
   isolate->PerformMicrotaskCheckpoint();
-  impl_->FlushRejections();
+  impl_->ScheduleRejectionFlush();
+}
+
+// ---------------------------------------------------------------------------
+// 定时器
+// ---------------------------------------------------------------------------
+
+int Engine::Impl::AddTimer(v8::Local<v8::Function> callback, double delay_ms,
+                           bool repeats) {
+  if (callback.IsEmpty()) return 0;
+  const int id = next_timer_id++;
+  TimerEntry entry;
+  entry.id = id;
+  entry.due_ms = NowMs() + std::max(0.0, delay_ms);
+  entry.interval_ms = repeats ? std::max(0.0, delay_ms) : 0.0;
+  entry.seq = next_timer_seq++;
+  entry.callback.Reset(isolate, callback);
+  timers.push_back(std::move(entry));
+  std::push_heap(timers.begin(), timers.end(), LaterFirst{});
+  ScheduleNextWakeup();
+  return id;
+}
+
+void Engine::Impl::RemoveTimer(int id) {
+  if (id != 0 && id == firing_timer_id) {
+    // 取消的正是此刻在跑的那个，它不在堆里，只能记下来别让它重新入堆
+    firing_timer_cancelled = true;
+    return;
+  }
+  // 惰性删除：从堆中间摘元素是 O(n)，而把回调 Reset 掉就足以让它不再执行，
+  // 也立刻断开对 JS 函数的强引用——不会出现「取消了还挂一小时」。
+  // 空壳 entry 留在堆里，取出时跳过。
+  for (TimerEntry& entry : timers) {
+    if (entry.id == id) {
+      entry.callback.Reset();
+      break;
+    }
+  }
+  ScheduleNextWakeup();
+}
+
+void Engine::FireDueTimers() {
+  v8::Isolate* isolate = impl_->isolate;
+  v8::Isolate::Scope isolate_scope(isolate);
+  v8::HandleScope handle_scope(isolate);
+  v8::Local<v8::Context> ctx = impl_->context.Get(isolate);
+  v8::Context::Scope context_scope(ctx);
+
+  impl_->scheduled_wakeup_at = -1;  // 这次约定已经兑现
+  impl_->firing_timers = true;
+
+  // 防饿死：只处理「进入本轮之前」就已入堆的定时器。回调里新注册的
+  // seq 更大，留给下一轮——否则 setTimeout(function f(){setTimeout(f,0)},0)
+  // 会在一次唤醒里无限循环，主线程再也回不到 run loop。
+  const uint64_t limit = impl_->next_timer_seq;
+  const double budget_end = Impl::NowMs() + kTimerBudgetMs;
+
+  while (!impl_->timers.empty()) {
+    const Impl::TimerEntry& top = impl_->timers.front();
+    if (top.callback.IsEmpty()) {  // 已取消
+      std::pop_heap(impl_->timers.begin(), impl_->timers.end(), Impl::LaterFirst{});
+      impl_->timers.pop_back();
+      continue;
+    }
+    if (top.due_ms > Impl::NowMs()) break;  // 还没到期
+    if (top.seq >= limit) break;            // 本轮新加的
+
+    std::pop_heap(impl_->timers.begin(), impl_->timers.end(), Impl::LaterFirst{});
+    Impl::TimerEntry entry = std::move(impl_->timers.back());
+    impl_->timers.pop_back();
+
+    const double started = Impl::NowMs();
+    impl_->firing_timer_id = entry.id;
+    impl_->firing_timer_cancelled = false;
+    {
+      v8::TryCatch try_catch(isolate);
+      v8::Local<v8::Function> fn = entry.callback.Get(isolate);
+      if (fn->Call(ctx, ctx->Global(), 0, nullptr).IsEmpty()) {
+        impl_->ReportException(ctx, try_catch);
+      }
+    }
+    // 每个任务之后跑一次微任务检查点——HTML 规范和 Chromium 都是这样。
+    // 不能攒一批再跑，那会让 await 的续体晚一拍。
+    isolate->PerformMicrotaskCheckpoint();
+    impl_->firing_timer_id = 0;
+
+    const double cost = Impl::NowMs() - started;
+    if (cost > kLongTaskMs && impl_->host.log) {
+      char buf[128];
+      std::snprintf(buf, sizeof(buf),
+                    "定时器回调占用主线程 %.0f ms，这一帧会掉", cost);
+      impl_->host.log(LogLevel::Warn, buf);
+    }
+
+    if (entry.interval_ms > 0 && !impl_->firing_timer_cancelled) {
+      // setInterval：按原节奏推进，不累积漂移；落后太多就重新计时，
+      // 不做补偿式连发（主线程卡过之后连打十几次没有意义）。
+      entry.due_ms += entry.interval_ms;
+      const double now = Impl::NowMs();
+      if (entry.due_ms <= now) entry.due_ms = now + entry.interval_ms;
+      entry.seq = impl_->next_timer_seq++;
+      impl_->timers.push_back(std::move(entry));
+      std::push_heap(impl_->timers.begin(), impl_->timers.end(), Impl::LaterFirst{});
+    }
+
+    // 预算用完就让出主线程：run loop 转一圈才能提交 CA 事务（渲染）、
+    // 响应触摸、跑增量 GC。剩下的到期定时器下一轮再说。
+    if (Impl::NowMs() >= budget_end) break;
+  }
+
+  impl_->firing_timers = false;
+  impl_->ScheduleNextWakeup();
+  impl_->ScheduleRejectionFlush();
 }
 
 void Engine::RunIdleTasks(double idle_time_in_seconds) {
@@ -904,7 +1135,7 @@ void Engine::PumpMessageLoop() {
   v8::Isolate::Scope isolate_scope(impl_->isolate);
   while (v8::platform::PumpMessageLoop(g_platform.get(), impl_->isolate)) {
   }
-  impl_->FlushRejections();
+  impl_->ScheduleRejectionFlush();
 }
 
 }  // namespace nacre

@@ -98,6 +98,18 @@ struct EngineHost {
   std::function<void(void* ptr, const std::string& name, const std::string& args_json,
                      int call_id)>
       call_async;
+
+  // ---- 任务调度 ----
+  // 这两条是定时器要用的。调度逻辑（到期堆、排序、预算）全在 Engine 里，
+  // 平台层只负责「怎么把自己叫醒」和「怎么排一个任务」——前者各平台的
+  // 定时器 API 不同，后者各平台的主队列不同，但堆是通用的。
+  //
+  // 要求宿主在 delay_ms 之后回调 Engine::FireDueTimers()。每次调用都覆盖
+  // 上一次的约定；delay_ms < 0 表示撤销（堆空了，不用再叫了）。
+  std::function<void(double delay_ms)> schedule_wakeup;
+  // 把一个任务排到宿主队列的尾部。用于未处理拒绝的延后结算——要让它排在
+  // 当前已排队的任务之后，补挂的 handler 才来得及抑制上报（对齐 Chromium）。
+  std::function<void(std::function<void()>)> post_task;
 };
 
 struct Script {
@@ -144,6 +156,14 @@ class Engine {
   // 结束一个由 JS 发起的异步调用，用布尔值兑现它的 Promise。
   // 只能在 JS 线程上调用；call_id 不存在时静默忽略。
   void SettleBool(int call_id, bool value);
+
+  // ---- 定时器 ----
+  // 宿主被 schedule_wakeup 叫醒后调这个。执行到期的定时器，
+  // 每个之间跑微任务检查点，用完时间预算就让出主线程去渲染。
+  //
+  // 注册和取消没有出现在这里：它们由 JS 调 setTimeout 触发，全程在
+  // Engine 内部，不需要穿过这个接口。这一层也就不必认识 v8 的类型。
+  void FireDueTimers();
 
  private:
   struct Impl;

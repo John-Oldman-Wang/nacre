@@ -534,6 +534,93 @@ application.addEventListener('sceneconnect', (e) => {
   vc.view.addSubview(mono);
   console.log('  等宽字体 =', mono.font.fontName);
 
+  // ===== 定时器 =====
+  console.log('  --- 定时器 ---');
+
+  // 1. 同时到期必须按注册顺序（HTML 规范要求，也是我们自己管堆的理由）
+  /** @type {number[]} */ const 顺序 = [];
+  for (let i = 1; i <= 5; i++) setTimeout(() => 顺序.push(i), 30);
+
+  // 2. 取消
+  let 被取消了 = false;
+  const 要取消的 = setTimeout(() => { 被取消了 = true; }, 30);
+  clearTimeout(要取消的);
+  clearTimeout(要取消的);        // 重复取消不该炸
+  clearTimeout(999999);          // 不认识的 id 静默忽略
+
+  // 3. 嵌套不饿死：每一次都该落在不同轮唤醒上
+  let 嵌套次数 = 0;
+  const 嵌套开始 = Date.now();
+  setTimeout(function 再来一次() {
+    if (++嵌套次数 < 5) setTimeout(再来一次, 0);
+  }, 0);
+
+  // 4. setInterval + clearInterval
+  let 重复次数 = 0;
+  const 定时 = setInterval(() => {
+    if (++重复次数 >= 3) clearInterval(定时);
+  }, 10);
+
+  // 5. 宏任务 / 微任务的交错顺序，经典用例
+  /** @type {string[]} */ const 交错 = [];
+  setTimeout(() => 交错.push('宏任务'), 0);
+  Promise.resolve().then(() => 交错.push('微任务'));
+  queueMicrotask(() => 交错.push('queueMicrotask'));
+  交错.push('同步');
+
+  // 6. 额外参数透传
+  /** @type {string | null} */ let 透传结果 = null;
+  setTimeout((a, b) => { 透传结果 = a + b; }, 0, '参数', '透传');
+
+  // 7. 非函数参数要抛
+  // @ts-expect-error 第一个参数必须是函数
+  try { setTimeout(123, 0); console.log('  ✗ 非函数居然通过'); }
+  catch (err) { console.log('  ✓ setTimeout 拒绝非函数:', err.constructor.name); }
+
+  // 8. 未处理拒绝：排在队尾结算，所以 setTimeout 里补的 handler 来得及抑制
+  //    这条是「对齐 Chromium」的验收点——日志里不该出现这条的上报
+  const 迟到的 = Promise.reject(new Error('这条不该被上报：handler 在 timer 里补上'));
+  setTimeout(() => 迟到的.catch(() => {}), 0);
+
+  // 9. 和原生事件的顺序：两者在同一个主队列里，按入队时刻 FIFO
+  /** @type {string[]} */ const 混排 = [];
+  setTimeout(() => 混排.push('timer'), 0);
+  win.addEventListener('becomekey', () => 混排.push('窗口事件'), { once: true });
+
+  // 断言要能失败：只打印数值的「用例」给不了任何保证
+  /**
+   * @param {string} 说明
+   * @param {unknown} 实际
+   * @param {unknown} 期望
+   */
+  function 断言(说明, 实际, 期望) {
+    const 过了 = String(实际) === String(期望);
+    console.log((过了 ? '  ✓ ' : '  ✗ ') + 说明 + ' = ' + 实际 +
+                (过了 ? '' : '（期望 ' + 期望 + '）'));
+  }
+  // 不用固定延迟汇总：App 启动时主线程很忙（首次布局、字体、首帧渲染），
+  // 实测 0ms 的定时器可能等 250ms 才轮到。用轮询等条件齐了再汇总，
+  // 既不依赖绝对时间，本身也是一次「定时器确实在推进」的验证。
+  /** @param {number} 剩余轮次 */
+  function 等齐了再汇总(剩余轮次) {
+    const 齐了 = 嵌套次数 >= 5 && 重复次数 >= 3 && 顺序.length >= 5;
+    if (!齐了 && 剩余轮次 > 0) {
+      setTimeout(() => 等齐了再汇总(剩余轮次 - 1), 20);
+      return;
+    }
+    断言('同时到期按注册顺序', 顺序.join(''), '12345');
+    断言('clearTimeout 生效', !被取消了, true);
+    断言('嵌套跑满且每次一轮唤醒', 嵌套次数, 5);
+    断言('setInterval 被自己的 clearInterval 停住', 重复次数, 3);
+    断言('同步 → 微任务 → 宏任务', 交错.join(','),
+         '同步,微任务,queueMicrotask,宏任务');
+    断言('额外参数透传', 透传结果, '参数透传');
+    断言('timer 和原生事件在同一队列', 混排.join(','), '窗口事件,timer');
+    console.log('  ✓ 上面不该出现「这条不该被上报」的 Uncaught',
+                '（从注册到跑满', Date.now() - 嵌套开始, 'ms，含启动时的主线程繁忙）');
+  }
+  等齐了再汇总(50);
+
   mainWindow = win;
   console.log('✓ 屏幕上：三个色块 + 标题 + 两行说明 + 一行等宽数字');
 });

@@ -914,6 +914,51 @@
     return application.dispatchEvent(event);
   });
 
+  // ---------- 定时器 ----------
+  //
+  // 这是 Web 的 API，不是我们设计的——按[原则 4]所有「我们设计的」异步 API
+  // 都返回 Promise，而 setTimeout 是回调式的。提供它是因为它是生态的底座：
+  // async/await 降级后的代码、debounce、测试框架全都假设它存在。
+  // 要 Promise 形态自己包一行就有：await new Promise(r => setTimeout(r, 100))
+  //
+  // 调度在原生层：一个按 (到期时间, 注册序号) 排序的最小堆 + 一个唤醒源。
+  // 同时到期按注册顺序执行（HTML 规范要求），一次唤醒最多占用主线程 8ms，
+  // 超了就让出去让 run loop 去渲染。
+  function normalizeDelay(value) {
+    const ms = Number(value);
+    return Number.isFinite(ms) && ms > 0 ? ms : 0;
+  }
+  function addTimer(handler, delay, args, repeats, who) {
+    if (typeof handler !== 'function') {
+      throw new TypeError(who + ' 的第一个参数要是函数');
+    }
+    // 额外参数透传是标准行为：setTimeout(fn, 0, a, b) 会用 (a, b) 调 fn
+    const callback = args.length === 0 ? handler : () => handler(...args);
+    return native.addTimer(callback, normalizeDelay(delay), repeats);
+  }
+
+  define(globalThis, 'setTimeout', function setTimeout(handler, delay, ...args) {
+    return addTimer(handler, delay, args, false, 'setTimeout');
+  });
+  define(globalThis, 'setInterval', function setInterval(handler, delay, ...args) {
+    return addTimer(handler, delay, args, true, 'setInterval');
+  });
+  // id 不认识时静默忽略，和 Web 一致
+  define(globalThis, 'clearTimeout', function clearTimeout(id) {
+    if (id != null) native.removeTimer(Number(id) | 0);
+  });
+  define(globalThis, 'clearInterval', function clearInterval(id) {
+    if (id != null) native.removeTimer(Number(id) | 0);
+  });
+  // 不是定时器，是微任务——排在当前任务的微任务检查点里，不等下一轮。
+  // 同样是生态假设存在的东西。
+  define(globalThis, 'queueMicrotask', function queueMicrotask(callback) {
+    if (typeof callback !== 'function') {
+      throw new TypeError('queueMicrotask 的参数要是函数');
+    }
+    Promise.resolve().then(callback);
+  });
+
   define(globalThis, 'Event', Event);
   define(globalThis, 'ErrorEvent', ErrorEvent);
   define(globalThis, 'PromiseRejectionEvent', PromiseRejectionEvent);

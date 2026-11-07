@@ -12,7 +12,6 @@
 //
 // 实测 globalThis 之后确认不存在（iOS 26 模拟器，V8 14.9.207.39 lite）：
 //
-//   setTimeout / setInterval / queueMicrotask   没有定时器，一个都没有
 //   Intl                                        V8 lite 构建不带 ICU
 //   fetch / URL / Headers / Request / Response   网络是第 6 步的事
 //   TextEncoder / TextDecoder                    WHATWG 的，不是 ECMAScript
@@ -20,7 +19,6 @@
 //   WebAssembly                                  lite 模式不含
 //   DOM 的一切                                    window、document、location、history
 //
-// 没有定时器这条影响最大：异步只能靠 Promise 和事件，没有「过一会儿再做」。
 //
 // `Intl` 比较特殊——TypeScript 的 ES lib 自带它的类型，我们没办法从 lib 里
 // 减掉，所以类型上它看着存在、运行时却会抛 ReferenceError。下面重新声明一次
@@ -30,6 +28,55 @@ declare namespace Intl {
   /** @deprecated Nacre 没有 Intl：V8 lite 构建不带 ICU，运行时会抛 ReferenceError。 */
   interface NacreNotAvailable {}
 }
+
+// ---------------------------------------------------------------------------
+// 定时器
+// ---------------------------------------------------------------------------
+//
+// Web 的 API，不是 Nacre 设计的。提供它是因为它是生态的底座——async/await
+// 降级后的代码、debounce、测试框架都假设它存在。要 Promise 形态自己包一行：
+//
+//   await new Promise(r => setTimeout(r, 100));
+//
+// 返回的是 number，不是 Node 的 Timeout 对象，所以没有 .unref() 之类。
+
+/**
+ * 延迟执行一次。返回的 id 给 clearTimeout 用。
+ *
+ * 调度细节：同一时刻到期的多个定时器按注册顺序执行；一次唤醒最多占用主线程
+ * 约 8ms，超了就让出去让界面有机会渲染，剩下的下一轮再跑。
+ *
+ * 注意 App 进入后台后定时器**不会触发**——这不是节流，是停。iOS 的事实。
+ */
+declare function setTimeout(
+  handler: (...args: any[]) => void,
+  delay?: number,
+  ...args: any[]
+): number;
+
+/** 取消。id 不认识时静默忽略。 */
+declare function clearTimeout(id?: number): void;
+
+/**
+ * 按间隔重复执行。
+ *
+ * 间隔不保证精确：主线程被 JS 占住时会晚。落后太多时不做补偿式连发，
+ * 而是重新计时。
+ */
+declare function setInterval(
+  handler: (...args: any[]) => void,
+  delay?: number,
+  ...args: any[]
+): number;
+
+/** 取消。id 不认识时静默忽略。 */
+declare function clearInterval(id?: number): void;
+
+/**
+ * 排一个微任务。不是定时器——它在当前任务的微任务检查点里就会跑，
+ * 不等下一轮事件循环。
+ */
+declare function queueMicrotask(callback: () => void): void;
 
 // ---------------------------------------------------------------------------
 // 事件模型

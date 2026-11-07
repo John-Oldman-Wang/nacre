@@ -87,6 +87,7 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 | 排版 | iOS 原生方式：Auto Layout 约束、UIStackView、CALayer 属性。**不实现 DOM、CSS、flexbox** |
 | 加载模型 | JS 在构建时打进 App Bundle，启动时从本地读取。不通过 HTTP 加载，没有 URL、origin、`location`、`history` |
 | 模块化 | 运行时只负责执行 JS 文件，模块化和打包交给社区工具 |
+| 任务调度 | 定时器用「一个最小堆 +（到期时间, 注册序号）排序 + 一个唤醒源」，参考 Chromium 的 MessagePump。一次唤醒最多占用主线程 8ms，超了让出去给渲染。详见 [定时器文档](api/timers.md) |
 | 类型定义 | `types/` 下的 `@nacre/types`，手写，靠 `ios/scripts/check-api.sh` 核对三边一致。还没发布到 npm。验证工具用 `npx -y -p typescript tsc`，不写进仓库 |
 | 工程管理 | XcodeGen：`ios/project.yml` 描述工程，`Nacre.xcodeproj` 由它生成，不提交 |
 | 代码分层 | Swift：启动壳；ObjC++：运行时入口和 iOS 桥接；C++：引擎封装（`Runtime/Engine/` 只依赖 V8，不依赖 iOS） |
@@ -350,6 +351,7 @@ Commit message 格式：
 | 3a | 文字 | UILabel、UIFont、枚举、带参数的类方法 | 已在模拟器验证通过：JS 设字体、颜色、对齐和行数，文字上屏并正确截断；顺带补上 `UIWindow` 的四个 key/可见性事件 |
 | 3b | 图片 | UIImageView、UIImage、读 Bundle 文件 | 待讨论 |
 | 3c | Auto Layout | NSLayoutConstraint、锚点、UILayoutGuide | 待讨论 |
+| — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | 4 | 按钮和点击事件 | Target-Action、JS 回调 | 待讨论 |
 | 5 | 页面跳转 | UINavigationController、继承 UIViewController | 待讨论 |
 | 6 | 网络请求 | `fetch`（基于 NSURLSession） | 待讨论 |
@@ -573,5 +575,5 @@ JS 侧的属性是一个个显式定义的取值器，名字不认识的赋值�
 - **本地化（`Intl`）怎么补**：预编译的 V8 不带 ICU，`Intl` 缺失且 `toLocale*` 退化成非本地化实现。三条路——换带 i18n 的 V8 构建（ICU 数据几 MB 到几十 MB，包体积涨得多，还得自己编译）、JS 层 polyfill（同样要带 locale 数据，而且慢）、把 `NSDateFormatter` / `NSNumberFormatter` 暴露给 JS（数据来自系统，包体积零增长）。倾向第三条，它和第 1 节「原生 API 完整暴露给 JS」的定位一致，和能力暴露方案一起定。
 
 - **原生对象和循环引用怎么打印**：第 1 步出现原生对象之后，`JSON.stringify` 这条路就没有意义了（`UIView.superview` 这类天然循环）。和能力暴露方案一起定。
-- **未处理拒绝的结算是否再延一轮任务**：实测 Chromium 152，上报晚于当时已排队的 timer task，`setTimeout(() => p.catch(...), 0)` 补的 handler 能完全抑制上报；HTML 规范只要求在微任务检查点之后。Nacre 现在是微任务排空后就结算，等有了定时器能力再决定是否向 Chromium 对齐。
+- ~~**未处理拒绝的结算是否再延一轮任务**~~：**已定，对齐 Chromium**。做定时器时顺带定了：`FlushRejections` 从「微任务检查点后当场跑」改成「排到宿主队列尾部」，于是 `setTimeout(() => p.catch(...), 0)` 补的 handler 来得及抑制上报。代价是队列忙时上报会被推后，Chromium 也接受了这个代价。详见 [定时器文档](api/timers.md#未处理拒绝的结算被推后了)。
 - ~~**JS 层的未处理拒绝钩子**~~：**已实现**。采用 Web 命名，`application` 上的 `unhandledrejection` 和 `error` 事件，事件对象是 `PromiseRejectionEvent` / `ErrorEvent`，可 `preventDefault()` 抑制运行时的默认日志。详见 [API 文档](api/application.md)。还没做的是 `rejectionhandled`（已上报之后才挂 handler 时发出的更正）。

@@ -26,7 +26,6 @@ JS 项目一样能用，把 `allowJs` 和 `checkJs` 打开即可。
 
 | 缺的 | 原因 |
 | --- | --- |
-| `setTimeout` / `setInterval` / `queueMicrotask` | **一个定时器都没有**。异步只能靠 Promise 和事件 |
 | `Intl` | V8 lite 构建不带 ICU |
 | `fetch` / `URL` / `Headers` / `Request` / `Response` | 网络还没做 |
 | `TextEncoder` / `TextDecoder` / `structuredClone` | WHATWG / HTML 规范的，不是 ECMAScript |

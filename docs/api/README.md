@@ -22,6 +22,7 @@ Nacre 的 API 分两层：
 | [`UIFont`](ui-font.md) | 字体 |
 | [结构体](structs.md) | `CGPoint`、`CGSize`、`CGRect`、`UIEdgeInsets`，只读 |
 | [枚举](enums.md) | 一律用字符串 |
+| [定时器](timers.md) | `setTimeout` 系列。调度参考 Chromium |
 | [`UIColor`](ui-color.md) | 颜色。基础色、系统色、语义色 |
 | `UIViewController` | 页面。目前只有可构造和只读的 `view`（文档待补） |
 | `NSObject` | ObjC 的根类，所有原生类的基类（继承 `EventTarget`） |
