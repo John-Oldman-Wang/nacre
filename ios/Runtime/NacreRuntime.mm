@@ -1,8 +1,10 @@
 #import "NacreRuntime.h"
 
+#import <UIKit/UIKit.h>
 #import <os/log.h>
 
 #include <memory>
+#include <mutex>
 #include <string>
 
 #include "Engine/Engine.h"
@@ -49,23 +51,119 @@ void WriteRuntimeLog(NSString* message) {
 
 double NowMs() { return [NSDate date].timeIntervalSince1970 * 1000.0; }
 
+// application 的数据快照：主线程写，JS 线程读。
+// UIKit 只能在主线程访问，所以这里缓存值，JS 线程上的回调只读缓存，绝不碰 UIKit。
+struct AppSnapshot {
+  std::string infoJSON;                 // 启动时抓一次，之后不变
+  std::mutex mutex;                     // 保护下面这个
+  std::string environmentJSON = "{}";   // 主线程在相关通知到达时重建
+};
+
+NSString* BackgroundRefreshName(UIBackgroundRefreshStatus status) {
+  switch (status) {
+    case UIBackgroundRefreshStatusRestricted: return @"restricted";
+    case UIBackgroundRefreshStatusDenied: return @"denied";
+    case UIBackgroundRefreshStatusAvailable: return @"available";
+  }
+  return @"unknown";
+}
+
+const char* StateName(int state) {
+  switch (state) {
+    case UIApplicationStateActive: return "active";
+    case UIApplicationStateInactive: return "inactive";
+    case UIApplicationStateBackground: return "background";
+  }
+  return "unknown";
+}
+
+// Info.plist 里绝大多数是字符串/数字/布尔/数组/字典，但不保证全都能 JSON 序列化
+// （NSDate、NSData 就不行）。这里递归过一遍，不认识的转成字符串，避免整个序列化失败。
+id SanitizeForJSON(id value) {
+  if ([value isKindOfClass:NSString.class] || [value isKindOfClass:NSNumber.class]) {
+    return value;
+  }
+  if ([value isKindOfClass:NSArray.class]) {
+    NSMutableArray* out = [NSMutableArray arrayWithCapacity:[value count]];
+    for (id item in (NSArray*)value) [out addObject:SanitizeForJSON(item)];
+    return out;
+  }
+  if ([value isKindOfClass:NSDictionary.class]) {
+    NSMutableDictionary* out = [NSMutableDictionary dictionaryWithCapacity:[value count]];
+    for (id key in (NSDictionary*)value) {
+      out[[key description]] = SanitizeForJSON(((NSDictionary*)value)[key]);
+    }
+    return out;
+  }
+  return [value description];
+}
+
+// 只能在主线程调用：下面每一项都是 UIKit 属性。
+// backgroundTimeRemaining 不收进来——它是连续变化的值，快照没有意义，
+// 而「主线程永远不同步等待 JS」又不允许实时读，等有了别的机制再说。
+void RebuildEnvironment(const std::shared_ptr<AppSnapshot>& snapshot) {
+  UIApplication* app = UIApplication.sharedApplication;
+  NSMutableDictionary* env = [@{
+    @"state" : @(StateName((int)app.applicationState)),
+    @"supportsMultipleScenes" : @(app.supportsMultipleScenes),
+    @"protectedDataAvailable" : @(app.isProtectedDataAvailable),
+    @"layoutDirection" : app.userInterfaceLayoutDirection ==
+                                 UIUserInterfaceLayoutDirectionRightToLeft
+                             ? @"rtl"
+                             : @"ltr",
+    @"contentSizeCategory" : app.preferredContentSizeCategory ?: @"",
+    @"backgroundRefreshStatus" : BackgroundRefreshName(app.backgroundRefreshStatus),
+    @"idleTimerDisabled" : @(app.isIdleTimerDisabled),
+  } mutableCopy];
+  if (@available(iOS 27.0, *)) {
+    env[@"prefersReducedResourceUsage"] = @(app.systemPrefersReducedResourceUsage);
+  }
+
+  NSData* data = [NSJSONSerialization dataWithJSONObject:env options:0 error:nil];
+  std::string json = data ? std::string(static_cast<const char*>(data.bytes), data.length)
+                          : std::string("{}");
+  std::lock_guard<std::mutex> lock(snapshot->mutex);
+  snapshot->environmentJSON = std::move(json);
+}
+
+std::string InfoDictionaryJSON() {
+  NSDictionary* info = NSBundle.mainBundle.infoDictionary ?: @{};
+  id safe = SanitizeForJSON(info);
+  NSError* error = nil;
+  NSData* data = [NSJSONSerialization dataWithJSONObject:safe options:0 error:&error];
+  if (!data) {
+    WriteRuntimeLog([NSString stringWithFormat:@"Info.plist 序列化失败: %@", error.localizedDescription]);
+    return "{}";
+  }
+  return std::string(static_cast<const char*>(data.bytes), data.length);
+}
+
 }  // namespace
 
 @implementation NacreRuntime {
   std::unique_ptr<nacre::JSThread> _thread;
   // 只在 JS 线程上创建、使用和销毁
   std::shared_ptr<std::unique_ptr<nacre::Engine>> _engine;
+  // 主线程写、JS 线程读
+  std::shared_ptr<AppSnapshot> _snapshot;
+  NSMutableArray* _observers;
 }
 
 - (instancetype)init {
   if ((self = [super init])) {
     _engine = std::make_shared<std::unique_ptr<nacre::Engine>>();
+    _snapshot = std::make_shared<AppSnapshot>();
+    _observers = [NSMutableArray array];
   }
   return self;
 }
 
 - (void)startWithScriptsDirectory:(NSURL *)directory {
   if (_thread) return;
+
+  // 在主线程把 UIKit / Foundation 的值抓好，之后 JS 线程只读这份快照
+  _snapshot->infoJSON = InfoDictionaryJSON();
+  RebuildEnvironment(_snapshot);
 
   // JS 线程是裸 pthread，没有 run loop，也就没有系统自动提供的自动释放池。
   // 这里给每一轮任务包一个池：这一轮里产生的 autorelease 对象在轮末就释放，
@@ -77,16 +175,47 @@ double NowMs() { return [NSDate date].timeIntervalSince1970 * 1000.0; }
   });
 
   auto engine = _engine;
+  auto snapshot = _snapshot;
   NSURL* dir = [directory copy];
+  __weak NacreRuntime* weakSelf = self;
 
   // 1. 在 JS 线程上初始化 V8、创建 Isolate / Context、准备全局对象
-  _thread->Post([engine]() {
+  _thread->Post([engine, snapshot, weakSelf]() {
     double t0 = NowMs();
     nacre::Engine::InitializeV8Once();
     double t1 = NowMs();
 
     nacre::EngineHost host;
     host.log = WriteJSLog;
+    host.app_info_json = [snapshot]() { return snapshot->infoJSON; };
+    host.app_environment_json = [snapshot]() {
+      std::lock_guard<std::mutex> lock(snapshot->mutex);
+      return snapshot->environmentJSON;
+    };
+    // JS 发起 → 切主线程执行 → 完成后投回 JS 线程兑现 Promise
+    host.open_url = [weakSelf](const std::string& url, int callId) {
+      NSString* text = [NSString stringWithUTF8String:url.c_str()];
+      NSURL* target = text.length ? [NSURL URLWithString:text] : nil;
+      dispatch_async(dispatch_get_main_queue(), ^{
+        NacreRuntime* strongSelf = weakSelf;
+        if (!strongSelf) return;
+        if (!target) {
+          [strongSelf settleCall:callId with:NO];
+          return;
+        }
+        [UIApplication.sharedApplication openURL:target
+                                         options:@{}
+                               completionHandler:^(BOOL success) {
+                                 [strongSelf settleCall:callId with:success];
+                               }];
+      });
+    };
+    host.set_idle_timer_disabled = [weakSelf, snapshot](bool disabled) {
+      dispatch_async(dispatch_get_main_queue(), ^{
+        UIApplication.sharedApplication.idleTimerDisabled = disabled;
+        RebuildEnvironment(snapshot);
+      });
+    };
     *engine = std::make_unique<nacre::Engine>(std::move(host));
     double t2 = NowMs();
 
@@ -99,7 +228,23 @@ double NowMs() { return [NSDate date].timeIntervalSince1970 * 1000.0; }
     if (*engine) (*engine)->PumpMessageLoop();
   });
 
-  // 2. 加载并执行 main.js
+  // 2. 执行内置脚本，装上 EventTarget / Event / Application / application
+  _thread->Post([engine]() {
+    if (!*engine) return;
+    NSURL* url = [NSBundle.mainBundle URLForResource:@"nacre" withExtension:@"js" subdirectory:@"Builtin"];
+    NSString* source = url ? [NSString stringWithContentsOfURL:url encoding:NSUTF8StringEncoding error:nil] : nil;
+    if (!source) {
+      WriteRuntimeLog(@"内置脚本 Builtin/nacre.js 缺失，上层 API 不可用");
+      return;
+    }
+    // 脚本名用 nacre:internal/ 前缀而不是文件路径：调用栈里一眼能看出是运行时内部，
+    // 和 Node 的 node:internal/... 同样的做法
+    double t0 = NowMs();
+    bool ok = (*engine)->Evaluate({"nacre:internal/nacre.js", source.UTF8String});
+    WriteRuntimeLog([NSString stringWithFormat:@"内置脚本 %@ in %.1f ms", ok ? @"ready" : @"failed", NowMs() - t0]);
+  });
+
+  // 3. 加载并执行 main.js
   _thread->Post([engine, dir]() {
     if (!*engine) return;
     NSURL* url = [dir URLByAppendingPathComponent:@"main.js"];
@@ -113,9 +258,92 @@ double NowMs() { return [NSDate date].timeIntervalSince1970 * 1000.0; }
     bool ok = (*engine)->Evaluate({"main.js", source.UTF8String});
     WriteRuntimeLog([NSString stringWithFormat:@"main.js %@ in %.1f ms", ok ? @"finished" : @"failed", NowMs() - t0]);
   });
+
+  [self installNotificationObservers];
+}
+
+// 原生通知在主线程到达 → 投递到 JS 线程的任务队列 → 在 JS 线程上派发给 application。
+// 这是单向的：原生不等待 JS 的结果，所以事件都是 cancelable: false。
+- (void)installNotificationObservers {
+  auto engine = _engine;
+  auto snapshot = _snapshot;
+  __weak NacreRuntime* weakSelf = self;
+
+  // 通知 → JS 事件名。
+  // 原则：暴露出去的状态必须同时给「读」和「变化通知」，否则 JS 只能轮询，
+  // 而我们连定时器都没有，等于完全不可观测。
+  //
+  // 前后台这四个是 App 级的聚合状态，走 UIApplication 的通知——Apple 废弃的是
+  // delegate 方法，通知形式没废弃。等 scene 对象做好后，scene 级管「这个窗口」，
+  // 这里管「所有场景的聚合」，两者并存。
+  NSDictionary<NSNotificationName, NSString*>* map = @{
+    UIApplicationDidReceiveMemoryWarningNotification : @"memorywarning",
+    UIApplicationUserDidTakeScreenshotNotification : @"screenshot",
+    UIApplicationSignificantTimeChangeNotification : @"significanttimechange",
+    UIApplicationWillTerminateNotification : @"willterminate",
+    UIContentSizeCategoryDidChangeNotification : @"contentsizecategorychange",
+    UIApplicationProtectedDataDidBecomeAvailable : @"protecteddataavailable",
+    UIApplicationProtectedDataWillBecomeUnavailable : @"protecteddataunavailable",
+    UIApplicationBackgroundRefreshStatusDidChangeNotification : @"backgroundrefreshstatuschange",
+    UIApplicationDidBecomeActiveNotification : @"active",
+    UIApplicationWillResignActiveNotification : @"inactive",
+    UIApplicationDidEnterBackgroundNotification : @"background",
+    UIApplicationWillEnterForegroundNotification : @"foreground",
+  };
+
+  [map enumerateKeysAndObjectsUsingBlock:^(NSNotificationName name, NSString* type, BOOL* stop) {
+    id token = [NSNotificationCenter.defaultCenter
+        addObserverForName:name
+                    object:nil
+                     queue:NSOperationQueue.mainQueue
+                usingBlock:^(NSNotification* _) {
+                  // 这里在主线程，可以安全读 UIKit
+                  RebuildEnvironment(snapshot);
+                  if (type.length == 0) return;
+                  NacreRuntime* strongSelf = weakSelf;
+                  if (!strongSelf) return;
+                  std::string eventType = type.UTF8String;
+                  [strongSelf postToJS:^{
+                    if (*engine) (*engine)->EmitAppEvent(eventType);
+                  }];
+                }];
+    [self->_observers addObject:token];
+  }];
+
+  // 这个通知 iOS 27 才有，但对应的属性已经暴露了，不接上就不完备
+  if (@available(iOS 27.0, *)) {
+    id token = [NSNotificationCenter.defaultCenter
+        addObserverForName:UIApplicationSystemPrefersReducedResourceUsageDidChangeNotification
+                    object:nil
+                     queue:NSOperationQueue.mainQueue
+                usingBlock:^(NSNotification* _) {
+                  RebuildEnvironment(snapshot);
+                  NacreRuntime* strongSelf = weakSelf;
+                  if (!strongSelf) return;
+                  [strongSelf postToJS:^{
+                    if (*engine) (*engine)->EmitAppEvent("reducedresourceusagechange");
+                  }];
+                }];
+    [_observers addObject:token];
+  }
+}
+
+// 把一次 JS 发起的异步调用的结果投回 JS 线程
+- (void)settleCall:(int)callId with:(BOOL)value {
+  auto engine = _engine;
+  [self postToJS:^{
+    if (*engine) (*engine)->SettleBool(callId, value ? true : false);
+  }];
+}
+
+- (void)postToJS:(dispatch_block_t)block {
+  if (!_thread) return;
+  _thread->Post([block]() { block(); });
 }
 
 - (void)dealloc {
+  for (id token in _observers) [NSNotificationCenter.defaultCenter removeObserver:token];
+  [_observers removeAllObjects];
   // Engine 必须在 JS 线程上销毁；随后 JSThread 析构时会等待队列执行完并退出线程
   if (_thread) {
     auto engine = _engine;

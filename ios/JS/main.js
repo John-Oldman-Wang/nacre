@@ -43,3 +43,139 @@ Promise.reject(new Error('这条不应该被报告')).catch(() => {
 console.log('globalThis', Object.keys(globalThis))
 console.log('typeof Date', typeof Date)
 console.log('typeof Intl', typeof Intl)
+// ===== 第 1 步：EventTarget 和 application 的验收用例 =====
+
+console.log('--- 全局类型 ---');
+console.log('EventTarget', typeof EventTarget, '| Event', typeof Event,
+            '| Application', typeof Application, '| application', typeof application);
+console.log('application instanceof EventTarget =', application instanceof EventTarget);
+
+console.log('--- 原生桥不应该暴露给用户代码 ---');
+console.log('typeof __nacre_native =', typeof __nacre_native);
+console.log('globalThis 上还有吗 =', '__nacre_native' in globalThis);
+console.log('能从属性名找到吗 =',
+            Object.getOwnPropertyNames(globalThis).some(n => n.includes('nacre')));
+
+console.log('--- 单例保护 ---');
+try { new Application(); console.log('✗ 居然构造成功了'); }
+catch (e) { console.log('✓', e.constructor.name + ':', e.message); }
+
+console.log('--- Info.plist ---');
+console.log('bundleIdentifier =', application.bundleIdentifier);
+console.log('version =', application.version, '| build =', application.build);
+console.log('info 的键数 =', Object.keys(application.info).length);
+console.log('info 的全部键 =', Object.keys(application.info).sort().join(' '));
+console.log('MinimumOSVersion =', application.info.MinimumOSVersion);
+console.log('info 已冻结 =', Object.isFrozen(application.info),
+            '| 嵌套也冻结 =', Object.isFrozen(application.info.UIApplicationSceneManifest));
+
+console.log('--- 多场景：声明值 vs 实际能力 ---');
+console.log('声明值 =', application.info.UIApplicationSceneManifest.UIApplicationSupportsMultipleScenes);
+console.log('实际能力 =', application.supportsMultipleScenes);
+
+console.log('--- 运行状态 ---');
+console.log('state =', application.state);
+
+console.log('--- EventTarget 语义 ---');
+let 次数 = 0;
+const 监听器 = () => { 次数++; };
+application.addEventListener('自测', 监听器);
+application.addEventListener('自测', 监听器);          // 重复注册应被忽略
+application.dispatchEvent(new Event('自测'));
+console.log('重复注册只触发一次 =', 次数 === 1);
+
+application.removeEventListener('自测', 监听器);
+application.dispatchEvent(new Event('自测'));
+console.log('移除后不再触发 =', 次数 === 1);
+
+let once次数 = 0;
+application.addEventListener('一次性', () => { once次数++; }, { once: true });
+application.dispatchEvent(new Event('一次性'));
+application.dispatchEvent(new Event('一次性'));
+console.log('once 只触发一次 =', once次数 === 1);
+
+application.addEventListener('抛异常', () => { throw new Error('监听器炸了'); });
+application.addEventListener('抛异常', () => console.log('✓ 前一个监听器抛异常不影响后续'));
+application.dispatchEvent(new Event('抛异常'));
+
+const 可取消 = new Event('可取消', { cancelable: true });
+application.addEventListener('可取消', (e) => e.preventDefault());
+console.log('JS 自己派发时 preventDefault 生效，dispatchEvent 返回 =',
+            application.dispatchEvent(可取消));
+
+const 不可取消 = new Event('不可取消');
+application.addEventListener('不可取消', (e) => e.preventDefault());
+console.log('cancelable=false 时静默失效，返回 =',
+            application.dispatchEvent(不可取消));
+
+console.log('--- 等待原生事件 ---');
+console.log('在模拟器的设备菜单里选 Simulate Memory Warning 触发');
+application.addEventListener('memorywarning', (e) => {
+  console.log('✓ 收到原生事件:', e.type, '| target 是 application =', e.target === application,
+              '| cancelable =', e.cancelable);
+  // 顺便验证 state 会随通知更新：启动时是 background，场景激活后应该变成 active
+  console.log('✓ 此刻 application.state =', application.state, '（启动时是 background）');
+});
+
+// ===== 全局错误出口的验收用例 =====
+
+console.log('--- unhandledrejection ---');
+application.addEventListener('unhandledrejection', (e) => {
+  const msg = e.reason && e.reason.message;
+  console.log('✓ 收到 unhandledrejection | reason =', msg,
+              '| promise 是 Promise =', e.promise instanceof Promise,
+              '| cancelable =', e.cancelable);
+  if (String(msg).includes('要抑制')) {
+    e.preventDefault();
+    console.log('  → 已 preventDefault，下面不该再出现这条的默认日志');
+  }
+});
+Promise.reject(new Error('这条不抑制，默认日志应该还在'));
+Promise.reject(new Error('这条要抑制默认日志'));
+
+console.log('--- error ---');
+application.addEventListener('error', (e) => {
+  console.log('✓ 收到 error | message =', e.message, '| filename =', e.filename,
+              '| lineno =', e.lineno, '| cancelable =', e.cancelable);
+  console.log('  error 是 Error 实例 =', e.error instanceof Error);
+  e.preventDefault();
+  console.log('  → 已 preventDefault，不该再出现默认的 Uncaught 日志');
+});
+
+
+// ===== 补充能力的验收用例 =====
+
+console.log('--- 新增的环境属性 ---');
+console.log('protectedDataAvailable =', application.protectedDataAvailable);
+console.log('layoutDirection =', application.layoutDirection);
+console.log('contentSizeCategory =', application.contentSizeCategory);
+console.log('backgroundRefreshStatus =', application.backgroundRefreshStatus);
+console.log('prefersReducedResourceUsage =', application.prefersReducedResourceUsage);
+
+console.log('--- idleTimerDisabled 读写 ---');
+console.log('写之前 =', application.idleTimerDisabled);
+application.idleTimerDisabled = true;
+console.log('刚写完立刻读 =', application.idleTimerDisabled, '（写入要切主线程，异步生效，这里大概率还是旧值）');
+
+console.log('--- openURL 返回 Promise ---');
+const p1 = application.openURL('https://example.com');
+console.log('返回值是 Promise =', p1 instanceof Promise);
+p1.then((ok) => {
+  console.log('✓ openURL 兑现 =', ok, '| 此刻 idleTimerDisabled =', application.idleTimerDisabled);
+  return application.openURL('这不是一个合法 URL::::');
+}).then((ok) => {
+  console.log('✓ 非法 URL 兑现为 =', ok);
+});
+
+
+// ===== 前后台事件的验收用例（把 App 切后台再切回来）=====
+for (const type of ['active', 'inactive', 'background', 'foreground']) {
+  application.addEventListener(type, (e) => {
+    // 事件到达时环境快照应该已经更新，所以 state 读到的是新值
+    console.log('✓ 生命周期事件:', e.type, '| 此刻 state =', application.state);
+  });
+}
+console.log('--- 已监听 active / inactive / background / foreground ---');
+
+console.log('--- 以下故意抛出未捕获异常，main.js 会被标记为 failed，这是预期的 ---');
+throw new Error('故意抛的未捕获异常');

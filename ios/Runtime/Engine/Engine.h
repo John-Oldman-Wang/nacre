@@ -14,6 +14,16 @@ enum class LogLevel { Debug, Log, Info, Warn, Error };
 struct EngineHost {
   // console.* 的输出
   std::function<void(LogLevel level, const std::string& message)> log;
+
+  // 下面几个是上层 application 的数据源。
+  // 它们在 JS 线程上被调用，所以宿主必须事先在主线程把值缓存好，
+  // 回调里不能碰 UIKit。
+  std::function<std::string()> app_info_json;         // Info.plist，静态，JS 侧缓存
+  std::function<std::string()> app_environment_json;  // 实时环境值，每次读取都问
+
+  // JS 发起的能力调用。宿主切到主线程执行，完成后在 JS 线程上调 Engine::SettleBool
+  std::function<void(const std::string& url, int call_id)> open_url;
+  std::function<void(bool disabled)> set_idle_timer_disabled;
 };
 
 struct Script {
@@ -39,6 +49,14 @@ class Engine {
 
   // 处理 V8 平台投递的任务（每个 JS 线程任务结束后调用）
   void PumpMessageLoop();
+
+  // 把一个 App 级事件派发给 JS 里的 application。只能在 JS 线程上调用。
+  // 内置脚本还没执行时静默忽略。
+  void EmitAppEvent(const std::string& type);
+
+  // 结束一个由 JS 发起的异步调用，用布尔值兑现它的 Promise。
+  // 只能在 JS 线程上调用；call_id 不存在时静默忽略。
+  void SettleBool(int call_id, bool value);
 
  private:
   struct Impl;

@@ -11,6 +11,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -23,6 +24,12 @@ std::once_flag g_init_once;
 
 v8::Local<v8::String> V8Str(v8::Isolate* isolate, const char* text) {
   return v8::String::NewFromUtf8(isolate, text).ToLocalChecked();
+}
+
+v8::Local<v8::String> Utf8(v8::Isolate* isolate, const std::string& text) {
+  return v8::String::NewFromUtf8(isolate, text.data(), v8::NewStringType::kNormal,
+                                 static_cast<int>(text.size()))
+      .ToLocalChecked();
 }
 
 // 只能用于不会触发用户代码的值：字符串、数字、BigInt、V8 自己产生的消息。
@@ -72,6 +79,16 @@ struct Engine::Impl {
     v8::Global<v8::Value> value;
   };
   std::vector<PendingRejection> pending_rejections;
+
+  // 内置脚本注册的事件入口，用来把事件送进 application。
+  // 签名是 (type, payload) -> boolean，返回 false 表示 JS 调了 preventDefault
+  v8::Global<v8::Function> event_sink;
+  // 防重入：错误处理器自己抛异常时不能再递归派发
+  bool dispatching_error = false;
+
+  // JS 发起、等待原生回答的调用。id -> 该次调用的 Promise
+  std::unordered_map<int, v8::Global<v8::Promise::Resolver>> pending_calls;
+  int next_call_id = 1;
 
   static Impl* From(v8::Isolate* isolate) {
     return static_cast<Impl*>(isolate->GetData(0));
@@ -150,6 +167,98 @@ struct Engine::Impl {
     if (self->host.log) self->host.log(level, message);
   }
 
+  // ---------- 原生数据桥 ----------
+  // 内置脚本（nacre:internal/nacre.js）通过它取原生数据，用完就把这个对象删掉。
+  // 只放最小限度的取值函数，上层 API 的形状全部在 JS 里定义。
+
+  static void NativeInfoJSON(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    std::string json = self->host.app_info_json ? self->host.app_info_json() : "{}";
+    info.GetReturnValue().Set(Utf8(isolate, json));
+  }
+
+  static void NativeEnvironmentJSON(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    std::string json =
+        self->host.app_environment_json ? self->host.app_environment_json() : "{}";
+    info.GetReturnValue().Set(Utf8(isolate, json));
+  }
+
+  // JS 调用 → 立刻返回一个 Promise → 宿主在主线程执行 → 完成后 SettleBool 兑现
+  static void NativeOpenURL(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
+
+    v8::Local<v8::Promise::Resolver> resolver;
+    if (!v8::Promise::Resolver::New(ctx).ToLocal(&resolver)) return;
+    info.GetReturnValue().Set(resolver->GetPromise());
+
+    if (!self->host.open_url) {
+      (void)resolver->Resolve(ctx, v8::Boolean::New(isolate, false));
+      return;
+    }
+    std::string url =
+        info.Length() > 0 ? SafeToString(isolate, info[0]) : std::string();
+    int id = self->next_call_id++;
+    self->pending_calls[id].Reset(isolate, resolver);
+    self->host.open_url(url, id);
+  }
+
+  static void NativeSetIdleTimerDisabled(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    Impl* self = From(info.GetIsolate());
+    if (self->host.set_idle_timer_disabled && info.Length() > 0) {
+      self->host.set_idle_timer_disabled(info[0]->BooleanValue(info.GetIsolate()));
+    }
+  }
+
+  static void NativeSetEventSink(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    if (info.Length() > 0 && info[0]->IsFunction()) {
+      self->event_sink.Reset(isolate, info[0].As<v8::Function>());
+    }
+  }
+
+  // 把一个事件送进 JS 的 application。返回 true 表示 JS 调了 preventDefault，
+  // 调用方应当跳过默认动作（对错误类事件来说就是不打默认日志）。
+  // 必须已经进入 isolate、handle scope 和 context。
+  bool DispatchToJS(v8::Local<v8::Context> ctx, const char* type,
+                    v8::Local<v8::Value> payload) {
+    if (event_sink.IsEmpty()) return false;
+    v8::TryCatch try_catch(isolate);
+    v8::Local<v8::Value> argv[] = {V8Str(isolate, type), payload};
+    v8::Local<v8::Value> result;
+    if (!event_sink.Get(isolate)->Call(ctx, ctx->Global(), 2, argv).ToLocal(&result)) {
+      // 派发本身出错就当没人处理，退回默认日志，避免错误被静默吞掉
+      try_catch.Reset();
+      return false;
+    }
+    return result->IsFalse();
+  }
+
+  void InstallNativeBridge(v8::Local<v8::Context> ctx) {
+    v8::Local<v8::Object> bridge = v8::Object::New(isolate);
+    struct Entry {
+      const char* name;
+      v8::FunctionCallback fn;
+    };
+    const Entry entries[] = {
+        {"infoJSON", NativeInfoJSON},
+        {"environmentJSON", NativeEnvironmentJSON},
+        {"openURL", NativeOpenURL},
+        {"setIdleTimerDisabled", NativeSetIdleTimerDisabled},
+        {"setEventSink", NativeSetEventSink},
+    };
+    for (const Entry& e : entries) {
+      v8::Local<v8::Function> fn = v8::Function::New(ctx, e.fn).ToLocalChecked();
+      bridge->Set(ctx, V8Str(isolate, e.name), fn).Check();
+    }
+    ctx->Global()->Set(ctx, V8Str(isolate, "__nacre_native"), bridge).Check();
+  }
+
   void InstallConsole(v8::Local<v8::Context> ctx) {
     v8::Local<v8::Object> console = v8::Object::New(isolate);
     struct Entry {
@@ -225,28 +334,54 @@ struct Engine::Impl {
     v8::Context::Scope context_scope(ctx);
     v8::TryCatch try_catch(isolate);
     for (PendingRejection& item : pending) {
-      std::string text =
-          "Uncaught (in promise) " + Format(ctx, item.value.Get(isolate));
+      v8::Local<v8::Value> reason = item.value.Get(isolate);
+      // 这里是 JS 线程上的同步派发，拿得到返回值，所以这个事件可以被取消
+      v8::Local<v8::Object> payload = v8::Object::New(isolate);
+      payload->Set(ctx, V8Str(isolate, "reason"), reason).Check();
+      payload->Set(ctx, V8Str(isolate, "promise"), item.promise.Get(isolate)).Check();
+      if (DispatchToJS(ctx, "unhandledrejection", payload)) continue;  // JS 接管了
+
+      std::string text = "Uncaught (in promise) " + Format(ctx, reason);
       if (host.log) host.log(LogLevel::Error, text);
     }
     if (try_catch.HasCaught()) try_catch.Reset();
   }
 
   void ReportException(v8::Local<v8::Context> ctx, v8::TryCatch& try_catch) {
-    std::string text;
+    // 先把需要的东西全部取出来，之后调用 JS 不会受 TryCatch 状态影响
+    v8::Local<v8::Value> exception = try_catch.Exception();
     v8::Local<v8::Message> message = try_catch.Message();
+    std::string summary;
+    std::string file;
+    int line = 0;
+    std::string text;
     if (!message.IsEmpty()) {
-      std::string file = ToUtf8(isolate, message->GetScriptResourceName());
-      int line = message->GetLineNumber(ctx).FromMaybe(0);
-      text += "Uncaught " + ToUtf8(isolate, message->Get()) + "\n    at " + file + ":" +
-              std::to_string(line);
+      file = ToUtf8(isolate, message->GetScriptResourceName());
+      line = message->GetLineNumber(ctx).FromMaybe(0);
+      summary = ToUtf8(isolate, message->Get());
+      text += "Uncaught " + summary + "\n    at " + file + ":" + std::to_string(line);
     }
     v8::Local<v8::Value> stack;
     if (try_catch.StackTrace(ctx).ToLocal(&stack) && stack->IsString()) {
       text += "\n" + ToUtf8(isolate, stack);
     } else if (message.IsEmpty()) {
-      text = "Uncaught " + SafeToString(isolate, try_catch.Exception());
+      summary = SafeToString(isolate, exception);
+      text = "Uncaught " + summary;
     }
+
+    // 给 JS 接管的机会。错误处理器自己出错时不再递归派发，直接走默认日志
+    if (!dispatching_error) {
+      dispatching_error = true;
+      v8::Local<v8::Object> payload = v8::Object::New(isolate);
+      payload->Set(ctx, V8Str(isolate, "message"), Utf8(isolate, summary)).Check();
+      payload->Set(ctx, V8Str(isolate, "error"), exception).Check();
+      payload->Set(ctx, V8Str(isolate, "filename"), Utf8(isolate, file)).Check();
+      payload->Set(ctx, V8Str(isolate, "lineno"), v8::Integer::New(isolate, line)).Check();
+      bool prevented = DispatchToJS(ctx, "error", payload);
+      dispatching_error = false;
+      if (prevented) return;
+    }
+
     if (host.log) host.log(LogLevel::Error, text);
   }
 };
@@ -278,11 +413,14 @@ Engine::Engine(EngineHost host) : impl_(std::make_unique<Impl>()) {
   v8::Context::Scope context_scope(ctx);
 
   impl_->InstallConsole(ctx);
+  impl_->InstallNativeBridge(ctx);
   impl_->context.Reset(impl_->isolate, ctx);
 }
 
 Engine::~Engine() {
   // 所有 Global 都必须在 Isolate 销毁之前释放
+  impl_->event_sink.Reset();
+  impl_->pending_calls.clear();
   impl_->pending_rejections.clear();
   impl_->context.Reset();
   impl_->isolate->Dispose();
@@ -320,6 +458,44 @@ bool Engine::Evaluate(const Script& script) {
   // 微任务策略是默认的 kAuto：Run 返回时微任务已经跑完，这里可以结算拒绝。
   impl_->FlushRejections();
   return ok;
+}
+
+void Engine::EmitAppEvent(const std::string& type) {
+  v8::Isolate* isolate = impl_->isolate;
+  v8::Isolate::Scope isolate_scope(isolate);
+  v8::HandleScope handle_scope(isolate);
+  if (impl_->event_sink.IsEmpty()) return;  // 内置脚本还没跑
+
+  v8::Local<v8::Context> ctx = impl_->context.Get(isolate);
+  v8::Context::Scope context_scope(ctx);
+  {
+    impl_->DispatchToJS(ctx, type.c_str(), v8::Undefined(isolate));
+  }
+  impl_->FlushRejections();
+}
+
+void Engine::SettleBool(int call_id, bool value) {
+  v8::Isolate* isolate = impl_->isolate;
+  v8::Isolate::Scope isolate_scope(isolate);
+  v8::HandleScope handle_scope(isolate);
+
+  auto it = impl_->pending_calls.find(call_id);
+  if (it == impl_->pending_calls.end()) return;
+  v8::Local<v8::Promise::Resolver> resolver = it->second.Get(isolate);
+  impl_->pending_calls.erase(it);
+
+  v8::Local<v8::Context> ctx = impl_->context.Get(isolate);
+  v8::Context::Scope context_scope(ctx);
+  {
+    v8::TryCatch try_catch(isolate);
+    if (resolver->Resolve(ctx, v8::Boolean::New(isolate, value)).IsNothing()) {
+      try_catch.Reset();
+    }
+  }
+  // 这里不在任何 JS 调用栈里，kAuto 不会自动排空微任务，必须显式跑一次，
+  // 否则 await 后面的代码要等到下一次有 JS 执行时才继续
+  isolate->PerformMicrotaskCheckpoint();
+  impl_->FlushRejections();
 }
 
 void Engine::PumpMessageLoop() {

@@ -15,6 +15,12 @@ targets:
     sources:
       - path: App
       - path: Runtime
+        excludes:
+          - "Builtin/**"
+      # 运行时的内置脚本，在 main.js 之前执行（Bundle 内路径为 Builtin/）
+      - path: Runtime/Builtin
+        type: folder
+        buildPhase: resources
       # JS 目录整体作为资源打进 App Bundle（Bundle 内路径为 JS/）
       - path: JS
         type: folder
