@@ -398,25 +398,32 @@ struct Engine::Impl {
   }
 
   // JS 构造原生对象：(className, [handle...], thisObject) -> handle
+  // 句柄数组 → 指针数组。非整数或查不到的位置留 nullptr，
+  // 这样对象参数和非对象参数能按同一套下标对齐。
+  std::vector<void*> HandlesToPtrs(v8::Local<v8::Context> ctx,
+                                   v8::Local<v8::Value> value) {
+    std::vector<void*> ptrs;
+    if (!value->IsArray()) return ptrs;
+    v8::Local<v8::Array> list = value.As<v8::Array>();
+    for (uint32_t i = 0; i < list->Length(); i++) {
+      v8::Local<v8::Value> item;
+      if (!list->Get(ctx, i).ToLocal(&item) || !item->IsInt32()) {
+        ptrs.push_back(nullptr);
+        continue;
+      }
+      auto it = handle_to_ptr.find(item.As<v8::Int32>()->Value());
+      ptrs.push_back(it == handle_to_ptr.end() ? nullptr : it->second);
+    }
+    return ptrs;
+  }
+
   static void NativeConstruct(const v8::FunctionCallbackInfo<v8::Value>& info) {
     v8::Isolate* isolate = info.GetIsolate();
     Impl* self = From(isolate);
     v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
     if (info.Length() < 3 || !info[2]->IsObject() || !self->host.construct_native) return;
 
-    std::vector<void*> args;
-    if (info[1]->IsArray()) {
-      v8::Local<v8::Array> list = info[1].As<v8::Array>();
-      for (uint32_t i = 0; i < list->Length(); i++) {
-        v8::Local<v8::Value> item;
-        if (!list->Get(ctx, i).ToLocal(&item) || !item->IsInt32()) {
-          args.push_back(nullptr);
-          continue;
-        }
-        auto it = self->handle_to_ptr.find(item.As<v8::Int32>()->Value());
-        args.push_back(it == self->handle_to_ptr.end() ? nullptr : it->second);
-      }
-    }
+    std::vector<void*> args = self->HandlesToPtrs(ctx, info[1]);
 
     NativeObjectRef ref = self->host.construct_native(SafeToString(isolate, info[0]), args);
     if (ref.ptr == nullptr) return;
@@ -431,6 +438,53 @@ struct Engine::Impl {
     if (!ptr || !self->host.write_object_property || info.Length() < 3) return;
     void* value = self->PtrForHandle(info, 2);
     self->host.write_object_property(ptr, SafeToString(isolate, info[1]), value);
+  }
+
+  // 带参数的方法，返回值用 JSON 编码
+  static void NativeCall(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
+    void* ptr = self->PtrForHandle(info, 0);
+    if (!ptr || !self->host.call_method || info.Length() < 4) return;
+    std::string result = self->host.call_method(
+        ptr, SafeToString(isolate, info[1]), SafeToString(isolate, info[2]),
+        self->HandlesToPtrs(ctx, info[3]));
+    info.GetReturnValue().Set(
+        v8::String::NewFromUtf8(isolate, result.c_str()).ToLocalChecked());
+  }
+
+  // 带参数的方法，返回值是原生对象
+  static void NativeCallObject(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
+    void* ptr = self->PtrForHandle(info, 0);
+    if (!ptr || !self->host.call_object_method || info.Length() < 4) return;
+    NativeObjectRef ref = self->host.call_object_method(
+        ptr, SafeToString(isolate, info[1]), SafeToString(isolate, info[2]),
+        self->HandlesToPtrs(ctx, info[3]));
+    v8::Local<v8::Object> wrapper = self->WrapNative(ctx, ref);
+    if (!wrapper.IsEmpty()) info.GetReturnValue().Set(wrapper);
+  }
+
+  // 属性值是原生对象数组，比如 subviews
+  static void NativeObjectArrayProperty(
+      const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
+    void* ptr = self->PtrForHandle(info, 0);
+    if (!ptr || !self->host.read_object_array_property) return;
+    std::vector<NativeObjectRef> refs =
+        self->host.read_object_array_property(ptr, SafeToString(isolate, info[1]));
+    v8::Local<v8::Array> out = v8::Array::New(isolate, (int)refs.size());
+    for (uint32_t i = 0; i < refs.size(); i++) {
+      v8::Local<v8::Object> wrapper = self->WrapNative(ctx, refs[i]);
+      if (wrapper.IsEmpty()) continue;
+      if (out->Set(ctx, i, wrapper).IsNothing()) return;
+    }
+    info.GetReturnValue().Set(out);
   }
 
   // 类级属性：(className, name) -> 包装对象或 undefined
@@ -496,6 +550,9 @@ struct Engine::Impl {
         {"construct", NativeConstruct},
         {"callVoid", NativeCallVoid},
         {"classObjProp", NativeClassObjectProperty},
+        {"call", NativeCall},
+        {"callObj", NativeCallObject},
+        {"getObjArray", NativeObjectArrayProperty},
         {"callAsync", NativeCallAsync},
     };
     for (const Entry& e : entries) {

@@ -58,6 +58,22 @@ struct EngineHost {
   // 无参无返回值的方法，比如 makeKeyAndVisible
   std::function<void(void* ptr, const std::string& name)> call_void_method;
 
+  // 带参数、带返回值的方法。args_json 是 JSON 数组；对象参数在数组里留
+  // null，真正的指针按同样的下标放在 arg_ptrs 里。返回值用 JSON 编码，
+  // void 方法返回空串。
+  std::function<std::string(void* ptr, const std::string& name,
+                            const std::string& args_json,
+                            const std::vector<void*>& arg_ptrs)>
+      call_method;
+  // 返回值是原生对象的方法，参数规则同上
+  std::function<NativeObjectRef(void* ptr, const std::string& name,
+                                const std::string& args_json,
+                                const std::vector<void*>& arg_ptrs)>
+      call_object_method;
+  // 属性值是原生对象数组，比如 UIView.subviews
+  std::function<std::vector<NativeObjectRef>(void* ptr, const std::string& name)>
+      read_object_array_property;
+
   // 类级属性。没有实例，所以用类名定位，比如 UIColor.whiteColor
   std::function<NativeObjectRef(const std::string& class_name, const std::string& name)>
       read_class_object_property;

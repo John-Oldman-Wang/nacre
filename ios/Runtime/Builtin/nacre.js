@@ -14,6 +14,7 @@
     Object.defineProperty(obj, name, {
       value, writable: true, enumerable: false, configurable: true,
     });
+    return value;
   }
 
   // ---------- Event ----------
@@ -169,6 +170,37 @@
   function nativeCallVoid(obj, name) {
     native.callVoid(obj[kHandle], name);
   }
+  // 带参数的方法。selector 是完整的 ObjC selector，JS 层的
+  // 「第一段 + options」在各自的方法里还原成它。
+  // 对象参数在 JSON 里留 null，句柄按同样的下标单独传。
+  function splitArgs(args) {
+    const list = args || [];
+    const values = [];
+    const handles = [];
+    for (const a of list) {
+      const isObject = a != null && a[kHandle] !== undefined;
+      values.push(isObject ? null : a);
+      handles.push(isObject ? a[kHandle] : 0);
+    }
+    return { values, handles };
+  }
+  function nativeCall(obj, selector, args) {
+    requireNative(obj, selector);
+    const { values, handles } = splitArgs(args);
+    return JSON.parse(
+      native.call(obj[kHandle], selector, JSON.stringify(values), handles));
+  }
+  function nativeCallObject(obj, selector, args) {
+    requireNative(obj, selector);
+    const { values, handles } = splitArgs(args);
+    const result =
+      native.callObj(obj[kHandle], selector, JSON.stringify(values), handles);
+    return result === undefined ? null : result;
+  }
+  function nativeGetObjectArray(obj, name) {
+    requireNative(obj, name);
+    return native.getObjArray(obj[kHandle], name);
+  }
   // 类级属性（ObjC 的 @property(class, readonly)）。没有实例，用类名定位。
   function nativeClassObject(className, name) {
     const result = native.classObjProp(className, name);
@@ -203,6 +235,94 @@
     }
   }
 
+  // ---- 结构体 ----
+  // ObjC 里结构体按值传递，`view.frame.x = 10` 是编译错误（改的是一个
+  // 临时副本）。JS 没有值类型，用普通对象表示的话这行会**静默无效**，
+  // 所以每个字段都定义成带 setter 的访问器，赋值直接抛。
+  // 不用 Object.freeze：冻结只在严格模式下抛，而用户的 JS 是普通脚本。
+  function defineStructFields(target, fields) {
+    for (const [name, value] of fields) {
+      Object.defineProperty(target, name, {
+        enumerable: true,
+        get: () => value,
+        set() {
+          throw new TypeError(
+            name + ' 是只读的：结构体按值传递，要改请整体赋一个新的');
+        },
+      });
+    }
+    Object.preventExtensions(target);
+  }
+  function num(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  const CGPoint = define(globalThis, 'CGPoint', class CGPoint {
+    constructor(x, y) {
+      defineStructFields(this, [['x', num(x)], ['y', num(y)]]);
+    }
+    toString() { return 'CGPoint(' + this.x + ', ' + this.y + ')'; }
+  });
+
+  const CGSize = define(globalThis, 'CGSize', class CGSize {
+    constructor(width, height) {
+      defineStructFields(this, [['width', num(width)], ['height', num(height)]]);
+    }
+    toString() { return 'CGSize(' + this.width + ', ' + this.height + ')'; }
+  });
+
+  // 线上格式是扁平的四个数，和 ObjC 的 {origin, size} 嵌套结构对应关系
+  // 由 origin / size 两个取值器给出——它们在原型上，所以不参与
+  // JSON.stringify，线上只走扁平的四个字段。
+  const CGRect = define(globalThis, 'CGRect', class CGRect {
+    constructor(x, y, width, height) {
+      defineStructFields(this, [['x', num(x)], ['y', num(y)],
+                                ['width', num(width)], ['height', num(height)]]);
+    }
+    get origin() { return new CGPoint(this.x, this.y); }
+    get size() { return new CGSize(this.width, this.height); }
+    toString() {
+      return 'CGRect(' + this.x + ', ' + this.y + ', ' +
+             this.width + ', ' + this.height + ')';
+    }
+  });
+
+  const UIEdgeInsets = define(globalThis, 'UIEdgeInsets', class UIEdgeInsets {
+    constructor(top, left, bottom, right) {
+      defineStructFields(this, [['top', num(top)], ['left', num(left)],
+                                ['bottom', num(bottom)], ['right', num(right)]]);
+    }
+    toString() {
+      return 'UIEdgeInsets(' + this.top + ', ' + this.left + ', ' +
+             this.bottom + ', ' + this.right + ')';
+    }
+  });
+
+  // 读出来的永远是结构体类的实例；写进去的可以是实例，也可以是带同样
+  // 字段的普通对象（写入宽、读出窄，和颜色同一套规则）。
+  // 缺字段直接抛，不默认补 0——那是静默出错。
+  function structArg(value, fields, what) {
+    if (value == null || typeof value !== 'object') {
+      throw new TypeError(what + ' 需要一个 ' + fields.join(' / ') + ' 俱全的对象');
+    }
+    const out = {};
+    for (const f of fields) {
+      const n = Number(value[f]);
+      if (!Number.isFinite(n)) {
+        throw new TypeError(what + ' 缺少字段 ' + f + '，或者它不是有限的数字');
+      }
+      out[f] = n;
+    }
+    return out;
+  }
+  const RECT_FIELDS = ['x', 'y', 'width', 'height'];
+  const POINT_FIELDS = ['x', 'y'];
+  const SIZE_FIELDS = ['width', 'height'];
+  const toRect = (o) => (o == null ? null : new CGRect(o.x, o.y, o.width, o.height));
+  const toPoint = (o) => (o == null ? null : new CGPoint(o.x, o.y));
+  const toSize = (o) => (o == null ? null : new CGSize(o.width, o.height));
+
   // ---- 继承链的空壳 ----
   // 照搬 ObjC 的继承关系，现在先空着，以后往上加成员时子类自动继承。
   // NSObject 是 ObjC 的根类，所以也是这里所有原生类的根。
@@ -219,7 +339,105 @@
     constructor() { shellOnly(new.target, UIScene); super(); }
   });
   const UIView = defineNativeClass('UIView', class UIView extends UIResponder {
-    constructor() { shellOnly(new.target, UIView); super(); }
+    // 子类的 super() 不能在这里建出一个 UIView 来，所以只在
+    // new.target 正是 UIView 时才创建原生对象。
+    constructor() {
+      super();
+      if (allowNativeConstruct || new.target !== UIView) return;
+      constructNative(this, 'UIView', []);
+    }
+
+    // ---- 几何 ----
+    get frame() {
+      requireNative(this, 'frame');
+      return toRect(nativeGet(this, 'frame'));
+    }
+    set frame(value) {
+      requireNative(this, 'frame');
+      nativeSet(this, 'frame', structArg(value, RECT_FIELDS, 'frame'));
+    }
+    get bounds() {
+      requireNative(this, 'bounds');
+      return toRect(nativeGet(this, 'bounds'));
+    }
+    set bounds(value) {
+      requireNative(this, 'bounds');
+      nativeSet(this, 'bounds', structArg(value, RECT_FIELDS, 'bounds'));
+    }
+    get center() {
+      requireNative(this, 'center');
+      return toPoint(nativeGet(this, 'center'));
+    }
+    set center(value) {
+      requireNative(this, 'center');
+      nativeSet(this, 'center', structArg(value, POINT_FIELDS, 'center'));
+    }
+    get safeAreaInsets() {
+      requireNative(this, 'safeAreaInsets');
+      const i = nativeGet(this, 'safeAreaInsets');
+      return i == null ? null : new UIEdgeInsets(i.top, i.left, i.bottom, i.right);
+    }
+    sizeThatFits(size) {
+      return toSize(nativeCall(this, 'sizeThatFits:',
+                               [structArg(size, SIZE_FIELDS, 'sizeThatFits')]));
+    }
+    sizeToFit() { nativeCall(this, 'sizeToFit', []); }
+    convertPoint(point, options) {
+      const p = structArg(point, POINT_FIELDS, 'convertPoint');
+      const o = options || {};
+      if ('toView' in o) return toPoint(nativeCall(this, 'convertPoint:toView:', [p, o.toView]));
+      if ('fromView' in o) return toPoint(nativeCall(this, 'convertPoint:fromView:', [p, o.fromView]));
+      throw new TypeError('convertPoint 需要 { toView } 或 { fromView }');
+    }
+    convertRect(rect, options) {
+      const r = structArg(rect, RECT_FIELDS, 'convertRect');
+      const o = options || {};
+      if ('toView' in o) return toRect(nativeCall(this, 'convertRect:toView:', [r, o.toView]));
+      if ('fromView' in o) return toRect(nativeCall(this, 'convertRect:fromView:', [r, o.fromView]));
+      throw new TypeError('convertRect 需要 { toView } 或 { fromView }');
+    }
+    hitTest(point) {
+      return nativeCallObject(this, 'hitTest:withEvent:',
+                              [structArg(point, POINT_FIELDS, 'hitTest')]);
+    }
+
+    // ---- 层级 ----
+    get superview() {
+      requireNative(this, 'superview');
+      return nativeGetObject(this, 'superview');
+    }
+    get subviews() { return nativeGetObjectArray(this, 'subviews'); }
+    get window() {
+      requireNative(this, 'window');
+      return nativeGetObject(this, 'window');
+    }
+    addSubview(view) { nativeCall(this, 'addSubview:', [view]); }
+    insertSubview(view, options) {
+      const o = options || {};
+      if ('atIndex' in o) {
+        return nativeCall(this, 'insertSubview:atIndex:', [view, o.atIndex]);
+      }
+      if ('belowSubview' in o) {
+        return nativeCall(this, 'insertSubview:belowSubview:', [view, o.belowSubview]);
+      }
+      if ('aboveSubview' in o) {
+        return nativeCall(this, 'insertSubview:aboveSubview:', [view, o.aboveSubview]);
+      }
+      throw new TypeError(
+        'insertSubview 需要 { atIndex } / { belowSubview } / { aboveSubview } 之一');
+    }
+    removeFromSuperview() { nativeCall(this, 'removeFromSuperview', []); }
+    bringSubviewToFront(view) { nativeCall(this, 'bringSubviewToFront:', [view]); }
+    sendSubviewToBack(view) { nativeCall(this, 'sendSubviewToBack:', [view]); }
+    isDescendantOfView(view) {
+      return nativeCall(this, 'isDescendantOfView:', [view]);
+    }
+    viewWithTag(tag) { return nativeCallObject(this, 'viewWithTag:', [tag]); }
+    setNeedsLayout() { nativeCall(this, 'setNeedsLayout', []); }
+    layoutIfNeeded() { nativeCall(this, 'layoutIfNeeded', []); }
+    setNeedsDisplay() { nativeCall(this, 'setNeedsDisplay', []); }
+
+    // ---- 外观 ----
     // 背景色。nil 表示透明，JS 侧用 null 表示。
     get backgroundColor() {
       requireNative(this, 'backgroundColor');
@@ -229,6 +447,30 @@
       requireNative(this, 'backgroundColor');
       nativeSetObject(this, 'backgroundColor', value);
     }
+    get alpha() { requireNative(this, 'alpha'); return nativeGet(this, 'alpha'); }
+    set alpha(value) { requireNative(this, 'alpha'); nativeSet(this, 'alpha', value); }
+    get isHidden() { requireNative(this, 'isHidden'); return nativeGet(this, 'isHidden'); }
+    set isHidden(value) { requireNative(this, 'isHidden'); nativeSet(this, 'isHidden', value); }
+    get clipsToBounds() {
+      requireNative(this, 'clipsToBounds');
+      return nativeGet(this, 'clipsToBounds');
+    }
+    set clipsToBounds(value) {
+      requireNative(this, 'clipsToBounds');
+      nativeSet(this, 'clipsToBounds', value);
+    }
+    get isOpaque() { requireNative(this, 'isOpaque'); return nativeGet(this, 'isOpaque'); }
+    set isOpaque(value) { requireNative(this, 'isOpaque'); nativeSet(this, 'isOpaque', value); }
+    get isUserInteractionEnabled() {
+      requireNative(this, 'isUserInteractionEnabled');
+      return nativeGet(this, 'isUserInteractionEnabled');
+    }
+    set isUserInteractionEnabled(value) {
+      requireNative(this, 'isUserInteractionEnabled');
+      nativeSet(this, 'isUserInteractionEnabled', value);
+    }
+    get tag() { requireNative(this, 'tag'); return nativeGet(this, 'tag'); }
+    set tag(value) { requireNative(this, 'tag'); nativeSet(this, 'tag', value); }
   });
 
   // 颜色。基础色和语义色都是 ObjC 的类级只读属性，按原名暴露。

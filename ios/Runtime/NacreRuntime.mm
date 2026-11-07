@@ -157,6 +157,29 @@ id DecodeJSON(const std::string& json) {
   return (value == nil || value == NSNull.null) ? nil : value;
 }
 
+// 结构体和 JSON 的互转。线上格式是扁平的（CGRect 是 x/y/width/height，
+// 不是嵌套的 origin/size）——JS 侧的 CGRect 类负责提供嵌套视图，
+// 线上格式是内部约定，以后换编码不影响 JS。
+NSDictionary* PointToJSON(CGPoint p) { return @{@"x": @(p.x), @"y": @(p.y)}; }
+NSDictionary* SizeToJSON(CGSize z) { return @{@"width": @(z.width), @"height": @(z.height)}; }
+NSDictionary* RectToJSON(CGRect r) {
+  return @{@"x": @(r.origin.x), @"y": @(r.origin.y),
+           @"width": @(r.size.width), @"height": @(r.size.height)};
+}
+CGPoint JSONToPoint(id v) {
+  NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
+  return CGPointMake([d[@"x"] doubleValue], [d[@"y"] doubleValue]);
+}
+CGSize JSONToSize(id v) {
+  NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
+  return CGSizeMake([d[@"width"] doubleValue], [d[@"height"] doubleValue]);
+}
+CGRect JSONToRect(id v) {
+  NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
+  return CGRectMake([d[@"x"] doubleValue], [d[@"y"] doubleValue],
+                    [d[@"width"] doubleValue], [d[@"height"] doubleValue]);
+}
+
 // 属性分发表。加一个属性只要在这里加一行，不用动 C++ 的桥。
 // 这是手写方案，撑得过 scene / window 这几个类；到 UIView 那一层
 // （成百上千个属性）就必须换成通用的能力暴露方案了。
@@ -194,6 +217,32 @@ std::string ReadNativeProperty(id object, const std::string& name) {
       value = session.userInfo;
     }
   }
+  if (value == nil && [object isKindOfClass:UIView.class]) {
+    UIView* view = (UIView*)object;
+    if ([key isEqualToString:@"frame"]) {
+      value = RectToJSON(view.frame);
+    } else if ([key isEqualToString:@"bounds"]) {
+      value = RectToJSON(view.bounds);
+    } else if ([key isEqualToString:@"center"]) {
+      value = PointToJSON(view.center);
+    } else if ([key isEqualToString:@"safeAreaInsets"]) {
+      UIEdgeInsets i = view.safeAreaInsets;
+      value = @{@"top": @(i.top), @"left": @(i.left),
+                @"bottom": @(i.bottom), @"right": @(i.right)};
+    } else if ([key isEqualToString:@"alpha"]) {
+      value = @(view.alpha);
+    } else if ([key isEqualToString:@"isHidden"]) {
+      value = @(view.isHidden);
+    } else if ([key isEqualToString:@"clipsToBounds"]) {
+      value = @(view.clipsToBounds);
+    } else if ([key isEqualToString:@"isOpaque"]) {
+      value = @(view.isOpaque);
+    } else if ([key isEqualToString:@"isUserInteractionEnabled"]) {
+      value = @(view.isUserInteractionEnabled);
+    } else if ([key isEqualToString:@"tag"]) {
+      value = @(view.tag);
+    }
+  }
   return EncodeJSON(value);
 }
 
@@ -216,6 +265,28 @@ void WriteNativeProperty(id object, const std::string& name, const std::string& 
       ((UISceneSession*)object).userInfo = [value isKindOfClass:NSDictionary.class] ? value : nil;
     }
   }
+  if ([object isKindOfClass:UIView.class]) {
+    UIView* view = (UIView*)object;
+    if ([key isEqualToString:@"frame"]) {
+      view.frame = JSONToRect(value);
+    } else if ([key isEqualToString:@"bounds"]) {
+      view.bounds = JSONToRect(value);
+    } else if ([key isEqualToString:@"center"]) {
+      view.center = JSONToPoint(value);
+    } else if ([key isEqualToString:@"alpha"]) {
+      view.alpha = [value doubleValue];
+    } else if ([key isEqualToString:@"isHidden"]) {
+      view.hidden = [value boolValue];
+    } else if ([key isEqualToString:@"clipsToBounds"]) {
+      view.clipsToBounds = [value boolValue];
+    } else if ([key isEqualToString:@"isOpaque"]) {
+      view.opaque = [value boolValue];
+    } else if ([key isEqualToString:@"isUserInteractionEnabled"]) {
+      view.userInteractionEnabled = [value boolValue];
+    } else if ([key isEqualToString:@"tag"]) {
+      view.tag = [value integerValue];
+    }
+  }
 }
 
 nacre::NativeObjectRef ReadNativeObjectProperty(id object, const std::string& name) {
@@ -233,10 +304,25 @@ nacre::NativeObjectRef ReadNativeObjectProperty(id object, const std::string& na
     return {(__bridge void*)((UIViewController*)object).view, "UIView"};
   }
   // UIWindow 也是 UIView，所以这条放在 UIWindow 的分支之后，名字不重叠。
-  if ([object isKindOfClass:UIView.class] && name == "backgroundColor") {
-    return {(__bridge void*)((UIView*)object).backgroundColor, "UIColor"};
+  if ([object isKindOfClass:UIView.class]) {
+    UIView* view = (UIView*)object;
+    if (name == "backgroundColor") return {(__bridge void*)view.backgroundColor, "UIColor"};
+    if (name == "superview") return {(__bridge void*)view.superview, "UIView"};
+    if (name == "window") return {(__bridge void*)view.window, "UIWindow"};
   }
   return {};
+}
+
+// 属性值是原生对象数组
+std::vector<nacre::NativeObjectRef> ReadNativeObjectArrayProperty(
+    id object, const std::string& name) {
+  std::vector<nacre::NativeObjectRef> refs;
+  if ([object isKindOfClass:UIView.class] && name == "subviews") {
+    for (UIView* child in ((UIView*)object).subviews) {
+      refs.push_back({(__bridge void*)child, "UIView"});
+    }
+  }
+  return refs;
 }
 
 // 类级只读属性。目前只有 UIColor 的颜色常量，手写成表：
@@ -329,6 +415,92 @@ void CallVoidMethod(id object, const std::string& name) {
   }
 }
 
+// 带参数的方法。name 是完整的 ObjC selector（JS 层负责把
+// 「第一段 + options」还原成 selector），所以这里的表和 Apple 文档一一对上。
+// 对象参数在 args 里是 NSNull，真正的指针按同样的下标在 argPtrs 里。
+std::string CallMethod(id object, const std::string& name, const std::string& argsJSON,
+                       const std::vector<void*>& argPtrs) {
+  NSString* sel = @(name.c_str());
+  id decoded = DecodeJSON(argsJSON);
+  NSArray* args = [decoded isKindOfClass:NSArray.class] ? decoded : @[];
+  id result = nil;
+
+  auto objectArg = [&](size_t i) -> id {
+    return i < argPtrs.size() ? (__bridge id)argPtrs[i] : nil;
+  };
+  auto valueArg = [&](NSUInteger i) -> id { return i < args.count ? args[i] : nil; };
+  auto viewArg = [&](size_t i) -> UIView* {
+    id v = objectArg(i);
+    return [v isKindOfClass:UIView.class] ? (UIView*)v : nil;
+  };
+
+  if ([object isKindOfClass:UIView.class]) {
+    UIView* view = (UIView*)object;
+    if ([sel isEqualToString:@"addSubview:"]) {
+      if (UIView* child = viewArg(0)) [view addSubview:child];
+    } else if ([sel isEqualToString:@"insertSubview:atIndex:"]) {
+      if (UIView* child = viewArg(0)) {
+        [view insertSubview:child atIndex:[valueArg(1) integerValue]];
+      }
+    } else if ([sel isEqualToString:@"insertSubview:belowSubview:"]) {
+      if (UIView* child = viewArg(0)) {
+        if (UIView* sibling = viewArg(1)) [view insertSubview:child belowSubview:sibling];
+      }
+    } else if ([sel isEqualToString:@"insertSubview:aboveSubview:"]) {
+      if (UIView* child = viewArg(0)) {
+        if (UIView* sibling = viewArg(1)) [view insertSubview:child aboveSubview:sibling];
+      }
+    } else if ([sel isEqualToString:@"removeFromSuperview"]) {
+      [view removeFromSuperview];
+    } else if ([sel isEqualToString:@"bringSubviewToFront:"]) {
+      if (UIView* child = viewArg(0)) [view bringSubviewToFront:child];
+    } else if ([sel isEqualToString:@"sendSubviewToBack:"]) {
+      if (UIView* child = viewArg(0)) [view sendSubviewToBack:child];
+    } else if ([sel isEqualToString:@"isDescendantOfView:"]) {
+      UIView* other = viewArg(0);
+      result = @(other != nil && [view isDescendantOfView:other]);
+    } else if ([sel isEqualToString:@"sizeThatFits:"]) {
+      result = SizeToJSON([view sizeThatFits:JSONToSize(valueArg(0))]);
+    } else if ([sel isEqualToString:@"sizeToFit"]) {
+      [view sizeToFit];
+    } else if ([sel isEqualToString:@"convertPoint:toView:"]) {
+      result = PointToJSON([view convertPoint:JSONToPoint(valueArg(0)) toView:viewArg(1)]);
+    } else if ([sel isEqualToString:@"convertPoint:fromView:"]) {
+      result = PointToJSON([view convertPoint:JSONToPoint(valueArg(0)) fromView:viewArg(1)]);
+    } else if ([sel isEqualToString:@"convertRect:toView:"]) {
+      result = RectToJSON([view convertRect:JSONToRect(valueArg(0)) toView:viewArg(1)]);
+    } else if ([sel isEqualToString:@"convertRect:fromView:"]) {
+      result = RectToJSON([view convertRect:JSONToRect(valueArg(0)) fromView:viewArg(1)]);
+    } else if ([sel isEqualToString:@"setNeedsLayout"]) {
+      [view setNeedsLayout];
+    } else if ([sel isEqualToString:@"layoutIfNeeded"]) {
+      [view layoutIfNeeded];
+    } else if ([sel isEqualToString:@"setNeedsDisplay"]) {
+      [view setNeedsDisplay];
+    }
+  }
+  return EncodeJSON(result);
+}
+
+// 带参数、返回原生对象的方法
+nacre::NativeObjectRef CallObjectMethod(id object, const std::string& name,
+                                        const std::string& argsJSON,
+                                        const std::vector<void*>& argPtrs) {
+  NSString* sel = @(name.c_str());
+  id decoded = DecodeJSON(argsJSON);
+  NSArray* args = [decoded isKindOfClass:NSArray.class] ? decoded : @[];
+  if ([object isKindOfClass:UIView.class]) {
+    UIView* view = (UIView*)object;
+    if ([sel isEqualToString:@"viewWithTag:"] && args.count > 0) {
+      return {(__bridge void*)[view viewWithTag:[args[0] integerValue]], "UIView"};
+    }
+    if ([sel isEqualToString:@"hitTest:withEvent:"] && args.count > 0) {
+      return {(__bridge void*)[view hitTest:JSONToPoint(args[0]) withEvent:nil], "UIView"};
+    }
+  }
+  return {};
+}
+
 // JS 发起的构造。
 // ARC 会在本函数返回时释放局部变量，而调用方要到返回之后才 retain——
 // 中间这一瞬对象就没了。CFAutorelease 把它交给当前 run loop 轮次的
@@ -342,6 +514,8 @@ nacre::NativeObjectRef ConstructNative(const std::string& className,
     object = [[UIWindow alloc] initWithWindowScene:(UIWindowScene*)scene];
   } else if (className == "UIViewController") {
     object = [[UIViewController alloc] init];
+  } else if (className == "UIView") {
+    object = [[UIView alloc] init];
   }
   if (object == nil) return {};
   return {(void*)CFAutorelease(CFBridgingRetain(object)), className};
@@ -460,6 +634,19 @@ std::string InfoDictionaryJSON() {
     host.construct_native = [](const std::string& className,
                                const std::vector<void*>& args) {
       return ConstructNative(className, args);
+    };
+    host.call_method = [](void* ptr, const std::string& name,
+                          const std::string& argsJSON,
+                          const std::vector<void*>& argPtrs) {
+      return CallMethod((__bridge id)ptr, name, argsJSON, argPtrs);
+    };
+    host.call_object_method = [](void* ptr, const std::string& name,
+                                 const std::string& argsJSON,
+                                 const std::vector<void*>& argPtrs) {
+      return CallObjectMethod((__bridge id)ptr, name, argsJSON, argPtrs);
+    };
+    host.read_object_array_property = [](void* ptr, const std::string& name) {
+      return ReadNativeObjectArrayProperty((__bridge id)ptr, name);
     };
     host.read_class_object_property = [](const std::string& className,
                                          const std::string& name) {

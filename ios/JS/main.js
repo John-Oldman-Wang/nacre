@@ -300,11 +300,80 @@ application.addEventListener('sceneconnect', (e) => {
               vc.view.backgroundColor === UIColor.systemBackgroundColor);
   vc.view.backgroundColor = null;
   console.log('  置 null 后读回 =', vc.view.backgroundColor);
-  vc.view.backgroundColor = UIColor.systemIndigoColor;
-  console.log('  最终底色 = systemIndigoColor');
+  vc.view.backgroundColor = UIColor.systemBackgroundColor;
+  console.log('  最终底色 = systemBackgroundColor（跟随深色模式）');
+
+  console.log('  --- 结构体 ---');
+  const r = new CGRect(10, 20, 100, 50);
+  console.log('  ' + r, '| origin =', '' + r.origin, '| size =', '' + r.size);
+  console.log('  origin / size 不参与 JSON =', JSON.stringify(r));
+  try { r.x = 999; console.log('  ✗ 结构体居然能改'); }
+  catch (err) { console.log('  ✓ 改结构体被拒:', err.message); }
+  try { vc.view.frame = { x: 0, y: 0, width: 10 }; console.log('  ✗ 缺字段居然通过'); }
+  catch (err) { console.log('  ✓ 缺字段被拒:', err.message); }
+
+  console.log('  --- UIView 的几何 ---');
+  console.log('  rootView.frame =', '' + vc.view.frame);
+  console.log('  rootView.bounds =', '' + vc.view.bounds);
+  console.log('  rootView.center =', '' + vc.view.center);
+  console.log('  safeAreaInsets =', '' + vc.view.safeAreaInsets);
+
+  console.log('  --- 建子视图 ---');
+  const box = new UIView();
+  console.log('  new UIView() 成功, instanceof UIView =', box instanceof UIView,
+              '| instanceof UIResponder =', box instanceof UIResponder);
+  box.frame = new CGRect(40, 120, 200, 120);
+  box.backgroundColor = UIColor.systemIndigoColor;
+  console.log('  写入 frame 后读回 =', '' + box.frame);
+  console.log('  写入时用普通对象也行：');
+  const box2 = new UIView();
+  box2.frame = { x: 60, y: 270, width: 160, height: 80 };
+  box2.backgroundColor = UIColor.systemTealColor;
+  box2.alpha = 0.6;
+  console.log('    box2.frame =', '' + box2.frame, '| alpha =', box2.alpha);
+
+  console.log('  --- 层级 ---');
+  console.log('  加之前 superview =', box.superview, '| window =', box.window);
+  vc.view.addSubview(box);
+  vc.view.addSubview(box2);
+  console.log('  addSubview 之后 superview === rootView =', box.superview === vc.view);
+  console.log('  box.window === win =', box.window === win);
+  console.log('  rootView.subviews.length =', vc.view.subviews.length);
+  console.log('  subviews[0] === box =', vc.view.subviews[0] === box);
+  console.log('  isDescendantOfView(rootView) =', box.isDescendantOfView(vc.view));
+
+  box.tag = 42;
+  console.log('  viewWithTag(42) === box =', vc.view.viewWithTag(42) === box);
+  console.log('  viewWithTag(99) =', vc.view.viewWithTag(99));
+
+  console.log('  --- insertSubview 的 options ---');
+  const box3 = new UIView();
+  box3.frame = new CGRect(100, 170, 120, 120);
+  box3.backgroundColor = UIColor.systemOrangeColor;
+  vc.view.insertSubview(box3, { aboveSubview: box });
+  console.log('  insertSubview(aboveSubview) 后 subviews.length =',
+              vc.view.subviews.length);
+  console.log('  box3 在 box 之后 =',
+              vc.view.subviews.indexOf(box3) > vc.view.subviews.indexOf(box));
+  try { vc.view.insertSubview(box3, {}); console.log('  ✗ 空 options 居然通过'); }
+  catch (err) { console.log('  ✓ 空 options 被拒:', err.message); }
+
+  console.log('  --- 坐标转换 ---');
+  console.log('  box 的原点转到 rootView =',
+              '' + box.convertPoint(new CGPoint(0, 0), { toView: vc.view }));
+  console.log('  sizeThatFits({200,200}) =',
+              '' + box.sizeThatFits(new CGSize(200, 200)));
+
+  console.log('  --- 移除 ---');
+  const tmp = new UIView();
+  vc.view.addSubview(tmp);
+  const before = vc.view.subviews.length;
+  tmp.removeFromSuperview();
+  console.log('  removeFromSuperview:', before, '→', vc.view.subviews.length,
+              '| superview =', tmp.superview);
 
   mainWindow = win;
-  console.log('✓ 界面已由 JS 创建，屏幕应该是靛蓝色');
+  console.log('✓ 屏幕上应该有三个色块：靛蓝、橙、半透明青');
 });
 
 application.addEventListener('scenedisconnect', (e) => {
