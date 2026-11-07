@@ -153,10 +153,30 @@
   function nativeGet(obj, name) {
     return JSON.parse(native.getProp(obj[kHandle], name));
   }
+  // 写不进去就抛。原生层返回 false 的情况目前只有一种：枚举给了个
+  // 不认识的名字。名字→数值的映射在原生层（NSTextAlignment 的数值随
+  // ABI 变，JS 里写死索引会错），这里的 ENUM_VALUES 只用来凑错误信息。
   function nativeSet(obj, name, value) {
-    native.setProp(obj[kHandle], name,
-                   JSON.stringify(value === undefined ? null : value));
+    const ok = native.setProp(obj[kHandle], name,
+                              JSON.stringify(value === undefined ? null : value));
+    if (ok) return;
+    const choices = ENUM_VALUES[name];
+    throw new TypeError(
+      choices
+        ? name + ' 没有 ' + JSON.stringify(value) + ' 这个值，可选：' + choices.join(' / ')
+        : name + ' 写不进去：这个对象没有这个属性，或者值 ' +
+          JSON.stringify(value) + ' 不被接受');
   }
+  // 只为错误信息服务，不参与映射——真正的表在 NacreRuntime.mm 里。
+  const ENUM_VALUES = {
+    textAlignment: ['left', 'center', 'right', 'justified', 'natural'],
+    lineBreakMode: ['byWordWrapping', 'byCharWrapping', 'byClipping',
+                    'byTruncatingHead', 'byTruncatingTail', 'byTruncatingMiddle'],
+    contentMode: ['scaleToFill', 'scaleAspectFit', 'scaleAspectFill', 'redraw',
+                  'center', 'top', 'bottom', 'left', 'right',
+                  'topLeft', 'topRight', 'bottomLeft', 'bottomRight'],
+    baselineAdjustment: ['alignBaselines', 'alignCenters', 'none'],
+  };
   function nativeGetObject(obj, name) {
     const result = native.getObjProp(obj[kHandle], name);
     return result === undefined ? null : result;
@@ -200,6 +220,13 @@
   function nativeGetObjectArray(obj, name) {
     requireNative(obj, name);
     return native.getObjArray(obj[kHandle], name);
+  }
+  // 带参数的类方法，比如 UIFont.systemFontOfSize(17)
+  function nativeClassCall(className, selector, args) {
+    const { values, handles } = splitArgs(args);
+    const result =
+      native.classCall(className, selector, JSON.stringify(values), handles);
+    return result === undefined ? null : result;
   }
   // 类级属性（ObjC 的 @property(class, readonly)）。没有实例，用类名定位。
   function nativeClassObject(className, name) {
@@ -471,6 +498,181 @@
     }
     get tag() { requireNative(this, 'tag'); return nativeGet(this, 'tag'); }
     set tag(value) { requireNative(this, 'tag'); nativeSet(this, 'tag', value); }
+    get contentMode() {
+      requireNative(this, 'contentMode');
+      return nativeGet(this, 'contentMode');
+    }
+    set contentMode(value) {
+      requireNative(this, 'contentMode');
+      nativeSet(this, 'contentMode', value);
+    }
+    // 「我天生多大」。UILabel 按文字算，普通 UIView 返回 (-1, -1)
+    // 表示没有固有尺寸——这是 UIViewNoIntrinsicMetric。
+    get intrinsicContentSize() {
+      requireNative(this, 'intrinsicContentSize');
+      return toSize(nativeGet(this, 'intrinsicContentSize'));
+    }
+  });
+
+  // 字体。不能直接构造，走类方法。
+  defineNativeClass('UIFont', class UIFont extends NSObject {
+    constructor() { nativeOnly(); super(); }
+    static systemFontOfSize(size, options) {
+      const o = options || {};
+      if ('weight' in o) {
+        return nativeClassCall('UIFont', 'systemFontOfSize:weight:', [size, o.weight]);
+      }
+      return nativeClassCall('UIFont', 'systemFontOfSize:', [size]);
+    }
+    static boldSystemFontOfSize(size) {
+      return nativeClassCall('UIFont', 'boldSystemFontOfSize:', [size]);
+    }
+    static italicSystemFontOfSize(size) {
+      return nativeClassCall('UIFont', 'italicSystemFontOfSize:', [size]);
+    }
+    static monospacedSystemFontOfSize(size, options) {
+      const o = options || {};
+      return nativeClassCall('UIFont', 'monospacedSystemFontOfSize:weight:',
+                             [size, 'weight' in o ? o.weight : 'regular']);
+    }
+    static monospacedDigitSystemFontOfSize(size, options) {
+      const o = options || {};
+      return nativeClassCall('UIFont', 'monospacedDigitSystemFontOfSize:weight:',
+                             [size, 'weight' in o ? o.weight : 'regular']);
+    }
+    static fontWithName(name, options) {
+      const o = options || {};
+      if (!('size' in o)) throw new TypeError('fontWithName 需要 { size }');
+      return nativeClassCall('UIFont', 'fontWithName:size:', [name, o.size]);
+    }
+    // 动态字体：跟随系统的「文字大小」设置
+    static preferredFontForTextStyle(style) {
+      return nativeClassCall('UIFont', 'preferredFontForTextStyle:', [style]);
+    }
+    get familyName() { return nativeGet(this, 'familyName'); }
+    get fontName() { return nativeGet(this, 'fontName'); }
+    get pointSize() { return nativeGet(this, 'pointSize'); }
+    get ascender() { return nativeGet(this, 'ascender'); }
+    get descender() { return nativeGet(this, 'descender'); }
+    get capHeight() { return nativeGet(this, 'capHeight'); }
+    get xHeight() { return nativeGet(this, 'xHeight'); }
+    get lineHeight() { return nativeGet(this, 'lineHeight'); }
+    get leading() { return nativeGet(this, 'leading'); }
+  });
+
+  // 文字。
+  defineNativeClass('UILabel', class UILabel extends UIView {
+    constructor() {
+      super();
+      if (allowNativeConstruct) return;
+      constructNative(this, 'UILabel', []);
+    }
+    get text() { requireNative(this, 'text'); return nativeGet(this, 'text'); }
+    set text(value) { requireNative(this, 'text'); nativeSet(this, 'text', value); }
+    get font() { requireNative(this, 'font'); return nativeGetObject(this, 'font'); }
+    set font(value) { requireNative(this, 'font'); nativeSetObject(this, 'font', value); }
+    get textColor() {
+      requireNative(this, 'textColor');
+      return nativeGetObject(this, 'textColor');
+    }
+    set textColor(value) {
+      requireNative(this, 'textColor');
+      nativeSetObject(this, 'textColor', value);
+    }
+    get textAlignment() {
+      requireNative(this, 'textAlignment');
+      return nativeGet(this, 'textAlignment');
+    }
+    set textAlignment(value) {
+      requireNative(this, 'textAlignment');
+      nativeSet(this, 'textAlignment', value);
+    }
+    get lineBreakMode() {
+      requireNative(this, 'lineBreakMode');
+      return nativeGet(this, 'lineBreakMode');
+    }
+    set lineBreakMode(value) {
+      requireNative(this, 'lineBreakMode');
+      nativeSet(this, 'lineBreakMode', value);
+    }
+    get numberOfLines() {
+      requireNative(this, 'numberOfLines');
+      return nativeGet(this, 'numberOfLines');
+    }
+    set numberOfLines(value) {
+      requireNative(this, 'numberOfLines');
+      nativeSet(this, 'numberOfLines', value);
+    }
+    get adjustsFontSizeToFitWidth() {
+      requireNative(this, 'adjustsFontSizeToFitWidth');
+      return nativeGet(this, 'adjustsFontSizeToFitWidth');
+    }
+    set adjustsFontSizeToFitWidth(value) {
+      requireNative(this, 'adjustsFontSizeToFitWidth');
+      nativeSet(this, 'adjustsFontSizeToFitWidth', value);
+    }
+    get minimumScaleFactor() {
+      requireNative(this, 'minimumScaleFactor');
+      return nativeGet(this, 'minimumScaleFactor');
+    }
+    set minimumScaleFactor(value) {
+      requireNative(this, 'minimumScaleFactor');
+      nativeSet(this, 'minimumScaleFactor', value);
+    }
+    get baselineAdjustment() {
+      requireNative(this, 'baselineAdjustment');
+      return nativeGet(this, 'baselineAdjustment');
+    }
+    set baselineAdjustment(value) {
+      requireNative(this, 'baselineAdjustment');
+      nativeSet(this, 'baselineAdjustment', value);
+    }
+    get isHighlighted() {
+      requireNative(this, 'isHighlighted');
+      return nativeGet(this, 'isHighlighted');
+    }
+    set isHighlighted(value) {
+      requireNative(this, 'isHighlighted');
+      nativeSet(this, 'isHighlighted', value);
+    }
+    get highlightedTextColor() {
+      requireNative(this, 'highlightedTextColor');
+      return nativeGetObject(this, 'highlightedTextColor');
+    }
+    set highlightedTextColor(value) {
+      requireNative(this, 'highlightedTextColor');
+      nativeSetObject(this, 'highlightedTextColor', value);
+    }
+    get isEnabled() { requireNative(this, 'isEnabled'); return nativeGet(this, 'isEnabled'); }
+    set isEnabled(value) {
+      requireNative(this, 'isEnabled');
+      nativeSet(this, 'isEnabled', value);
+    }
+    get shadowColor() {
+      requireNative(this, 'shadowColor');
+      return nativeGetObject(this, 'shadowColor');
+    }
+    set shadowColor(value) {
+      requireNative(this, 'shadowColor');
+      nativeSetObject(this, 'shadowColor', value);
+    }
+    get shadowOffset() {
+      requireNative(this, 'shadowOffset');
+      return toSize(nativeGet(this, 'shadowOffset'));
+    }
+    set shadowOffset(value) {
+      requireNative(this, 'shadowOffset');
+      nativeSet(this, 'shadowOffset', structArg(value, SIZE_FIELDS, 'shadowOffset'));
+    }
+    // 多行文字算固有高度时要先知道宽度，就靠这个
+    get preferredMaxLayoutWidth() {
+      requireNative(this, 'preferredMaxLayoutWidth');
+      return nativeGet(this, 'preferredMaxLayoutWidth');
+    }
+    set preferredMaxLayoutWidth(value) {
+      requireNative(this, 'preferredMaxLayoutWidth');
+      nativeSet(this, 'preferredMaxLayoutWidth', value);
+    }
   });
 
   // 颜色。基础色和语义色都是 ObjC 的类级只读属性，按原名暴露。

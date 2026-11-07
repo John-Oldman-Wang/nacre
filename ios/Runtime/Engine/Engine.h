@@ -44,7 +44,9 @@ struct EngineHost {
   // 原生对象的属性读写。值用 JSON 编码，避免为每个属性加一个回调。
   // 宿主内部用一张「类名 + 属性名」的分发表来实现。
   std::function<std::string(void* ptr, const std::string& name)> read_property;
-  std::function<void(void* ptr, const std::string& name, const std::string& json)>
+  // 返回 false 表示这个值没能写进去（比如枚举给了个不认识的名字），
+  // JS 侧据此抛异常——写不进去又不报错是最难查的那种错。
+  std::function<bool(void* ptr, const std::string& name, const std::string& json)>
       write_property;
   // 属性值本身是原生对象时走这个
   std::function<NativeObjectRef(void* ptr, const std::string& name)> read_object_property;
@@ -61,14 +63,22 @@ struct EngineHost {
   // 带参数、带返回值的方法。args_json 是 JSON 数组；对象参数在数组里留
   // null，真正的指针按同样的下标放在 arg_ptrs 里。返回值用 JSON 编码，
   // void 方法返回空串。
+  //
+  // error 是这三条调用通道共用的带外错误出口：宿主往里写一句话，就表示
+  // 这次调用的参数不被接受（目前只有枚举名不认识会触发），引擎据此抛
+  // TypeError。返回值此时会被丢掉。引擎保证它不是 nullptr。
+  //
+  // 为什么不靠返回空值表示失败：空值本身是合法答案——fontWithName 找不到
+  // 字体、hitTest 没命中，都该返回 null 而不是报错。「没有这个东西」和
+  // 「你问错了」必须分得开。
   std::function<std::string(void* ptr, const std::string& name,
                             const std::string& args_json,
-                            const std::vector<void*>& arg_ptrs)>
+                            const std::vector<void*>& arg_ptrs, std::string* error)>
       call_method;
   // 返回值是原生对象的方法，参数规则同上
   std::function<NativeObjectRef(void* ptr, const std::string& name,
                                 const std::string& args_json,
-                                const std::vector<void*>& arg_ptrs)>
+                                const std::vector<void*>& arg_ptrs, std::string* error)>
       call_object_method;
   // 属性值是原生对象数组，比如 UIView.subviews
   std::function<std::vector<NativeObjectRef>(void* ptr, const std::string& name)>
@@ -77,6 +87,11 @@ struct EngineHost {
   // 类级属性。没有实例，所以用类名定位，比如 UIColor.whiteColor
   std::function<NativeObjectRef(const std::string& class_name, const std::string& name)>
       read_class_object_property;
+  // 带参数的类方法，比如 UIFont.systemFontOfSize(17)。参数和 error 规则同 call_method
+  std::function<NativeObjectRef(const std::string& class_name, const std::string& name,
+                                const std::string& args_json,
+                                const std::vector<void*>& arg_ptrs, std::string* error)>
+      call_class_object_method;
   // 异步方法，完成后调 Engine::SettleBool
   std::function<void(void* ptr, const std::string& name, const std::string& args_json,
                      int call_id)>

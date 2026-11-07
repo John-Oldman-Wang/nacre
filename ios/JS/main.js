@@ -281,6 +281,17 @@ application.addEventListener('sceneconnect', (e) => {
   win.rootViewController = vc;
   console.log('  rootViewController 写入后读回是同一个 =', win.rootViewController === vc);
 
+  // isKeyWindow / isHidden 的变化通知。监听器要在 makeKeyAndVisible 之前
+  // 注册，否则事件已经发过了
+  for (const type of ['becomekey', 'resignkey', 'becomevisible', 'becomehidden']) {
+    win.addEventListener(type, (e) => {
+      console.log('✓ 窗口事件:', e.type,
+                  '| isKeyWindow =', win.isKeyWindow,
+                  '| isHidden =', win.isHidden,
+                  '| target 是这个窗口 =', e.target === win);
+    });
+  }
+
   win.makeKeyAndVisible();
   console.log('  makeKeyAndVisible 后 isKeyWindow =', win.isKeyWindow);
   console.log('  scene.windows.length =', e.scene.windows ? e.scene.windows.length : '(未暴露)');
@@ -372,8 +383,105 @@ application.addEventListener('sceneconnect', (e) => {
   console.log('  removeFromSuperview:', before, '→', vc.view.subviews.length,
               '| superview =', tmp.superview);
 
+  console.log('  --- 枚举：字符串 ---');
+  box.contentMode = 'scaleAspectFit';
+  console.log('  contentMode 写入后读回 =', box.contentMode);
+  try { box.contentMode = 'cover'; console.log('  ✗ 瞎写的枚举值居然通过'); }
+  catch (err) { console.log('  ✓ 认不出的枚举值被拒:', err.message); }
+  console.log('  普通 UIView 的 intrinsicContentSize =',
+              '' + box.intrinsicContentSize, '（-1 表示没有固有尺寸）');
+
+  console.log('  --- UIFont ---');
+  const f17 = UIFont.systemFontOfSize(17);
+  console.log('  systemFontOfSize(17):', f17.fontName, '| pointSize =', f17.pointSize,
+              '| lineHeight =', f17.lineHeight.toFixed(2));
+  const bold = UIFont.systemFontOfSize(28, { weight: 'bold' });
+  console.log('  systemFontOfSize(28, {weight:bold}):', bold.fontName);
+  const body = UIFont.preferredFontForTextStyle('body');
+  console.log('  preferredFontForTextStyle(body): pointSize =', body.pointSize,
+              '（跟随系统文字大小设置）');
+  console.log('  同一个 systemFontOfSize(17) 取两次 ===',
+              UIFont.systemFontOfSize(17) === f17);
+  try { new UIFont(); console.log('  ✗ UIFont 居然能构造'); }
+  catch (err) { console.log('  ✓ UIFont 不可直接构造:', err.message); }
+
+  // 参数位的枚举和属性位一样抛，不静默返回 null、也不退回默认值
+  try {
+    UIFont.systemFontOfSize(17, { weight: 'extrabold' });
+    console.log('  ✗ 瞎写的字重居然通过');
+  } catch (err) {
+    console.log('  ✓ 认不出的字重被拒:', err.constructor.name + ':', err.message);
+  }
+  try {
+    UIFont.preferredFontForTextStyle('subtitle');
+    console.log('  ✗ 瞎写的文本样式居然通过');
+  } catch (err) {
+    console.log('  ✓ 认不出的文本样式被拒:', err.message);
+  }
+  // 「没有这个东西」和「你问错了」要分得开：找不到的字体名是合法答案
+  console.log('  找不到的字体名 =', UIFont.fontWithName('NoSuchFont', { size: 17 }),
+              '← 合法答案，不是错误');
+
+  console.log('  --- UILabel ---');
+  const title = new UILabel();
+  console.log('  instanceof UILabel =', title instanceof UILabel,
+              '| instanceof UIView =', title instanceof UIView);
+  title.text = 'Hello, Nacre';
+  const titleFont = UIFont.systemFontOfSize(34, { weight: 'bold' });
+  title.font = titleFont;
+  title.textColor = UIColor.labelColor;
+  title.textAlignment = 'center';
+  console.log('  text =', JSON.stringify(title.text),
+              '| textAlignment =', title.textAlignment);
+  console.log('  font 读回 === 刚设进去的那个 =', title.font === titleFont);
+
+  // 固有尺寸：文字自己知道该多大。这就是同步读布局
+  const fit = title.intrinsicContentSize;
+  console.log('  intrinsicContentSize =', '' + fit, '← 文字自己算出来的');
+  console.log('  sizeThatFits({402,999}) =',
+              '' + title.sizeThatFits(new CGSize(402, 999)));
+
+  const safe = vc.view.safeAreaInsets;
+  title.frame = new CGRect(0, safe.top + 16, vc.view.bounds.width, fit.height);
+  vc.view.addSubview(title);
+
+  console.log('  --- 多行 + 截断 ---');
+  const body2 = new UILabel();
+  // 故意写长，确保不限行数时会超过两行，行数限制才测得出来
+  body2.text = '这是一段刻意写得很长的说明文字，用来验证多行排版、行数限制和' +
+               '尾部截断是不是真的生效了。如果行数限制没起作用，不限行数时' +
+               '算出来的高度就会和限制两行时一样，那这个用例就白写了。';
+  body2.font = UIFont.systemFontOfSize(15);
+  body2.textColor = UIColor.secondaryLabelColor;
+  body2.lineBreakMode = 'byTruncatingTail';
+  body2.textAlignment = 'natural';
+  const w = vc.view.bounds.width - 48;
+  body2.preferredMaxLayoutWidth = w;
+
+  body2.numberOfLines = 0;
+  const freeFit = body2.sizeThatFits(new CGSize(w, 9999));
+  body2.numberOfLines = 2;
+  const bodyFit = body2.sizeThatFits(new CGSize(w, 9999));
+  console.log('  numberOfLines = 2 | lineBreakMode =', body2.lineBreakMode);
+  console.log('  限两行 =', '' + bodyFit, '| 不限行数 =', '' + freeFit);
+  console.log('  行数限制生效 =', freeFit.height > bodyFit.height,
+              '（不限行数更高）');
+  body2.frame = new CGRect(24, 420, w, bodyFit.height);
+  vc.view.addSubview(body2);
+
+  console.log('  --- 等宽字体 ---');
+  const mono = new UILabel();
+  mono.text = '0123456789';
+  mono.font = UIFont.monospacedSystemFontOfSize(20, { weight: 'medium' });
+  mono.textColor = UIColor.systemTealColor;
+  mono.textAlignment = 'center';
+  const monoFit = mono.intrinsicContentSize;
+  mono.frame = new CGRect(0, 500, vc.view.bounds.width, monoFit.height);
+  vc.view.addSubview(mono);
+  console.log('  等宽字体 =', mono.font.fontName);
+
   mainWindow = win;
-  console.log('✓ 屏幕上应该有三个色块：靛蓝、橙、半透明青');
+  console.log('✓ 屏幕上：三个色块 + 标题 + 两行说明 + 一行等宽数字');
 });
 
 application.addEventListener('scenedisconnect', (e) => {

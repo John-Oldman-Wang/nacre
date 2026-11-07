@@ -365,8 +365,9 @@ struct Engine::Impl {
     Impl* self = From(isolate);
     void* ptr = self->PtrForHandle(info, 0);
     if (!ptr || !self->host.write_property || info.Length() < 3) return;
-    self->host.write_property(ptr, SafeToString(isolate, info[1]),
-                              SafeToString(isolate, info[2]));
+    bool ok = self->host.write_property(ptr, SafeToString(isolate, info[1]),
+                                        SafeToString(isolate, info[2]));
+    info.GetReturnValue().Set(ok);
   }
 
   // 属性值本身是原生对象：(handle, name) -> 包装对象或 null
@@ -440,6 +441,29 @@ struct Engine::Impl {
     self->host.write_object_property(ptr, SafeToString(isolate, info[1]), value);
   }
 
+  // 带参数的类方法，返回原生对象
+  // 宿主拒绝了这次调用（参数不被接受）。抛 TypeError，和属性写不进去那条
+  // 路一致——Web IDL 的 enum 参数给错值也是 TypeError。
+  static bool Rejected(v8::Isolate* isolate, const std::string& error) {
+    if (error.empty()) return false;
+    isolate->ThrowException(v8::Exception::TypeError(Utf8(isolate, error)));
+    return true;
+  }
+
+  static void NativeClassCall(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
+    if (!self->host.call_class_object_method || info.Length() < 4) return;
+    std::string error;
+    NativeObjectRef ref = self->host.call_class_object_method(
+        SafeToString(isolate, info[0]), SafeToString(isolate, info[1]),
+        SafeToString(isolate, info[2]), self->HandlesToPtrs(ctx, info[3]), &error);
+    if (Rejected(isolate, error)) return;
+    v8::Local<v8::Object> wrapper = self->WrapNative(ctx, ref);
+    if (!wrapper.IsEmpty()) info.GetReturnValue().Set(wrapper);
+  }
+
   // 带参数的方法，返回值用 JSON 编码
   static void NativeCall(const v8::FunctionCallbackInfo<v8::Value>& info) {
     v8::Isolate* isolate = info.GetIsolate();
@@ -447,9 +471,11 @@ struct Engine::Impl {
     v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
     void* ptr = self->PtrForHandle(info, 0);
     if (!ptr || !self->host.call_method || info.Length() < 4) return;
+    std::string error;
     std::string result = self->host.call_method(
         ptr, SafeToString(isolate, info[1]), SafeToString(isolate, info[2]),
-        self->HandlesToPtrs(ctx, info[3]));
+        self->HandlesToPtrs(ctx, info[3]), &error);
+    if (Rejected(isolate, error)) return;
     info.GetReturnValue().Set(
         v8::String::NewFromUtf8(isolate, result.c_str()).ToLocalChecked());
   }
@@ -461,9 +487,11 @@ struct Engine::Impl {
     v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
     void* ptr = self->PtrForHandle(info, 0);
     if (!ptr || !self->host.call_object_method || info.Length() < 4) return;
+    std::string error;
     NativeObjectRef ref = self->host.call_object_method(
         ptr, SafeToString(isolate, info[1]), SafeToString(isolate, info[2]),
-        self->HandlesToPtrs(ctx, info[3]));
+        self->HandlesToPtrs(ctx, info[3]), &error);
+    if (Rejected(isolate, error)) return;
     v8::Local<v8::Object> wrapper = self->WrapNative(ctx, ref);
     if (!wrapper.IsEmpty()) info.GetReturnValue().Set(wrapper);
   }
@@ -550,6 +578,7 @@ struct Engine::Impl {
         {"construct", NativeConstruct},
         {"callVoid", NativeCallVoid},
         {"classObjProp", NativeClassObjectProperty},
+        {"classCall", NativeClassCall},
         {"call", NativeCall},
         {"callObj", NativeCallObject},
         {"getObjArray", NativeObjectArrayProperty},

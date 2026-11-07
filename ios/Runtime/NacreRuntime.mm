@@ -180,6 +180,160 @@ CGRect JSONToRect(id v) {
                     [d[@"width"] doubleValue], [d[@"height"] doubleValue]);
 }
 
+// 枚举：JS 侧一律用字符串。名字是我们定的（去掉类型前缀、首字母小写），
+// 数值由 SDK 决定——NSTextAlignment 的值随 ABI 变（iOS 上 Center 是 1，
+// macOS 上是 2），所以这张表只能放在原生层，JS 里写死索引会错。
+//
+// 查不到名字时返回 NO，调用方据此让 JS 抛异常。
+//
+// 参数位的枚举（字重、文本样式）还要给 JS 列出可选值，所以可选值列表和
+// 真正用来查的表必须是同一份，否则两边会慢慢漂开。属性位的枚举暂时还由
+// JS 侧凑错误信息，所以上面那几个宏只生成查表函数，不生成名字列表。
+//
+// 名字按枚举数值排序，顺序才稳定——NSDictionary 的遍历顺序是不保证的。
+NSString* JoinEnumNames(NSDictionary<NSString*, NSNumber*>* table) {
+  NSArray<NSString*>* keys =
+      [table.allKeys sortedArrayUsingComparator:^NSComparisonResult(NSString* a,
+                                                                    NSString* b) {
+        return [table[a] compare:table[b]];
+      }];
+  return [keys componentsJoinedByString:@" / "];
+}
+
+// 枚举名不认识时给 JS 的那句话。和 JS 侧属性写入的措辞保持一致。
+std::string EnumError(NSString* what, id given, NSString* choices) {
+  NSString* shown = [given isKindOfClass:NSString.class]
+                        ? [NSString stringWithFormat:@"\"%@\"", given]
+                        : (given == nil ? @"undefined" : [given description]);
+  return [NSString stringWithFormat:@"%@ 没有 %@ 这个值，可选：%@", what, shown, choices]
+      .UTF8String;
+}
+
+#define NACRE_ENUM_MAP(FuncName, Type, ...)                                   \
+  static NSDictionary<NSString*, NSNumber*>* FuncName##Table(void) {          \
+    static NSDictionary<NSString*, NSNumber*>* table;                         \
+    static dispatch_once_t once;                                              \
+    dispatch_once(&once, ^{ table = @{__VA_ARGS__}; });                       \
+    return table;                                                             \
+  }                                                                           \
+  BOOL FuncName##FromName(NSString* name, Type* out) {                        \
+    if (![name isKindOfClass:NSString.class]) return NO;                      \
+    NSNumber* v = FuncName##Table()[name];                                    \
+    if (v == nil) return NO;                                                  \
+    *out = (Type)v.integerValue;                                              \
+    return YES;                                                               \
+  }                                                                           \
+  NSString* NameFor##FuncName(Type value) {                                   \
+    NSDictionary<NSString*, NSNumber*>* table = FuncName##Table();            \
+    for (NSString* key in table) {                                            \
+      if (table[key].integerValue == (NSInteger)value) return key;            \
+    }                                                                         \
+    return nil;                                                               \
+  }
+
+NACRE_ENUM_MAP(TextAlignment, NSTextAlignment,
+               @"left": @(NSTextAlignmentLeft),
+               @"center": @(NSTextAlignmentCenter),
+               @"right": @(NSTextAlignmentRight),
+               @"justified": @(NSTextAlignmentJustified),
+               @"natural": @(NSTextAlignmentNatural))
+
+NACRE_ENUM_MAP(LineBreakMode, NSLineBreakMode,
+               @"byWordWrapping": @(NSLineBreakByWordWrapping),
+               @"byCharWrapping": @(NSLineBreakByCharWrapping),
+               @"byClipping": @(NSLineBreakByClipping),
+               @"byTruncatingHead": @(NSLineBreakByTruncatingHead),
+               @"byTruncatingTail": @(NSLineBreakByTruncatingTail),
+               @"byTruncatingMiddle": @(NSLineBreakByTruncatingMiddle))
+
+NACRE_ENUM_MAP(ContentMode, UIViewContentMode,
+               @"scaleToFill": @(UIViewContentModeScaleToFill),
+               @"scaleAspectFit": @(UIViewContentModeScaleAspectFit),
+               @"scaleAspectFill": @(UIViewContentModeScaleAspectFill),
+               @"redraw": @(UIViewContentModeRedraw),
+               @"center": @(UIViewContentModeCenter),
+               @"top": @(UIViewContentModeTop),
+               @"bottom": @(UIViewContentModeBottom),
+               @"left": @(UIViewContentModeLeft),
+               @"right": @(UIViewContentModeRight),
+               @"topLeft": @(UIViewContentModeTopLeft),
+               @"topRight": @(UIViewContentModeTopRight),
+               @"bottomLeft": @(UIViewContentModeBottomLeft),
+               @"bottomRight": @(UIViewContentModeBottomRight))
+
+NACRE_ENUM_MAP(BaselineAdjustment, UIBaselineAdjustment,
+               @"alignBaselines": @(UIBaselineAdjustmentAlignBaselines),
+               @"alignCenters": @(UIBaselineAdjustmentAlignCenters),
+               @"none": @(UIBaselineAdjustmentNone))
+
+// 字体的粗细和文本样式不是枚举，是 CGFloat / NSString 常量，
+// 但 JS 侧一样用字符串，所以放在一起。
+// 字重的值是 CGFloat 不是整数，所以不能用上面那个宏，但规矩一样：
+// 查不到返回 NO，可选值列表和查表用同一份数据。
+static NSDictionary<NSString*, NSNumber*>* FontWeightTable(void) {
+  static NSDictionary<NSString*, NSNumber*>* table;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    table = @{
+      @"ultraLight": @(UIFontWeightUltraLight), @"thin": @(UIFontWeightThin),
+      @"light": @(UIFontWeightLight), @"regular": @(UIFontWeightRegular),
+      @"medium": @(UIFontWeightMedium), @"semibold": @(UIFontWeightSemibold),
+      @"bold": @(UIFontWeightBold), @"heavy": @(UIFontWeightHeavy),
+      @"black": @(UIFontWeightBlack),
+    };
+  });
+  return table;
+}
+
+BOOL FontWeightFromName(NSString* name, UIFontWeight* out) {
+  if (![name isKindOfClass:NSString.class]) return NO;
+  NSNumber* v = FontWeightTable()[name];
+  if (v == nil) return NO;
+  *out = v.doubleValue;
+  return YES;
+}
+
+NSString* NamesForFontWeight(void) { return JoinEnumNames(FontWeightTable()); }
+
+// 文本样式的值是 NSString 常量，排不出数值顺序，而错误信息里的可选值又
+// 需要一个稳定的顺序，所以这里用有序的「名字, 常量」数组而不是字典字面量。
+// 查表和列名字都从这一份派生——两份数据迟早会漂。
+// 顺序按字号从大到小，和 Apple 文档里的排法一致。
+static NSArray<NSArray*>* TextStylePairs(void) {
+  static NSArray<NSArray*>* pairs;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    pairs = @[
+      @[ @"largeTitle", UIFontTextStyleLargeTitle ],
+      @[ @"title1", UIFontTextStyleTitle1 ],
+      @[ @"title2", UIFontTextStyleTitle2 ],
+      @[ @"title3", UIFontTextStyleTitle3 ],
+      @[ @"headline", UIFontTextStyleHeadline ],
+      @[ @"subheadline", UIFontTextStyleSubheadline ],
+      @[ @"body", UIFontTextStyleBody ],
+      @[ @"callout", UIFontTextStyleCallout ],
+      @[ @"footnote", UIFontTextStyleFootnote ],
+      @[ @"caption1", UIFontTextStyleCaption1 ],
+      @[ @"caption2", UIFontTextStyleCaption2 ],
+    ];
+  });
+  return pairs;
+}
+
+UIFontTextStyle TextStyleFromName(NSString* name) {
+  if (![name isKindOfClass:NSString.class]) return nil;
+  for (NSArray* pair in TextStylePairs()) {
+    if ([pair[0] isEqualToString:name]) return pair[1];
+  }
+  return nil;
+}
+
+NSString* NamesForTextStyle(void) {
+  NSMutableArray<NSString*>* names = [NSMutableArray array];
+  for (NSArray* pair in TextStylePairs()) [names addObject:pair[0]];
+  return [names componentsJoinedByString:@" / "];
+}
+
 // 属性分发表。加一个属性只要在这里加一行，不用动 C++ 的桥。
 // 这是手写方案，撑得过 scene / window 这几个类；到 UIView 那一层
 // （成百上千个属性）就必须换成通用的能力暴露方案了。
@@ -241,52 +395,170 @@ std::string ReadNativeProperty(id object, const std::string& name) {
       value = @(view.isUserInteractionEnabled);
     } else if ([key isEqualToString:@"tag"]) {
       value = @(view.tag);
+    } else if ([key isEqualToString:@"contentMode"]) {
+      value = NameForContentMode(view.contentMode);
+    } else if ([key isEqualToString:@"intrinsicContentSize"]) {
+      value = SizeToJSON(view.intrinsicContentSize);
+    }
+  }
+  if (value == nil && [object isKindOfClass:UILabel.class]) {
+    UILabel* label = (UILabel*)object;
+    if ([key isEqualToString:@"text"]) {
+      value = label.text;
+    } else if ([key isEqualToString:@"textAlignment"]) {
+      value = NameForTextAlignment(label.textAlignment);
+    } else if ([key isEqualToString:@"lineBreakMode"]) {
+      value = NameForLineBreakMode(label.lineBreakMode);
+    } else if ([key isEqualToString:@"numberOfLines"]) {
+      value = @(label.numberOfLines);
+    } else if ([key isEqualToString:@"adjustsFontSizeToFitWidth"]) {
+      value = @(label.adjustsFontSizeToFitWidth);
+    } else if ([key isEqualToString:@"minimumScaleFactor"]) {
+      value = @(label.minimumScaleFactor);
+    } else if ([key isEqualToString:@"isHighlighted"]) {
+      value = @(label.isHighlighted);
+    } else if ([key isEqualToString:@"isEnabled"]) {
+      value = @(label.isEnabled);
+    } else if ([key isEqualToString:@"preferredMaxLayoutWidth"]) {
+      value = @(label.preferredMaxLayoutWidth);
+    } else if ([key isEqualToString:@"shadowOffset"]) {
+      value = SizeToJSON(label.shadowOffset);
+    } else if ([key isEqualToString:@"baselineAdjustment"]) {
+      value = NameForBaselineAdjustment(label.baselineAdjustment);
+    }
+  }
+  if (value == nil && [object isKindOfClass:UIFont.class]) {
+    UIFont* font = (UIFont*)object;
+    if ([key isEqualToString:@"familyName"]) {
+      value = font.familyName;
+    } else if ([key isEqualToString:@"fontName"]) {
+      value = font.fontName;
+    } else if ([key isEqualToString:@"pointSize"]) {
+      value = @(font.pointSize);
+    } else if ([key isEqualToString:@"ascender"]) {
+      value = @(font.ascender);
+    } else if ([key isEqualToString:@"descender"]) {
+      value = @(font.descender);
+    } else if ([key isEqualToString:@"capHeight"]) {
+      value = @(font.capHeight);
+    } else if ([key isEqualToString:@"xHeight"]) {
+      value = @(font.xHeight);
+    } else if ([key isEqualToString:@"lineHeight"]) {
+      value = @(font.lineHeight);
+    } else if ([key isEqualToString:@"leading"]) {
+      value = @(font.leading);
     }
   }
   return EncodeJSON(value);
 }
 
-void WriteNativeProperty(id object, const std::string& name, const std::string& json) {
+// 返回 NO 表示没写进去（名字不认识，或枚举给了个不存在的值）。
+// JS 侧据此抛异常——写不进去又不报错是最难查的那种错。
+bool WriteNativeProperty(id object, const std::string& name, const std::string& json) {
   NSString* key = @(name.c_str());
   id value = DecodeJSON(json);
+  // 每个分支写完就 return true，末尾统一 return false——
+  // 这样「名字不认识」和「枚举值不认识」都会让 JS 抛异常，
+  // 不会出现写不进去又不报错的情况。
   if ([object isKindOfClass:UIScene.class]) {
     UIScene* scene = (UIScene*)object;
     if ([key isEqualToString:@"title"]) {
       scene.title = [value isKindOfClass:NSString.class] ? value : nil;
-    } else if ([key isEqualToString:@"subtitle"]) {
-      scene.subtitle = [value isKindOfClass:NSString.class] ? value : @"";
+      return true;
     }
-  } else if ([object isKindOfClass:UIWindow.class]) {
+    if ([key isEqualToString:@"subtitle"]) {
+      scene.subtitle = [value isKindOfClass:NSString.class] ? value : @"";
+      return true;
+    }
+  }
+  if ([object isKindOfClass:UIWindow.class]) {
     if ([key isEqualToString:@"windowLevel"]) {
       ((UIWindow*)object).windowLevel = [value doubleValue];
+      return true;
     }
-  } else if ([object isKindOfClass:UISceneSession.class]) {
+  }
+  if ([object isKindOfClass:UISceneSession.class]) {
     if ([key isEqualToString:@"userInfo"]) {
-      ((UISceneSession*)object).userInfo = [value isKindOfClass:NSDictionary.class] ? value : nil;
+      ((UISceneSession*)object).userInfo =
+          [value isKindOfClass:NSDictionary.class] ? value : nil;
+      return true;
     }
   }
   if ([object isKindOfClass:UIView.class]) {
     UIView* view = (UIView*)object;
-    if ([key isEqualToString:@"frame"]) {
-      view.frame = JSONToRect(value);
-    } else if ([key isEqualToString:@"bounds"]) {
-      view.bounds = JSONToRect(value);
-    } else if ([key isEqualToString:@"center"]) {
-      view.center = JSONToPoint(value);
-    } else if ([key isEqualToString:@"alpha"]) {
-      view.alpha = [value doubleValue];
-    } else if ([key isEqualToString:@"isHidden"]) {
-      view.hidden = [value boolValue];
-    } else if ([key isEqualToString:@"clipsToBounds"]) {
+    if ([key isEqualToString:@"frame"]) { view.frame = JSONToRect(value); return true; }
+    if ([key isEqualToString:@"bounds"]) { view.bounds = JSONToRect(value); return true; }
+    if ([key isEqualToString:@"center"]) { view.center = JSONToPoint(value); return true; }
+    if ([key isEqualToString:@"alpha"]) { view.alpha = [value doubleValue]; return true; }
+    if ([key isEqualToString:@"isHidden"]) { view.hidden = [value boolValue]; return true; }
+    if ([key isEqualToString:@"clipsToBounds"]) {
       view.clipsToBounds = [value boolValue];
-    } else if ([key isEqualToString:@"isOpaque"]) {
-      view.opaque = [value boolValue];
-    } else if ([key isEqualToString:@"isUserInteractionEnabled"]) {
+      return true;
+    }
+    if ([key isEqualToString:@"isOpaque"]) { view.opaque = [value boolValue]; return true; }
+    if ([key isEqualToString:@"isUserInteractionEnabled"]) {
       view.userInteractionEnabled = [value boolValue];
-    } else if ([key isEqualToString:@"tag"]) {
-      view.tag = [value integerValue];
+      return true;
+    }
+    if ([key isEqualToString:@"tag"]) { view.tag = [value integerValue]; return true; }
+    if ([key isEqualToString:@"contentMode"]) {
+      UIViewContentMode mode;
+      if (!ContentModeFromName(value, &mode)) return false;
+      view.contentMode = mode;
+      return true;
     }
   }
+  if ([object isKindOfClass:UILabel.class]) {
+    UILabel* label = (UILabel*)object;
+    if ([key isEqualToString:@"text"]) {
+      label.text = [value isKindOfClass:NSString.class] ? value : nil;
+      return true;
+    }
+    if ([key isEqualToString:@"textAlignment"]) {
+      NSTextAlignment a;
+      if (!TextAlignmentFromName(value, &a)) return false;
+      label.textAlignment = a;
+      return true;
+    }
+    if ([key isEqualToString:@"lineBreakMode"]) {
+      NSLineBreakMode m;
+      if (!LineBreakModeFromName(value, &m)) return false;
+      label.lineBreakMode = m;
+      return true;
+    }
+    if ([key isEqualToString:@"baselineAdjustment"]) {
+      UIBaselineAdjustment b;
+      if (!BaselineAdjustmentFromName(value, &b)) return false;
+      label.baselineAdjustment = b;
+      return true;
+    }
+    if ([key isEqualToString:@"numberOfLines"]) {
+      label.numberOfLines = [value integerValue];
+      return true;
+    }
+    if ([key isEqualToString:@"adjustsFontSizeToFitWidth"]) {
+      label.adjustsFontSizeToFitWidth = [value boolValue];
+      return true;
+    }
+    if ([key isEqualToString:@"minimumScaleFactor"]) {
+      label.minimumScaleFactor = [value doubleValue];
+      return true;
+    }
+    if ([key isEqualToString:@"isHighlighted"]) {
+      label.highlighted = [value boolValue];
+      return true;
+    }
+    if ([key isEqualToString:@"isEnabled"]) { label.enabled = [value boolValue]; return true; }
+    if ([key isEqualToString:@"preferredMaxLayoutWidth"]) {
+      label.preferredMaxLayoutWidth = [value doubleValue];
+      return true;
+    }
+    if ([key isEqualToString:@"shadowOffset"]) {
+      label.shadowOffset = JSONToSize(value);
+      return true;
+    }
+  }
+  return false;
 }
 
 nacre::NativeObjectRef ReadNativeObjectProperty(id object, const std::string& name) {
@@ -309,6 +581,15 @@ nacre::NativeObjectRef ReadNativeObjectProperty(id object, const std::string& na
     if (name == "backgroundColor") return {(__bridge void*)view.backgroundColor, "UIColor"};
     if (name == "superview") return {(__bridge void*)view.superview, "UIView"};
     if (name == "window") return {(__bridge void*)view.window, "UIWindow"};
+  }
+  if ([object isKindOfClass:UILabel.class]) {
+    UILabel* label = (UILabel*)object;
+    if (name == "font") return {(__bridge void*)label.font, "UIFont"};
+    if (name == "textColor") return {(__bridge void*)label.textColor, "UIColor"};
+    if (name == "shadowColor") return {(__bridge void*)label.shadowColor, "UIColor"};
+    if (name == "highlightedTextColor") {
+      return {(__bridge void*)label.highlightedTextColor, "UIColor"};
+    }
   }
   return {};
 }
@@ -380,6 +661,63 @@ NSDictionary<NSString*, UIColor*>* NamedColors() {
   return colors;
 }
 
+// 带参数的类方法。和实例方法一样，name 是完整的 ObjC selector。
+nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
+                                             const std::string& name,
+                                             const std::string& argsJSON,
+                                             const std::vector<void*>& argPtrs,
+                                             std::string* error) {
+  NSString* sel = @(name.c_str());
+  id decoded = DecodeJSON(argsJSON);
+  NSArray* args = [decoded isKindOfClass:NSArray.class] ? decoded : @[];
+  auto arg = [&](NSUInteger i) -> id { return i < args.count ? args[i] : nil; };
+  // 字重查不到就填错误并退出。注意和「返回 nil」要分开：fontWithName
+  // 找不到字体是合法答案（JS 得到 null），字重写错了是调用方的错。
+  // 下标显式传，不写死 1——换个 selector 字重未必还在同一位。
+  auto weight = [&](NSUInteger i, UIFontWeight* out) {
+    if (FontWeightFromName(arg(i), out)) return true;
+    *error = EnumError(@"weight", arg(i), NamesForFontWeight());
+    return false;
+  };
+
+  if (className == "UIFont") {
+    UIFont* font = nil;
+    if ([sel isEqualToString:@"systemFontOfSize:"]) {
+      font = [UIFont systemFontOfSize:[arg(0) doubleValue]];
+    } else if ([sel isEqualToString:@"boldSystemFontOfSize:"]) {
+      font = [UIFont boldSystemFontOfSize:[arg(0) doubleValue]];
+    } else if ([sel isEqualToString:@"italicSystemFontOfSize:"]) {
+      font = [UIFont italicSystemFontOfSize:[arg(0) doubleValue]];
+    } else if ([sel isEqualToString:@"systemFontOfSize:weight:"]) {
+      UIFontWeight w;
+      if (!weight(1, &w)) return {};
+      font = [UIFont systemFontOfSize:[arg(0) doubleValue] weight:w];
+    } else if ([sel isEqualToString:@"monospacedSystemFontOfSize:weight:"]) {
+      UIFontWeight w;
+      if (!weight(1, &w)) return {};
+      font = [UIFont monospacedSystemFontOfSize:[arg(0) doubleValue] weight:w];
+    } else if ([sel isEqualToString:@"monospacedDigitSystemFontOfSize:weight:"]) {
+      UIFontWeight w;
+      if (!weight(1, &w)) return {};
+      font = [UIFont monospacedDigitSystemFontOfSize:[arg(0) doubleValue] weight:w];
+    } else if ([sel isEqualToString:@"fontWithName:size:"]) {
+      NSString* fontName = [arg(0) isKindOfClass:NSString.class] ? arg(0) : nil;
+      if (fontName == nil) return {};
+      font = [UIFont fontWithName:fontName size:[arg(1) doubleValue]];
+    } else if ([sel isEqualToString:@"preferredFontForTextStyle:"]) {
+      UIFontTextStyle style = TextStyleFromName(arg(0));
+      if (style == nil) {
+        *error = EnumError(@"textStyle", arg(0), NamesForTextStyle());
+        return {};
+      }
+      font = [UIFont preferredFontForTextStyle:style];
+    }
+    if (font == nil) return {};
+    return {(__bridge void*)font, "UIFont"};
+  }
+  return {};
+}
+
 nacre::NativeObjectRef ReadClassObjectProperty(const std::string& className,
                                                const std::string& name) {
   if (className == "UIColor") {
@@ -402,6 +740,19 @@ void WriteNativeObjectProperty(id object, const std::string& name, void* valuePt
   if ([object isKindOfClass:UIView.class] && name == "backgroundColor") {
     ((UIView*)object).backgroundColor = [value isKindOfClass:UIColor.class] ? value : nil;
   }
+  if ([object isKindOfClass:UILabel.class]) {
+    UILabel* label = (UILabel*)object;
+    UIColor* color = [value isKindOfClass:UIColor.class] ? (UIColor*)value : nil;
+    if (name == "font") {
+      label.font = [value isKindOfClass:UIFont.class] ? (UIFont*)value : nil;
+    } else if (name == "textColor") {
+      label.textColor = color;
+    } else if (name == "shadowColor") {
+      label.shadowColor = color;
+    } else if (name == "highlightedTextColor") {
+      label.highlightedTextColor = color;
+    }
+  }
 }
 
 void CallVoidMethod(id object, const std::string& name) {
@@ -418,8 +769,10 @@ void CallVoidMethod(id object, const std::string& name) {
 // 带参数的方法。name 是完整的 ObjC selector（JS 层负责把
 // 「第一段 + options」还原成 selector），所以这里的表和 Apple 文档一一对上。
 // 对象参数在 args 里是 NSNull，真正的指针按同样的下标在 argPtrs 里。
+// error 暂时没有填的地方：这些方法的参数里还没有枚举。通道先铺好，
+// 到 NSLayoutConstraint 和 UIControlEvents 就用得上了。
 std::string CallMethod(id object, const std::string& name, const std::string& argsJSON,
-                       const std::vector<void*>& argPtrs) {
+                       const std::vector<void*>& argPtrs, std::string* error) {
   NSString* sel = @(name.c_str());
   id decoded = DecodeJSON(argsJSON);
   NSArray* args = [decoded isKindOfClass:NSArray.class] ? decoded : @[];
@@ -485,7 +838,8 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
 // 带参数、返回原生对象的方法
 nacre::NativeObjectRef CallObjectMethod(id object, const std::string& name,
                                         const std::string& argsJSON,
-                                        const std::vector<void*>& argPtrs) {
+                                        const std::vector<void*>& argPtrs,
+                                        std::string* error) {
   NSString* sel = @(name.c_str());
   id decoded = DecodeJSON(argsJSON);
   NSArray* args = [decoded isKindOfClass:NSArray.class] ? decoded : @[];
@@ -516,6 +870,8 @@ nacre::NativeObjectRef ConstructNative(const std::string& className,
     object = [[UIViewController alloc] init];
   } else if (className == "UIView") {
     object = [[UIView alloc] init];
+  } else if (className == "UILabel") {
+    object = [[UILabel alloc] init];
   }
   if (object == nil) return {};
   return {(void*)CFAutorelease(CFBridgingRetain(object)), className};
@@ -623,7 +979,7 @@ std::string InfoDictionaryJSON() {
       return ReadNativeProperty((__bridge id)ptr, name);
     };
     host.write_property = [](void* ptr, const std::string& name, const std::string& json) {
-      WriteNativeProperty((__bridge id)ptr, name, json);
+      return WriteNativeProperty((__bridge id)ptr, name, json);
     };
     host.read_object_property = [](void* ptr, const std::string& name) {
       return ReadNativeObjectProperty((__bridge id)ptr, name);
@@ -637,16 +993,24 @@ std::string InfoDictionaryJSON() {
     };
     host.call_method = [](void* ptr, const std::string& name,
                           const std::string& argsJSON,
-                          const std::vector<void*>& argPtrs) {
-      return CallMethod((__bridge id)ptr, name, argsJSON, argPtrs);
+                          const std::vector<void*>& argPtrs, std::string* error) {
+      return CallMethod((__bridge id)ptr, name, argsJSON, argPtrs, error);
     };
     host.call_object_method = [](void* ptr, const std::string& name,
                                  const std::string& argsJSON,
-                                 const std::vector<void*>& argPtrs) {
-      return CallObjectMethod((__bridge id)ptr, name, argsJSON, argPtrs);
+                                 const std::vector<void*>& argPtrs,
+                                 std::string* error) {
+      return CallObjectMethod((__bridge id)ptr, name, argsJSON, argPtrs, error);
     };
     host.read_object_array_property = [](void* ptr, const std::string& name) {
       return ReadNativeObjectArrayProperty((__bridge id)ptr, name);
+    };
+    host.call_class_object_method = [](const std::string& className,
+                                       const std::string& name,
+                                       const std::string& argsJSON,
+                                       const std::vector<void*>& argPtrs,
+                                       std::string* error) {
+      return CallClassObjectMethod(className, name, argsJSON, argPtrs, error);
     };
     host.read_class_object_property = [](const std::string& className,
                                          const std::string& name) {
@@ -829,6 +1193,39 @@ std::string InfoDictionaryJSON() {
                   [strongSelf postToJS:^{
                     if (!*engine) return;
                     (*engine)->EmitObjectEvent({(__bridge void*)scene, "UIWindowScene"},
+                                               eventType);
+                  }];
+                }];
+    [self->_observers addObject:token];
+  }];
+
+  // 窗口的 key 和可见性变化。按第 10 条完备性原则：isKeyWindow 和
+  // isHidden 都可读，就必须有变化通知，否则 JS 只能轮询——而我们连
+  // 定时器都没有，等于完全不可观测。
+  //
+  // 事件名没有照搬场景那边的「状态名」风格（active / foreground…）：
+  // 场景的 activationState 是一个枚举，状态名就是现成的；窗口这边
+  // key 和 visible 是两个独立的布尔，没有状态名可用，所以用动作名。
+  NSDictionary<NSNotificationName, NSString*>* windowEvents = @{
+    UIWindowDidBecomeKeyNotification : @"becomekey",
+    UIWindowDidResignKeyNotification : @"resignkey",
+    UIWindowDidBecomeVisibleNotification : @"becomevisible",
+    UIWindowDidBecomeHiddenNotification : @"becomehidden",
+  };
+  [windowEvents enumerateKeysAndObjectsUsingBlock:^(NSNotificationName name, NSString* type, BOOL* stop) {
+    id token = [NSNotificationCenter.defaultCenter
+        addObserverForName:name
+                    object:nil
+                     queue:NSOperationQueue.mainQueue
+                usingBlock:^(NSNotification* note) {
+                  UIWindow* window = note.object;
+                  if (![window isKindOfClass:UIWindow.class]) return;
+                  NacreRuntime* strongSelf = weakSelf;
+                  if (!strongSelf) return;
+                  std::string eventType = type.UTF8String;
+                  [strongSelf postToJS:^{
+                    if (!*engine) return;
+                    (*engine)->EmitObjectEvent({(__bridge void*)window, "UIWindow"},
                                                eventType);
                   }];
                 }];
