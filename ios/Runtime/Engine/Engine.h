@@ -48,6 +48,15 @@ struct EngineHost {
       write_property;
   // 属性值本身是原生对象时走这个
   std::function<NativeObjectRef(void* ptr, const std::string& name)> read_object_property;
+  std::function<void(void* ptr, const std::string& name, void* value)> write_object_property;
+
+  // 由 JS 发起的构造。args 是其他原生对象的指针，按位置传。
+  // 宿主必须保证返回的对象活到调用方 retain 为止（ARC 下要 CFAutorelease）。
+  std::function<NativeObjectRef(const std::string& class_name,
+                                const std::vector<void*>& args)>
+      construct_native;
+  // 无参无返回值的方法，比如 makeKeyAndVisible
+  std::function<void(void* ptr, const std::string& name)> call_void_method;
   // 异步方法，完成后调 Engine::SettleBool
   std::function<void(void* ptr, const std::string& name, const std::string& args_json,
                      int call_id)>

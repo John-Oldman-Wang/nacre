@@ -158,10 +158,13 @@ application.idleTimerDisabled = true;
 console.log('刚写完立刻读 =', application.idleTimerDisabled, '（JS 已在主线程，写入同步生效，应该是 true）');
 
 console.log('--- openURL 返回 Promise ---');
-const p1 = application.openURL('https://example.com');
+// 故意用一个没有 App 注册的 scheme：能走完整条链路（NSURL 合法 → UIKit 真的
+// 去打开 → 失败），但不会把 App 切走，否则每次截图验证都要手动切回来
+const p1 = application.openURL('nacre-nonexistent-scheme://test');
 console.log('返回值是 Promise =', p1 instanceof Promise);
 p1.then((ok) => {
-  console.log('✓ openURL 兑现 =', ok, '| 此刻 idleTimerDisabled =', application.idleTimerDisabled);
+  console.log('✓ openURL 兑现 =', ok, '（没有 App 注册这个 scheme，预期 false）',
+              '| 此刻 idleTimerDisabled =', application.idleTimerDisabled);
   return application.openURL('这不是一个合法 URL::::');
 }).then((ok) => {
   console.log('✓ 非法 URL 兑现为 =', ok);
@@ -245,9 +248,39 @@ application.addEventListener('sceneconnect', (e) => {
   }
 
   console.log('  --- 场景级 openURL ---');
-  scene.openURL('https://example.com').then((ok) => {
-    console.log('✓ scene.openURL 兑现 =', ok);
+  scene.openURL('nacre-nonexistent-scheme://test').then((ok) => {
+    console.log('✓ scene.openURL 兑现 =', ok, '（同样不会切走 App）');
   });
+});
+
+// ===== 由 JS 创建窗口和根页面 =====
+// 必须保持引用：包装对象被 GC 后运行时会 release，原生 window 可能被释放
+let mainWindow = null;
+
+application.addEventListener('sceneconnect', (e) => {
+  console.log('--- JS 创建窗口 ---');
+  const win = new UIWindow(e.scene);
+  console.log('✓ new UIWindow(scene) 成功');
+  console.log('  instanceof UIWindow =', win instanceof UIWindow,
+              '| instanceof UIView =', win instanceof UIView,
+              '| instanceof UIResponder =', win instanceof UIResponder);
+  console.log('  windowScene === 传进去的 scene =', win.windowScene === e.scene);
+  console.log('  windowLevel =', win.windowLevel, '| isKeyWindow =', win.isKeyWindow);
+
+  try { new UIWindow(); console.log('  ✗ 无参构造居然成功了'); }
+  catch (err) { console.log('  ✓ 无参构造被拒:', err.message); }
+
+  const vc = new UIViewController();
+  console.log('  new UIViewController() 成功, instanceof =', vc instanceof UIViewController);
+  win.rootViewController = vc;
+  console.log('  rootViewController 写入后读回是同一个 =', win.rootViewController === vc);
+
+  win.makeKeyAndVisible();
+  console.log('  makeKeyAndVisible 后 isKeyWindow =', win.isKeyWindow);
+  console.log('  scene.windows.length =', e.scene.windows ? e.scene.windows.length : '(未暴露)');
+
+  mainWindow = win;
+  console.log('✓ 界面已由 JS 创建，屏幕应该不再是黑的');
 });
 
 application.addEventListener('scenedisconnect', (e) => {

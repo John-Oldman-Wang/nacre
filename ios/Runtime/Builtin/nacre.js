@@ -163,10 +163,45 @@
   function nativeCallAsync(obj, name, args) {
     return native.callAsync(obj[kHandle], name, JSON.stringify(args || []));
   }
+  function nativeSetObject(obj, name, value) {
+    native.setObjProp(obj[kHandle], name, value == null ? 0 : value[kHandle]);
+  }
+  function nativeCallVoid(obj, name) {
+    native.callVoid(obj[kHandle], name);
+  }
+  // JS 构造原生对象：先有 this，再让原生造出对象并和 this 绑定。
+  // 和包装工厂方向相反——那边是原生对象先有、JS 包装后建。
+  function constructNative(wrapper, className, args) {
+    const handles = (args || []).map((a) => (a == null ? 0 : a[kHandle]));
+    const handle = native.construct(className, handles, wrapper);
+    if (handle) Object.defineProperty(wrapper, kHandle, { value: handle });
+  }
 
+  // 只有被原生侧创建时才允许构造。用于系统给的对象（场景、session）。
   function nativeOnly() {
     if (!allowNativeConstruct) throw new TypeError('Illegal constructor');
   }
+
+  // 继承链上的空壳：自己不可直接构造，但不能挡住可构造的子类。
+  // new.target 在子类的 super() 调用里是子类，据此区分。
+  function shellOnly(target, cls) {
+    if (target === cls && !allowNativeConstruct) {
+      throw new TypeError('Illegal constructor');
+    }
+  }
+
+  // ---- 继承链的空壳 ----
+  // 照搬 ObjC 的继承关系，现在先空着，以后往上加成员时子类自动继承。
+  // UIResponder 在 ObjC 里的定义就是「能接收事件的对象」，和 EventTarget 语义吻合。
+  const UIResponder = defineNativeClass('UIResponder', class UIResponder extends EventTarget {
+    constructor() { shellOnly(new.target, UIResponder); super(); }
+  });
+  const UIScene = defineNativeClass('UIScene', class UIScene extends UIResponder {
+    constructor() { shellOnly(new.target, UIScene); super(); }
+  });
+  const UIView = defineNativeClass('UIView', class UIView extends UIResponder {
+    constructor() { shellOnly(new.target, UIView); super(); }
+  });
 
   // 场景的持久身份。场景对象会被系统销毁重建，session 活得更久——
   // persistentIdentifier 用来认出「是不是之前那个窗口」。
@@ -181,7 +216,7 @@
 
   // 系统创建并连接的场景。不可构造——SDK 自己就是 init NS_UNAVAILABLE，
   // 注释写着「由 UIKit 调用，不打算让 App 调用」。
-  defineNativeClass('UIWindowScene', class UIWindowScene extends EventTarget {
+  defineNativeClass('UIWindowScene', class UIWindowScene extends UIScene {
     constructor() { nativeOnly(); super(); }
 
     // 这个场景自己的前后台状态，和 application.state（所有场景的聚合）不是一回事
@@ -198,6 +233,49 @@
 
     // 场景级的打开 URL。application.openURL 是 App 级的，两者都有
     openURL(url, options) { return nativeCallAsync(this, 'openURL', [String(url)]); }
+  });
+
+  // 页面。可构造——它是我们造的，不是系统给的。
+  defineNativeClass('UIViewController', class UIViewController extends UIResponder {
+    constructor() {
+      super();
+      if (allowNativeConstruct) return;  // 包装已有原生对象，句柄由工厂挂
+      constructNative(this, 'UIViewController', []);
+    }
+    get view() { return nativeGetObject(this, 'view'); }
+  });
+
+  // 视图树的根。必须绑定到一个场景——initWithWindowScene: 是唯一未废弃的
+  // 初始化方法，init 和 initWithFrame: 在 iOS 26 都废弃了。
+  defineNativeClass('UIWindow', class UIWindow extends UIView {
+    constructor(scene) {
+      super();
+      if (allowNativeConstruct) return;
+      if (scene == null) {
+        throw new TypeError("new UIWindow(scene)：必须指定一个 UIWindowScene");
+      }
+      constructNative(this, 'UIWindow', [scene]);
+    }
+
+    // 可写：换 scene 就是换显示目标。典型 App 一绑到死，
+    // 需要改的场景是把窗口移到外接显示器（setScreen: 废弃后的替代品就是它）
+    get windowScene() { return nativeGetObject(this, 'windowScene'); }
+    set windowScene(value) { nativeSetObject(this, 'windowScene', value); }
+
+    // 窗口唯一的内容入口，不设就没内容
+    get rootViewController() { return nativeGetObject(this, 'rootViewController'); }
+    set rootViewController(value) { nativeSetObject(this, 'rootViewController', value); }
+
+    // 多窗口的叠放顺序。键盘、alert 都是 level 更高的窗口
+    get windowLevel() { return nativeGet(this, 'windowLevel'); }
+    set windowLevel(value) { nativeSet(this, 'windowLevel', value); }
+
+    get isKeyWindow() { return nativeGet(this, 'isKeyWindow'); }
+    get canBecomeKeyWindow() { return nativeGet(this, 'canBecomeKeyWindow'); }
+
+    // 程序创建的 UIWindow 默认 hidden=YES，不调这个屏幕就是黑的
+    makeKeyAndVisible() { nativeCallVoid(this, 'makeKeyAndVisible'); }
+    makeKeyWindow() { nativeCallVoid(this, 'makeKeyWindow'); }
   });
 
   // 原生要给某个对象自己派发事件时回调这里（场景的生命周期事件走这条路）

@@ -175,6 +175,15 @@ std::string ReadNativeProperty(id object, const std::string& name) {
                [scene isKindOfClass:UIWindowScene.class]) {
       value = @(((UIWindowScene*)scene).isFullScreen);
     }
+  } else if ([object isKindOfClass:UIWindow.class]) {
+    UIWindow* window = (UIWindow*)object;
+    if ([key isEqualToString:@"windowLevel"]) {
+      value = @(window.windowLevel);
+    } else if ([key isEqualToString:@"isKeyWindow"]) {
+      value = @(window.isKeyWindow);
+    } else if ([key isEqualToString:@"canBecomeKeyWindow"]) {
+      value = @(window.canBecomeKeyWindow);
+    }
   } else if ([object isKindOfClass:UISceneSession.class]) {
     UISceneSession* session = (UISceneSession*)object;
     if ([key isEqualToString:@"role"]) {
@@ -198,6 +207,10 @@ void WriteNativeProperty(id object, const std::string& name, const std::string& 
     } else if ([key isEqualToString:@"subtitle"]) {
       scene.subtitle = [value isKindOfClass:NSString.class] ? value : @"";
     }
+  } else if ([object isKindOfClass:UIWindow.class]) {
+    if ([key isEqualToString:@"windowLevel"]) {
+      ((UIWindow*)object).windowLevel = [value doubleValue];
+    }
   } else if ([object isKindOfClass:UISceneSession.class]) {
     if ([key isEqualToString:@"userInfo"]) {
       ((UISceneSession*)object).userInfo = [value isKindOfClass:NSDictionary.class] ? value : nil;
@@ -209,7 +222,58 @@ nacre::NativeObjectRef ReadNativeObjectProperty(id object, const std::string& na
   if ([object isKindOfClass:UIScene.class] && name == "session") {
     return {(__bridge void*)((UIScene*)object).session, "UISceneSession"};
   }
+  if ([object isKindOfClass:UIWindow.class]) {
+    UIWindow* window = (UIWindow*)object;
+    if (name == "windowScene") return {(__bridge void*)window.windowScene, "UIWindowScene"};
+    if (name == "rootViewController") {
+      return {(__bridge void*)window.rootViewController, "UIViewController"};
+    }
+  }
+  if ([object isKindOfClass:UIViewController.class] && name == "view") {
+    return {(__bridge void*)((UIViewController*)object).view, "UIView"};
+  }
   return {};
+}
+
+void WriteNativeObjectProperty(id object, const std::string& name, void* valuePtr) {
+  id value = (__bridge id)valuePtr;
+  if ([object isKindOfClass:UIWindow.class]) {
+    UIWindow* window = (UIWindow*)object;
+    if (name == "rootViewController") {
+      window.rootViewController = [value isKindOfClass:UIViewController.class] ? value : nil;
+    } else if (name == "windowScene") {
+      window.windowScene = [value isKindOfClass:UIWindowScene.class] ? value : nil;
+    }
+  }
+}
+
+void CallVoidMethod(id object, const std::string& name) {
+  if ([object isKindOfClass:UIWindow.class]) {
+    UIWindow* window = (UIWindow*)object;
+    if (name == "makeKeyAndVisible") {
+      [window makeKeyAndVisible];
+    } else if (name == "makeKeyWindow") {
+      [window makeKeyWindow];
+    }
+  }
+}
+
+// JS 发起的构造。
+// ARC 会在本函数返回时释放局部变量，而调用方要到返回之后才 retain——
+// 中间这一瞬对象就没了。CFAutorelease 把它交给当前 run loop 轮次的
+// 自动释放池，撑到调用方 retain 为止。
+nacre::NativeObjectRef ConstructNative(const std::string& className,
+                                       const std::vector<void*>& args) {
+  id object = nil;
+  if (className == "UIWindow") {
+    id scene = args.empty() ? nil : (__bridge id)args[0];
+    if (![scene isKindOfClass:UIWindowScene.class]) return {};
+    object = [[UIWindow alloc] initWithWindowScene:(UIWindowScene*)scene];
+  } else if (className == "UIViewController") {
+    object = [[UIViewController alloc] init];
+  }
+  if (object == nil) return {};
+  return {(void*)CFAutorelease(CFBridgingRetain(object)), className};
 }
 
 std::string InfoDictionaryJSON() {
@@ -318,6 +382,16 @@ std::string InfoDictionaryJSON() {
     };
     host.read_object_property = [](void* ptr, const std::string& name) {
       return ReadNativeObjectProperty((__bridge id)ptr, name);
+    };
+    host.write_object_property = [](void* ptr, const std::string& name, void* value) {
+      WriteNativeObjectProperty((__bridge id)ptr, name, value);
+    };
+    host.construct_native = [](const std::string& className,
+                               const std::vector<void*>& args) {
+      return ConstructNative(className, args);
+    };
+    host.call_void_method = [](void* ptr, const std::string& name) {
+      CallVoidMethod((__bridge id)ptr, name);
     };
     host.call_async = [weakSelf](void* ptr, const std::string& name,
                                  const std::string& argsJSON, int callId) {

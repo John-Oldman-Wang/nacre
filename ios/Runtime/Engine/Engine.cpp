@@ -382,6 +382,65 @@ struct Engine::Impl {
     if (!wrapper.IsEmpty()) info.GetReturnValue().Set(wrapper);
   }
 
+  // 把一个已经存在的 JS 对象和一个原生指针绑定起来。
+  // 和 WrapNative 方向相反：那边是原生对象先有、JS 包装后建；
+  // 这边是 JS 对象先有（constructor 里的 this）、原生对象后建。
+  int BindWrapper(v8::Local<v8::Object> wrapper, void* ptr) {
+    int handle = next_handle++;
+    if (host.retain_native) host.retain_native(ptr);
+    handle_to_ptr[handle] = ptr;
+    ptr_to_handle[ptr] = handle;
+    auto& global = wrappers[handle];
+    global.Reset(isolate, wrapper);
+    global.SetWeak(new HandleKey{this, handle}, WrapperCollected,
+                   v8::WeakCallbackType::kParameter);
+    return handle;
+  }
+
+  // JS 构造原生对象：(className, [handle...], thisObject) -> handle
+  static void NativeConstruct(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
+    if (info.Length() < 3 || !info[2]->IsObject() || !self->host.construct_native) return;
+
+    std::vector<void*> args;
+    if (info[1]->IsArray()) {
+      v8::Local<v8::Array> list = info[1].As<v8::Array>();
+      for (uint32_t i = 0; i < list->Length(); i++) {
+        v8::Local<v8::Value> item;
+        if (!list->Get(ctx, i).ToLocal(&item) || !item->IsInt32()) {
+          args.push_back(nullptr);
+          continue;
+        }
+        auto it = self->handle_to_ptr.find(item.As<v8::Int32>()->Value());
+        args.push_back(it == self->handle_to_ptr.end() ? nullptr : it->second);
+      }
+    }
+
+    NativeObjectRef ref = self->host.construct_native(SafeToString(isolate, info[0]), args);
+    if (ref.ptr == nullptr) return;
+    info.GetReturnValue().Set(self->BindWrapper(info[2].As<v8::Object>(), ref.ptr));
+  }
+
+  // 写一个值为原生对象的属性：(handle, name, valueHandle)。valueHandle 为 0 表示 null
+  static void NativeSetObjectProperty(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    void* ptr = self->PtrForHandle(info, 0);
+    if (!ptr || !self->host.write_object_property || info.Length() < 3) return;
+    void* value = self->PtrForHandle(info, 2);
+    self->host.write_object_property(ptr, SafeToString(isolate, info[1]), value);
+  }
+
+  static void NativeCallVoid(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    void* ptr = self->PtrForHandle(info, 0);
+    if (!ptr || !self->host.call_void_method) return;
+    self->host.call_void_method(ptr, SafeToString(isolate, info[1]));
+  }
+
   // 异步方法：(handle, name, jsonArgs) -> Promise<boolean>
   static void NativeCallAsync(const v8::FunctionCallbackInfo<v8::Value>& info) {
     v8::Isolate* isolate = info.GetIsolate();
@@ -421,6 +480,9 @@ struct Engine::Impl {
         {"getProp", NativeGetProperty},
         {"setProp", NativeSetProperty},
         {"getObjProp", NativeGetObjectProperty},
+        {"setObjProp", NativeSetObjectProperty},
+        {"construct", NativeConstruct},
+        {"callVoid", NativeCallVoid},
         {"callAsync", NativeCallAsync},
     };
     for (const Entry& e : entries) {
