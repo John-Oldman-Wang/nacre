@@ -17,7 +17,8 @@ Nacre 的 API 分两层：
 | [`UIWindowScene`](ui-window-scene.md) | 场景：App 的一个 UI 实例，JS 创建界面的入口 |
 | [`UISceneSession`](ui-window-scene.md#uiscenesession) | 场景的持久身份：角色、标识、自定义数据 |
 | [`UIWindow`](ui-window.md) | 视图树的根，挂在场景上 |
-| [`UIView`](ui-view.md) | 视图。目前只有 `backgroundColor` |
+| [`UIView`](ui-view.md) | 视图。几何、层级、外观 |
+| [结构体](structs.md) | `CGPoint`、`CGSize`、`CGRect`、`UIEdgeInsets`，只读 |
 | [`UIColor`](ui-color.md) | 颜色。基础色、系统色、语义色 |
 | `UIViewController` | 页面。目前只有可构造和只读的 `view`（文档待补） |
 | `NSObject` | ObjC 的根类，所有原生类的基类（继承 `EventTarget`） |
@@ -31,7 +32,7 @@ Nacre 的 API 分两层：
 
 **有**：完整的 ES 标准库，而且版本相当新——`Iterator`（迭代器辅助方法）、`DisposableStack` / `AsyncDisposableStack` / `SuppressedError`（显式资源管理）、`Float16Array`、`Atomics`、`SharedArrayBuffer`、`WeakRef`、`FinalizationRegistry` 都在。`Promise` 和微任务队列正常工作。`eval` 和 `new Function` 在 jitless 下走解释器，照常可用。
 
-运行时装入的**非标准全局**：`console`、`EventTarget` / `Event`（及 `ErrorEvent`、`PromiseRejectionEvent`）、`application`，以及上面那张表里的原生类。原生类往后会改成按需懒加载，不再一次性装入。
+运行时装入的**非标准全局**：`console`、`EventTarget` / `Event`（及 `ErrorEvent`、`PromiseRejectionEvent`）、`application`，以及上面那张表里的原生类和结构体类。原生类往后会改成按需懒加载，不再一次性装入。
 
 **没有**（都要靠后续的能力暴露来补）：
 
