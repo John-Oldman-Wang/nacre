@@ -1,0 +1,9 @@
+# 由 project.yml 生成
+Nacre.xcodeproj/
+App/Info.plist
+# 由 scripts/fetch-v8.sh 下载
+Vendor/
+# 构建产物
+build/
+DerivedData/
+xcuserdata/

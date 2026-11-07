@@ -1,0 +1,332 @@
+#include "Engine.h"
+
+// 这里不给 V8 预设任何编译宏：v8config.h 自己就能推导出 V8_TARGET_ARCH_ARM64
+// 和 V8_TARGET_OS_IOS；而真正决定对象布局的 V8_COMPRESS_POINTERS、
+// V8_ENABLE_SANDBOX 在这个预编译包里是关闭的，使用方也不定义，两边正好一致。
+// 换 V8 构建时必须重新核对这两个宏——不一致会导致对象布局不匹配而崩溃。
+#include <libplatform/libplatform.h>
+#include <v8.h>
+
+#include <cmath>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <utility>
+#include <vector>
+
+namespace nacre {
+
+namespace {
+
+std::unique_ptr<v8::Platform> g_platform;
+std::once_flag g_init_once;
+
+v8::Local<v8::String> V8Str(v8::Isolate* isolate, const char* text) {
+  return v8::String::NewFromUtf8(isolate, text).ToLocalChecked();
+}
+
+// 只能用于不会触发用户代码的值：字符串、数字、BigInt、V8 自己产生的消息。
+std::string ToUtf8(v8::Isolate* isolate, v8::Local<v8::Value> value) {
+  v8::String::Utf8Value utf8(isolate, value);
+  if (*utf8 == nullptr) return "<unprintable>";
+  return std::string(*utf8, utf8.length());
+}
+
+// 兜底的字符串转换。转换会执行用户代码（toString、valueOf、Proxy 陷阱），
+// 也可能因为值是 Symbol 而抛 TypeError。
+//
+// 实测：v8::String::Utf8Value 的构造函数内部自带 TryCatch，上面这些异常在它那里
+// 就被吞掉了，我们拿到的是空指针，走 <unprintable> 分支。下面的 TryCatch 因此
+// 基本不会命中，留着是为了防 V8 以后改变这个行为——console.* 不允许向 JS 抛异常。
+std::string SafeToString(v8::Isolate* isolate, v8::Local<v8::Value> value) {
+  v8::TryCatch try_catch(isolate);
+  v8::String::Utf8Value utf8(isolate, value);
+  if (try_catch.HasCaught()) {
+    try_catch.Reset();
+    return "<throws on toString>";
+  }
+  if (*utf8 == nullptr) return "<unprintable>";
+  return std::string(*utf8, utf8.length());
+}
+
+std::string FormatNumber(v8::Isolate* isolate, v8::Local<v8::Value> value) {
+  double number = value.As<v8::Number>()->Value();
+  // ECMAScript 的 String(-0) 是 "0"，但打印时区分 0 和 -0 更有用
+  if (number == 0 && std::signbit(number)) return "-0";
+  return ToUtf8(isolate, value);
+}
+
+}  // namespace
+
+struct Engine::Impl {
+  EngineHost host;
+  std::unique_ptr<v8::ArrayBuffer::Allocator> allocator;
+  v8::Isolate* isolate = nullptr;
+  v8::Global<v8::Context> context;
+
+  // 已经被拒绝、但还没有 handler 的 promise。
+  // 只在「本次微任务检查点」内有效：每次 FlushRejections 都清空，
+  // 所以这里用强引用也不会把 promise 长期钉在堆上。
+  struct PendingRejection {
+    v8::Global<v8::Promise> promise;
+    v8::Global<v8::Value> value;
+  };
+  std::vector<PendingRejection> pending_rejections;
+
+  static Impl* From(v8::Isolate* isolate) {
+    return static_cast<Impl*>(isolate->GetData(0));
+  }
+
+  // ---------- console 的格式化 ----------
+  // 约定：Format 以及它调用的一切，都不向 JS 抛异常。
+  // 第一层按类型分发，完全不执行用户代码；第二层对象走 JSON.stringify；
+  // 第三层是兜底的字符串转换，异常就地隔离。
+
+  std::string Format(v8::Local<v8::Context> ctx, v8::Local<v8::Value> value) {
+    if (value->IsNullOrUndefined()) return value->IsNull() ? "null" : "undefined";
+    if (value->IsString()) return ToUtf8(isolate, value);  // 顶层字符串不加引号
+    if (value->IsBoolean()) return value->IsTrue() ? "true" : "false";
+    if (value->IsNumber()) return FormatNumber(isolate, value);
+    if (value->IsBigInt()) return ToUtf8(isolate, value) + "n";
+    if (value->IsSymbol()) return FormatSymbol(value.As<v8::Symbol>());
+    if (value->IsFunction()) return FormatFunction(value.As<v8::Function>());
+    if (value->IsNativeError()) return FormatError(ctx, value.As<v8::Object>());
+
+    if (value->IsObject()) {
+      v8::TryCatch try_catch(isolate);
+      v8::Local<v8::String> json;
+      if (v8::JSON::Stringify(ctx, value).ToLocal(&json) && !json->IsUndefined()) {
+        return ToUtf8(isolate, json);
+      }
+      // 循环引用、抛异常的 getter 或 toJSON 都会走到这里
+      try_catch.Reset();
+    }
+
+    return SafeToString(isolate, value);
+  }
+
+  std::string FormatSymbol(v8::Local<v8::Symbol> symbol) {
+    v8::Local<v8::Value> description = symbol->Description(isolate);
+    if (!description->IsString()) return "Symbol()";
+    return "Symbol(" + ToUtf8(isolate, description) + ")";
+  }
+
+  std::string FormatFunction(v8::Local<v8::Function> function) {
+    v8::Local<v8::Value> name = function->GetName();  // 读槽位，不执行用户代码
+    std::string text = name->IsString() ? ToUtf8(isolate, name) : "";
+    if (text.empty()) return "[Function (anonymous)]";
+    return "[Function: " + text + "]";
+  }
+
+  std::string FormatError(v8::Local<v8::Context> ctx, v8::Local<v8::Object> error) {
+    // stack 可能被改写成会抛异常的 getter
+    v8::TryCatch try_catch(isolate);
+    v8::Local<v8::Value> stack;
+    if (error->Get(ctx, V8Str(isolate, "stack")).ToLocal(&stack) && stack->IsString()) {
+      return ToUtf8(isolate, stack);
+    }
+    try_catch.Reset();
+    return SafeToString(isolate, error);  // 退回 Error.prototype.toString
+  }
+
+  static void ConsoleCallback(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    v8::HandleScope scope(isolate);
+    v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
+
+    std::string message;
+    {
+      // 总保险：格式化过程中无论发生什么，console.* 都不向 JS 抛异常。
+      // 运行时不使用 TerminateExecution，这里不会吞掉终止执行的异常。
+      v8::TryCatch try_catch(isolate);
+      for (int i = 0; i < info.Length(); i++) {
+        if (i > 0) message += ' ';
+        message += self->Format(ctx, info[i]);
+      }
+      if (try_catch.HasCaught()) try_catch.Reset();
+    }
+    auto level = static_cast<LogLevel>(info.Data().As<v8::Int32>()->Value());
+    if (self->host.log) self->host.log(level, message);
+  }
+
+  void InstallConsole(v8::Local<v8::Context> ctx) {
+    v8::Local<v8::Object> console = v8::Object::New(isolate);
+    struct Entry {
+      const char* name;
+      LogLevel level;
+    };
+    const Entry entries[] = {
+        {"debug", LogLevel::Debug}, {"log", LogLevel::Log},     {"info", LogLevel::Info},
+        {"warn", LogLevel::Warn},   {"error", LogLevel::Error},
+    };
+    for (const Entry& e : entries) {
+      v8::Local<v8::Value> data = v8::Int32::New(isolate, static_cast<int>(e.level));
+      v8::Local<v8::Function> fn =
+          v8::Function::New(ctx, ConsoleCallback, data).ToLocalChecked();
+      console->Set(ctx, V8Str(isolate, e.name), fn).Check();
+    }
+    ctx->Global()->Set(ctx, V8Str(isolate, "console"), console).Check();
+  }
+
+  // ---------- 未处理的 Promise 拒绝 ----------
+  // 和 Node、浏览器一样的骨架：拒绝时登记到待定表，后来挂上 handler 时撤销，
+  // 等微任务队列排空之后才把剩下的报出来。这样不会误报同一轮里稍后才 catch 的写法。
+
+  static void PromiseRejectCallback(v8::PromiseRejectMessage message) {
+    // 这个回调是裸函数指针，没有 isolate 参数
+    v8::Isolate* isolate = v8::Isolate::GetCurrent();
+    if (isolate == nullptr) return;
+    Impl* self = From(isolate);
+    if (self == nullptr) return;
+
+    v8::HandleScope scope(isolate);
+    switch (message.GetEvent()) {
+      case v8::kPromiseRejectWithNoHandler:
+        self->AddRejection(message.GetPromise(), message.GetValue());
+        break;
+      case v8::kPromiseHandlerAddedAfterReject:
+        self->RemoveRejection(message.GetPromise());
+        break;
+      // Node 曾用这两个事件做 multipleResolves，因为 Promise.race() 这类正常写法
+      // 会误触发，已经废弃。这里一并忽略。
+      case v8::kPromiseRejectAfterResolved:
+      case v8::kPromiseResolveAfterResolved:
+        break;
+    }
+  }
+
+  void AddRejection(v8::Local<v8::Promise> promise, v8::Local<v8::Value> value) {
+    PendingRejection pending;
+    pending.promise.Reset(isolate, promise);
+    pending.value.Reset(isolate, value);
+    pending_rejections.push_back(std::move(pending));
+  }
+
+  void RemoveRejection(v8::Local<v8::Promise> promise) {
+    for (auto it = pending_rejections.begin(); it != pending_rejections.end(); ++it) {
+      if (promise == it->promise) {
+        pending_rejections.erase(it);
+        return;
+      }
+    }
+  }
+
+  // 只能在微任务队列排空之后调用：这时还留在表里的，才是真的没人处理。
+  void FlushRejections() {
+    if (pending_rejections.empty()) return;
+    // 先取走：上报过程中（JSON.stringify、toString）可能又产生新的拒绝，
+    // 那些留给下一次结算。
+    std::vector<PendingRejection> pending;
+    pending.swap(pending_rejections);
+
+    v8::HandleScope scope(isolate);
+    v8::Local<v8::Context> ctx = context.Get(isolate);
+    v8::Context::Scope context_scope(ctx);
+    v8::TryCatch try_catch(isolate);
+    for (PendingRejection& item : pending) {
+      std::string text =
+          "Uncaught (in promise) " + Format(ctx, item.value.Get(isolate));
+      if (host.log) host.log(LogLevel::Error, text);
+    }
+    if (try_catch.HasCaught()) try_catch.Reset();
+  }
+
+  void ReportException(v8::Local<v8::Context> ctx, v8::TryCatch& try_catch) {
+    std::string text;
+    v8::Local<v8::Message> message = try_catch.Message();
+    if (!message.IsEmpty()) {
+      std::string file = ToUtf8(isolate, message->GetScriptResourceName());
+      int line = message->GetLineNumber(ctx).FromMaybe(0);
+      text += "Uncaught " + ToUtf8(isolate, message->Get()) + "\n    at " + file + ":" +
+              std::to_string(line);
+    }
+    v8::Local<v8::Value> stack;
+    if (try_catch.StackTrace(ctx).ToLocal(&stack) && stack->IsString()) {
+      text += "\n" + ToUtf8(isolate, stack);
+    } else if (message.IsEmpty()) {
+      text = "Uncaught " + SafeToString(isolate, try_catch.Exception());
+    }
+    if (host.log) host.log(LogLevel::Error, text);
+  }
+};
+
+void Engine::InitializeV8Once() {
+  std::call_once(g_init_once, [] {
+    // 预编译的 V8 是 lite mode 构建，已隐含 jitless，不要再传 --jitless（只读标志，设置会崩溃）
+    g_platform = v8::platform::NewDefaultPlatform();
+    v8::V8::InitializePlatform(g_platform.get());
+    v8::V8::Initialize();
+  });
+}
+
+const char* Engine::V8Version() { return v8::V8::GetVersion(); }
+
+Engine::Engine(EngineHost host) : impl_(std::make_unique<Impl>()) {
+  impl_->host = std::move(host);
+  impl_->allocator.reset(v8::ArrayBuffer::Allocator::NewDefaultAllocator());
+
+  v8::Isolate::CreateParams params;
+  params.array_buffer_allocator = impl_->allocator.get();
+  impl_->isolate = v8::Isolate::New(params);
+  impl_->isolate->SetData(0, impl_.get());
+  impl_->isolate->SetPromiseRejectCallback(&Impl::PromiseRejectCallback);
+
+  v8::Isolate::Scope isolate_scope(impl_->isolate);
+  v8::HandleScope handle_scope(impl_->isolate);
+  v8::Local<v8::Context> ctx = v8::Context::New(impl_->isolate);
+  v8::Context::Scope context_scope(ctx);
+
+  impl_->InstallConsole(ctx);
+  impl_->context.Reset(impl_->isolate, ctx);
+}
+
+Engine::~Engine() {
+  // 所有 Global 都必须在 Isolate 销毁之前释放
+  impl_->pending_rejections.clear();
+  impl_->context.Reset();
+  impl_->isolate->Dispose();
+}
+
+bool Engine::Evaluate(const Script& script) {
+  v8::Isolate* isolate = impl_->isolate;
+  v8::Isolate::Scope isolate_scope(isolate);
+  v8::HandleScope handle_scope(isolate);
+  v8::Local<v8::Context> ctx = impl_->context.Get(isolate);
+  v8::Context::Scope context_scope(ctx);
+
+  bool ok = false;
+  {
+    v8::TryCatch try_catch(isolate);
+    v8::Local<v8::String> source;
+    if (!v8::String::NewFromUtf8(isolate, script.source.data(), v8::NewStringType::kNormal,
+                                 static_cast<int>(script.source.size()))
+             .ToLocal(&source)) {
+      if (impl_->host.log) impl_->host.log(LogLevel::Error, "Failed to load " + script.name);
+    } else {
+      v8::ScriptOrigin origin(V8Str(isolate, script.name.c_str()));
+      v8::Local<v8::Script> compiled;
+      v8::Local<v8::Value> result;
+      if (!v8::Script::Compile(ctx, source, &origin).ToLocal(&compiled)) {
+        impl_->ReportException(ctx, try_catch);
+      } else if (!compiled->Run(ctx).ToLocal(&result)) {
+        impl_->ReportException(ctx, try_catch);
+      } else {
+        ok = true;
+      }
+    }
+  }
+
+  // 微任务策略是默认的 kAuto：Run 返回时微任务已经跑完，这里可以结算拒绝。
+  impl_->FlushRejections();
+  return ok;
+}
+
+void Engine::PumpMessageLoop() {
+  v8::Isolate::Scope isolate_scope(impl_->isolate);
+  while (v8::platform::PumpMessageLoop(g_platform.get(), impl_->isolate)) {
+  }
+  impl_->FlushRejections();
+}
+
+}  // namespace nacre

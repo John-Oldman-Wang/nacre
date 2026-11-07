@@ -1,0 +1,78 @@
+# Nacre iOS 运行时工程（XcodeGen）
+# 生成工程：xcodegen generate
+name: Nacre
+
+options:
+  bundleIdPrefix: com.orbitlabs
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+
+targets:
+  Nacre:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+      - path: Runtime
+      # JS 目录整体作为资源打进 App Bundle（Bundle 内路径为 JS/）
+      - path: JS
+        type: folder
+        buildPhase: resources
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Nacre
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UIApplicationSupportsIndirectInputEvents: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default Configuration
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.orbitlabs.nacre.dev
+        TARGETED_DEVICE_FAMILY: "1"
+        SWIFT_VERSION: "5.0"
+        SWIFT_OBJC_BRIDGING_HEADER: App/Nacre-Bridging-Header.h
+
+        # 只支持 arm64（真机 + Apple Silicon 模拟器）
+        ARCHS: arm64
+        EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
+
+        # C++ / V8
+        CLANG_CXX_LANGUAGE_STANDARD: c++20
+        CLANG_CXX_LIBRARY: libc++
+        OTHER_CPLUSPLUSFLAGS: ["$(inherited)", "-fno-rtti"]
+        HEADER_SEARCH_PATHS: ["$(inherited)", "$(SRCROOT)/Vendor/v8/include"]
+        # 按平台选择 V8 静态库：Vendor/v8/lib/iphoneos 或 Vendor/v8/lib/iphonesimulator
+        LIBRARY_SEARCH_PATHS: ["$(inherited)", "$(SRCROOT)/Vendor/v8/lib/$(PLATFORM_NAME)"]
+        OTHER_LDFLAGS:
+          - "$(inherited)"
+          - "-lc++"
+          - "-lz"
+          # Chromium 的 zlib（V8 的快照校验和反优化数据解压依赖它）
+          - "-lzip"
+          - "-lv8_libbase"
+          - "-lv8_libplatform"
+          - "-lv8_base_without_compiler"
+          - "-lv8_compiler"
+          - "-lv8_bigint"
+          - "-lv8_snapshot"
+          - "-lv8_third_party"
+          - "-lcppgc_base"
+          - "-ltorque_generated_initializers"
+          - "-ltorque_generated_definitions"
+          - "-lv8_heap_base"
+          - "-lcrdtp"
+          - "-lcrdtp_platform"
+          - "-linspector"
+          - "-linspector_string_conversions"
+        DEAD_CODE_STRIPPING: YES
+        GCC_TREAT_WARNINGS_AS_ERRORS: NO
