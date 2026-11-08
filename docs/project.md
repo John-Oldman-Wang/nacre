@@ -88,7 +88,7 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 | V8 获取方式 | `ios/scripts/fetch-v8.sh` 下载并校验 SHA256，放到 `ios/Vendor/v8`，不提交 |
 | 线程模型 | **JS 运行在主线程**，和 UIKit 同线程，所以同步读布局和同步回调天然成立。主线程栈用链接器参数 `-Wl,-stack_size,0x800000` 设为 8MB（真机默认 1MB，不够 V8 用）。V8 的空闲任务在 run loop 即将等待时执行，做增量 GC。理由和代价见下 |
 | UI 框架 | UIKit（不用 SwiftUI 作为渲染目标；需要 SwiftUI 组件时通过 `UIHostingController` 嵌入） |
-| 排版 | iOS 原生方式：Auto Layout 约束、UIStackView、CALayer 属性。**不实现 DOM、CSS、flexbox** |
+| 排版 | iOS 原生方式：Auto Layout 约束、UIStackView、CALayer 属性。**不必须实现 DOM、CSS、flexbox**——运行时不提供它们，但也不挡着谁在 JS 层自己做一套 |
 | 加载模型 | JS 在构建时打进 App Bundle，启动时从本地读取。不通过 HTTP 加载，没有 URL、origin、`location`、`history` |
 | 模块化 | 运行时只负责执行 JS 文件，模块化和打包交给社区工具 |
 | 网络 | `NSURLSession` + delegate 两段式。**delegate 队列只投递，重活派到并发队列**——实测 20 个请求每个做 100ms 重活，直接做 2179ms，派出去 166ms。body 的 `arrayBuffer()` 走 `BackingStore` 零拷贝。详见 [fetch 文档](api/fetch.md) |
@@ -108,7 +108,7 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 
 最初定的是 JS 跑在独立线程（裸任务队列、不挂 run loop），理由是「JS 不卡 UI」。后来发现这条路和一个更早的决定冲突，必须改。
 
-**冲突点**：本节定了「排版用 Auto Layout，不实现 DOM、CSS、flexbox」。于是：
+**冲突点**：本节定了「排版用 Auto Layout」。于是：
 
 - 布局引擎在 UIKit 里，只在主线程
 - JS 要**同步读布局**（`view.frame`、`sizeThatFits`）就必须在主线程
@@ -122,7 +122,9 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 | Chrome | Blink 的布局，和 JS 同线程 | 不需要，本来就同线程 |
 | **Nacre** | **Auto Layout，在 UIKit 里** | **不能** |
 
-要在独立线程下同时支持「同步读布局」和「同步回调」，唯一出路是自己实现布局引擎——那推翻的是更早的决定。所以 JS 上主线程。
+要在独立线程下同时支持「同步读布局」和「同步回调」，唯一出路是**运行时自带一套不依赖 UIKit 的布局引擎**（React Native 的 Yoga 就是这么做的）。那是另一个产品。所以 JS 上主线程。
+
+> 「DOM、CSS、flexbox 不必须实现」这条**不会重开这个结论**。它说的是运行时不提供这些，谁想在 JS 层自己做一套都可以——但那一套最终还是要落到 `UIView.frame` 上，量文字还是得问 `sizeThatFits`，所以照样要主线程。
 
 **代价，都要正视：**
 
@@ -159,7 +161,7 @@ V8 没有「强制严格」的编译选项（`v8::Script::Compile` 编译的是 
 
 ### 事件模型：借什么、不借什么
 
-`EventTarget` 和 `Event` **不是 ECMAScript 的一部分**（实测 `globalThis` 的 65 个内置里没有），要由运行时自己实现并注入全局——这是继 `console` 之后第二个注入的非标准全局。Node 22、Deno、Bun 都提供全局 `EventTarget`，所以它是跨运行时的通用基础设施，引入它不违背「不实现 DOM」。
+`EventTarget` 和 `Event` **不是 ECMAScript 的一部分**（实测 `globalThis` 的 65 个内置里没有），要由运行时自己实现并注入全局——这是继 `console` 之后第二个注入的非标准全局。Node 22、Deno、Bun 都提供全局 `EventTarget`，所以它是跨运行时的通用基础设施——引入它不等于实现了 DOM。
 
 判据见第 2 节原则 9：**从 iOS 的能力出发，问「这个能力怎么表达最自然」；W3C 的方案是重要的答案来源，但只是来源之一。** 下面是把这条原则落到事件模型上的结果。
 
@@ -296,6 +298,44 @@ nacre/
 - 以后工具生成的原生工程等产物，放在 `build/` 或 `.nacre/` 下，**不能命名为 `ios/`**，避免和源码混淆。
 - `.gitignore` 只忽略生成的和下载的内容，**不能忽略任何源码目录**。根目录的 `.gitignore` 里不能出现平台目录名。
 
+### 文件拆分规则
+
+一句话：**按能力域分文件，一个文件一个域；跨域共用的只放声明，不互相引实现。**
+
+| | |
+| --- | --- |
+| **什么时候拆** | 单个文件超过约 800 行，或者一个文件里出现了两个互不相干的能力域（比如 URL 解析和视图属性挤在一起）。以先到的那个为准 |
+| **按什么分** | 按**能力域**，不按技术分层。「颜色 / 字体 / 图片」是一个域（都是不可变的值类对象），「Auto Layout」是一个域。分发表例外——它天然按通道组织，所以 `Properties` / `Methods` 这样分 |
+| **共享的东西往哪放** | 一个内部头文件，**只放声明和跨域要用的类型**。实现文件之间不互相 `#import` |
+| **新文件怎么进工程** | 不用管。`project.yml` 收的是 `path: Runtime` 整个目录 |
+| **拆完怎么验** | `check-api.sh` 的三边核对数字必须和拆之前一字不差，加上模拟器的全部断言 |
+
+落到目录上：
+
+```
+ios/Runtime/
+├─ NacreRuntime.h / .mm   启动壳、事件转发、host 接线、fetch、定时器唤醒
+├─ Bridge/                能力暴露，一个能力域一个 .mm
+│  ├─ NacreBridge.h       内部头，只有声明
+│  ├─ NacreConvert.mm     日志、JSON、结构体互转、环境快照
+│  ├─ NacreEnums.mm       字符串 ↔ 数值，锚点类名
+│  ├─ NacreProperties.mm  属性分发
+│  ├─ NacreMethods.mm     方法分发和构造
+│  └─ NacreURL.mm         URL 解析
+└─ Engine/                纯 C++，只依赖 V8
+
+types/
+├─ index.d.ts             入口
+├─ nacre.d.ts             运行时自己的 API（跨平台）
+├─ ios.d.ts               桶，只有 /// <reference>
+└─ ios/                   一个能力域一个 .d.ts
+```
+
+**两处暂时不拆，理由写下来免得反复讨论：**
+
+- **`nacre.js`**（2000+ 行）：它是**一个 classic script**，运行时按单文件读取执行。拆开要么靠构建期拼接，要么改成多脚本按序执行——两条都引入新的失败模式（顺序、半加载状态），而现在它一个文件读下来还不难。等引入模块化构建，或者超过约 2500 行，再定
+- **`main.js`**：验收用例，按步骤顺序读下来才有意义，拆开反而难读
+
 `ios/` 内部：
 
 | 目录 | 内容 | 是否提交 |
@@ -303,7 +343,7 @@ nacre/
 | `project.yml` | XcodeGen 工程描述 | 提交 |
 | `.gitignore` | 平台相关的忽略规则（根目录的 `.gitignore` 里不能出现平台目录名，所以放这里） | 提交 |
 | `App/` | 启动壳：AppDelegate、SceneDelegate | 提交 |
-| `Runtime/` | 运行时和能力暴露：`NacreRuntime`（ObjC++ 入口）、`Engine/`（纯 C++） | 提交 |
+| `Runtime/` | 运行时和能力暴露：`NacreRuntime`（ObjC++ 启动壳与接线）、`Bridge/`（能力暴露，按能力域分文件）、`Engine/`（纯 C++） | 提交 |
 | `JS/` | 这个 App 的全部逻辑，入口是 `main.js` | 提交 |
 | `scripts/` | `fetch-v8.sh`（下载 V8）、`run-sim.sh`（一键在模拟器运行） | 提交 |
 | `Nacre.xcodeproj/`、`App/Info.plist` | 由 `project.yml` 生成 | 不提交 |

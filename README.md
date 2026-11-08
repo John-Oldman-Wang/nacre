@@ -33,7 +33,7 @@ App 端的 JavaScript 运行时：原生 API 完整暴露给 JS，用原生视�
 ## 第一阶段约束
 
 - 只支持 iOS 26+、iPhone、arm64（真机和 Apple Silicon 模拟器），Xcode 26+
-- 渲染目标是 UIKit，按 iOS 原生方式排版，**不实现 DOM、CSS、flexbox**
+- 渲染目标是 UIKit，按 iOS 原生方式排版。**DOM、CSS、flexbox 不是必须的**——运行时不提供，要的话在 JS 层自己做
 - JS 引擎用 V8（lite mode，即 jitless）
 - JS 在构建时打进 App Bundle，不通过 HTTP 加载
 - 模块化和打包交给社区工具，运行时只负责执行 JS 文件
