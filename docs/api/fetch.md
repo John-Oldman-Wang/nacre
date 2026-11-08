@@ -43,30 +43,6 @@ await res.json();   // TypeError: Body has already been read
 
 Web 规范如此。读过之后 `res.bodyUsed` 是 `true`。
 
-## 线程分工：实测定下来的
-
-```
-NSURLSession 的线程池     DNS/TCP/TLS/传输/gzip，系统的，并行
-       ↓
-delegate 串行队列         只做最轻的事：追加数据、记状态、一次 dispatch
-       ↓
-并发队列                  UTF-8 解码这类 CPU 活
-       ↓
-主线程                    建 V8 对象、兑现 Promise
-```
-
-中间那层不是设计出来的，是**被实测逼出来的**。`delegateQueue` 为 `nil` 时系统建的是**串行**队列，20 个并发请求的回调全挤在一个线程上：
-
-| 20 个请求，每个回调做 100ms | 耗时 |
-| --- | --- |
-| 回调里直接做 | **2179 ms**（全串行） |
-| 派到并发队列做 | **166 ms** |
-| 用并发 delegateQueue(8) | 334 ms |
-
-下载本身一直是并行的，被串起来的是**回调处理**。所以 delegate 队列上绝不能干活。
-
-> 这组数字是对着本地服务器测的，量的是**回调处理**的串并行差异。验收用例后来改成打公开的 `httpbin.org`，那边的耗时里含真实 RTT（单次约 1.5 s），不能拿来衡量桥的开销。
-
 ## 两段式：headers 先到，body 后到
 
 ```js
@@ -127,26 +103,20 @@ await fetch(url, { signal: AbortSignal.timeout(5000) });   // 超时自动中止
 
 **`reason` 的类型是 `unknown`**：任何值都能当中止原因，这是 Web 的语义。默认给的是一个 `name` 为 `'AbortError'` 的 `Error`——Web 那边用 `DOMException`，我们没有那个类。
 
-### 一个实现中踩到的坑
+## 和原生的对照
 
-signal 在发请求**之前**就已经中止时，要记得把内部那个 Promise 也消化掉：
+`fetch` / `Request` / `Response` 是 WHATWG 的接口，不是 ObjC API 的映射。原生侧用 `NSURLSession` 实现。
 
-```js
-if (signal.aborted) {
-  native.fetchCancel(requestId);
-  promise.catch(() => {});     // ← 少了这行就成了未处理的拒绝
-  return Promise.reject(signal.reason);
-}
-```
-
-内部 promise 会被原生层以「取消」拒绝，但它不会交到调用方手里。验收用例里真的报出来了。
-
-## 内存：Response 被回收时原生那份数据才放掉
-
-JS 侧的 `Response` 挂在 `FinalizationRegistry` 上，被 GC 回收时通知原生层释放 `NSData`。所以**一个拿到手却从不读 body 的 Response，会把那份数据钉在内存里直到被回收**。
-
-要尽早释放就读掉 body，或者（等 6c 做完）取消请求。
+| Web | Nacre |
+| --- | --- |
+| `await fetch(url, init)` | 一样 |
+| `res.ok` / `res.status` / `res.headers` | 一样 |
+| `await res.text()` / `.json()` / `.arrayBuffer()` / `.blob()` | 一样，body 只能读一次 |
+| `AbortController` / `signal` | 一样，取消会真的调 `NSURLSessionTask.cancel` |
+| `res.body`（流） | **没有**，见「没有的东西」 |
 
 ---
+
+实现原理见[实现说明](../internals/network.md)。
 
 ← 返回 [API 文档](README.md)

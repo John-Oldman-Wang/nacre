@@ -24,22 +24,6 @@ new URL('/x', 'https://a.com')     // 可以
 
 > 类型系统看不出这一条——`new URL(string)` 在类型上完全合法，它是运行时才抛。
 
-## 解析底子是 `NSURLComponents`
-
-按[能力对齐](../project.md#两层-api)，先无损映射 iOS 的真实能力，而不是自己写一套 WHATWG 的解析状态机。
-
-规范化**全在原生层做完**，JS 侧只做薄包装：
-
-| 这一步 | 怎么做的 |
-| --- | --- |
-| 点段规范化 `/a/b/../c` → `/a/c` | `NSURL.standardizedURL` |
-| scheme 和 host 小写化 | 原生层 `lowercaseString` |
-| 默认端口移除 `:443` → `` | 原生层一张表 |
-
-**点段规范化特意用系统 API 而不是在 JS 里写循环**，因为实测发现系统的更对——手写版本很容易把 `//double` 吞成 `/double`，而 WHATWG 要求保留双斜杠。`NSURL.standardizedURL` 连 `/../x` 越界不穿透这种边角都和 WHATWG 对得上。
-
-> 有个顺序要注意：必须**先 `absoluteURL` 再 `standardizedURL`**。对一个相对 URL 直接标准化，NSURL 会先把相对部分自己收干净（`../y` → `y`）再和 base 组合，`new URL('../y', 'https://a.com/a/b/c')` 就会得到 `/a/b/y` 而不是 `/a/y`。
-
 ## 和浏览器的已知差异
 
 拿同一批 URL 在 Chrome 和这里对撞得到的：
@@ -64,22 +48,6 @@ WHATWG 规定特殊 scheme 下 `\` 等同于 `/`，是为了迁就 Windows 的�
 `https://例え.jp` 在浏览器里 hostname 是 `xn--r8jz45g.jp`，我们给的是 percent-encoded 形式。
 
 **暂时不补**，因为 `NSURLSession` 发请求时系统自己会处理 IDN——也就是说请求能发对，只是 `hostname` 读出来的形状不同。真要补需要一套 punycode 实现。记在这里，等有人被咬到再说。
-
-## 性能
-
-实测（iPhone 18 Pro 模拟器，20000 次取平均）：
-
-| | 耗时 |
-| --- | --- |
-| `new URL(...)` 完整一次 | **20.05 µs** |
-| ├ 其中过桥（含 JSON 编解码） | 18.85 µs |
-| └ 其中 JS 侧 | 1.2 µs |
-| 读 `u.pathname` | 0.05 µs |
-| 读 `u.href`（每次重新拼） | 0.15 µs |
-
-**94% 的成本在过桥的 JSON 往返上**，不在 JS 处理。要再快只能改交付方式——让 C++ 直接构造 JS 对象，省掉 JSON 编码和解码两轮。记为 TODO。
-
-属性读取几乎免费（解析结果缓存在 JS 对象里），但**写属性会触发重新解析**（为了保证规范化一致），所以在循环里改 URL 要留意。
 
 ## `URLSearchParams`
 
@@ -121,18 +89,24 @@ h.append('Set-Cookie', 'y=2');
 h.getSetCookie();          // ['x=1', 'y=2']
 ```
 
-### 不做 forbidden header 检查
-
-浏览器禁止 JS 设 `Host`、`Cookie`、`Origin` 这些首部，那是防不受信任的页面伪造请求。按[原则 8](../project.md#原则)，我们的 JS 和原生代码同等地位，没有要防的对象，拦下来只会挡住正当用途。
-
-**会拒绝的只有真正会撕裂报文的东西**：非法的首部名（HTTP token 规则之外的字符）、值里的 NUL / CR / LF。
-
 ## 还没做
 
 - `fetch` / `Request` / `Response`（下一步）
 - IDN 转 punycode
 - URL 解析的交付方式优化（直接构造 JS 对象，省掉 JSON 往返）
 
+## 和原生的对照
+
+`URL` / `URLSearchParams` / `Headers` 是 WHATWG 的接口，不是 ObjC API 的映射。原生侧用 `NSURLComponents` 解析，差异见上。
+
+| WHATWG | Nacre |
+| --- | --- |
+| `new URL(input, base)` | 一样，但**没有 base 时必须是绝对 URL** |
+| `url.searchParams` | 一样 |
+| `new Headers(init)` | 一样，但不做 forbidden header 检查 |
+
 ---
+
+实现原理见[实现说明](../internals/network.md)。
 
 ← 返回 [API 文档](README.md)

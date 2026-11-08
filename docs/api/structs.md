@@ -4,33 +4,6 @@
 
 ObjC 里它们是 C 结构体，**按值传递**。JS 没有值类型，所以用类实例代替，并且**只读**。
 
-## 为什么只读
-
-```objc
-view.frame.x = 10;   // ObjC：编译错误
-```
-
-ObjC 里 `view.frame` 返回的是一个副本，改它毫无意义，所以编译器直接拦住。如果 JS 侧用普通对象表示：
-
-```js
-view.frame.x = 10;   // 如果是普通对象 → 静默无效，view 纹丝不动
-```
-
-这是最难查的那种错。所以结构体的每个字段都定义成带 setter 的访问器，赋值直接抛：
-
-```js
-view.frame.x = 10;   // TypeError: x 是只读的：结构体按值传递，要改请整体赋一个新的
-```
-
-> 没用 `Object.freeze`：冻结后的赋值**只在严格模式下**抛异常，而用户的 JS 是普通脚本，在那里它同样是静默失败。
-
-要改就整体赋一个新的：
-
-```js
-const f = view.frame;
-view.frame = new CGRect(10, f.y, f.width, f.height);
-```
-
 ## 写入宽、读出窄
 
 和[颜色](ui-color.md)同一套规则。读出来的永远是结构体类的实例；写进去的可以是实例，也可以是带同样字段的普通对象：
@@ -79,6 +52,22 @@ new UIEdgeInsets(top, left, bottom, right);
 
 C 里的 `CGRectMake` / `CGPointZero` 这类函数和常量还没有——它们属于「C 函数、枚举和常量怎么暴露」那个更大的问题，等 bindgen 一起定。眼下 `new CGRect(...)` 覆盖了 `CGRectMake`。
 
+## 和原生的对照
+
+| ObjC | JS |
+| --- | --- |
+| `CGPointMake(10, 20)` | `new CGPoint(10, 20)` |
+| `CGSizeMake(100, 50)` | `new CGSize(100, 50)` |
+| `CGRectMake(0, 0, 100, 50)` | `new CGRect(0, 0, 100, 50)` |
+| `UIEdgeInsetsMake(8, 16, 8, 16)` | `new UIEdgeInsets(8, 16, 8, 16)` |
+| `rect.origin.x` | `rect.origin.x` 或 `rect.x` |
+| `rect.size.width` | `rect.size.width` 或 `rect.width` |
+| `view.frame = CGRectMake(…)` | `view.frame = new CGRect(…)` 或 `= { x, y, width, height }` |
+
+ObjC 的构造函数是 `CGxxxMake`，JS 侧统一用 `new`。
+
 ---
+
+实现原理见[实现说明](../internals/structs.md)。
 
 ← 返回 [API 文档](README.md)

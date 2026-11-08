@@ -60,9 +60,9 @@ UIImage.imageNamed('logo.png')          // 带扩展名 ✓
 最后两条是硬约束：
 
 - Asset Catalog 编译后变成一个 `Assets.car`，**里面没有「文件」了**。要上传、算哈希、传给别的 API 的图别放进去
-- `actool` 只认 `.png` / `.jpg` / `.heic` / `.svg` / `.pdf`。喂 `.webp` 会报 *"does not have a valid extension"*，而且**整个 catalog 一个产物都不出**
+- **webp 不能进 Asset Catalog**，放进去整个 catalog 都编译不出来。webp 只能当普通文件
 
-> SVG 有个反直觉的地方：**Asset Catalog 吃得下，运行时解不了**。actool 在编译期把 SVG 栅格化成 1x/2x/3x 三份；而 `imageWithData:` 喂 SVG 字节拿不到图——ImageIO 能解的 58 种类型里没有 SVG。
+> SVG 有个反直觉的地方：**Asset Catalog 吃得下，运行时解不了**。进 catalog 的 SVG 在编译期就栅格化了；而 `imageWithData:` 喂 SVG 字节拿不到图。
 
 ## 格式：58 种，webp / HEIC / AVIF 都在，GIF 只有第一帧
 
@@ -128,7 +128,7 @@ const 底 = UIImage.imageNamed('button-bg')      // 20×20 的圆角边框
 | 容器让步 | JS 自己算：`height = width * (img.size.height / img.size.width)` |
 | 都不让 | 九宫格 |
 
-**第 3c 步做完 Auto Layout 之后，这个问题大半会自己消失**——`UIImageView` 的 `intrinsicContentSize` 就是图片的 `size`，只约束宽度，高度按比例自己出来。现在要手算纯粹是因为还在用 frame。
+用 [Auto Layout](auto-layout.md) 的话第二行基本不用自己算——`UIImageView` 的 `intrinsicContentSize` 就是图片的 `size`，只约束宽度，高度按比例自己出来。
 
 ## 解码发生在绘制时，也就是主线程
 
@@ -137,7 +137,7 @@ const img = UIImage.imageWithData(blob);   // 还没解码
 iv.image = img;                            // 第一次绘制时才解 ← 主线程
 ```
 
-大图这一下会掉帧。JS 本来就在主线程抢时间（见[技术选型](../project.md#js-为什么跑在主线程)），比一般 App 更经不起。
+**大图这一下会掉帧。**
 
 ```js
 iv.image = await img.prepareForDisplay();      // 后台解完再上屏
@@ -177,7 +177,7 @@ const img  = UIImage.imageWithData(blob);
 iv.image   = await img.prepareForDisplay();
 ```
 
-字节从 `NSURLSession` 下来一路留在原生的 `NSData` 里，变成 `UIImage` 再上屏，**JS 侧从头到尾只拿着两个句柄**。这是[第 6 步](fetch.md#blob字节不进-v8-堆)的直接收益。
+字节从 `NSURLSession` 下来一路留在原生的 `NSData` 里，变成 `UIImage` 再上屏，**JS 侧从头到尾只拿着两个句柄**——几 MB 的图不会在 V8 堆里走一遍。
 
 ## 属性一览
 
@@ -218,6 +218,26 @@ iv.image   = await img.prepareForDisplay();
 | `UIView` 级的 `tintColor` | ObjC 里 `tintColor` 定义在 `UIView` 上并沿视图树继承。这一步只在 `UIImageView` 上开了口，别的视图还读不到 |
 | 深浅色自动切的变化通知 | 要先暴露 `UITraitCollection` |
 
+## 和原生的对照
+
+| ObjC | JS |
+| --- | --- |
+| `[UIImage imageNamed:@"logo"]` | `UIImage.imageNamed('logo')` |
+| `[UIImage systemImageNamed:@"star.fill"]` | `UIImage.systemImageNamed('star.fill')` |
+| `[UIImage imageWithContentsOfFile:path]` | `UIImage.imageWithContentsOfFile(path)` |
+| `[UIImage imageWithData:data]` | `UIImage.imageWithData(blob)` |
+| `[img resizableImageWithCapInsets:insets]` | `img.resizableImage({ withCapInsets: insets })` |
+| `[img resizableImageWithCapInsets:insets resizingMode:UIImageResizingModeStretch]` | `img.resizableImage({ withCapInsets: insets, resizingMode: 'stretch' })` |
+| `[img imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]` | `img.imageWithRenderingMode('alwaysTemplate')` |
+| `[img prepareForDisplayWithCompletionHandler:^(UIImage* r){}]` | `await img.prepareForDisplay()` |
+| `[img prepareThumbnailOfSize:size completionHandler:…]` | `await img.prepareThumbnail(size)` |
+| `iv.image = img` | `iv.image = img` |
+| `iv.highlighted = YES` | `iv.isHighlighted = true` |
+
+ObjC 的 completion handler 在 JS 侧一律是 Promise。
+
 ---
+
+实现原理和实测数据见[实现说明](../internals/ui-image.md)。
 
 ← 返回 [API 文档](README.md)

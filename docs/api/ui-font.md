@@ -2,29 +2,32 @@
 
 字体。不能直接构造，走类方法。
 
+```js
+label.font = UIFont.systemFontOfSize(28, { weight: 'bold' });
+label.font = UIFont.preferredFontForTextStyle('body');   // 跟随系统文字大小
+```
+
 ## 继承关系
 
 ```
-EventTarget
-└─ NSObject
-   └─ UIFont
+EventTarget → NSObject → UIFont
 ```
 
 ## 系统字体
 
 ```js
-UIFont.systemFontOfSize(17)                        // .SFUI-Regular
-UIFont.systemFontOfSize(28, { weight: 'bold' })    // .SFUI-Bold
+UIFont.systemFontOfSize(17)                                  // .SFUI-Regular
+UIFont.systemFontOfSize(28, { weight: 'bold' })              // .SFUI-Bold
 UIFont.boldSystemFontOfSize(17)
 UIFont.italicSystemFontOfSize(17)
-UIFont.monospacedSystemFontOfSize(20, { weight: 'medium' })
-UIFont.monospacedDigitSystemFontOfSize(17, { weight: 'regular' })
+UIFont.monospacedSystemFontOfSize(20, { weight: 'medium' })  // 等宽
+UIFont.monospacedDigitSystemFontOfSize(17, { weight: 'regular' })  // 只有数字等宽
 UIFont.fontWithName('Helvetica', { size: 17 })
 ```
 
-`weight` 的可选值：`ultraLight` `thin` `light` `regular` `medium` `semibold` `bold` `heavy` `black`。
+`weight` 可选：`ultraLight` `thin` `light` `regular` `medium` `semibold` `bold` `heavy` `black`。
 
-> ObjC 里 `UIFontWeight` 是 `CGFloat` 常量不是枚举，但 JS 侧一样用字符串，见[枚举文档](enums.md)。
+`monospacedDigitSystemFontOfSize` 只把**数字**做成等宽，字母照常——跑秒表、倒计时、价格这类数字会跳动的地方用它，字宽不变就不会左右抖。
 
 ## 动态字体
 
@@ -32,19 +35,15 @@ UIFont.fontWithName('Helvetica', { size: 17 })
 UIFont.preferredFontForTextStyle('body')
 ```
 
-跟随系统「设置 → 显示与亮度 → 文字大小」变化。可选值：`largeTitle` `title1` `title2` `title3` `headline` `subheadline` `body` `callout` `footnote` `caption1` `caption2`。
-
-这是 iOS 上做无障碍的基本手段，比写死字号更该是默认选择。
+跟随系统「设置 → 显示与亮度 → 文字大小」。可选：`largeTitle` `title1` `title2` `title3` `headline` `subheadline` `body` `callout` `footnote` `caption1` `caption2`。
 
 > **已经建好的 `UIFont` 不会跟着变。** 用户改了系统文字大小，手上这个字体对象还是旧字号。
 >
-> 但这一格**不该用事件补**——UIKit 给的是一个属性：`UILabel.adjustsFontForContentSizeCategory = true`，设了之后标签自己会重新取字体。这个属性还没暴露，记在 [`UILabel` 的「还没做」](ui-label.md#还没做)里。
->
-> 真正需要事件的是 JS 自己要对文字大小变化做判断的场合（比如换布局），那属于 trait 体系，见[项目说明的 TODO](../project.md#待讨论的设计问题)。
+> 让标签自动跟随要靠 `UILabel.adjustsFontForContentSizeCategory`，那个属性还没暴露，记在 [`UILabel` 的「还没做」](ui-label.md#还没做)里。
 
 ## 只读属性
 
-| 属性 | 说明 |
+| 属性 | 效果 |
 | --- | --- |
 | `familyName` | 字体家族名 |
 | `fontName` | 具体字体名，比如 `.SFUI-Bold` |
@@ -60,34 +59,43 @@ UIFont.preferredFontForTextStyle('body')
 UIFont.systemFontOfSize(17) === UIFont.systemFontOfSize(17)   // true
 ```
 
-UIKit 自己缓存了系统字体实例，加上运行时的包装机制保证指针到 JS 对象一对一，所以 `===` 直接成立。这是[相等性 TODO](../project.md#待讨论的设计问题) 里「主路径已经通」的又一个例子。
+> 别指望所有字体都这样——`fontWithName:size:` 之类未必命中系统缓存。
 
-> 但别指望所有字体都这样。`fontWithName:size:` 之类未必命中缓存。
+## 写错了会抛，找不到返回 null
 
-## 字重和样式写错了会抛
+这两件事要分开：
 
 ```js
 UIFont.systemFontOfSize(17, { weight: 'extrabold' });
-// TypeError: weight has no value "extrabold"; expected one of: ultraLight /
-//            thin / light / regular / medium / semibold / bold / heavy / black
+// TypeError: weight has no value "extrabold"; expected one of: ultraLight / …
 
 UIFont.preferredFontForTextStyle('subtitle');
-// TypeError: textStyle has no value "subtitle"; expected one of: largeTitle / ...
-```
+// TypeError: textStyle has no value "subtitle"; expected one of: largeTitle / …
 
-不传 `weight` 则用默认值（`systemFontOfSize:` 本身就是 regular），**传错和不传是两件事**。
-
-和它区分开的是合法的空答案：
-
-```js
 UIFont.fontWithName('NoSuchFont', { size: 17 });   // → null，不抛
 ```
 
-详见[枚举文档](enums.md#认不出的值直接抛)。
+「你问错了」抛，「没有这个东西」返回 `null`。不传 `weight` 也是合法的（`systemFontOfSize:` 本身就是 regular）——**传错和不传是两件事**。
+
+## 和原生的对照
+
+| ObjC | JS |
+| --- | --- |
+| `[UIFont systemFontOfSize:17]` | `UIFont.systemFontOfSize(17)` |
+| `[UIFont systemFontOfSize:28 weight:UIFontWeightBold]` | `UIFont.systemFontOfSize(28, { weight: 'bold' })` |
+| `[UIFont monospacedSystemFontOfSize:20 weight:UIFontWeightMedium]` | `UIFont.monospacedSystemFontOfSize(20, { weight: 'medium' })` |
+| `[UIFont fontWithName:@"Helvetica" size:17]` | `UIFont.fontWithName('Helvetica', { size: 17 })` |
+| `[UIFont preferredFontForTextStyle:UIFontTextStyleBody]` | `UIFont.preferredFontForTextStyle('body')` |
+
+selector 的第一段做方法名，其余段进 options 对象，键名就是 ObjC 的段名原文。
 
 ## 还没做
 
-`UIFontDescriptor`（字体描述符，用来做字体变体和特性）、`familyNames` / `fontNamesForFamilyName:`（枚举系统里所有字体）、自定义字体注册。
+| | |
+| --- | --- |
+| `UIFontDescriptor` | 字体变体和特性 |
+| `familyNames` / `fontNamesForFamilyName:` | 枚举系统里所有字体 |
+| 自定义字体注册 | |
 
 ---
 

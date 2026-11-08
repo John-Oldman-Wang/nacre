@@ -287,7 +287,7 @@ iOS 的功能清单完成后再开始 Android。以下是目前的方向，开�
 nacre/
 ├─ .claude/           AI 协作规则（CLAUDE.md）
 ├─ README.md
-├─ docs/              项目说明和 API 文档
+├─ docs/              项目说明、API 文档、实现原理
 ├─ types/             TypeScript 类型定义（@nacre/types），面向使用运行时的开发者
 ├─ ios/               iOS 运行时源码 + App
 └─ android/           以后再加
@@ -297,6 +297,39 @@ nacre/
 - **`types/` 是对外的交付物，不是源码树的一部分**，所以和 `ios/` 平级而不在它里面：它的使用者是拿 Nacre 写 App 的人，不是改运行时的人。必须提交。
 - 以后工具生成的原生工程等产物，放在 `build/` 或 `.nacre/` 下，**不能命名为 `ios/`**，避免和源码混淆。
 - `.gitignore` 只忽略生成的和下载的内容，**不能忽略任何源码目录**。根目录的 `.gitignore` 里不能出现平台目录名。
+
+### 文档怎么分
+
+三处，判据是**面向谁**：
+
+| 目录 | 写什么 | 面向谁 |
+| --- | --- | --- |
+| `docs/api/` | 怎么用、参数、默认值、**效果**、会踩的坑、**ObjC ↔ JS 对照表** | 用 Nacre 写 App 的人 |
+| `docs/internals/` | **桥怎么搭的、为什么这么选、实测数据、被否掉的方案** | 改运行时的人 |
+| `docs/project.md` | 项目定义、已定的决策、目录约定、SOP、进度、待定的设计问题 | 这个项目本身 |
+
+举三个例子：
+
+- 「`shadowOpacity` 默认 0，不设就看不见」→ **api**。不知道这条就不会用
+- 「`CGColorRef` 转 `UIColor` 为什么会丢动态色」→ **internals**。不知道也会用
+- 「颜色的上层写法定成字符串」→ **project.md**。这是一个决策，不是实现
+
+**每新增或改动一块能力，`api/` 和 `internals/` 两份一起写。** 只写 api 等于把原理丢了，下次改的人要重新推一遍；只写 internals 等于没交付。这和「改 API 同一步里更新 `types/`」是同一条纪律。
+
+每份 API 文档的骨架：
+
+```
+一句话说明 + 最小可用例子
+按能力分组讲每个 API（签名、默认值、效果、坑）
+属性一览表
+和原生的对照表
+还没做
+→ 末尾一行链到 internals 里的实现原理
+```
+
+对照表是**承诺的一部分**：底层说「和 Apple 文档一一对上」，那就要让人能照着 Apple 文档查到 JS 怎么写。
+
+样板见 [`api/ca-layer.md`](api/ca-layer.md) 和 [`internals/ca-layer.md`](internals/ca-layer.md)。
 
 ### 文件拆分规则
 
@@ -388,6 +421,8 @@ Commit message 格式：
 
 每一项是一步、一个 commit。顺序从简单到复杂，开始每一项前都要按 SOP 讨论确认。
 
+**M 开头的三项是「机制」，不是能力。** 区别在于有没有逃生口：上层没封装的能力，底层裸暴露还能补；而这三条不做就是**真的做不了**，再怎么裸暴露也绕不过去。所以它们比清单上大多数项更决定这个运行时能不能承接业务。
+
 | 步骤 | 功能 | 会需要暴露的能力 | 状态 |
 | --- | --- | --- | --- |
 | 0 | 搭建 iOS 工程：App 启动、V8 启动、全局对象 `console`、执行 `main.js` 输出 hello world | — | 已完成（commit `eba1b23`） |
@@ -397,8 +432,12 @@ Commit message 格式：
 | 3a | 文字 | UILabel、UIFont、枚举、带参数的类方法 | 已在模拟器验证通过：JS 设字体、颜色、对齐和行数，文字上屏并正确截断；顺带补上 `UIWindow` 的四个 key/可见性事件 |
 | 3b | 图片 | UIImageView、UIImage、Blob 解码、后台解码 | 已在模拟器验证通过：bundle 图自动选 @3x、SF Symbol、九宫格、fetch 下来的网络图上屏 |
 | 3c | Auto Layout | NSLayoutConstraint、锚点、UILayoutGuide | 已在模拟器验证通过：锚点建约束、批量激活、flex-1 式的抱紧优先级、UILayoutGuide、三个调试接口 |
+| 3d | 圆角、边框、阴影 | CALayer、位掩码 | 已在模拟器验证通过：卡片有圆角和边框，子块也圆了 |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
-| 4 | 按钮和点击事件 | Target-Action、JS 回调 | 待讨论 |
+| **M1** | **原生回调回 JS**（含同步回调） | 回调注册表、生命周期、重入 | **没有逃生口**，和第 4 步一起做 |
+| **M2** | **JS 子类化原生类** | 动态生成 ObjC 子类、方法转发回 JS | **没有逃生口**：覆写 `drawRect:`、`layoutSubviews`、任何 delegate 协议都要它 |
+| **M3** | **通用能力暴露**（bindgen） | 从 SDK 头文件生成元数据，运行时动态调用 | **没有逃生口**：不做这个，覆盖面永远追不上，而且手写的三份分发表注定要漂 |
+| 4 | 按钮和点击事件 | Target-Action、JS 回调 | 待讨论（依赖 M1） |
 | 5 | 页面跳转 | UINavigationController、继承 UIViewController | 待讨论 |
 | 6a | `URL` / `URLSearchParams` / `Headers` | NSURLComponents、WHATWG 语义 | 已在模拟器验证通过：37 条断言全过，和 Chrome 对撞过一批 URL |
 | 6b | `fetch` / `Request` / `Response` | NSURLSession、BackingStore 零拷贝 | 已在模拟器验证通过：当初对着本地服务器跑，20 个并发 36ms；验收用例在 3b 改成打公开的 `httpbin.org`，不用再起服务 |
@@ -412,139 +451,25 @@ Commit message 格式：
 
 注意：第 0 步中的 `App/RootViewController.swift` 由原生创建根页面，不符合第 1 节的边界。第 2 步已把它移到 JS 中，该文件已删除，`SceneDelegate` 只剩空壳。
 
-#### 第 2 步新增的机制：类级成员
+#### 屏幕方向（方案已定，未实现）
 
-原来的桥全是基于 handle 的，只能访问实例成员；而 `UIColor` 的颜色常量是 ObjC 的类级只读属性（`@property(class, readonly)`），没有实例可用。于是加了一条 `(类名, 属性名) → 原生对象` 的通道（`native.classObjProp`）。
+从 `ui-window-scene.md` 搬过来——它是设计方案，不是已有的 API。
 
-iOS 层是一张**写死的名字表**，不是用名字拼 selector 再 `performSelector:`——后者等于把任意 ObjC 调用的入口开给 JS，在通用的能力暴露方案做好之前不开这个口子。
+方向是第一个能完整走通「读 + 写 + 变化通知」三格的能力，而且「写」那一格会把**「系统要同步返回值，就转成 JS 预先声明的状态」**这个模式第一次落地。
 
-**带参数的类方法**（`colorWithRed:green:blue:alpha:`）还没做：上层颜色已经定成字符串写法，这类方法 JS 开发者基本不碰，等 bindgen 一起补。
+**iOS 26 挪过位置**：`UIWindowScene.interfaceOrientation` 已废弃，方向现在在 `effectiveGeometry` 上；旧的 `windowScene:didUpdateCoordinateSpace:interfaceOrientation:traitCollection:` 也废弃了，换成 `windowScene:didUpdateEffectiveGeometry:`。
 
-#### 第 2.5 步新增的机制
+| 格 | JS 形态 | 原生怎么实现 |
+| --- | --- | --- |
+| **读** | `scene.effectiveGeometry.interfaceOrientation` | 新增 `UIWindowSceneGeometry` 类，先只暴露 `interfaceOrientation` 和 `isInterfaceOrientationLocked` |
+| **写** | `scene.supportedOrientations = ['portrait', 'landscapeLeft']` | 运行时存下这个值；`SceneDelegate` 实现 `supportedInterfaceOrientationsForWindowScene:`，**直接返回存的值，不回 JS**；写入时调 `setNeedsUpdateOfSupportedInterfaceOrientations` |
+| **变化通知** | `scene` 上的 `geometrychange` 事件 | 实现 `windowScene:didUpdateEffectiveGeometry:` |
 
-做 `UIView` 的几何和层级时补了三条通道，都在 `EngineHost` 上：
+「写」这一格的关键是：**系统的回调是同步的，但回调的内容来自异步设置的状态**。这正是 Apple 推荐的写法——`shouldAutorotate` 的废弃说明里原话就是「更新你支持的方向，然后调 `setNeedsUpdateOfSupportedInterfaceOrientations` 表示变了」。React Native 生态的方向库也是这个模式，只是它要求 App 开发者手改 `AppDelegate`，我们做进运行时。
 
-| 通道 | 用途 |
-| --- | --- |
-| `call_method` | 带参数、返回值用 JSON 编码的方法。对象参数在 JSON 数组里留 `null`，指针按同样的下标单独传 |
-| `call_object_method` | 同上，但返回值是原生对象 |
-| `read_object_array_property` | 属性值是原生对象数组，比如 `subviews` |
+用**属性**而不是方法（`scene.supportedOrientations = [...]`），因为它表达的是状态而非动作——原则 2。
 
-两个约定值得记住：
-
-- **过桥的方法名是完整的 ObjC selector**（`insertSubview:atIndex:`）。把「第一段 + options」还原成 selector 是 **JS 层**的事，所以 iOS 层的分发表和 Apple 文档一一对上。目前是手写绑定，每个 JS 方法显式知道自己的 selector，不靠 options 的键序去拼——键序靠不住。
-- **结构体的线上格式是扁平的**（`CGRect` 是 `x`/`y`/`width`/`height`，不是嵌套的 `origin`/`size`）。嵌套视图由 JS 侧的 `CGRect` 类用原型取值器提供，所以不参与 `JSON.stringify`。线上格式是内部约定，以后换编码不影响 JS。
-
-实测到一条 UIKit 自己的行为：**`UIView.alpha` 写 `0.6` 读回 `0.6000000238418579`**。`alpha` 背后是 `CALayer.opacity`，那是 32 位 float，不是我们这层的编码问题。
-
-#### 第 3a 步新增的机制
-
-| 通道 | 用途 |
-| --- | --- |
-| `call_class_object_method` | 带参数的类方法，比如 `UIFont.systemFontOfSize(17)`。参数规则和 `call_method` 一样 |
-| `write_property` 改为返回 `bool` | 写不进去时 JS 抛异常。目前只有枚举名不认识会触发 |
-| 三条调用通道加 `std::string* error` 出参 | 参数不被接受时抛 `TypeError`。不能靠「返回空值」表示失败——空值本身是合法答案（`fontWithName` 找不到字体、`hitTest` 没命中都该返回 `null`），「没有这个东西」和「你问错了」必须分得开 |
-| `write_property` 也收进同一个出口 | 原来返回 `bool` 让 JS 凑错误信息，需要 JS 侧抄一份可选值列表。改成带外错误后，错误信息由原生层凑——那张表就在它手里，而且它知道是哪个类的哪个属性。按属性名索引的表迟早会撞：`UIControl.state` 和 `UIGestureRecognizer.state` 是两个毫无关系的枚举，三个不相干的枚举都叫 `style` |
-
-枚举的决定见上面的设计点 3。
-
-#### 第 3b 步：没有新增通道，但纠正了三个事实
-
-做图片**一条新通道都没加**，全部复用现成的：取图是 `call_class_object_method`，九宫格是 `call_object_method`，后台解码是 `call_async`。
-
-`call_async` 原来只兑现布尔（`scene.openURL`），这次加了个 `settleCall:withObject:`。**通道本身没变**——它约定的只是「异步地兑现 call_id」，兑现成什么一直是宿主的自由，Engine 侧 `SettleObject` 早就有了。
-
-实测纠正的三条：
-
-1. **`imageNamed:` 认子目录路径**（`'JS/assets/logo'` 能找到），而且**普通文件也自动选 @2x/@3x**。原来以为这两条都要 Asset Catalog 才有。意味着「丢文件进目录」这条零配置的路比想象中好用，Asset Catalog 换来的只剩深浅色自动切和 App Thinning
-2. **Asset Catalog 不收 webp**。`actool` 只认 `.png` / `.jpg` / `.heic` / `.svg` / `.pdf`，喂 webp 报「does not have a valid extension」，而且**整个 catalog 一个产物都不出**。而运行时能解 webp（58 种类型之一）——所以 webp 只能当普通文件。反过来 SVG 是 Asset Catalog 吃得下、运行时解不了（编译期就栅格化了）
-3. **SF Symbol 的 `renderingMode` 是 `'automatic'` 不是 `'alwaysTemplate'`**。「按 tintColor 上色」是绘制上下文决定的，不写在图片上
-4. **`resizableImageWithCapInsets:` 单参重载默认是 `tile` 不是 `stretch`**。要拉伸得用带 `resizingMode` 的那个重载显式指定
-
-还抓出一条旧账：**不能用窗口通知来验证「定时器和原生事件同队列 FIFO」**。观察者是 `addObserverForName:object:queue:`（mainQueue）注册的，先排一次观察者块，块跑起来才 `postToJS` 排第二次；而 `setTimeout(fn, 0)` 只排一跳。两跳里第一跳什么时候入队由 UIKit 决定，**相对顺序不确定**——两种顺序都实测到过。原来 `timers.md` 里举的例子和 `main.js` 里的断言都把两跳当成了一跳，已改成只断言两边都到了。
-
-FIFO 那条本身没问题，由「同时到期按注册顺序」那条断言保证——那个队列是我们自己的。
-
-#### 第 3c 步新增的机制
-
-只加了**一条**通道，其余全是复用：
-
-| 通道 | 用途 |
-| --- | --- |
-| `call_object_array_method` | 方法返回原生对象数组。此前只有「属性是对象数组」（`subviews`），没有「方法返回对象数组」。`constraintsAffectingLayoutForAxis:` 要它 |
-
-`NSLayoutConstraint.activateConstraints([...])` **没有**开新通道：约束按「每个参数一个对象」摊在 `argPtrs` 里传，原生侧把整个 `argPtrs` 收成数组。现成的类方法通道够用，不必为「数组参数」再发明一种编码。
-
-三条值得记住的事实：
-
-1. **`UILabel` 和普通 `UIView` 的抱紧 / 抗压缩默认值一样**，都是 250 / 750（横纵都是）。「标签抱得更紧」是以讹传讹——差别在固有尺寸：`UILabel` 有，普通 `UIView` 是 `(-1, -1)`，没有东西可抱。
-2. **没有公共祖先时激活约束，原生抛 `NSGenericException`**。不接住整个 App 就没了，而这是 JS 写错了，所以桥上 `@try/@catch` 转成 `TypeError`。这是**少数几处接 `NSException` 的地方**，判据是「不接的代价是崩溃，而错误来自调用方」。跨轴连接（`NSInvalidArgumentException`）则是在桥上**先查类型**，不等它抛。
-3. **优先级是第一个「写接受两种形态、读只有一种」的属性**。`UILayoutPriority` 是 `float`，具名值只有七个，749 合法但没名字——读出来硬编成字符串只能编一个。这和「枚举一律用字符串」不矛盾：那条管的是取值有限的枚举。
-
-#### 所有权镜像：JS 侧有自己的引用图
-
-原生对象的 JS 包装是**弱**的（`Engine.cpp` 里 `SetWeak`）。包装被回收之后再从原生读回来，拿到的是 `wrapper_factory(class_name, handle)` **按原生类名新建**的包装——挂在旧包装上的 JS 状态全丢。`EmitObjectEvent` 走的是同一条路，所以**窗口的事件监听器也会静默失效**。
-
-根因是把原生的**边强度**照抄进了 JS。原生用引用计数，`weak` 回边是为了断环；V8 是追踪式 GC，环不要钱。所以边的强度要按 V8 的需求重新定：
-
-> **原生对象 A 持有 B，A 的包装就也持有 B 的包装。**
-
-| 原生边 | 原生强度 | JS 侧 | 不补的后果 |
-| --- | --- | --- | --- |
-| `container` → `child` | strong | ✅ 镜像 | 包装身份丢、监听器失效 |
-| `scene` → `windows` | strong | ✅ 镜像 | 窗口整棵树丢 |
-| `view` → `backgroundColor` / `image` / `font`… | strong | ✅ 镜像 | 同上 |
-| `vc` → `view`、`window` → `rootViewController`、`scene` → `session` | strong | ✅ 镜像 | 同上 |
-| `child` → `superview`、`view` → `window`、`window` → `windowScene` | **weak** | ❌ 不镜像 | 没有——另一端已被上游的所有权边兜住 |
-| `anchor` → `item`（第 3c 步） | **weak** | ✅ 镜像 | **SIGSEGV**，实测 |
-
-实现在 `nacre.js`：一张模块级 `WeakMap`（owner 包装 → 边名 → 包装）。用 `WeakMap` 不用包装上的属性，是因为 JS 侧完全看不见它（`getOwnPropertySymbols` 也列不出来），而且 owner 一死整条记录跟着死。所有权边上的对象属性走 `nativeGetOwned` / `nativeSetOwned`，回边仍走 `nativeGetObject` / `nativeSetObject`——`check-api.sh` 两个都算。
-
-**这张表只给 GC 当根，不参与任何查询**，所有的读都走原生。所以 UIKit 自己改树时（pop 一个控制器之类）镜像会漂，但它**只会多留一份引用，永远不会给错答案**。读 `subviews` / `scenes` 时按原生的真相整层重建，碰到哪层修哪层。
-
-连带的结果：**`UIWindow` 不用再手动保持引用了**。`main.js` 里的 `mainWindow` 变量已删除——屏幕上还有东西，就是这条链接上了的证据。
-
-验证方式（`main.js` 里的三条断言）：运行时没有强制 GC 的手段，所以制造垃圾逼 V8 回收，再拿一个**没有所有者**的包装（`UIColor.systemBrownColor`）当对照组。只有对照组的身份也丢了，才说明 GC 真跑过，这一轮的结论才算数；对照组没丢就报「未验证」，不假装通过。实测三条全过。
-
-还没覆盖的：**UIKit 自己建的边镜像不到**（`pushViewController:` 把 `vc.view` 塞进自己的层级，JS 从没调过 `addSubview`）。要全局正确只有两条路，都等 bindgen：按 `CFGetRetainCount` 在空闲期扫一遍（引用计数有自动释放池干扰，不稳），或者接 V8 的 embedder 根、像 Blink 管 DOM 那样在 GC 时问宿主（引擎级改造）。Apple 自己的 JSC 桥走的是和我们一样的路——`JSVirtualMachine` 的 `addManagedReference:withOwner:` 就是让你**把原生侧的所有权边显式报告给 GC**。
-
-### 第 0 步的审阅问题（已修复并验证）
-
-三个问题的修复已写入仓库，并已在模拟器上验证通过（结果见下）：
-
-1. **JS 线程缺少自动释放池**：`JSThread` 增加 `TaskScope`（构造时传入，所以包括 V8 初始化在内的每一轮任务都被覆盖），`NacreRuntime.mm` 注入 `@autoreleasepool`。一轮 = 任务本身 + `after_each_`，整轮在池内。
-2. **`console.log(Symbol())` 打不出东西**：原来记的是「会抛异常」，实测不准确——`v8::String::Utf8Value` 的构造函数内部自带 `TryCatch`，`ToString` 抛出的异常在那里就被吞掉了，所以老代码遇到 Symbol 打的是 `<unprintable>`，并不会中断执行。修复的价值在输出质量而不是修崩溃：`console` 的格式化改成三层——按类型分发（undefined / null / 布尔 / 数字 / BigInt / 字符串 / Symbol / 函数 / Error，这一层完全不执行用户代码）→ 对象走 `JSON.stringify` → 兜底的字符串转换。兜底转换和 `stack` 读取都包在 `TryCatch` 里，`ConsoleCallback` 最外层再加一层总保险。**约定：`console.*` 永不向 JS 抛异常。**
-3. **未处理的 Promise 拒绝不报错**：注册 `SetPromiseRejectCallback`，维护待定表（`kPromiseRejectWithNoHandler` 登记、`kPromiseHandlerAddedAfterReject` 撤销），在 `Evaluate` 的 `Run` 返回之后和每轮 `PumpMessageLoop` 之后结算，输出 `Uncaught (in promise) …`。`kPromiseRejectAfterResolved` / `kPromiseResolveAfterResolved` 忽略——Node 曾用这两个事件做 `multipleResolves`，因为 `Promise.race()` 这类正常写法会误触发而废弃。
-
-第 0 步明确不做，留给以后：
-
-- `console`：Map / Set / Date / RegExp / TypedArray 的专门格式、循环引用检测、深度与长度截断、嵌套字符串加引号、`%s` 等占位符、`console.table/group/count/time`、颜色、class 识别（统一打成 `[Function: X]`）。循环引用目前走 `JSON.stringify` 失败后的兜底路径，打成 `[object Object]`。
-- 未处理拒绝：已上报之后再挂 handler，不会发出「其实已处理」的更正（相当于浏览器的 `rejectionhandled`）。待定表只在一次结算周期内有效，所以用强引用是安全的；要支持延迟更正就需要弱引用和条数上限。
-
-兜底路径拿不到异常原因（`Utf8Value` 已经在内部吞掉），所以转换失败统一打 `<unprintable>`；`SafeToString` 里的 `TryCatch` 作为 V8 行为变化时的保险留着。
-
-`ios/JS/main.js` 里加了这三项的验收用例。原计划提交前删掉，后来决定先留着，开始第 1 步、由 JS 创建界面时再清理。
-
-### 第 0 步的验证结果
-
-2026-11-07 在 iPhone 18 Pro / iOS 27.2 模拟器、Xcode 27.2 上跑通：V8 14.9.207.39 初始化 15.7 ms、context 34.3 ms、`main.js` 68.3 ms，全部验收用例输出与预期一致，日志里没有 `autoreleased with no pool in place` 警告，唯一的 Error 级日志就是预期的那条 `Uncaught (in promise)`。
-
-原先列的三项风险都已排除：预编译 V8 与 Xcode 27 工具链链接正常、XcodeGen 生成的 `App/Info.plist` 处理正确；编译宏一致性的问题在下面的审阅里有了更准确的结论。
-
-环境上有一处变化：**Xcode 27 不再附带 `Simulator.app`**（`Contents/Developer/Applications` 整个目录都没了），模拟器窗口改由 `Contents/Applications/DeviceHub.app`（`com.apple.dt.Devices`）承担。`scripts/run-sim.sh` 原来的 `open -a Simulator` 会报 `Unable to find application named 'Simulator'` 并因 `set -e` 中断，已改成依次尝试这两个应用、都找不到也不影响（`simctl` 不需要 GUI）。
-
-### 提交前的审阅（2026-11-07）
-
-第一个 commit 之前做了一次通读，改掉了四处：
-
-1. **AI 规则文件有两份且互相矛盾**：根目录的 `claude-rules.new.md` 是 `.claude/CLAUDE.md` 的草稿，两者对「AI 能不能执行命令」的说法相反。已用草稿替换正式文件并删除草稿——保留的是允许在 Claude Code 中执行构建运行类命令、但改变仓库状态的命令需先征得同意的那一版，与第 6 节第 6 步一致。
-2. **根 `README.md` 与本文件冲突**：它描述了 `nacre.json`、`nacre ios --out ./ios` 这样的 CLI 用法（第 3 节里 CLI 是「暂不考虑」，第 5 节明确禁止把生成产物命名为 `ios/`），还把 `ios/` 说成 Swift Package。已按当前决策重写。
-3. **`ios/README.md` 过时**：Xcode / iOS 版本、不存在的 `examples/` 目录、`console` 的旧描述。已重写，并补上 JS 线程和未处理 Promise 拒绝的说明。
-4. **`V8Prelude.h` 是空操作，已删除**。实测方式：对同一个 `#include <v8.h>`，加和不加这个前缀头各预处理一次，比对 V8 头文件实际看到的宏。结论是它只多定义 8 个宏，其中 7 个在全部公开头文件里出现 0 次（是编译 V8 自身用的 GN 标志），剩下的 `V8_HAVE_TARGET_OS` 只决定 `v8config.h` 走哪条分支、两条分支结论相同。`V8_TARGET_ARCH_ARM64` 和 `V8_TARGET_OS_IOS` 不加也会被自动推导出来。
-
-**真正决定对象布局的是 `V8_COMPRESS_POINTERS` 和 `V8_ENABLE_SANDBOX`**，这两个宏原来也不在 `V8Prelude.h` 里——它们在这个预编译包中是关闭的，使用方也不定义，两边正好一致。换 V8 构建时必须重新核对这两个宏。相关说明已写进 `Engine.cpp` 的注释和 `ios/README.md`。
-
-另外加固了一处：`fetch-v8.sh` 原来从同一个 release 下载 `SHA256SUMS` 再用它校验 tarball，校验锚点和被校验文件同源，只能发现传输损坏，发现不了 release 资产被替换（GitHub 允许不换 tag 替换 assets）。现在两个预期哈希写死在脚本里，升级 V8 时一起更新。
+两个要分清的：**设备方向 ≠ 界面方向**（`UIDevice.orientation` 是物理朝向，含面朝上/朝下；`interfaceOrientation` 是界面实际显示的方向，App 锁竖屏时设备横过来界面不变）；以及实际开发中更常用的是**每个页面**的方向（`UIViewController.supportedInterfaceOrientations`），scene 这层管的是窗口整体。
 
 ### 待讨论的设计问题
 
@@ -572,7 +497,7 @@ view.convertPoint(p, { fromView: other })         // convertPoint:fromView:
 
 这样看 Apple 文档能直接写出调用，重载也自然消歧——只取第一段的方案在 `convertPoint:toView:` / `convertPoint:fromView:` 上就会撞，而且就撞在 `UIView` 里。和[原则 6](#原则)（options 对象，不是长参数列表）一致。
 
-不漂亮的地方是参数同质的构造类方法：`UIColor.colorWithRed(1, { green: 0, blue: 0, alpha: 1 })`。但这类方法上层已经用字符串绕开了（见 [`UIColor` 文档](api/ui-color.md#上层怎么写颜色方向已定未实现)），JS 开发者基本不碰；要原样调用还有 `send(selector, ...args)` 兜底。
+不漂亮的地方是参数同质的构造类方法：`UIColor.colorWithRed(1, { green: 0, blue: 0, alpha: 1 })`。但这类方法上层已经用字符串绕开了（见 [`UIColor` 文档](internals/ui-color.md#上层怎么写颜色方向已定未实现)），JS 开发者基本不碰；要原样调用还有 `send(selector, ...args)` 兜底。
 
 **2. 结构体：JS 类 + 只读字段。** `CGRect` / `CGPoint` / `CGSize` 等做成 JS 类，实例上同时提供嵌套访问和扁平访问，字段**写入即抛**：
 
@@ -597,7 +522,7 @@ view.autoresizingMask = ['flexibleWidth', 'flexibleHeight'];   // 位掩码（�
 
 和已有的 `scene.activationState` / `application.state` 一致。
 
-参数位的枚举（`UIFont.systemFontOfSize(17, { weight })`）和属性位一样抛。Web 在这一点上自己就是分两套的——CSS 属性值给错了静默保持原值，而 Web IDL 的 enum 参数（`Request` 的 `mode`、`animate` 的 `fill`）一律抛 `TypeError`。我们的 options 键在形状上就是后者。实测对照记在[枚举文档](api/enums.md#为什么不学-css)。
+参数位的枚举（`UIFont.systemFontOfSize(17, { weight })`）和属性位一样抛。Web 在这一点上自己就是分两套的——CSS 属性值给错了静默保持原值，而 Web IDL 的 enum 参数（`Request` 的 `mode`、`animate` 的 `fill`）一律抛 `TypeError`。我们的 options 键在形状上就是后者。实测对照记在[枚举文档](internals/enums.md#为什么不学-css)。
 
 **名字 ↔ 数值的映射只能放在原生层**：`NSTextAlignment` 的数值随 ABI 变（`TARGET_ABI_USES_IOS_VALUES`——iOS 上 `Center` 是 1，macOS 上是 2），JS 里按数组下标映射换个平台就全错。为此 `write_property` 改成返回 `bool`：原生层查不到名字就返回 `false`，JS 据此抛异常。写不进去又不报错是最难查的那种错。
 
@@ -629,7 +554,7 @@ Phaser 的 Scene 还有一套明确的状态机（PENDING → INIT → START →
 
 字符串是构造的简写，不是颜色的表示法。读出不跟着做成字符串，是因为**要么失败、要么静默丢东西**：图案色会失败（`getRed:green:blue:alpha:` 返回 `NO`，一个分量都拿不到）；动态色转得出来但会降精度——外观不止明暗一维，`accessibilityContrast`、`userInterfaceLevel` 也影响取值，两个样本盖不住，而且丢了不报错。这是取舍不是硬约束，我们选择不接受静默的错。
 
-Web 能双向字符串化是因为 CSSOM 自己留着声明串，我们没有这一层——`UIView` 只存一个 `UIColor`。推导过程见 [`UIColor` 文档](api/ui-color.md#上层怎么写颜色方向已定未实现)。
+Web 能双向字符串化是因为 CSSOM 自己留着声明串，我们没有这一层——`UIView` 只存一个 `UIColor`。推导过程见 [`UIColor` 文档](internals/ui-color.md#上层怎么写颜色方向已定未实现)。
 
 顺带两个事实也记在那边：`UIColor` **不可变**（属性全 `readonly`、无 setter、派生方法返回新对象），所以读出的对象不用防御性复制；但不可变不等于定值——动态色持有的是 `UITraitCollection → UIColor` 的函数，明暗主题挂在**视图层级的 trait** 上，不在颜色上。
 
@@ -650,7 +575,7 @@ Web 能双向字符串化是因为 CSSOM 自己留着声明串，我们没有这
 
 为了做到 B 去耦合垃圾回收，复杂度和收益不成比例。倾向先做 A，再把 `isEqual()` 作为逃生口暴露出去（从 `NSObject` 继承，一行的事），两个加起来既便宜又没有静默的坑。
 
-实测数据见 [`UIColor` 文档的「实测：相等性和 `description`」](api/ui-color.md#实测相等性和-description)。真正动手要等视图层起来、看清真实代码里怎么写颜色。
+实测数据见 [`UIColor` 文档的「实测：相等性和 `description`」](internals/ui-color.md#实测相等性和-description)。真正动手要等视图层起来、看清真实代码里怎么写颜色。
 
 **TODO：JS 子类化原生类。** 这条原来写的是「`new MyLabel()` 建出来的原生对象是 `UILabel`」，**实测不对**：`UIView` 的构造函数有一道 `new.target !== UIView` 的闸，子类的 `super()` 走到这里直接返回，**一个原生对象都不建**。
 
@@ -659,6 +584,21 @@ Web 能双向字符串化是因为 CSSOM 自己留着声明串，我们没有这
 这道闸本身是对的：原生类的构造函数写死了自己的类名，子类的 `super()` 在这里建出一个基类对象只会更错。要真正支持继承，得动态生成 ObjC 子类并把覆写的方法转发回 JS，那才是这条 TODO 的内容。
 
 **没堵上的是那个静默失败**：对象参数没有句柄时应该抛，不该当成 nil。和下面「属性名拼错了不报错」是同一类错。这条和设计点 1「创建与继承」是同一件事。
+
+**TODO：参数类型不对但有句柄 → 静默忽略。** 和「参数没有原生对象」是同一家，上一步只堵了后者。
+
+```js
+view.addSubview(UIColor.redColor);      // 什么都不发生，不报错
+NSLayoutConstraint.activateConstraints([1, 2, 3]);   // 同上
+```
+
+原生侧是 `if (UIView* child = viewArg(0)) [view addSubview:child];`——`viewArg` 对非 `UIView` 返回 nil，于是整句跳过。**`NacreMethods.mm` 里 10 处这种写法**，加上 `activateConstraints:` 里按 `isKindOfClass:` 过滤的那一处，一共 11 处。
+
+类型声明能挡住大部分（`addSubview(view: UIView)`），但运行时不该沉默。改法是让 `viewArg` 一类的取参函数带 `std::string* error` 出参，拿不到就填错误信息——和枚举写错的处理方式一致。
+
+**TODO：`layer` 上的颜色读两次不相等。** `borderColor` / `shadowColor` 在 ObjC 里是 `CGColorRef`，桥上用 `colorWithCGColor:` 包成 `UIColor`，而它**每次新建一个对象**（实测两次指针不同）。于是包装机制「同一个原生指针永远同一个 JS 对象」的保证在这里失效。
+
+底下的 `CGColor` 指针是稳定的，所以补法是按 `CGColorRef` 缓存 `UIColor`。不急：日常不会拿边框色做 `===`，而且真要补也等 `UITraitCollection` 一起（动态色定死是同一个根因，见 [`CALayer` 文档](internals/ca-layer.md)）。
 
 **TODO：属性名拼错了不报错。** 原生对象的 JS 包装对象是**可扩展**的，所以：
 
@@ -685,5 +625,5 @@ JS 侧的属性是一个个显式定义的取值器，名字不认识的赋值�
 - **本地化（`Intl`）怎么补**：预编译的 V8 不带 ICU，`Intl` 缺失且 `toLocale*` 退化成非本地化实现。三条路——换带 i18n 的 V8 构建（ICU 数据几 MB 到几十 MB，包体积涨得多，还得自己编译）、JS 层 polyfill（同样要带 locale 数据，而且慢）、把 `NSDateFormatter` / `NSNumberFormatter` 暴露给 JS（数据来自系统，包体积零增长）。倾向第三条，它和第 1 节「原生 API 完整暴露给 JS」的定位一致，和能力暴露方案一起定。
 
 - **原生对象和循环引用怎么打印**：第 1 步出现原生对象之后，`JSON.stringify` 这条路就没有意义了（`UIView.superview` 这类天然循环）。和能力暴露方案一起定。
-- ~~**未处理拒绝的结算是否再延一轮任务**~~：**已定，对齐 Chromium**。做定时器时顺带定了：`FlushRejections` 从「微任务检查点后当场跑」改成「排到宿主队列尾部」，于是 `setTimeout(() => p.catch(...), 0)` 补的 handler 来得及抑制上报。代价是队列忙时上报会被推后，Chromium 也接受了这个代价。详见 [定时器文档](api/timers.md#未处理拒绝的结算被推后了)。
+- ~~**未处理拒绝的结算是否再延一轮任务**~~：**已定，对齐 Chromium**。做定时器时顺带定了：`FlushRejections` 从「微任务检查点后当场跑」改成「排到宿主队列尾部」，于是 `setTimeout(() => p.catch(...), 0)` 补的 handler 来得及抑制上报。代价是队列忙时上报会被推后，Chromium 也接受了这个代价。详见 [定时器文档](internals/timers.md#未处理拒绝的结算被推后了)。
 - ~~**JS 层的未处理拒绝钩子**~~：**已实现**。采用 Web 命名，`application` 上的 `unhandledrejection` 和 `error` 事件，事件对象是 `PromiseRejectionEvent` / `ErrorEvent`，可 `preventDefault()` 抑制运行时的默认日志。详见 [API 文档](api/application.md)。还没做的是 `rejectionhandled`（已上报之后才挂 handler 时发出的更正）。

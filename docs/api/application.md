@@ -177,51 +177,7 @@ await application.runInBackground('上传日志', async () => {
 });
 ```
 
-## 设计说明
-
-- **为什么不叫 `window`**：`UIWindow` 在 iOS 里是真实存在的另一个东西（scene 里的窗口容器），会撞名。浏览器的 `window` 同时是全局对象和窗口对象，是历史债，不值得模仿
-- **为什么不叫 `app`**：`app` 是 JS 里最常见的局部变量名之一，被遮蔽的概率高
-- **命名不照搬 ObjC**：上层面向 JS 开发者，用 `state` 而不是 `applicationState`，用 `layoutDirection` 而不是 `userInterfaceLayoutDirection`。要 ObjC 原名的话，底层裸暴露里有
-- **异步一律 Promise**：不提供 completion handler 形态的重载
-
-## 实现说明
-
-- **JS 跑在主线程**，和 UIKit 同线程。理由和代价见[项目说明第 3 节](../project.md)。
-- **上层 API 在内置 JS 里定义**。`EventTarget`、`Event`、`Application` 都写在 `ios/Runtime/Builtin/nacre.js`，由 iOS 层在 `main.js` **之前**执行。不用 C++ 的 `FunctionTemplate`，因为那样每个实例要在 internal field 上挂 C++ 监听器表，里面的 `v8::Global<Function>` 是强引用，必须用 weak callback 在对象被 GC 时手动释放——漏了就是回调永不释放。JS 实现交给 GC 全自动。Node 的 `EventTarget` 同样是 JS 实现的（`node:internal/event_target`）。
-- **脚本名用 `nacre:internal/nacre.js`**，不是文件路径。这样调用栈里一眼能看出哪些帧是运行时内部，和 Node 的 `node:internal/…` 一个做法。实测效果：
-
-  ```
-  at Application.<anonymous> (main.js:97:51)                     ← 用户代码
-  at Application.dispatchEvent (nacre:internal/nacre.js:95:28)   ← 运行时内部
-  at main.js:99:13                                               ← 用户代码
-  ```
-
-- **C++ 只提供一个极小的数据桥**。`Engine` 在 Context 上装 `globalThis.__nacre_native`，只有 4 个取值函数（`infoJSON`、`state`、`supportsMultipleScenes`、`setEventSink`）。内置脚本用完**立即 `delete`**，用户代码完全拿不到——实测 `typeof __nacre_native` 为 `undefined`、不在 `globalThis` 上、`getOwnPropertyNames` 也找不到。
-- **环境值走快照**。`info` 启动时抓一次；其余实时值在相关通知到达时重建成一份 JSON，JS 读取时解析。JS 现在和 UIKit 同线程，本可以直接读，保留快照是为了一次拿齐、少几次 UIKit 往返。
-- **`state` 启动时读到的是 `background`**，不是 `inactive`——scene 生命周期下，`didFinishLaunchingWithOptions:` 执行时场景还没连接。场景激活后才变成 `active`。
-- **原生事件的投递**：`NSNotificationCenter` 观察者 → `dispatch_async` 到主队列延后一轮 → `Engine::EmitAppEvent` → 内置脚本注册的入口 → `application.dispatchEvent`。延后一轮是为了不在 UIKit 操作中途重入 JS。单向，不等结果。
-
-## 验证结果
-
-2026-11-07 在 iPhone 18 Pro / iOS 27.2 模拟器上全部跑通：
-
-- `application instanceof EventTarget` 为 `true`，`new Application()` 抛 `TypeError: Illegal constructor`
-- `info` 读到 26 个键并深度冻结；`bundleIdentifier`、`version`、`build` 正确
-- 多场景的**声明值**与**实际能力**都读到 `false`，两者分别取自 `info` 和 `UIApplication`
-- `EventTarget`：重复注册只触发一次、移除后不再触发、`once` 只触发一次、监听器抛异常不影响后续监听器也不冒到派发方
-- `preventDefault()`：JS 自己派发且 `cancelable: true` 时生效（`dispatchEvent` 返回 `false`）；`cancelable: false` 时静默失效（返回 `true`）
-- **错误出口**：`error` 和 `unhandledrejection` 都能收到；`preventDefault()` 后运行时的默认日志确实消失，不调则照常输出。`ErrorEvent` 的 `message` / `filename` / `lineno` / `error` 和 `PromiseRejectionEvent` 的 `reason` / `promise` 都正确
-- **JS 发起的异步调用**走 Promise：C++ 用 `v8::Promise::Resolver` 当场造一个 Promise 返回给 JS，同时把 resolver 按 id 存起来；iOS 层执行（像 `openURL` 那样本身就带 `completionHandler` 的，要等系统回调），完成后兑现。兑现时不在任何 JS 调用栈里，`kAuto` 不会自动排空微任务，所以要显式调一次 `PerformMicrotaskCheckpoint()`，否则 `await` 后面的代码会一直卡住。
-- **实时环境值每次读取都重新向原生要一份 JSON 并解析**。这些值变化稀疏、读取不频繁，先用最简单的做法；连续读多个属性会重复解析，成为热点再优化。
-- `openURL` 返回真正的 Promise：合法 URL 兑现 `true`，非法 URL 兑现 `false`；兑现发生在 `main.js` 执行结束**之后**，证明微任务检查点生效
-- `idleTimerDisabled` 写入异步生效：刚写完读到旧值，稍后读到 `true`
-- **前后台事件**：按 HOME 键再切回来，依次收到 `inactive` → `background` → `foreground` → `active`，且每个事件到达时 `state` 的值符合上表（`Will*` 类事件读到旧值）
-- 新增的环境属性都读到了合理值（`protectedDataAvailable`、`layoutDirection`、`contentSizeCategory`、`backgroundRefreshStatus`、`prefersReducedResourceUsage`）
-- 原生桥 `__nacre_native` 在内置脚本执行后彻底消失：`typeof` 为 `undefined`、不在 `globalThis` 上、`getOwnPropertyNames` 也找不到
-- **原生事件链路**：在模拟器的设备菜单选 Simulate Memory Warning，JS 收到 `memorywarning`，`target === application`、`cancelable === false`（这条命令行触发不了——UIKit 的内存警告走 SimulatorKit 的 mach 消息，不是 Darwin 通知，试过的几个 `notifyutil` 名字都无效）
-- **状态快照随通知更新**：启动时 `state` 为 `background`，场景激活后读到 `active`
-
-## 待定
+## 还没做
 
 - `Application.prototype` 的最终能力范围（上表标「建议」的都未确认）
 - `idleTimerDisabled` 用属性还是 WakeLock 模式
@@ -234,3 +190,24 @@ await application.runInBackground('上传日志', async () => {
 ---
 
 ← 返回 [API 总览](README.md) ・ [项目说明](../project.md)
+
+## 和原生的对照
+
+`application` 是 Nacre 自己定义的上层对象，不是 `UIApplication` 的一一映射——它把 App 级的状态、事件和能力收在一处。
+
+| ObjC | JS |
+| --- | --- |
+| `NSBundle.mainBundle.infoDictionary` | `application.info` |
+| `UIApplication.sharedApplication.applicationState` | `application.state` |
+| `UIApplication.sharedApplication.connectedScenes` | `application.scenes` |
+| `[UIApplication.sharedApplication openURL:url options:@{} completionHandler:…]` | `await application.openURL(url)` |
+| `UIApplication.sharedApplication.idleTimerDisabled = YES` | `application.idleTimerDisabled = true` |
+| `UIApplicationDidBecomeActiveNotification` | `application.addEventListener('active', …)` |
+| `UIApplicationDidReceiveMemoryWarningNotification` | `application.addEventListener('memorywarning', …)` |
+| `UISceneWillConnectNotification` | `application.addEventListener('sceneconnect', …)` |
+
+---
+
+实现原理见[实现说明](../internals/runtime.md)。
+
+← 返回 [API 文档](README.md)

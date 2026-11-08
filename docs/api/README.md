@@ -9,6 +9,10 @@ Nacre 的 API 分两层：
 
 上层没覆盖的，底层一定能补上。
 
+> 这里只讲**怎么用和什么效果**。桥怎么搭的、为什么这么选、实测数据在[实现原理](../internals/README.md)；已定的决策和进度在[项目说明](../project.md)。
+
+每份文档的末尾都有一张 **ObjC ↔ JS 对照表**——照着 Apple 文档就能查到 JS 怎么写。
+
 ## 参考
 
 | 对象 | 说明 |
@@ -22,6 +26,7 @@ Nacre 的 API 分两层：
 | [`UIFont`](ui-font.md) | 字体 |
 | [`UIImage` / `UIImageView`](ui-image.md) | 图片。四条取图路径，`size` 是点不是像素 |
 | [Auto Layout](auto-layout.md) | 约束、锚点、`UILayoutGuide`。用了约束就别再写 frame |
+| [`CALayer`](ca-layer.md) | 圆角、边框、阴影 |
 | [结构体](structs.md) | `CGPoint`、`CGSize`、`CGRect`、`UIEdgeInsets`，只读 |
 | [枚举](enums.md) | 一律用字符串 |
 | [定时器](timers.md) | `setTimeout` 系列。调度参考 Chromium |

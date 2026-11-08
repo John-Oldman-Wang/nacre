@@ -101,8 +101,6 @@ NSLayoutConstraint.deactivateConstraints([c1]);
 
 批量比逐个 `isActive = true` 好：中间态不会短暂地不可满足。
 
-> 原生那边没有公共祖先是抛 `NSGenericException`，不接住整个 App 就没了。运行时在桥上接住它转成 `TypeError`——这是少数几处接 `NSException` 的地方，判据是「不接的代价是崩溃，而错误来自调用方」。
-
 ## 约束建好之后能改什么
 
 | 成员 | | |
@@ -123,9 +121,9 @@ root.layoutIfNeeded();     // 不调这句要等下一轮布局
 
 `firstItem` / `secondItem` **不暴露**。它们在 ObjC 里是 `assign`，视图一死就是野指针，头文件自己写着「Access to these properties is not recommended」。要两端的视图，从锚点走。
 
-### 优先级为什么读出来是数字
+### 优先级：写名字或数字，读永远是数字
 
-`UILayoutPriority` 是 `float` 不是枚举，具名值只有七个：
+七个具名值：
 
 | 名字 | 值 |
 | --- | --- |
@@ -137,9 +135,13 @@ root.layoutIfNeeded();     // 不调这句要等下一轮布局
 | `'defaultLow'` | 250 |
 | `'fittingSizeLevel'` | 50 |
 
-749 这种值合法但没有名字。读出来要是硬编成字符串，就只能编一个出来——所以**写接受两种，读永远返回数字**。
+中间的值（749 之类）合法但**没有名字**，所以读出来统一是数字：
 
-这和[枚举一律用字符串](enums.md)不矛盾：那条管的是取值有限的枚举，而这是一个连续的数值，名字只是七个常用刻度。
+```js
+c.priority = 'defaultHigh';   c.priority;   // 750
+c.priority = 749;             c.priority;   // 749
+c.priority = 'veryImportant';               // TypeError
+```
 
 ## 内容抱紧和抗压缩
 
@@ -222,18 +224,16 @@ view.systemLayoutSizeFittingSize(size, {
 view.invalidateIntrinsicContentSize();
 ```
 
-## 锚点和垃圾回收
-
-原生侧 `NSLayoutAnchor` 对它的视图是 **weak**，而且 iOS 上根本读不回来（`NSLayoutAnchor.item` 标着 `API_UNAVAILABLE(ios)`）。所以这段代码在补[所有权镜像](../project.md#所有权镜像js-侧有自己的引用图)之前是**段错误**，不是异常：
+## 拿着锚点就等于拿着视图
 
 ```js
 let v = new UIView();
 const a = v.widthAnchor;
-v = null;                                        // 包装被 GC → 原生 view 死
-a.constraintEqualToConstant(50).isActive = true; // ← 曾经 SIGSEGV
+v = null;                                        // 只留锚点，不留 view
+a.constraintEqualToConstant(50).isActive = true; // 照样能用
 ```
 
-现在锚点的 JS 包装强持有它的视图，约束强持有两端的锚点，所以**拿着锚点就等于拿着视图**，不用自己留引用。
+锚点持有它的视图，约束持有两端的锚点。**不用自己留引用。**
 
 ## 还没做
 
@@ -246,6 +246,28 @@ a.constraintEqualToConstant(50).isActive = true; // ← 曾经 SIGSEGV
 | `UIStackView` | 它是约束的**工厂**不是第二套布局引擎。单独一步做 |
 | `alignmentRectForFrame:`、`viewForFirstBaselineLayout` | 边缘能力，留给 bindgen |
 
+## 和原生的对照
+
+| ObjC | JS |
+| --- | --- |
+| `view.translatesAutoresizingMaskIntoConstraints = NO` | `view.translatesAutoresizingMaskIntoConstraints = false` |
+| `[a.leadingAnchor constraintEqualToAnchor:b.trailingAnchor]` | `a.leadingAnchor.constraintEqualToAnchor(b.trailingAnchor)` |
+| `[a.topAnchor constraintEqualToAnchor:b.bottomAnchor constant:8]` | `a.topAnchor.constraintEqualToAnchor(b.bottomAnchor, { constant: 8 })` |
+| `[a.widthAnchor constraintEqualToAnchor:b.widthAnchor multiplier:0.5]` | `a.widthAnchor.constraintEqualToAnchor(b.widthAnchor, { multiplier: 0.5 })` |
+| `[v.widthAnchor constraintEqualToConstant:60]` | `v.widthAnchor.constraintEqualToConstant(60)` |
+| `[b.leadingAnchor constraintEqualToSystemSpacingAfterAnchor:a.trailingAnchor multiplier:1]` | `b.leadingAnchor.constraintEqualToSystemSpacingAfterAnchor(a.trailingAnchor)` |
+| `c.active = YES` | `c.isActive = true` |
+| `[NSLayoutConstraint activateConstraints:@[c1, c2]]` | `NSLayoutConstraint.activateConstraints([c1, c2])` |
+| `c.priority = UILayoutPriorityDefaultLow` | `c.priority = 'defaultLow'` |
+| `[v setContentHuggingPriority:250 forAxis:UILayoutConstraintAxisHorizontal]` | `v.setContentHuggingPriority('defaultLow', { forAxis: 'horizontal' })` |
+| `[v systemLayoutSizeFittingSize:s]` | `v.systemLayoutSizeFittingSize(s)` |
+| `[v constraintsAffectingLayoutForAxis:UILayoutConstraintAxisHorizontal]` | `v.constraintsAffectingLayoutForAxis('horizontal')` |
+| `view.safeAreaLayoutGuide` | `view.safeAreaLayoutGuide` |
+
+ObjC 的 `getter=isActive` 在 JS 侧用 getter 的名字。位掩码和枚举都用字符串。
+
 ---
+
+实现原理见[实现说明](../internals/auto-layout.md)。
 
 ← 返回 [API 文档](README.md)
