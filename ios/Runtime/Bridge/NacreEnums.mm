@@ -233,6 +233,47 @@ NACRE_ENUM_MAP(ControlVerticalAlignment, UIControlContentVerticalAlignment,
                @"bottom": @(UIControlContentVerticalAlignmentBottom),
                @"fill": @(UIControlContentVerticalAlignmentFill))
 
+// 按钮的外观类型。plain 是 tvOS 专有，roundedRect 是 system 的别名，都不收。
+NACRE_ENUM_MAP(ButtonType, UIButtonType,
+               @"custom": @(UIButtonTypeCustom),
+               @"system": @(UIButtonTypeSystem),
+               @"detailDisclosure": @(UIButtonTypeDetailDisclosure),
+               @"infoLight": @(UIButtonTypeInfoLight),
+               @"infoDark": @(UIButtonTypeInfoDark),
+               @"contactAdd": @(UIButtonTypeContactAdd),
+               @"close": @(UIButtonTypeClose))
+
+// 按钮的语义角色，影响系统给它的配色
+NACRE_ENUM_MAP(ButtonRole, UIButtonRole,
+               @"normal": @(UIButtonRoleNormal),
+               @"primary": @(UIButtonRolePrimary),
+               @"cancel": @(UIButtonRoleCancel),
+               @"destructive": @(UIButtonRoleDestructive))
+
+// 状态作参数：'normal' 是 0，位掩码表里没有它，但它是最常用的写法，
+// 所以单独认一下。读 state 的那一侧是反过来的——掩码为 0 时给 ['normal']。
+BOOL ControlStateArgFromNames(id value, UIControlState* out, id* bad) {
+  *bad = nil;
+  if (![value isKindOfClass:NSArray.class]) return NO;
+  UIControlState mask = UIControlStateNormal;
+  for (id name in (NSArray*)value) {
+    if ([name isKindOfClass:NSString.class] && [name isEqualToString:@"normal"]) continue;
+    UIControlState bit;
+    id inner = nil;
+    if (!ControlStateFromNames(@[ name ], &bit, &inner)) {
+      *bad = name;
+      return NO;
+    }
+    mask |= bit;
+  }
+  *out = mask;
+  return YES;
+}
+
+NSString* NamesForControlStateArg(void) {
+  return [@"normal / " stringByAppendingString:NamesForControlState()];
+}
+
 // 圆角的曲线。continuous 是 Apple 自己在用的那种「超椭圆」圆角，
 // 比正圆弧过渡得更顺——图标、卡片都是它。
 static NSArray<NSArray*>* CornerCurvePairs(void) {

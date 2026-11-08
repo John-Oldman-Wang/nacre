@@ -599,6 +599,14 @@
     if ('constant' in o) { selector += 'constant:'; args.push(o.constant); }
     return constraintOf(nativeCallObject(anchor, selector, args), anchor, other);
   }
+  // 按状态设置时的 { forState: [...] }。缺了就抛，不默默当成 normal——
+  // 「给哪个状态设的」是这类方法的核心语义，猜错了界面就不对。
+  function stateOption(options, what) {
+    const o = options || {};
+    if (!('forState' in o)) throw new TypeError(what + ' needs { forState }');
+    return o.forState;
+  }
+
   // 系统标准间距。差多少由系统按上下文定（8pt 起步，但靠近屏幕边缘、不同
   // 控件之间都不一样），这是 iOS 独有的能力，Web 里没有对应物。
   // multiplier 省略时按 1 ——它是乘法的单位元，省略的含义没有歧义。
@@ -1237,6 +1245,65 @@
         subscribed.delete(this);
       }
     }
+  });
+
+  // 按钮。标题、颜色、图片都是**按状态**设的——同一个按钮在 normal /
+  // highlighted / disabled 下可以不一样。
+  defineNativeClass('UIButton', class UIButton extends UIControl {
+    constructor() {
+      super();
+      if (allowNativeConstruct || new.target !== UIButton) return;
+      constructNative(this, 'UIButton', []);
+    }
+
+    // 系统外观的按钮走这条；new UIButton() 得到的是 custom（什么都不画）
+    static buttonWithType(type) {
+      return nativeClassCall('UIButton', 'buttonWithType:', [type]);
+    }
+
+    get buttonType() { requireNative(this, 'buttonType'); return nativeGet(this, 'buttonType'); }
+    // 语义角色，影响系统给它的配色
+    get role() { requireNative(this, 'role'); return nativeGet(this, 'role'); }
+    set role(value) { requireNative(this, 'role'); nativeSet(this, 'role', value); }
+
+    // ---- 按状态设 ----
+    // forState 是状态数组，和 control.state 读出来的形状一致。
+    // 一般只设 ['normal']，别的状态没设就回退到它
+    setTitle(title, options) {
+      nativeCall(this, 'setTitle:forState:', [title, stateOption(options, 'setTitle')]);
+    }
+    setTitleColor(color, options) {
+      nativeCall(this, 'setTitleColor:forState:',
+                 [color, stateOption(options, 'setTitleColor')]);
+    }
+    setImage(image, options) {
+      nativeCall(this, 'setImage:forState:', [image, stateOption(options, 'setImage')]);
+    }
+    setBackgroundImage(image, options) {
+      nativeCall(this, 'setBackgroundImage:forState:',
+                 [image, stateOption(options, 'setBackgroundImage')]);
+    }
+
+    // 取值这一侧**只认单个状态**，这是 UIKit 的规定（头文件原话
+    // "these getters only take a single state value"）
+    titleForState(state) { return nativeCall(this, 'titleForState:', [[state]]); }
+    titleColorForState(state) {
+      return nativeCallObject(this, 'titleColorForState:', [[state]]);
+    }
+    imageForState(state) { return nativeCallObject(this, 'imageForState:', [[state]]); }
+    backgroundImageForState(state) {
+      return nativeCallObject(this, 'backgroundImageForState:', [[state]]);
+    }
+
+    // ---- 当前状态下实际用的那些 ----
+    get currentTitle() { requireNative(this, 'currentTitle'); return nativeGet(this, 'currentTitle'); }
+    get currentTitleColor() { return nativeGetOwned(this, 'currentTitleColor'); }
+    get currentImage() { return nativeGetOwned(this, 'currentImage'); }
+    get currentBackgroundImage() { return nativeGetOwned(this, 'currentBackgroundImage'); }
+
+    // 画标题和图的那两个子视图。字体、行数这些要通过它们设
+    get titleLabel() { return nativeGetOwned(this, 'titleLabel'); }
+    get imageView() { return nativeGetOwned(this, 'imageView'); }
   });
 
   // 文字。

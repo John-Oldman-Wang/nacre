@@ -73,6 +73,17 @@ std::string ReadNativeProperty(id object, const std::string& name) {
       value = @(view.hasAmbiguousLayout);
     }
   }
+  // UIButton 放在 UIControl 之前：它是 UIControl 的子类
+  if (value == nil && [object isKindOfClass:UIButton.class]) {
+    UIButton* button = (UIButton*)object;
+    if ([key isEqualToString:@"buttonType"]) {
+      value = NameForButtonType(button.buttonType);
+    } else if ([key isEqualToString:@"role"]) {
+      value = NameForButtonRole(button.role);
+    } else if ([key isEqualToString:@"currentTitle"]) {
+      value = button.currentTitle;
+    }
+  }
   // UIControl 放在 UIView 之后：它是 UIView 的子类，名字不重叠
   if (value == nil && [object isKindOfClass:UIControl.class]) {
     UIControl* control = (UIControl*)object;
@@ -268,6 +279,17 @@ void WriteNativeProperty(id object, const std::string& name, const std::string& 
     if ([key isEqualToString:@"userInfo"]) {
       ((UISceneSession*)object).userInfo =
           [value isKindOfClass:NSDictionary.class] ? value : nil;
+      return;
+    }
+  }
+  if ([object isKindOfClass:UIButton.class]) {
+    if ([key isEqualToString:@"role"]) {
+      UIButtonRole role;
+      if (!ButtonRoleFromName(value, &role)) {
+        *error = EnumError(@"role", value, NamesForButtonRole());
+        return;
+      }
+      ((UIButton*)object).role = role;
       return;
     }
   }
@@ -530,6 +552,18 @@ nacre::NativeObjectRef ReadNativeObjectProperty(id object, const std::string& na
     if (name == "shadowColor") {
       if (layer.shadowColor == NULL) return {};
       return {(__bridge void*)[UIColor colorWithCGColor:layer.shadowColor], "UIColor"};
+    }
+  }
+  if ([object isKindOfClass:UIButton.class]) {
+    UIButton* button = (UIButton*)object;
+    if (name == "titleLabel") return {(__bridge void*)button.titleLabel, "UILabel"};
+    if (name == "imageView") return {(__bridge void*)button.imageView, "UIImageView"};
+    if (name == "currentTitleColor") {
+      return {(__bridge void*)button.currentTitleColor, "UIColor"};
+    }
+    if (name == "currentImage") return {(__bridge void*)button.currentImage, "UIImage"};
+    if (name == "currentBackgroundImage") {
+      return {(__bridge void*)button.currentBackgroundImage, "UIImage"};
     }
   }
   if ([object isKindOfClass:UIView.class]) {

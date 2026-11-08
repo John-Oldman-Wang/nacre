@@ -439,7 +439,7 @@ Commit message 格式：
 | **M2** | **JS 子类化原生类** | 动态生成 ObjC 子类、方法转发回 JS | **没有逃生口**：覆写 `drawRect:`、`layoutSubviews`、任何 delegate 协议都要它 |
 | **M3** | **通用能力暴露**（bindgen） | 从 SDK 头文件生成元数据，运行时动态调用 | **没有逃生口**：不做这个，覆盖面永远追不上，而且手写的三份分发表注定要漂 |
 | 4a | `UIControl` 的 16 个控件事件 | 订阅通道、target-action | 已在模拟器验证通过：261 条断言全过，含真机点击 |
-| 4b | `UIButton` | `setTitle:forState:`、`state` 位掩码 | 待讨论 |
+| 4b | `UIButton` | `setTitle:forState:`、状态作参数 | 已在模拟器验证通过：按状态设标题/颜色/图，真实点击收到 primaryActionTriggered |
 | 4c | first responder | `becomeFirstResponder` / `resignFirstResponder` | 待讨论，和第 9 步绑一起 |
 | 5 | 页面跳转 | UINavigationController、继承 UIViewController | 待讨论 |
 | 6a | `URL` / `URLSearchParams` / `Headers` | NSURLComponents、WHATWG 语义 | 已在模拟器验证通过：37 条断言全过，和 Chrome 对撞过一批 URL |

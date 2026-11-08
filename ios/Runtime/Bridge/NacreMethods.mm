@@ -48,6 +48,15 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
     }
   }
 
+  if (className == "UIButton" && [sel isEqualToString:@"buttonWithType:"]) {
+    UIButtonType type;
+    if (!ButtonTypeFromName(arg(0), &type)) {
+      *error = EnumError(@"buttonType", arg(0), NamesForButtonType());
+      return {};
+    }
+    return {(__bridge void*)[UIButton buttonWithType:type], "UIButton"};
+  }
+
   if (className == "UIFont") {
     UIFont* font = nil;
     if ([sel isEqualToString:@"systemFontOfSize:"]) {
@@ -162,10 +171,60 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
     id v = objectArg(i);
     return [v isKindOfClass:UIView.class] ? (UIView*)v : nil;
   };
+  // 状态参数：字符串数组 → UIControlState。拿不到就填错误并返回 false
+  auto stateArg = [&](NSUInteger i, UIControlState* out) {
+    id given = i < args.count ? args[i] : nil;
+    id bad = nil;
+    if (ControlStateArgFromNames(given, out, &bad)) return true;
+    *error = bad != nil
+                 ? EnumError(@"forState", bad, NamesForControlStateArg())
+                 : [NSString stringWithFormat:
+                       @"forState needs an array of state names; expected any of: %@",
+                       NamesForControlStateArg()].UTF8String;
+    return false;
+  };
   auto guideArg = [&](size_t i) -> UILayoutGuide* {
     id g = objectArg(i);
     return [g isKindOfClass:UILayoutGuide.class] ? (UILayoutGuide*)g : nil;
   };
+
+  if ([object isKindOfClass:UIButton.class]) {
+    UIButton* button = (UIButton*)object;
+    auto colorArg = [&](size_t i) -> UIColor* {
+      id c = i < argPtrs.size() ? (__bridge id)argPtrs[i] : nil;
+      return [c isKindOfClass:UIColor.class] ? (UIColor*)c : nil;
+    };
+    auto imageArg = [&](size_t i) -> UIImage* {
+      id m = i < argPtrs.size() ? (__bridge id)argPtrs[i] : nil;
+      return [m isKindOfClass:UIImage.class] ? (UIImage*)m : nil;
+    };
+    UIControlState state;
+    if ([sel isEqualToString:@"setTitle:forState:"]) {
+      if (!stateArg(1, &state)) return "null";
+      id title = args.count > 0 ? args[0] : nil;
+      [button setTitle:[title isKindOfClass:NSString.class] ? title : nil forState:state];
+      return "null";
+    }
+    if ([sel isEqualToString:@"setTitleColor:forState:"]) {
+      if (!stateArg(1, &state)) return "null";
+      [button setTitleColor:colorArg(0) forState:state];
+      return "null";
+    }
+    if ([sel isEqualToString:@"setImage:forState:"]) {
+      if (!stateArg(1, &state)) return "null";
+      [button setImage:imageArg(0) forState:state];
+      return "null";
+    }
+    if ([sel isEqualToString:@"setBackgroundImage:forState:"]) {
+      if (!stateArg(1, &state)) return "null";
+      [button setBackgroundImage:imageArg(0) forState:state];
+      return "null";
+    }
+    if ([sel isEqualToString:@"titleForState:"]) {
+      if (!stateArg(0, &state)) return "null";
+      return EncodeJSON([button titleForState:state]);
+    }
+  }
 
   if ([object isKindOfClass:UIView.class]) {
     UIView* view = (UIView*)object;
@@ -314,6 +373,34 @@ nacre::NativeObjectRef CallObjectMethod(id object, const std::string& name,
       return {(__bridge void*)[view hitTest:JSONToPoint(args[0]) withEvent:nil], "UIView"};
     }
   }
+  // UIButton 按状态取出来的颜色和图
+  if ([object isKindOfClass:UIButton.class]) {
+    UIButton* button = (UIButton*)object;
+    id given = args.count > 0 ? args[0] : nil;
+    UIControlState state;
+    id bad = nil;
+    BOOL wants = [sel isEqualToString:@"titleColorForState:"] ||
+                 [sel isEqualToString:@"imageForState:"] ||
+                 [sel isEqualToString:@"backgroundImageForState:"];
+    if (wants) {
+      if (!ControlStateArgFromNames(given, &state, &bad)) {
+        *error = bad != nil
+                     ? EnumError(@"state", bad, NamesForControlStateArg())
+                     : [NSString stringWithFormat:
+                           @"state needs an array of state names; expected any of: %@",
+                           NamesForControlStateArg()].UTF8String;
+        return {};
+      }
+      if ([sel isEqualToString:@"titleColorForState:"]) {
+        return {(__bridge void*)[button titleColorForState:state], "UIColor"};
+      }
+      if ([sel isEqualToString:@"imageForState:"]) {
+        return {(__bridge void*)[button imageForState:state], "UIImage"};
+      }
+      return {(__bridge void*)[button backgroundImageForState:state], "UIImage"};
+    }
+  }
+
   // 锚点。一条约束只能连同类的锚点，跨类连原生抛 NSInvalidArgumentException，
   // 所以这里先查，把「你问错了」变成 TypeError 而不是崩溃。
   if ([object isKindOfClass:NSLayoutAnchor.class]) {
@@ -508,6 +595,8 @@ nacre::NativeObjectRef ConstructNative(const std::string& className,
     object = [[UILabel alloc] init];
   } else if (className == "UIImageView") {
     object = [[UIImageView alloc] init];
+  } else if (className == "UIButton") {
+    object = [[UIButton alloc] init];
   } else if (className == "UIControl") {
     object = [[UIControl alloc] init];
   } else if (className == "UILayoutGuide") {

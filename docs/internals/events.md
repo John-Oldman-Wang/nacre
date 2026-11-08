@@ -133,6 +133,36 @@ control ──关联对象──▶ NacreControlTarget ──weak──▶ Nacre
 
 这条[定时器的实现说明](timers.md#和原生事件的顺序)里本来就写着，验收用例要轮询等条件，不要数轮次。
 
+## 状态作参数：第一次出现的不对称
+
+`UIControlState` 这个位掩码在两个方向上形状不一样，而且这是 UIKit 自己的不对称，不是我们编的：
+
+| | JS 形态 | 为什么 |
+| --- | --- | --- |
+| 读 `control.state` | 字符串**数组** | 它本来就是掩码，可能同时有 selected 和 disabled |
+| `setTitle(…, { forState })` | 字符串**数组** | setter 接受组合掩码 |
+| `titleForState(state)` | **单个**字符串 | 头文件原话 "these getters only take a single state value" |
+
+还有一个坑：**`normal` 的值是 0**。所以
+
+- **读**的那一侧要单独处理——掩码为 0 时给 `['normal']`，否则拆出来是空数组
+- **写**的那一侧也要单独认——`['normal']` 是最常用的写法，但它不在位掩码表里
+
+原生侧为此多了一个 `ControlStateArgFromNames`，和读用的 `ControlStateFromNames` 分开。
+
+### 两条实测纠正
+
+**`titleForState:` 会回退到 normal。** 没设过的状态返回的是 normal 的值，不是 `nil`：
+
+```
+setTitle('点我试试', forState: normal)
+titleForState('disabled')  →  '点我试试'
+```
+
+头文件没写这条，Apple 的在线文档里才有。
+
+**system 按钮一样有 `titleLabel` 和 `imageView`。** 头文件的注释写着「always returns nil for system buttons」，实测不对——`titleLabel.text` 就是当前标题。那条注释是老的。
+
 ## 两种事件源
 
 现在运行时里有两种，不要混：

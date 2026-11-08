@@ -96,6 +96,13 @@ NACRE_MASK_DECL(ControlState, UIControlState)
 NACRE_ENUM_DECL(ControlEvent, UIControlEvents)
 NACRE_ENUM_DECL(ControlHorizontalAlignment, UIControlContentHorizontalAlignment)
 NACRE_ENUM_DECL(ControlVerticalAlignment, UIControlContentVerticalAlignment)
+NACRE_ENUM_DECL(ButtonType, UIButtonType)
+NACRE_ENUM_DECL(ButtonRole, UIButtonRole)
+
+// 状态**作参数**时和读 state 不一样：'normal' 要认。它的值是 0，
+// 不在位掩码表里，但 setTitle(…, { forState: ['normal'] }) 是最常用的写法。
+BOOL ControlStateArgFromNames(id value, UIControlState* out, id* bad);
+NSString* NamesForControlStateArg(void);
 
 // cornerCurve 的值是 NSString 常量，不是枚举，和文本样式一样
 NSString* CornerCurveFromName(NSString* name);

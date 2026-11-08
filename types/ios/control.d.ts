@@ -24,6 +24,14 @@ type UIControlContentHorizontalAlignment =
 
 type UIControlContentVerticalAlignment = 'center' | 'top' | 'bottom' | 'fill';
 
+/** 按钮的外观类型。plain 是 tvOS 专有、roundedRect 是 system 的别名，都没收。 */
+type UIButtonType =
+  | 'custom' | 'system'
+  | 'detailDisclosure' | 'infoLight' | 'infoDark' | 'contactAdd' | 'close';
+
+/** 按钮的语义角色，影响系统给它的配色。 */
+type UIButtonRole = 'normal' | 'primary' | 'cancel' | 'destructive';
+
 /**
  * 会接收触摸的视图。按钮、开关、滑块、输入框都是它的子类。
  *
@@ -66,4 +74,50 @@ declare class UIControl extends UIView {
     options?: AddEventListenerOptions,
   ): void;
   removeEventListener(type: UIControlEventType, callback: EventListener | null): void;
+}
+
+/**
+ * 按钮。标题、颜色、图片都是**按状态**设的——同一个按钮在 `normal` /
+ * `highlighted` / `disabled` 下可以不一样。
+ *
+ * `new UIButton()` 得到的是 `custom`（什么都不画）；要系统外观用
+ * `UIButton.buttonWithType('system')`。
+ */
+declare class UIButton extends UIControl {
+  constructor();
+  static buttonWithType(type: UIButtonType): UIButton;
+
+  readonly buttonType: UIButtonType;
+  role: UIButtonRole;
+
+  /**
+   * `forState` 是状态**数组**，和 `control.state` 读出来的形状一致。
+   * 一般只设 `['normal']`，别的状态没设就回退到它。缺了 `forState` 会抛。
+   */
+  setTitle(title: string | null, options: { forState: readonly UIControlStateName[] }): void;
+  setTitleColor(
+    color: UIColor | null,
+    options: { forState: readonly UIControlStateName[] },
+  ): void;
+  setImage(image: UIImage | null, options: { forState: readonly UIControlStateName[] }): void;
+  setBackgroundImage(
+    image: UIImage | null,
+    options: { forState: readonly UIControlStateName[] },
+  ): void;
+
+  /** 取值这一侧**只认单个状态**，这是 UIKit 的规定。 */
+  titleForState(state: UIControlStateName): string | null;
+  titleColorForState(state: UIControlStateName): UIColor | null;
+  imageForState(state: UIControlStateName): UIImage | null;
+  backgroundImageForState(state: UIControlStateName): UIImage | null;
+
+  /** 当前状态下实际用的那些。 */
+  readonly currentTitle: string | null;
+  readonly currentTitleColor: UIColor;
+  readonly currentImage: UIImage | null;
+  readonly currentBackgroundImage: UIImage | null;
+
+  /** 画标题和图的那两个子视图。字体、行数这些要通过它们设。 */
+  readonly titleLabel: UILabel | null;
+  readonly imageView: UIImageView | null;
 }
