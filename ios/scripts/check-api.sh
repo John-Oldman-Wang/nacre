@@ -14,11 +14,14 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 python3 - "$@" <<'PY'
-import re, sys
+import re, sys, glob
 
 js  = open('ios/Runtime/Builtin/nacre.js').read()
-mm  = open('ios/Runtime/NacreRuntime.mm').read()
-dts = open('types/ios.d.ts').read() + '\n' + open('types/nacre.d.ts').read()
+# 能力暴露拆在 Bridge/ 下的几个 .mm 里，拼起来当一份读
+mm  = '\n'.join(open(f).read()
+                for f in sorted(glob.glob('ios/Runtime/**/*.mm', recursive=True)))
+dts = '\n'.join(open(f).read()
+                for f in sorted(glob.glob('types/**/*.d.ts', recursive=True)))
 
 problems = []
 def complain(section, msg):
