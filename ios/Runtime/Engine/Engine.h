@@ -85,6 +85,13 @@ struct EngineHost {
   // 属性值是原生对象数组，比如 UIView.subviews
   std::function<std::vector<NativeObjectRef>(void* ptr, const std::string& name)>
       read_object_array_property;
+  // 返回值是原生对象数组的方法，比如 UIView.constraintsAffectingLayoutForAxis:
+  // 参数和 error 规则同 call_method
+  std::function<std::vector<NativeObjectRef>(void* ptr, const std::string& name,
+                                             const std::string& args_json,
+                                             const std::vector<void*>& arg_ptrs,
+                                             std::string* error)>
+      call_object_array_method;
 
   // 类级属性。没有实例，所以用类名定位，比如 UIColor.whiteColor
   std::function<NativeObjectRef(const std::string& class_name, const std::string& name)>

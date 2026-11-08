@@ -744,6 +744,28 @@ struct Engine::Impl {
   }
 
   // 属性值是原生对象数组，比如 subviews
+  // 返回原生对象数组的方法。和 NativeObjectArrayProperty 的区别只是带参数，
+  // 所以也带 error 出参——「没命中」返回空数组，「你问错了」抛 TypeError。
+  static void NativeCallObjectArray(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
+    void* ptr = self->PtrForHandle(info, 0);
+    if (!ptr || !self->host.call_object_array_method || info.Length() < 4) return;
+    std::string error;
+    std::vector<NativeObjectRef> refs = self->host.call_object_array_method(
+        ptr, SafeToString(isolate, info[1]), SafeToString(isolate, info[2]),
+        self->HandlesToPtrs(ctx, info[3]), &error);
+    if (Rejected(isolate, error)) return;
+    v8::Local<v8::Array> out = v8::Array::New(isolate, (int)refs.size());
+    for (uint32_t i = 0; i < refs.size(); i++) {
+      v8::Local<v8::Object> wrapper = self->WrapNative(ctx, refs[i]);
+      if (wrapper.IsEmpty()) continue;
+      if (out->Set(ctx, i, wrapper).IsNothing()) return;
+    }
+    info.GetReturnValue().Set(out);
+  }
+
   static void NativeObjectArrayProperty(
       const v8::FunctionCallbackInfo<v8::Value>& info) {
     v8::Isolate* isolate = info.GetIsolate();
@@ -838,6 +860,7 @@ struct Engine::Impl {
         {"call", NativeCall},
         {"callObj", NativeCallObject},
         {"getObjArray", NativeObjectArrayProperty},
+        {"callObjArray", NativeCallObjectArray},
         {"callAsync", NativeCallAsync},
     };
     for (const Entry& e : entries) {

@@ -313,6 +313,126 @@ NACRE_ENUM_MAP(ImageResizingMode, UIImageResizingMode,
                @"tile": @(UIImageResizingModeTile),
                @"stretch": @(UIImageResizingModeStretch))
 
+// ---- Auto Layout ----
+//
+// 一条约束就是 item1.attr1 <关系> multiplier × item2.attr2 + constant。
+// 关系只有三个值，JS 侧不单独写它——它编在方法名里（constraintEqualTo…），
+// 读 constraint.relation 时才需要人话。
+NACRE_ENUM_MAP(LayoutRelation, NSLayoutRelation,
+               @"lessThanOrEqual": @(NSLayoutRelationLessThanOrEqual),
+               @"equal": @(NSLayoutRelationEqual),
+               @"greaterThanOrEqual": @(NSLayoutRelationGreaterThanOrEqual))
+
+// 约束的两端各自约束的是什么。JS 侧不用它建约束（锚点覆盖了全部组合），
+// 只在读 firstAttribute / secondAttribute 时用到。
+NACRE_ENUM_MAP(LayoutAttribute, NSLayoutAttribute,
+               @"left": @(NSLayoutAttributeLeft),
+               @"right": @(NSLayoutAttributeRight),
+               @"top": @(NSLayoutAttributeTop),
+               @"bottom": @(NSLayoutAttributeBottom),
+               @"leading": @(NSLayoutAttributeLeading),
+               @"trailing": @(NSLayoutAttributeTrailing),
+               @"width": @(NSLayoutAttributeWidth),
+               @"height": @(NSLayoutAttributeHeight),
+               @"centerX": @(NSLayoutAttributeCenterX),
+               @"centerY": @(NSLayoutAttributeCenterY),
+               @"lastBaseline": @(NSLayoutAttributeLastBaseline),
+               @"firstBaseline": @(NSLayoutAttributeFirstBaseline),
+               @"leftMargin": @(NSLayoutAttributeLeftMargin),
+               @"rightMargin": @(NSLayoutAttributeRightMargin),
+               @"topMargin": @(NSLayoutAttributeTopMargin),
+               @"bottomMargin": @(NSLayoutAttributeBottomMargin),
+               @"leadingMargin": @(NSLayoutAttributeLeadingMargin),
+               @"trailingMargin": @(NSLayoutAttributeTrailingMargin),
+               @"centerXWithinMargins": @(NSLayoutAttributeCenterXWithinMargins),
+               @"centerYWithinMargins": @(NSLayoutAttributeCenterYWithinMargins),
+               @"notAnAttribute": @(NSLayoutAttributeNotAnAttribute))
+
+NACRE_ENUM_MAP(LayoutConstraintAxis, UILayoutConstraintAxis,
+               @"horizontal": @(UILayoutConstraintAxisHorizontal),
+               @"vertical": @(UILayoutConstraintAxisVertical))
+
+// UILayoutPriority 是 float 不是枚举，具名值只有七个，中间的值（749、1）
+// 没有名字。所以**写接受字符串或数字，读永远返回数字**——给不出名字的值
+// 要硬编成字符串，就只能编一个出来。
+static NSDictionary<NSString*, NSNumber*>* LayoutPriorityTable(void) {
+  static NSDictionary<NSString*, NSNumber*>* table;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    table = @{
+      @"required": @(UILayoutPriorityRequired),
+      @"defaultHigh": @(UILayoutPriorityDefaultHigh),
+      @"dragThatCanResizeScene": @(UILayoutPriorityDragThatCanResizeScene),
+      @"sceneSizeStayPut": @(UILayoutPrioritySceneSizeStayPut),
+      @"dragThatCannotResizeScene": @(UILayoutPriorityDragThatCannotResizeScene),
+      @"defaultLow": @(UILayoutPriorityDefaultLow),
+      @"fittingSizeLevel": @(UILayoutPriorityFittingSizeLevel),
+    };
+  });
+  return table;
+}
+
+BOOL LayoutPriorityFromValue(id value, UILayoutPriority* out) {
+  if ([value isKindOfClass:NSNumber.class]) {
+    *out = [value floatValue];
+    return YES;
+  }
+  if (![value isKindOfClass:NSString.class]) return NO;
+  NSNumber* v = LayoutPriorityTable()[value];
+  if (v == nil) return NO;
+  *out = v.floatValue;
+  return YES;
+}
+
+NSString* NamesForLayoutPriority(void) {
+  return [JoinEnumNames(LayoutPriorityTable())
+      stringByAppendingString:@"，或者 0 到 1000 之间的数字"];
+}
+
+// 锚点分三类，不能互连——topAnchor 连 leadingAnchor，原生抛
+// NSInvalidArgumentException。类名既是 JS 侧的包装类，也是类型检查的依据。
+const char* AnchorClassName(NSLayoutAnchor* anchor) {
+  if ([anchor isKindOfClass:NSLayoutDimension.class]) return "NSLayoutDimension";
+  if ([anchor isKindOfClass:NSLayoutXAxisAnchor.class]) return "NSLayoutXAxisAnchor";
+  if ([anchor isKindOfClass:NSLayoutYAxisAnchor.class]) return "NSLayoutYAxisAnchor";
+  return "NSLayoutAnchor";
+}
+
+// UIView 有 12 个锚点，UILayoutGuide 有 10 个（没有基线——guide 没有文字）。
+// 两者没有公共协议，所以分开写。
+nacre::NativeObjectRef AnchorNamed(id owner, const std::string& name) {
+  NSLayoutAnchor* a = nil;
+  if ([owner isKindOfClass:UIView.class]) {
+    UIView* v = (UIView*)owner;
+    if (name == "leadingAnchor") a = v.leadingAnchor;
+    else if (name == "trailingAnchor") a = v.trailingAnchor;
+    else if (name == "leftAnchor") a = v.leftAnchor;
+    else if (name == "rightAnchor") a = v.rightAnchor;
+    else if (name == "topAnchor") a = v.topAnchor;
+    else if (name == "bottomAnchor") a = v.bottomAnchor;
+    else if (name == "widthAnchor") a = v.widthAnchor;
+    else if (name == "heightAnchor") a = v.heightAnchor;
+    else if (name == "centerXAnchor") a = v.centerXAnchor;
+    else if (name == "centerYAnchor") a = v.centerYAnchor;
+    else if (name == "firstBaselineAnchor") a = v.firstBaselineAnchor;
+    else if (name == "lastBaselineAnchor") a = v.lastBaselineAnchor;
+  } else if ([owner isKindOfClass:UILayoutGuide.class]) {
+    UILayoutGuide* g = (UILayoutGuide*)owner;
+    if (name == "leadingAnchor") a = g.leadingAnchor;
+    else if (name == "trailingAnchor") a = g.trailingAnchor;
+    else if (name == "leftAnchor") a = g.leftAnchor;
+    else if (name == "rightAnchor") a = g.rightAnchor;
+    else if (name == "topAnchor") a = g.topAnchor;
+    else if (name == "bottomAnchor") a = g.bottomAnchor;
+    else if (name == "widthAnchor") a = g.widthAnchor;
+    else if (name == "heightAnchor") a = g.heightAnchor;
+    else if (name == "centerXAnchor") a = g.centerXAnchor;
+    else if (name == "centerYAnchor") a = g.centerYAnchor;
+  }
+  if (a == nil) return {};
+  return {(__bridge void*)a, AnchorClassName(a)};
+}
+
 // 字体的粗细和文本样式不是枚举，是 CGFloat / NSString 常量，
 // 但 JS 侧一样用字符串，所以放在一起。
 // 字重的值是 CGFloat 不是整数，所以不能用上面那个宏，但规矩一样：
@@ -444,6 +564,39 @@ std::string ReadNativeProperty(id object, const std::string& name) {
       value = NameForContentMode(view.contentMode);
     } else if ([key isEqualToString:@"intrinsicContentSize"]) {
       value = SizeToJSON(view.intrinsicContentSize);
+    } else if ([key isEqualToString:@"translatesAutoresizingMaskIntoConstraints"]) {
+      value = @(view.translatesAutoresizingMaskIntoConstraints);
+    } else if ([key isEqualToString:@"hasAmbiguousLayout"]) {
+      value = @(view.hasAmbiguousLayout);
+    }
+  }
+  if (value == nil && [object isKindOfClass:NSLayoutConstraint.class]) {
+    NSLayoutConstraint* c = (NSLayoutConstraint*)object;
+    if ([key isEqualToString:@"isActive"]) {
+      value = @(c.isActive);
+    } else if ([key isEqualToString:@"constant"]) {
+      value = @(c.constant);
+    } else if ([key isEqualToString:@"multiplier"]) {
+      value = @(c.multiplier);
+    } else if ([key isEqualToString:@"priority"]) {
+      // 读永远是数字：749 这种值没有名字
+      value = @(c.priority);
+    } else if ([key isEqualToString:@"relation"]) {
+      value = NameForLayoutRelation(c.relation);
+    } else if ([key isEqualToString:@"firstAttribute"]) {
+      value = NameForLayoutAttribute(c.firstAttribute);
+    } else if ([key isEqualToString:@"secondAttribute"]) {
+      value = NameForLayoutAttribute(c.secondAttribute);
+    } else if ([key isEqualToString:@"identifier"]) {
+      value = c.identifier;
+    }
+  }
+  if (value == nil && [object isKindOfClass:UILayoutGuide.class]) {
+    UILayoutGuide* guide = (UILayoutGuide*)object;
+    if ([key isEqualToString:@"layoutFrame"]) {
+      value = RectToJSON(guide.layoutFrame);
+    } else if ([key isEqualToString:@"identifier"]) {
+      value = guide.identifier;
     }
   }
   if (value == nil && [object isKindOfClass:UILabel.class]) {
@@ -574,8 +727,47 @@ void WriteNativeProperty(id object, const std::string& name, const std::string& 
       return;
     }
   }
+  if ([object isKindOfClass:NSLayoutConstraint.class]) {
+    NSLayoutConstraint* c = (NSLayoutConstraint*)object;
+    if ([key isEqualToString:@"constant"]) { c.constant = [value doubleValue]; return; }
+    if ([key isEqualToString:@"identifier"]) {
+      c.identifier = [value isKindOfClass:NSString.class] ? value : nil;
+      return;
+    }
+    if ([key isEqualToString:@"priority"]) {
+      UILayoutPriority priority;
+      if (!LayoutPriorityFromValue(value, &priority)) {
+        *error = EnumError(@"priority", value, NamesForLayoutPriority());
+        return;
+      }
+      c.priority = priority;
+      return;
+    }
+    if ([key isEqualToString:@"isActive"]) {
+      // 两端没有公共祖先时 UIKit 抛 NSGenericException。不接住整个 App 就挂了，
+      // 而这是 JS 写错了，必须变成 JS 的异常。这是少数几处接 NSException 的地方
+      // ——判据是「不接的代价是崩溃，而错误来自调用方」。
+      @try {
+        c.active = [value boolValue];
+      } @catch (NSException* e) {
+        *error = [NSString stringWithFormat:@"约束激活失败：%@", e.reason].UTF8String;
+      }
+      return;
+    }
+  }
+  if ([object isKindOfClass:UILayoutGuide.class]) {
+    if ([key isEqualToString:@"identifier"]) {
+      ((UILayoutGuide*)object).identifier =
+          [value isKindOfClass:NSString.class] ? value : @"";
+      return;
+    }
+  }
   if ([object isKindOfClass:UIView.class]) {
     UIView* view = (UIView*)object;
+    if ([key isEqualToString:@"translatesAutoresizingMaskIntoConstraints"]) {
+      view.translatesAutoresizingMaskIntoConstraints = [value boolValue];
+      return;
+    }
     if ([key isEqualToString:@"frame"]) { view.frame = JSONToRect(value); return; }
     if ([key isEqualToString:@"bounds"]) { view.bounds = JSONToRect(value); return; }
     if ([key isEqualToString:@"center"]) { view.center = JSONToPoint(value); return; }
@@ -691,9 +883,37 @@ nacre::NativeObjectRef ReadNativeObjectProperty(id object, const std::string& na
     return {(__bridge void*)((UIViewController*)object).view, "UIView"};
   }
   // UIWindow 也是 UIView，所以这条放在 UIWindow 的分支之后，名字不重叠。
+  if ([object isKindOfClass:UILayoutGuide.class]) {
+    UILayoutGuide* guide = (UILayoutGuide*)object;
+    if (name == "owningView") return {(__bridge void*)guide.owningView, "UIView"};
+    nacre::NativeObjectRef anchor = AnchorNamed(guide, name);
+    if (anchor.ptr != nullptr) return anchor;
+  }
+  if ([object isKindOfClass:NSLayoutConstraint.class]) {
+    NSLayoutConstraint* c = (NSLayoutConstraint*)object;
+    // firstItem / secondItem 刻意不暴露：它们是 assign，view 死了就是野指针，
+    // 头文件自己写着「Access to these properties is not recommended」。
+    if (name == "firstAnchor") {
+      return {(__bridge void*)c.firstAnchor, AnchorClassName(c.firstAnchor)};
+    }
+    if (name == "secondAnchor") {
+      return {(__bridge void*)c.secondAnchor, AnchorClassName(c.secondAnchor)};
+    }
+  }
   if ([object isKindOfClass:UIView.class]) {
     UIView* view = (UIView*)object;
     if (name == "backgroundColor") return {(__bridge void*)view.backgroundColor, "UIColor"};
+    if (name == "safeAreaLayoutGuide") {
+      return {(__bridge void*)view.safeAreaLayoutGuide, "UILayoutGuide"};
+    }
+    if (name == "layoutMarginsGuide") {
+      return {(__bridge void*)view.layoutMarginsGuide, "UILayoutGuide"};
+    }
+    if (name == "readableContentGuide") {
+      return {(__bridge void*)view.readableContentGuide, "UILayoutGuide"};
+    }
+    nacre::NativeObjectRef anchor = AnchorNamed(view, name);
+    if (anchor.ptr != nullptr) return anchor;
     if (name == "superview") return {(__bridge void*)view.superview, "UIView"};
     if (name == "window") return {(__bridge void*)view.window, "UIWindow"};
   }
@@ -724,6 +944,16 @@ std::vector<nacre::NativeObjectRef> ReadNativeObjectArrayProperty(
   if ([object isKindOfClass:UIView.class] && name == "subviews") {
     for (UIView* child in ((UIView*)object).subviews) {
       refs.push_back({(__bridge void*)child, "UIView"});
+    }
+  }
+  if ([object isKindOfClass:UIView.class] && name == "constraints") {
+    for (NSLayoutConstraint* c in ((UIView*)object).constraints) {
+      refs.push_back({(__bridge void*)c, "NSLayoutConstraint"});
+    }
+  }
+  if ([object isKindOfClass:UIView.class] && name == "layoutGuides") {
+    for (UILayoutGuide* g in ((UIView*)object).layoutGuides) {
+      refs.push_back({(__bridge void*)g, "UILayoutGuide"});
     }
   }
   return refs;
@@ -885,6 +1115,30 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
     *error = EnumError(@"weight", arg(i), NamesForFontWeight());
     return false;
   };
+
+  // 批量激活/停用。约束按「每个参数一个对象」传过来（argPtrs 本来就是
+  // 一维的句柄数组），所以不用为「数组参数」另开一条通道。
+  // 批量比逐个 isActive = true 好的地方是中间态不会短暂地不可满足。
+  if (className == "NSLayoutConstraint") {
+    BOOL activate = [sel isEqualToString:@"activateConstraints:"];
+    if (activate || [sel isEqualToString:@"deactivateConstraints:"]) {
+      NSMutableArray<NSLayoutConstraint*>* list = [NSMutableArray array];
+      for (void* ptr : argPtrs) {
+        id c = (__bridge id)ptr;
+        if ([c isKindOfClass:NSLayoutConstraint.class]) [list addObject:c];
+      }
+      @try {
+        if (activate) {
+          [NSLayoutConstraint activateConstraints:list];
+        } else {
+          [NSLayoutConstraint deactivateConstraints:list];
+        }
+      } @catch (NSException* e) {
+        *error = [NSString stringWithFormat:@"约束激活失败：%@", e.reason].UTF8String;
+      }
+      return {};
+    }
+  }
 
   if (className == "UIFont") {
     UIFont* font = nil;
@@ -1049,6 +1303,10 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
     id v = objectArg(i);
     return [v isKindOfClass:UIView.class] ? (UIView*)v : nil;
   };
+  auto guideArg = [&](size_t i) -> UILayoutGuide* {
+    id g = objectArg(i);
+    return [g isKindOfClass:UILayoutGuide.class] ? (UILayoutGuide*)g : nil;
+  };
 
   if ([object isKindOfClass:UIView.class]) {
     UIView* view = (UIView*)object;
@@ -1093,6 +1351,66 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
       [view layoutIfNeeded];
     } else if ([sel isEqualToString:@"setNeedsDisplay"]) {
       [view setNeedsDisplay];
+    } else if ([sel isEqualToString:@"invalidateIntrinsicContentSize"]) {
+      [view invalidateIntrinsicContentSize];
+    } else if ([sel isEqualToString:@"addLayoutGuide:"]) {
+      if (UILayoutGuide* guide = guideArg(0)) [view addLayoutGuide:guide];
+    } else if ([sel isEqualToString:@"removeLayoutGuide:"]) {
+      if (UILayoutGuide* guide = guideArg(0)) [view removeLayoutGuide:guide];
+    } else if ([sel isEqualToString:@"exerciseAmbiguityInLayout"]) {
+      [view exerciseAmbiguityInLayout];
+    } else if ([sel isEqualToString:@"contentHuggingPriorityForAxis:"]) {
+      UILayoutConstraintAxis axis;
+      if (!LayoutConstraintAxisFromName(valueArg(0), &axis)) {
+        *error = EnumError(@"axis", valueArg(0), NamesForLayoutConstraintAxis());
+      } else {
+        result = @([view contentHuggingPriorityForAxis:axis]);
+      }
+    } else if ([sel isEqualToString:@"contentCompressionResistancePriorityForAxis:"]) {
+      UILayoutConstraintAxis axis;
+      if (!LayoutConstraintAxisFromName(valueArg(0), &axis)) {
+        *error = EnumError(@"axis", valueArg(0), NamesForLayoutConstraintAxis());
+      } else {
+        result = @([view contentCompressionResistancePriorityForAxis:axis]);
+      }
+    } else if ([sel isEqualToString:@"setContentHuggingPriority:forAxis:"]) {
+      UILayoutPriority priority;
+      UILayoutConstraintAxis axis;
+      if (!LayoutPriorityFromValue(valueArg(0), &priority)) {
+        *error = EnumError(@"priority", valueArg(0), NamesForLayoutPriority());
+      } else if (!LayoutConstraintAxisFromName(valueArg(1), &axis)) {
+        *error = EnumError(@"forAxis", valueArg(1), NamesForLayoutConstraintAxis());
+      } else {
+        [view setContentHuggingPriority:priority forAxis:axis];
+      }
+    } else if ([sel isEqualToString:@"setContentCompressionResistancePriority:forAxis:"]) {
+      UILayoutPriority priority;
+      UILayoutConstraintAxis axis;
+      if (!LayoutPriorityFromValue(valueArg(0), &priority)) {
+        *error = EnumError(@"priority", valueArg(0), NamesForLayoutPriority());
+      } else if (!LayoutConstraintAxisFromName(valueArg(1), &axis)) {
+        *error = EnumError(@"forAxis", valueArg(1), NamesForLayoutConstraintAxis());
+      } else {
+        [view setContentCompressionResistancePriority:priority forAxis:axis];
+      }
+    } else if ([sel isEqualToString:@"systemLayoutSizeFittingSize:"]) {
+      result = SizeToJSON([view systemLayoutSizeFittingSize:JSONToSize(valueArg(0))]);
+    } else if ([sel isEqualToString:@"systemLayoutSizeFittingSize:"
+                                     "withHorizontalFittingPriority:"
+                                     "verticalFittingPriority:"]) {
+      UILayoutPriority h;
+      UILayoutPriority v;
+      if (!LayoutPriorityFromValue(valueArg(1), &h)) {
+        *error = EnumError(@"withHorizontalFittingPriority", valueArg(1),
+                           NamesForLayoutPriority());
+      } else if (!LayoutPriorityFromValue(valueArg(2), &v)) {
+        *error = EnumError(@"verticalFittingPriority", valueArg(2),
+                           NamesForLayoutPriority());
+      } else {
+        result = SizeToJSON([view systemLayoutSizeFittingSize:JSONToSize(valueArg(0))
+                               withHorizontalFittingPriority:h
+                                     verticalFittingPriority:v]);
+      }
     }
   }
   return EncodeJSON(result);
@@ -1115,6 +1433,125 @@ nacre::NativeObjectRef CallObjectMethod(id object, const std::string& name,
       return {(__bridge void*)[view hitTest:JSONToPoint(args[0]) withEvent:nil], "UIView"};
     }
   }
+  // 锚点。一条约束只能连同类的锚点，跨类连原生抛 NSInvalidArgumentException，
+  // 所以这里先查，把「你问错了」变成 TypeError 而不是崩溃。
+  if ([object isKindOfClass:NSLayoutAnchor.class]) {
+    NSLayoutAnchor* anchor = (NSLayoutAnchor*)object;
+    auto num = [&](NSUInteger i) -> CGFloat {
+      return i < args.count ? [args[i] doubleValue] : 0;
+    };
+    id otherRaw = argPtrs.empty() ? nil : (__bridge id)argPtrs[0];
+    NSLayoutConstraint* made = nil;
+
+    // 尺寸锚点的「等于一个常数」系列不需要另一个锚点
+    if ([anchor isKindOfClass:NSLayoutDimension.class]) {
+      NSLayoutDimension* dim = (NSLayoutDimension*)anchor;
+      if ([sel isEqualToString:@"constraintEqualToConstant:"]) {
+        made = [dim constraintEqualToConstant:num(0)];
+      } else if ([sel isEqualToString:@"constraintGreaterThanOrEqualToConstant:"]) {
+        made = [dim constraintGreaterThanOrEqualToConstant:num(0)];
+      } else if ([sel isEqualToString:@"constraintLessThanOrEqualToConstant:"]) {
+        made = [dim constraintLessThanOrEqualToConstant:num(0)];
+      }
+      if (made != nil) return {(__bridge void*)made, "NSLayoutConstraint"};
+    }
+
+    if (![otherRaw isKindOfClass:NSLayoutAnchor.class]) {
+      *error = [NSString stringWithFormat:@"%@ 需要一个锚点作参数", sel].UTF8String;
+      return {};
+    }
+    NSLayoutAnchor* other = (NSLayoutAnchor*)otherRaw;
+    if (strcmp(AnchorClassName(anchor), AnchorClassName(other)) != 0) {
+      *error = [NSString stringWithFormat:@"%s 不能连到 %s：两端的单位不兼容",
+                                          AnchorClassName(anchor),
+                                          AnchorClassName(other)]
+                   .UTF8String;
+      return {};
+    }
+
+    if ([sel isEqualToString:@"constraintEqualToAnchor:"]) {
+      made = [anchor constraintEqualToAnchor:other];
+    } else if ([sel isEqualToString:@"constraintEqualToAnchor:constant:"]) {
+      made = [anchor constraintEqualToAnchor:other constant:num(1)];
+    } else if ([sel isEqualToString:@"constraintGreaterThanOrEqualToAnchor:"]) {
+      made = [anchor constraintGreaterThanOrEqualToAnchor:other];
+    } else if ([sel isEqualToString:@"constraintGreaterThanOrEqualToAnchor:constant:"]) {
+      made = [anchor constraintGreaterThanOrEqualToAnchor:other constant:num(1)];
+    } else if ([sel isEqualToString:@"constraintLessThanOrEqualToAnchor:"]) {
+      made = [anchor constraintLessThanOrEqualToAnchor:other];
+    } else if ([sel isEqualToString:@"constraintLessThanOrEqualToAnchor:constant:"]) {
+      made = [anchor constraintLessThanOrEqualToAnchor:other constant:num(1)];
+    }
+    if (made != nil) return {(__bridge void*)made, "NSLayoutConstraint"};
+
+    if ([anchor isKindOfClass:NSLayoutDimension.class]) {
+      NSLayoutDimension* dim = (NSLayoutDimension*)anchor;
+      NSLayoutDimension* od = (NSLayoutDimension*)other;
+      if ([sel isEqualToString:@"constraintEqualToAnchor:multiplier:"]) {
+        made = [dim constraintEqualToAnchor:od multiplier:num(1)];
+      } else if ([sel isEqualToString:@"constraintEqualToAnchor:multiplier:constant:"]) {
+        made = [dim constraintEqualToAnchor:od multiplier:num(1) constant:num(2)];
+      } else if ([sel isEqualToString:@"constraintGreaterThanOrEqualToAnchor:multiplier:"]) {
+        made = [dim constraintGreaterThanOrEqualToAnchor:od multiplier:num(1)];
+      } else if ([sel isEqualToString:
+                          @"constraintGreaterThanOrEqualToAnchor:multiplier:constant:"]) {
+        made = [dim constraintGreaterThanOrEqualToAnchor:od
+                                              multiplier:num(1)
+                                                constant:num(2)];
+      } else if ([sel isEqualToString:@"constraintLessThanOrEqualToAnchor:multiplier:"]) {
+        made = [dim constraintLessThanOrEqualToAnchor:od multiplier:num(1)];
+      } else if ([sel isEqualToString:
+                          @"constraintLessThanOrEqualToAnchor:multiplier:constant:"]) {
+        made = [dim constraintLessThanOrEqualToAnchor:od
+                                           multiplier:num(1)
+                                             constant:num(2)];
+      }
+      if (made != nil) return {(__bridge void*)made, "NSLayoutConstraint"};
+    }
+
+    // 系统标准间距。两个锚点之间差多少由系统按上下文决定（8pt 起步，
+    // 但靠近屏幕边缘、不同控件之间都不一样）——这是 iOS 独有的能力，
+    // Web 里没有对应物，所以原样暴露。
+    if ([anchor isKindOfClass:NSLayoutXAxisAnchor.class]) {
+      NSLayoutXAxisAnchor* x = (NSLayoutXAxisAnchor*)anchor;
+      NSLayoutXAxisAnchor* ox = (NSLayoutXAxisAnchor*)other;
+      if ([sel isEqualToString:@"constraintEqualToSystemSpacingAfterAnchor:multiplier:"]) {
+        made = [x constraintEqualToSystemSpacingAfterAnchor:ox multiplier:num(1)];
+      } else if ([sel isEqualToString:
+                          @"constraintGreaterThanOrEqualToSystemSpacingAfterAnchor:"
+                          @"multiplier:"]) {
+        made = [x constraintGreaterThanOrEqualToSystemSpacingAfterAnchor:ox
+                                                              multiplier:num(1)];
+      } else if ([sel isEqualToString:
+                          @"constraintLessThanOrEqualToSystemSpacingAfterAnchor:"
+                          @"multiplier:"]) {
+        made = [x constraintLessThanOrEqualToSystemSpacingAfterAnchor:ox
+                                                           multiplier:num(1)];
+      } else if ([sel isEqualToString:@"anchorWithOffsetToAnchor:"]) {
+        return {(__bridge void*)[x anchorWithOffsetToAnchor:ox], "NSLayoutDimension"};
+      }
+    } else if ([anchor isKindOfClass:NSLayoutYAxisAnchor.class]) {
+      NSLayoutYAxisAnchor* y = (NSLayoutYAxisAnchor*)anchor;
+      NSLayoutYAxisAnchor* oy = (NSLayoutYAxisAnchor*)other;
+      if ([sel isEqualToString:@"constraintEqualToSystemSpacingBelowAnchor:multiplier:"]) {
+        made = [y constraintEqualToSystemSpacingBelowAnchor:oy multiplier:num(1)];
+      } else if ([sel isEqualToString:
+                          @"constraintGreaterThanOrEqualToSystemSpacingBelowAnchor:"
+                          @"multiplier:"]) {
+        made = [y constraintGreaterThanOrEqualToSystemSpacingBelowAnchor:oy
+                                                              multiplier:num(1)];
+      } else if ([sel isEqualToString:
+                          @"constraintLessThanOrEqualToSystemSpacingBelowAnchor:"
+                          @"multiplier:"]) {
+        made = [y constraintLessThanOrEqualToSystemSpacingBelowAnchor:oy
+                                                           multiplier:num(1)];
+      } else if ([sel isEqualToString:@"anchorWithOffsetToAnchor:"]) {
+        return {(__bridge void*)[y anchorWithOffsetToAnchor:oy], "NSLayoutDimension"};
+      }
+    }
+    if (made != nil) return {(__bridge void*)made, "NSLayoutConstraint"};
+  }
+
   // UIImage 不可变：这些方法都返回一张新图，不改原图。
   if ([object isKindOfClass:UIImage.class]) {
     UIImage* image = (UIImage*)object;
@@ -1145,6 +1582,32 @@ nacre::NativeObjectRef CallObjectMethod(id object, const std::string& name,
   return {};
 }
 
+// 返回原生对象数组的方法。目前只有排版调试那一个——UIKit 在我们这个
+// 环境里对约束冲突一声不吭（stdout / stderr / os_log 三路实测全空），
+// JS 开发者也没有 Xcode 控制台可看，这是唯一的自查手段。
+std::vector<nacre::NativeObjectRef> CallObjectArrayMethod(
+    id object, const std::string& name, const std::string& argsJSON,
+    const std::vector<void*>& argPtrs, std::string* error) {
+  std::vector<nacre::NativeObjectRef> refs;
+  NSString* sel = @(name.c_str());
+  id decoded = DecodeJSON(argsJSON);
+  NSArray* args = [decoded isKindOfClass:NSArray.class] ? decoded : @[];
+  if ([object isKindOfClass:UIView.class] &&
+      [sel isEqualToString:@"constraintsAffectingLayoutForAxis:"]) {
+    UILayoutConstraintAxis axis;
+    id given = args.count > 0 ? args[0] : nil;
+    if (!LayoutConstraintAxisFromName(given, &axis)) {
+      *error = EnumError(@"axis", given, NamesForLayoutConstraintAxis());
+      return refs;
+    }
+    for (NSLayoutConstraint* c in
+         [(UIView*)object constraintsAffectingLayoutForAxis:axis]) {
+      refs.push_back({(__bridge void*)c, "NSLayoutConstraint"});
+    }
+  }
+  return refs;
+}
+
 // JS 发起的构造。
 // ARC 会在本函数返回时释放局部变量，而调用方要到返回之后才 retain——
 // 中间这一瞬对象就没了。CFAutorelease 把它交给当前 run loop 轮次的
@@ -1164,6 +1627,8 @@ nacre::NativeObjectRef ConstructNative(const std::string& className,
     object = [[UILabel alloc] init];
   } else if (className == "UIImageView") {
     object = [[UIImageView alloc] init];
+  } else if (className == "UILayoutGuide") {
+    object = [[UILayoutGuide alloc] init];
   }
   if (object == nil) return {};
   return {(void*)CFAutorelease(CFBridgingRetain(object)), className};
@@ -1649,6 +2114,12 @@ nacre::NativeObjectRef CreateBlob(
     };
     host.read_object_array_property = [](void* ptr, const std::string& name) {
       return ReadNativeObjectArrayProperty((__bridge id)ptr, name);
+    };
+    host.call_object_array_method = [](void* ptr, const std::string& name,
+                                       const std::string& argsJSON,
+                                       const std::vector<void*>& argPtrs,
+                                       std::string* error) {
+      return CallObjectArrayMethod((__bridge id)ptr, name, argsJSON, argPtrs, error);
     };
     host.call_class_object_method = [](const std::string& className,
                                        const std::string& name,

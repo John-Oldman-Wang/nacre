@@ -352,7 +352,7 @@ Commit message 格式：
 | 2.5 | `UIView` 的几何、层级、外观 | 结构体、带参数的方法通道、对象数组 | 已在模拟器验证通过：JS 建子视图、设 frame 和颜色，屏幕上出现色块 |
 | 3a | 文字 | UILabel、UIFont、枚举、带参数的类方法 | 已在模拟器验证通过：JS 设字体、颜色、对齐和行数，文字上屏并正确截断；顺带补上 `UIWindow` 的四个 key/可见性事件 |
 | 3b | 图片 | UIImageView、UIImage、Blob 解码、后台解码 | 已在模拟器验证通过：bundle 图自动选 @3x、SF Symbol、九宫格、fetch 下来的网络图上屏 |
-| 3c | Auto Layout | NSLayoutConstraint、锚点、UILayoutGuide | 待讨论 |
+| 3c | Auto Layout | NSLayoutConstraint、锚点、UILayoutGuide | 已在模拟器验证通过：锚点建约束、批量激活、flex-1 式的抱紧优先级、UILayoutGuide、三个调试接口 |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | 4 | 按钮和点击事件 | Target-Action、JS 回调 | 待讨论 |
 | 5 | 页面跳转 | UINavigationController、继承 UIViewController | 待讨论 |
@@ -420,6 +420,22 @@ iOS 层是一张**写死的名字表**，不是用名字拼 selector 再 `perfor
 还抓出一条旧账：**不能用窗口通知来验证「定时器和原生事件同队列 FIFO」**。观察者是 `addObserverForName:object:queue:`（mainQueue）注册的，先排一次观察者块，块跑起来才 `postToJS` 排第二次；而 `setTimeout(fn, 0)` 只排一跳。两跳里第一跳什么时候入队由 UIKit 决定，**相对顺序不确定**——两种顺序都实测到过。原来 `timers.md` 里举的例子和 `main.js` 里的断言都把两跳当成了一跳，已改成只断言两边都到了。
 
 FIFO 那条本身没问题，由「同时到期按注册顺序」那条断言保证——那个队列是我们自己的。
+
+#### 第 3c 步新增的机制
+
+只加了**一条**通道，其余全是复用：
+
+| 通道 | 用途 |
+| --- | --- |
+| `call_object_array_method` | 方法返回原生对象数组。此前只有「属性是对象数组」（`subviews`），没有「方法返回对象数组」。`constraintsAffectingLayoutForAxis:` 要它 |
+
+`NSLayoutConstraint.activateConstraints([...])` **没有**开新通道：约束按「每个参数一个对象」摊在 `argPtrs` 里传，原生侧把整个 `argPtrs` 收成数组。现成的类方法通道够用，不必为「数组参数」再发明一种编码。
+
+三条值得记住的事实：
+
+1. **`UILabel` 和普通 `UIView` 的抱紧 / 抗压缩默认值一样**，都是 250 / 750（横纵都是）。「标签抱得更紧」是以讹传讹——差别在固有尺寸：`UILabel` 有，普通 `UIView` 是 `(-1, -1)`，没有东西可抱。
+2. **没有公共祖先时激活约束，原生抛 `NSGenericException`**。不接住整个 App 就没了，而这是 JS 写错了，所以桥上 `@try/@catch` 转成 `TypeError`。这是**少数几处接 `NSException` 的地方**，判据是「不接的代价是崩溃，而错误来自调用方」。跨轴连接（`NSInvalidArgumentException`）则是在桥上**先查类型**，不等它抛。
+3. **优先级是第一个「写接受两种形态、读只有一种」的属性**。`UILayoutPriority` 是 `float`，具名值只有七个，749 合法但没名字——读出来硬编成字符串只能编一个。这和「枚举一律用字符串」不矛盾：那条管的是取值有限的枚举。
 
 #### 所有权镜像：JS 侧有自己的引用图
 

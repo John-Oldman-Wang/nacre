@@ -1084,6 +1084,191 @@ application.addEventListener('sceneconnect', (e) => {
   }
   summarizeWhenReady(50);
 
+  // ===== Auto Layout =====
+  console.log('--- Auto Layout ---');
+  {
+    const root = vc.view;
+    const guide = root.safeAreaLayoutGuide;
+
+    const card = new UIView();
+    card.translatesAutoresizingMaskIntoConstraints = false;
+    card.backgroundColor = UIColor.secondarySystemBackgroundColor;
+    root.addSubview(card);
+
+    const left = new UIView();
+    const middle = new UIView();
+    const right = new UIView();
+    const colors = [UIColor.systemRedColor, UIColor.systemOrangeColor,
+                    UIColor.systemBlueColor];
+    [left, middle, right].forEach((v, i) => {
+      v.translatesAutoresizingMaskIntoConstraints = false;
+      v.backgroundColor = colors[i];
+      card.addSubview(v);
+    });
+
+    const cardHeight = card.heightAnchor.constraintEqualToConstant(60);
+    const batch = [
+      card.leadingAnchor.constraintEqualToAnchor(guide.leadingAnchor, { constant: 16 }),
+      card.trailingAnchor.constraintEqualToAnchor(guide.trailingAnchor, { constant: -16 }),
+      card.bottomAnchor.constraintEqualToAnchor(guide.bottomAnchor, { constant: -24 }),
+      cardHeight,
+      left.leadingAnchor.constraintEqualToAnchor(card.leadingAnchor, { constant: 8 }),
+      left.widthAnchor.constraintEqualToConstant(60),
+      middle.leadingAnchor.constraintEqualToAnchor(left.trailingAnchor, { constant: 8 }),
+      right.leadingAnchor.constraintEqualToAnchor(middle.trailingAnchor, { constant: 8 }),
+      right.trailingAnchor.constraintEqualToAnchor(card.trailingAnchor, { constant: -8 }),
+      right.widthAnchor.constraintEqualToConstant(60),
+    ];
+    for (const v of [left, middle, right]) {
+      batch.push(v.topAnchor.constraintEqualToAnchor(card.topAnchor, { constant: 8 }));
+      batch.push(v.bottomAnchor.constraintEqualToAnchor(card.bottomAnchor, { constant: -8 }));
+    }
+    NSLayoutConstraint.activateConstraints(batch);
+    root.layoutIfNeeded();
+
+    const safeWidth = guide.layoutFrame.width;
+    assert('card 宽 = 安全区宽 - 32', card.frame.width, safeWidth - 32);
+    assert('card 高 = 常数约束', card.frame.height, 60);
+    assert('左块固定宽', left.frame.width, 60);
+    assert('右块固定宽', right.frame.width, 60);
+    // 中间那块没给宽度，被左右和间距挤出来——这就是 flex-1 的做法
+    assert('中间自动占满剩下的', middle.frame.width, card.frame.width - 152);
+    assert('三块等高（上下各留 8）', left.frame.height, 44);
+
+    // constant 是建好之后唯一能改的数值，改完重新布局就生效
+    cardHeight.constant = 84;
+    root.layoutIfNeeded();
+    assert('改 constant 后重新布局', card.frame.height, 84);
+    cardHeight.constant = 60;
+    root.layoutIfNeeded();
+
+    // 约束装在两端的最近公共祖先上：card 的位置约束在 root 上，
+    // 子块之间的约束在 card 上
+    assert('card 自己身上有约束', card.constraints.length > 0, true);
+    assert('约束对象能从 view 读回来', card.constraints.includes(cardHeight), true);
+
+    console.log('  --- 约束对象本身 ---');
+    assert('relation 是字符串', cardHeight.relation, 'equal');
+    assert('firstAttribute', cardHeight.firstAttribute, 'height');
+    assert('没有第二端时 secondAttribute', cardHeight.secondAttribute, 'notAnAttribute');
+    assert('multiplier 默认 1', cardHeight.multiplier, 1);
+    assert('isActive', cardHeight.isActive, true);
+    assert('firstAnchor 就是建它的那个锚点',
+           cardHeight.firstAnchor === card.heightAnchor, true);
+    assert('常数约束没有第二个锚点', cardHeight.secondAnchor, null);
+    cardHeight.identifier = 'card-height';
+    assert('identifier 能写能读', cardHeight.identifier, 'card-height');
+
+    // 优先级：写接受名字或数字，读永远是数字
+    cardHeight.priority = 'defaultHigh';
+    assert('写名字读数字', cardHeight.priority, 750);
+    cardHeight.priority = 749;
+    assert('没有名字的值只能用数字', cardHeight.priority, 749);
+    cardHeight.priority = 'required';
+    try {
+      // @ts-expect-error 不是具名优先级，类型这一层就该挡住
+      cardHeight.priority = 'veryImportant';
+      console.log('  ✗ 不认识的优先级名字居然通过了');
+    } catch (err) {
+      console.log('  ✓ 不认识的优先级名字被拒:', err.message.slice(0, 40) + '…');
+    }
+
+    console.log('  --- 锚点的类型安全 ---');
+    assert('同一个锚点取两次是同一个对象', card.topAnchor === card.topAnchor, true);
+    assert('不同锚点不是同一个', card.topAnchor === card.bottomAnchor, false);
+    try {
+      // @ts-expect-error 纵向锚点连横向锚点，类型就该挡住
+      card.topAnchor.constraintEqualToAnchor(card.leadingAnchor);
+      console.log('  ✗ 跨轴连接居然通过了');
+    } catch (err) {
+      console.log('  ✓ 跨轴连接被拒:', err.message);
+    }
+
+    console.log('  --- 没有公共祖先 ---');
+    {
+      const a = new UIView();
+      const b = new UIView();
+      a.translatesAutoresizingMaskIntoConstraints = false;
+      try {
+        a.leadingAnchor.constraintEqualToAnchor(b.leadingAnchor).isActive = true;
+        console.log('  ✗ 两个孤立 view 之间的约束居然激活了');
+      } catch (err) {
+        // 关键在于这里是 TypeError 不是进程崩溃
+        console.log('  ✓ 激活被拒:', err.message.slice(0, 48) + '…');
+      }
+    }
+
+    console.log('  --- 内容抱紧和抗压缩 ---');
+    const probeLabel = new UILabel();
+    probeLabel.text = '抱紧';
+    probeLabel.translatesAutoresizingMaskIntoConstraints = false;
+    card.addSubview(probeLabel);
+    // 实测四个默认值。UILabel 和普通 UIView 的抱紧都是 250，**没有差别**
+    // ——「标签抱得更紧」是以讹传讹
+    console.log('  UILabel   抱紧 横/纵 =',
+                probeLabel.contentHuggingPriorityForAxis('horizontal'),
+                probeLabel.contentHuggingPriorityForAxis('vertical'),
+                '| 抗压缩 横/纵 =',
+                probeLabel.contentCompressionResistancePriorityForAxis('horizontal'),
+                probeLabel.contentCompressionResistancePriorityForAxis('vertical'));
+    console.log('  普通 UIView 抱紧 横/纵 =',
+                left.contentHuggingPriorityForAxis('horizontal'),
+                left.contentHuggingPriorityForAxis('vertical'),
+                '| 抗压缩 横/纵 =',
+                left.contentCompressionResistancePriorityForAxis('horizontal'),
+                left.contentCompressionResistancePriorityForAxis('vertical'));
+    assert('标签默认水平抱紧', probeLabel.contentHuggingPriorityForAxis('horizontal'), 250);
+    assert('标签默认水平抗压缩',
+           probeLabel.contentCompressionResistancePriorityForAxis('horizontal'), 750);
+    probeLabel.setContentHuggingPriority('defaultLow', { forAxis: 'horizontal' });
+    assert('调低抱紧后读回', probeLabel.contentHuggingPriorityForAxis('horizontal'), 250);
+    probeLabel.setContentCompressionResistancePriority(999, { forAxis: 'vertical' });
+    assert('抗压缩也接受数字',
+           probeLabel.contentCompressionResistancePriorityForAxis('vertical'), 999);
+    try {
+      // @ts-expect-error 轴只有 horizontal / vertical
+      probeLabel.setContentHuggingPriority('defaultLow', { forAxis: '斜着' });
+      console.log('  ✗ 不认识的轴居然通过了');
+    } catch (err) {
+      console.log('  ✓ 不认识的轴被拒:', err.message.slice(0, 36) + '…');
+    }
+    probeLabel.removeFromSuperview();
+
+    console.log('  --- UILayoutGuide ---');
+    const spacer = new UILayoutGuide();
+    spacer.identifier = 'spacer';
+    card.addLayoutGuide(spacer);
+    assert('owningView 是加它的那个 view', spacer.owningView === card, true);
+    assert('identifier', spacer.identifier, 'spacer');
+    assert('layoutGuides 里有它', card.layoutGuides.includes(spacer), true);
+    NSLayoutConstraint.activateConstraints([
+      spacer.leadingAnchor.constraintEqualToAnchor(left.trailingAnchor),
+      spacer.trailingAnchor.constraintEqualToAnchor(middle.leadingAnchor),
+      spacer.topAnchor.constraintEqualToAnchor(card.topAnchor),
+      spacer.heightAnchor.constraintEqualToConstant(4),
+    ]);
+    root.layoutIfNeeded();
+    assert('guide 占的就是那 8pt 间距', spacer.layoutFrame.width, 8);
+    assert('guide 不画东西但有尺寸', spacer.layoutFrame.height, 4);
+
+    console.log('  --- 调试接口 ---');
+    assert('约束齐了就不含糊', card.hasAmbiguousLayout, false);
+    assert('影响横向布局的约束不止一条',
+           left.constraintsAffectingLayoutForAxis('horizontal').length > 1, true);
+    const fitted = card.systemLayoutSizeFittingSize(new CGSize(0, 0));
+    assert('systemLayoutSizeFittingSize 解出高度', fitted.height, 60);
+
+    // 批量停用：card 的高度约束一撤，高度就由子块撑起来（8 + 44 + 8）
+    NSLayoutConstraint.deactivateConstraints([cardHeight]);
+    assert('停用后 isActive 变 false', cardHeight.isActive, false);
+    root.layoutIfNeeded();
+    // 高度塌成上下两个 8pt——子块的高度本来就是跟着 card 走的（没有固有高度），
+    // 撤掉 card 的高度之后这一维谁都没定，求解器取了最小解
+    assert('撤掉高度约束后塌成上下两个间距', card.frame.height, 16);
+    cardHeight.isActive = true;
+    root.layoutIfNeeded();
+  }
+
   // ===== 所有权镜像 =====
   //
   // 原生对象的 JS 包装是弱的，所以要验的是「GC 之后包装的身份还在不在」。
@@ -1092,6 +1277,9 @@ application.addEventListener('sceneconnect', (e) => {
   // 这一轮的结论才算数。对照组没丢就报「未验证」，不假装通过。
   console.log('--- 所有权镜像（GC 之后身份是否保持）---');
   const probeHost = new UIView();
+  // 第 3c 步那个洞的回归：原生侧锚点对 view 是 weak，JS 只留锚点、view 的
+  // 包装被 GC 之后拿它建约束再激活——补所有权镜像之前实测是 SIGSEGV。
+  const orphanAnchor = (() => new UIView().widthAnchor)();
   {
     const probeBox = new UIView();
     /** @type {any} */ (probeBox).probe = '挂在包装上的 JS 状态';
@@ -1129,6 +1317,11 @@ application.addEventListener('sceneconnect', (e) => {
            /** @type {any} */ (kids[0]).probe, '挂在包装上的 JS 状态');
     assert('属性边：GC 后读回的 UIColor 还是同一个包装',
            /** @type {any} */ (probeHost.backgroundColor).probe, '挂在颜色包装上');
+    // 这一条在补镜像之前是段错误，不是断言失败
+    const late = orphanAnchor.constraintEqualToConstant(50);
+    late.isActive = true;
+    assert('GC 之后用孤儿锚点建约束并激活', late.constant, 50);
+    assert('它的 view 还活着', late.isActive, true);
   }
   waitForRealGC(80);
 

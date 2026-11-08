@@ -55,7 +55,10 @@ def js_classes():
 def dts_classes():
     """d.ts 里每个 declare class 的成员。"""
     out = {}
-    for m in re.finditer(r'declare class (\w+)(?:\s+extends\s+(\w+))?\s*\{', dts):
+    # 类名后面可能跟泛型参数（NSLayoutAnchor<T>），基类也可能带实参
+    for m in re.finditer(
+            r'declare class (\w+)(?:<[^{]*?>)?(?:\s+extends\s+(\w+)(?:<[^{]*?>)?)?\s*\{',
+            dts):
         name, base = m.group(1), m.group(2)
         b = braced_body(dts, m.end())
         # 去掉注释，免得注释里的词被当成成员
@@ -183,8 +186,14 @@ pairs = [
      set(re.findall(r'isEqualToString:@"(\w+)"', mm_block('std::string ReadNativeProperty')))),
     ('标量写', js_calls('nativeSet'),
      set(re.findall(r'isEqualToString:@"(\w+)"', mm_block('void WriteNativeProperty')))),
-    ('对象读', js_calls('nativeGetObject') | js_calls('nativeGetOwned'),
-     set(re.findall(r'name == "(\w+)"', mm_block('nacre::NativeObjectRef ReadNativeObjectProperty')))),
+    # 锚点在 mm 里单独一个函数（UIView 12 个、UILayoutGuide 10 个，名字重叠），
+    # JS 侧走 anchorOf。两边都并进来，否则这 12 个名字谁都盯不到。
+    ('对象读',
+     js_calls('nativeGetObject') | js_calls('nativeGetOwned') | js_calls('anchorOf'),
+     set(re.findall(r'name == "(\w+)"',
+                    mm_block('nacre::NativeObjectRef ReadNativeObjectProperty'))) |
+     set(re.findall(r'name == "(\w+)"',
+                    mm_block('nacre::NativeObjectRef AnchorNamed')))),
     ('对象写', js_calls('nativeSetObject') | js_calls('nativeSetOwned'),
      set(re.findall(r'name == "(\w+)"', mm_block('void WriteNativeObjectProperty')))),
 ]

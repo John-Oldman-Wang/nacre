@@ -90,9 +90,12 @@ ObjC 里 `view.frame.x = 10` 是编译错误（改的是一个临时副本）。
 
 > **`alpha` 读回来会有浮点误差**：写 `0.6`，读回 `0.6000000238418579`。这是 UIKit 自己的行为——`alpha` 背后是 `CALayer.opacity`，那是个 32 位 float。不是我们这一层的编码问题。
 
+## Auto Layout
+
+12 个锚点、`constraints`、内容抱紧和抗压缩、`translatesAutoresizingMaskIntoConstraints`、`systemLayoutSizeFittingSize`、排版调试三件套，全在 [Auto Layout 文档](auto-layout.md)。
+
 ## 还没做
 
-- **Auto Layout**：`leadingAnchor` 等 12 个锚点、`NSLayoutConstraint`、内容抱紧和抗压缩优先级、`translatesAutoresizingMaskIntoConstraints`。这是一整个子系统，要先有 `NSLayoutConstraint`、三种 anchor 类和 `UILayoutGuide`
 - **`transform` / `transform3D`**：要 `CGAffineTransform` / `CATransform3D` 结构体
 - **`layer`**：每个 `UIView` 背后都有一个 `CALayer`，真正画东西的是它。要先有 `CALayer` 类
 - **`maskView`、`tintColor`、`drawRect:`**

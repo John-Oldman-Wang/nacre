@@ -243,6 +243,24 @@
     nativeSetObject(obj, name, value);
     own(obj, name, value);
   }
+  // 锚点。原生侧 NSLayoutAnchor 对它的 item 是 **weak**，而且 iOS 上根本读不
+  // 回来（NSLayoutAnchor.item 标着 API_UNAVAILABLE(ios)）。所以这条回边只能
+  // 在给出锚点的那一刻记下来——实测不补的后果不是数据过期，是 **SIGSEGV**：
+  // JS 只留锚点、view 的包装被 GC 之后，拿这个锚点建约束再激活，进程直接段错误。
+  function anchorOf(owner, name) {
+    requireNative(owner, name);
+    const anchor = nativeGetObject(owner, name);
+    own(anchor, 'item', owner);
+    return anchor;
+  }
+  // 约束强持有两端的锚点（原生是 copy，实测对不可变的锚点返回自己），
+  // 锚点又持有各自的 view，所以一条约束能把两个 view 都兜住。
+  function constraintOf(result, first, second) {
+    own(result, 'firstAnchor', first);
+    own(result, 'secondAnchor', second);
+    return result;
+  }
+
   // 换父节点时原生会自动从旧父节点摘掉，镜像要跟上。没有原生对象时返回
   // null——那种 view 还没进任何树。
   function superviewOf(view) {
@@ -279,6 +297,12 @@
   function nativeGetObjectArray(obj, name) {
     requireNative(obj, name);
     return native.getObjArray(obj[kHandle], name);
+  }
+  // 返回原生对象数组的方法。参数规则和 nativeCall 一样
+  function nativeCallObjectArray(obj, selector, args) {
+    requireNative(obj, selector);
+    const { values, handles } = splitArgs(args);
+    return native.callObjArray(obj[kHandle], selector, JSON.stringify(values), handles);
   }
   // 带参数的类方法，比如 UIFont.systemFontOfSize(17)
   function nativeClassCall(className, selector, args) {
@@ -427,6 +451,199 @@
   const UIScene = defineNativeClass('UIScene', class UIScene extends UIResponder {
     constructor() { shellOnly(new.target, UIScene); super(); }
   });
+  // ---------- Auto Layout ----------
+  //
+  // 一条约束就是一句等式：
+  //
+  //     item1.attr1  <关系>  multiplier × item2.attr2 + constant
+  //
+  // 求解器拿所有约束算出每个 view 的 frame。所以用了约束就**别再写 frame**
+  // ——两边在写同一个值，谁最后写谁赢，而且下次布局还会被覆盖。
+  //
+  // 锚点是「某个 view 的某条边」的对象化。比 7 参的 constraintWithItem:…
+  // 好在两点：短，而且**类型安全**——横向锚点连不上纵向锚点。原生那边是
+  // 抛 NSInvalidArgumentException，我们在桥上先查、变成 TypeError。
+  //
+  // 锚点不能构造，只能从 view 或 UILayoutGuide 上取。
+
+  // 「第一段 + options」还原成完整 selector。顺序显式写死，不遍历 options
+  // ——键序靠不住，而 multiplier 和 constant 的先后决定了参数下标。
+  function anchorConstraint(anchor, first, other, options) {
+    const o = options || {};
+    let selector = first + ':';
+    const args = [other];
+    if ('multiplier' in o) { selector += 'multiplier:'; args.push(o.multiplier); }
+    if ('constant' in o) { selector += 'constant:'; args.push(o.constant); }
+    return constraintOf(nativeCallObject(anchor, selector, args), anchor, other);
+  }
+  // 系统标准间距。差多少由系统按上下文定（8pt 起步，但靠近屏幕边缘、不同
+  // 控件之间都不一样），这是 iOS 独有的能力，Web 里没有对应物。
+  // multiplier 省略时按 1 ——它是乘法的单位元，省略的含义没有歧义。
+  function systemSpacingConstraint(anchor, first, other, options) {
+    const o = options || {};
+    const multiplier = 'multiplier' in o ? o.multiplier : 1;
+    return constraintOf(
+      nativeCallObject(anchor, first + ':multiplier:', [other, multiplier]),
+      anchor, other);
+  }
+
+  const NSLayoutAnchor = defineNativeClass('NSLayoutAnchor',
+      class NSLayoutAnchor extends NSObject {
+    constructor() { nativeOnly(); super(); }
+
+    constraintEqualToAnchor(other, options) {
+      return anchorConstraint(this, 'constraintEqualToAnchor', other, options);
+    }
+    constraintGreaterThanOrEqualToAnchor(other, options) {
+      return anchorConstraint(this, 'constraintGreaterThanOrEqualToAnchor', other, options);
+    }
+    constraintLessThanOrEqualToAnchor(other, options) {
+      return anchorConstraint(this, 'constraintLessThanOrEqualToAnchor', other, options);
+    }
+  });
+
+  // 横向：leading / trailing / left / right / centerX
+  defineNativeClass('NSLayoutXAxisAnchor', class NSLayoutXAxisAnchor extends NSLayoutAnchor {
+    constructor() { nativeOnly(); super(); }
+
+    constraintEqualToSystemSpacingAfterAnchor(other, options) {
+      return systemSpacingConstraint(
+        this, 'constraintEqualToSystemSpacingAfterAnchor', other, options);
+    }
+    constraintGreaterThanOrEqualToSystemSpacingAfterAnchor(other, options) {
+      return systemSpacingConstraint(
+        this, 'constraintGreaterThanOrEqualToSystemSpacingAfterAnchor', other, options);
+    }
+    constraintLessThanOrEqualToSystemSpacingAfterAnchor(other, options) {
+      return systemSpacingConstraint(
+        this, 'constraintLessThanOrEqualToSystemSpacingAfterAnchor', other, options);
+    }
+    // 两个锚点之间的距离，本身又是一个可约束的量
+    anchorWithOffsetToAnchor(other) {
+      const dimension = nativeCallObject(this, 'anchorWithOffsetToAnchor:', [other]);
+      own(dimension, 'from', this);
+      own(dimension, 'to', other);
+      return dimension;
+    }
+  });
+
+  // 纵向：top / bottom / centerY / firstBaseline / lastBaseline
+  defineNativeClass('NSLayoutYAxisAnchor', class NSLayoutYAxisAnchor extends NSLayoutAnchor {
+    constructor() { nativeOnly(); super(); }
+
+    constraintEqualToSystemSpacingBelowAnchor(other, options) {
+      return systemSpacingConstraint(
+        this, 'constraintEqualToSystemSpacingBelowAnchor', other, options);
+    }
+    constraintGreaterThanOrEqualToSystemSpacingBelowAnchor(other, options) {
+      return systemSpacingConstraint(
+        this, 'constraintGreaterThanOrEqualToSystemSpacingBelowAnchor', other, options);
+    }
+    constraintLessThanOrEqualToSystemSpacingBelowAnchor(other, options) {
+      return systemSpacingConstraint(
+        this, 'constraintLessThanOrEqualToSystemSpacingBelowAnchor', other, options);
+    }
+    anchorWithOffsetToAnchor(other) {
+      const dimension = nativeCallObject(this, 'anchorWithOffsetToAnchor:', [other]);
+      own(dimension, 'from', this);
+      own(dimension, 'to', other);
+      return dimension;
+    }
+  });
+
+  // 尺寸：width / height。只有它能和常数比，也只有它能带 multiplier
+  defineNativeClass('NSLayoutDimension', class NSLayoutDimension extends NSLayoutAnchor {
+    constructor() { nativeOnly(); super(); }
+
+    constraintEqualToConstant(value) {
+      return nativeCallObject(this, 'constraintEqualToConstant:', [value]);
+    }
+    constraintGreaterThanOrEqualToConstant(value) {
+      return nativeCallObject(this, 'constraintGreaterThanOrEqualToConstant:', [value]);
+    }
+    constraintLessThanOrEqualToConstant(value) {
+      return nativeCallObject(this, 'constraintLessThanOrEqualToConstant:', [value]);
+    }
+  });
+
+  defineNativeClass('NSLayoutConstraint', class NSLayoutConstraint extends NSObject {
+    constructor() { nativeOnly(); super(); }
+
+    // 唯一的开关。激活时约束被装到两端的最近公共祖先上——所以**没有公共
+    // 祖先就激活不了**，原生那边是抛异常，这里转成 TypeError。
+    get isActive() { requireNative(this, 'isActive'); return nativeGet(this, 'isActive'); }
+    set isActive(value) { requireNative(this, 'isActive'); nativeSet(this, 'isActive', value); }
+
+    // 约束里唯一可写的数值，做动画改的就是它
+    get constant() { requireNative(this, 'constant'); return nativeGet(this, 'constant'); }
+    set constant(value) { requireNative(this, 'constant'); nativeSet(this, 'constant', value); }
+
+    // **写接受字符串或数字，读永远返回数字。** UILayoutPriority 是 float，
+    // 具名值只有七个，749 这种值没有名字——读出来硬编成字符串只能编一个。
+    get priority() { requireNative(this, 'priority'); return nativeGet(this, 'priority'); }
+    set priority(value) { requireNative(this, 'priority'); nativeSet(this, 'priority', value); }
+
+    // 调试用。UIKit 报约束冲突时会把它打出来
+    get identifier() { requireNative(this, 'identifier'); return nativeGet(this, 'identifier'); }
+    set identifier(value) { requireNative(this, 'identifier'); nativeSet(this, 'identifier', value); }
+
+    // 建好就定死的部分
+    get multiplier() { requireNative(this, 'multiplier'); return nativeGet(this, 'multiplier'); }
+    get relation() { requireNative(this, 'relation'); return nativeGet(this, 'relation'); }
+    get firstAttribute() {
+      requireNative(this, 'firstAttribute');
+      return nativeGet(this, 'firstAttribute');
+    }
+    get secondAttribute() {
+      requireNative(this, 'secondAttribute');
+      return nativeGet(this, 'secondAttribute');
+    }
+    // firstItem / secondItem 不暴露：原生是 assign，view 一死就是野指针，
+    // 头文件自己写着「Access to these properties is not recommended」。
+    // 要两端的 view，从锚点走。
+    get firstAnchor() { return nativeGetOwned(this, 'firstAnchor'); }
+    get secondAnchor() { return nativeGetOwned(this, 'secondAnchor'); }
+
+    // 批量比逐个 isActive = true 好：中间态不会短暂地不可满足
+    static activateConstraints(constraints) {
+      nativeClassCall('NSLayoutConstraint', 'activateConstraints:',
+                      Array.from(constraints));
+    }
+    static deactivateConstraints(constraints) {
+      nativeClassCall('NSLayoutConstraint', 'deactivateConstraints:',
+                      Array.from(constraints));
+    }
+  });
+
+  // 不画东西的矩形。用来占位、分组、做间距，比塞一个透明 UIView 省一个图层。
+  // 比 UIView 少两个锚点：没有基线，因为它没有文字。
+  defineNativeClass('UILayoutGuide', class UILayoutGuide extends NSObject {
+    constructor() {
+      super();
+      if (allowNativeConstruct) return;
+      constructNative(this, 'UILayoutGuide', []);
+    }
+    get owningView() { return nativeGetOwned(this, 'owningView'); }
+    // 求解之后这个 guide 占的位置，在 owningView 的坐标系里
+    get layoutFrame() {
+      requireNative(this, 'layoutFrame');
+      return toRect(nativeGet(this, 'layoutFrame'));
+    }
+    get identifier() { requireNative(this, 'identifier'); return nativeGet(this, 'identifier'); }
+    set identifier(value) { requireNative(this, 'identifier'); nativeSet(this, 'identifier', value); }
+
+    get leadingAnchor() { return anchorOf(this, 'leadingAnchor'); }
+    get trailingAnchor() { return anchorOf(this, 'trailingAnchor'); }
+    get leftAnchor() { return anchorOf(this, 'leftAnchor'); }
+    get rightAnchor() { return anchorOf(this, 'rightAnchor'); }
+    get topAnchor() { return anchorOf(this, 'topAnchor'); }
+    get bottomAnchor() { return anchorOf(this, 'bottomAnchor'); }
+    get widthAnchor() { return anchorOf(this, 'widthAnchor'); }
+    get heightAnchor() { return anchorOf(this, 'heightAnchor'); }
+    get centerXAnchor() { return anchorOf(this, 'centerXAnchor'); }
+    get centerYAnchor() { return anchorOf(this, 'centerYAnchor'); }
+  });
+
   const UIView = defineNativeClass('UIView', class UIView extends UIResponder {
     // 子类的 super() 不能在这里建出一个 UIView 来，所以只在
     // new.target 正是 UIView 时才创建原生对象。
@@ -538,6 +755,120 @@
     setNeedsLayout() { nativeCall(this, 'setNeedsLayout', []); }
     layoutIfNeeded() { nativeCall(this, 'layoutIfNeeded', []); }
     setNeedsDisplay() { nativeCall(this, 'setNeedsDisplay', []); }
+
+    // ---- Auto Layout ----
+    //
+    // **用约束之前先把这个关掉**，否则系统会把 frame 翻译成一组
+    // required 优先级的约束，和你写的那些直接打架。默认是 true，
+    // 因为老代码全靠 frame。
+    get translatesAutoresizingMaskIntoConstraints() {
+      requireNative(this, 'translatesAutoresizingMaskIntoConstraints');
+      return nativeGet(this, 'translatesAutoresizingMaskIntoConstraints');
+    }
+    set translatesAutoresizingMaskIntoConstraints(value) {
+      requireNative(this, 'translatesAutoresizingMaskIntoConstraints');
+      nativeSet(this, 'translatesAutoresizingMaskIntoConstraints', value);
+    }
+
+    get leadingAnchor() { return anchorOf(this, 'leadingAnchor'); }
+    get trailingAnchor() { return anchorOf(this, 'trailingAnchor'); }
+    // left / right 是物理左右，leading / trailing 跟书写方向走。
+    // 除非真的是「屏幕左边」，否则用 leading / trailing
+    get leftAnchor() { return anchorOf(this, 'leftAnchor'); }
+    get rightAnchor() { return anchorOf(this, 'rightAnchor'); }
+    get topAnchor() { return anchorOf(this, 'topAnchor'); }
+    get bottomAnchor() { return anchorOf(this, 'bottomAnchor'); }
+    get widthAnchor() { return anchorOf(this, 'widthAnchor'); }
+    get heightAnchor() { return anchorOf(this, 'heightAnchor'); }
+    get centerXAnchor() { return anchorOf(this, 'centerXAnchor'); }
+    get centerYAnchor() { return anchorOf(this, 'centerYAnchor'); }
+    // 按文字基线对齐，不是按边框。两行字号不同的文字并排时差别很明显
+    get firstBaselineAnchor() { return anchorOf(this, 'firstBaselineAnchor'); }
+    get lastBaselineAnchor() { return anchorOf(this, 'lastBaselineAnchor'); }
+
+    // 刘海、Home 指示条、状态栏让出来的那块
+    get safeAreaLayoutGuide() { return nativeGetOwned(this, 'safeAreaLayoutGuide'); }
+    get layoutMarginsGuide() { return nativeGetOwned(this, 'layoutMarginsGuide'); }
+    // 一行字的舒适宽度，长文本用它比用 safeArea 好读
+    get readableContentGuide() { return nativeGetOwned(this, 'readableContentGuide'); }
+
+    // 装在这个 view 上的约束。注意**不是**「影响这个 view 的约束」——
+    // 约束装在两端的最近公共祖先上，所以约束子视图的那些在父视图这里
+    get constraints() {
+      return ownAll(this, 'constraints', nativeGetObjectArray(this, 'constraints'));
+    }
+    get layoutGuides() {
+      return ownAll(this, 'layoutGuides', nativeGetObjectArray(this, 'layoutGuides'));
+    }
+    addLayoutGuide(guide) {
+      nativeCall(this, 'addLayoutGuide:', [guide]);
+      ownOne(this, 'layoutGuides', guide);
+    }
+    removeLayoutGuide(guide) {
+      nativeCall(this, 'removeLayoutGuide:', [guide]);
+      disown(this, 'layoutGuides', guide);
+    }
+
+    // 固有尺寸变了要主动说一声，否则求解器还用着上一次的值
+    invalidateIntrinsicContentSize() {
+      nativeCall(this, 'invalidateIntrinsicContentSize', []);
+    }
+
+    // 内容抱紧 / 抗压缩。同一条约束的两个方向：
+    //   抱紧  = 「别把我拉得比固有尺寸大」的坚持程度
+    //   抗压缩 = 「别把我压得比固有尺寸小」的坚持程度
+    // 想要 flex-1 的效果，就把那一个的抱紧优先级调低，它会去吃掉剩余空间
+    contentHuggingPriorityForAxis(axis) {
+      return nativeCall(this, 'contentHuggingPriorityForAxis:', [axis]);
+    }
+    setContentHuggingPriority(priority, options) {
+      const o = options || {};
+      if (!('forAxis' in o)) {
+        throw new TypeError('setContentHuggingPriority 需要 { forAxis }');
+      }
+      nativeCall(this, 'setContentHuggingPriority:forAxis:', [priority, o.forAxis]);
+    }
+    contentCompressionResistancePriorityForAxis(axis) {
+      return nativeCall(this, 'contentCompressionResistancePriorityForAxis:', [axis]);
+    }
+    setContentCompressionResistancePriority(priority, options) {
+      const o = options || {};
+      if (!('forAxis' in o)) {
+        throw new TypeError('setContentCompressionResistancePriority 需要 { forAxis }');
+      }
+      nativeCall(this, 'setContentCompressionResistancePriority:forAxis:',
+                 [priority, o.forAxis]);
+    }
+
+    // 按约束算出来该多大。sizeThatFits 问的是 view 自己的意见，
+    // 这个问的是**整棵子树的约束**解出来多大
+    systemLayoutSizeFittingSize(size, options) {
+      const target = structArg(size, SIZE_FIELDS, 'systemLayoutSizeFittingSize');
+      const o = options || {};
+      if ('withHorizontalFittingPriority' in o || 'verticalFittingPriority' in o) {
+        return toSize(nativeCall(
+          this,
+          'systemLayoutSizeFittingSize:withHorizontalFittingPriority:verticalFittingPriority:',
+          [target, o.withHorizontalFittingPriority, o.verticalFittingPriority]));
+      }
+      return toSize(nativeCall(this, 'systemLayoutSizeFittingSize:', [target]));
+    }
+
+    // ---- 排版调试 ----
+    // UIKit 在我们这个环境里对约束冲突**一声不吭**（stdout / stderr / os_log
+    // 三路实测全空），JS 开发者也没有 Xcode 控制台可看，所以这三个是唯一的
+    // 自查手段。
+    get hasAmbiguousLayout() {
+      requireNative(this, 'hasAmbiguousLayout');
+      return nativeGet(this, 'hasAmbiguousLayout');
+    }
+    // 在几个同样合法的解之间跳一下，肉眼就能看出哪里没约束够
+    exerciseAmbiguityInLayout() {
+      nativeCall(this, 'exerciseAmbiguityInLayout', []);
+    }
+    constraintsAffectingLayoutForAxis(axis) {
+      return nativeCallObjectArray(this, 'constraintsAffectingLayoutForAxis:', [axis]);
+    }
 
     // ---- 外观 ----
     // 背景色。nil 表示透明，JS 侧用 null 表示。
