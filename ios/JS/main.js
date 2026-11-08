@@ -276,8 +276,12 @@ application.addEventListener('sceneconnect', (e) => {
 });
 
 // ===== 由 JS 创建窗口和根页面 =====
-// 必须保持引用：包装对象被 GC 后运行时会 release，原生 window 可能被释放
-let mainWindow = null;
+// 这里原来有一个 `let mainWindow`，注释写着「必须保持引用：包装被 GC 后
+// 运行时会 release，原生 window 可能被释放」。所有权镜像做好之后这条仪式
+// 没有了——场景的包装持有窗口的包装（UIWindowScene.windows 就是原生侧的
+// 所有权），而场景由 application 持有。
+//
+// 故意不再留这个变量：屏幕上还有东西，就说明这条链真的接上了。
 
 application.addEventListener('sceneconnect', (e) => {
   console.log('--- JS 创建窗口 ---');
@@ -1080,7 +1084,54 @@ application.addEventListener('sceneconnect', (e) => {
   }
   summarizeWhenReady(50);
 
-  mainWindow = win;
+  // ===== 所有权镜像 =====
+  //
+  // 原生对象的 JS 包装是弱的，所以要验的是「GC 之后包装的身份还在不在」。
+  // 运行时没有强制 GC 的手段，只能制造垃圾逼 V8 回收，再拿一个**没有
+  // 所有者**的包装当对照组：只有对照组的身份也丢了，才说明 GC 真跑过，
+  // 这一轮的结论才算数。对照组没丢就报「未验证」，不假装通过。
+  console.log('--- 所有权镜像（GC 之后身份是否保持）---');
+  const probeHost = new UIView();
+  {
+    const probeBox = new UIView();
+    /** @type {any} */ (probeBox).probe = '挂在包装上的 JS 状态';
+    probeHost.addSubview(probeBox);
+    // 另一条所有权边：属性写入。颜色挑一个别处没用过的，免得被别人持有
+    /** @type {any} */ (UIColor.systemGreenColor).probe = '挂在颜色包装上';
+    probeHost.backgroundColor = UIColor.systemGreenColor;
+    // 对照组：类常量的包装，JS 侧谁都不持有它
+    /** @type {any} */ (UIColor.systemBrownColor).probe = '对照';
+    // 局部引用随这个块结束而消失，之后只有镜像还持有它们
+  }
+
+  function makeGarbage() {
+    for (let i = 0; i < 20; i++) {
+      /** @type {object[]} */ const junk = [];
+      for (let j = 0; j < 3000; j++) junk.push({ i, j, s: 'x'.repeat(16) + j });
+    }
+  }
+
+  /** @param {number} roundsLeft */
+  function waitForRealGC(roundsLeft) {
+    makeGarbage();
+    const controlCollected = /** @type {any} */ (UIColor.systemBrownColor).probe === undefined;
+    if (!controlCollected && roundsLeft > 0) {
+      setTimeout(() => waitForRealGC(roundsLeft - 1), 0);
+      return;
+    }
+    if (!controlCollected) {
+      console.log('  ! 对照组始终没被回收，GC 没跑够，这一轮未验证');
+      return;
+    }
+    assert('对照组（无所有者）GC 后身份丢失', controlCollected, true);
+    const kids = probeHost.subviews;
+    assert('镜像持有的 view，GC 后挂在包装上的状态还在',
+           /** @type {any} */ (kids[0]).probe, '挂在包装上的 JS 状态');
+    assert('属性边：GC 后读回的 UIColor 还是同一个包装',
+           /** @type {any} */ (probeHost.backgroundColor).probe, '挂在颜色包装上');
+  }
+  waitForRealGC(80);
+
   console.log('✓ 屏幕上：三个色块 + 标题 + 两行说明 + 一行等宽数字');
 });
 

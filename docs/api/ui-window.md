@@ -32,18 +32,17 @@ win.windowScene = scene;           // ← 这时才创建
 
 > 只暴露 `initWithWindowScene:` 这条路。`init` 和 `initWithFrame:` 在 iOS 26 已废弃，不包进来。
 
-## 让窗口显示出来：四步缺一不可
+## 让窗口显示出来：三步缺一不可
 
 ```js
 const win = new UIWindow(scene);         // 1. 自动进入 scene.windows，但 hidden = YES
 win.rootViewController = vc;             // 2. 不设就没内容
 win.makeKeyAndVisible();                 // 3. ★ 没这步屏幕全黑
-mainWindow = win;                        // 4. 必须保持引用，见下
 ```
 
 第 3 步最容易漏——前三步做完所有属性看着都对，但程序创建的 `UIWindow` 默认 `hidden = YES`，`makeKeyAndVisible` 才翻过来。这一点实测验证过：注释掉它，window 已绑定场景、已在 `scene.windows` 里、`rootViewController` 也设了，屏幕依然全黑。
 
-第 4 步是 JS 侧的要求：**window 是 JS 创建的，JS 就是所有者**。包装对象被 GC 后运行时会 `CFRelease`，所以必须留一个引用。这和系统给的 `UIWindowScene` 相反——那个由系统持有。
+> **以前这里还有第 4 步「必须保持引用」，现在不用了。** 运行时在 JS 侧补齐了所有权关系：`new UIWindow(scene)` 的时候场景的包装就持有了窗口的包装（`UIWindowScene.windows` 就是原生侧的所有权），而场景由 `application` 持有。所以窗口、根控制器、整棵视图树都从 `application` 可达，不会因为你没留变量就被回收。详见[项目说明的「所有权镜像」](../project.md#所有权镜像js-侧有自己的引用图)。
 
 ## 实例属性
 

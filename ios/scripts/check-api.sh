@@ -169,6 +169,8 @@ b = dts_union('UIFontTextStyle')
 if a != b: complain('UIFontTextStyle', f'缺 {sorted(a-b)} 多 {sorted(b-a)}')
 
 # ------------------------------- 5. nacre.js 的属性读写对 NacreRuntime.mm
+# 对象属性有两条路：所有权边走 nativeGetOwned / nativeSetOwned（会在 JS 侧
+# 记一笔持有关系），回边走 nativeGetObject / nativeSetObject。两边都要算。
 def js_calls(fn):
     return set(re.findall(r"\b%s\(this, '(\w+)'" % fn, js))
 
@@ -181,9 +183,9 @@ pairs = [
      set(re.findall(r'isEqualToString:@"(\w+)"', mm_block('std::string ReadNativeProperty')))),
     ('标量写', js_calls('nativeSet'),
      set(re.findall(r'isEqualToString:@"(\w+)"', mm_block('void WriteNativeProperty')))),
-    ('对象读', js_calls('nativeGetObject'),
+    ('对象读', js_calls('nativeGetObject') | js_calls('nativeGetOwned'),
      set(re.findall(r'name == "(\w+)"', mm_block('nacre::NativeObjectRef ReadNativeObjectProperty')))),
-    ('对象写', js_calls('nativeSetObject'),
+    ('对象写', js_calls('nativeSetObject') | js_calls('nativeSetOwned'),
      set(re.findall(r'name == "(\w+)"', mm_block('void WriteNativeObjectProperty')))),
 ]
 for label, a, b in pairs:

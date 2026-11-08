@@ -421,6 +421,33 @@ iOS 层是一张**写死的名字表**，不是用名字拼 selector 再 `perfor
 
 FIFO 那条本身没问题，由「同时到期按注册顺序」那条断言保证——那个队列是我们自己的。
 
+#### 所有权镜像：JS 侧有自己的引用图
+
+原生对象的 JS 包装是**弱**的（`Engine.cpp` 里 `SetWeak`）。包装被回收之后再从原生读回来，拿到的是 `wrapper_factory(class_name, handle)` **按原生类名新建**的包装——挂在旧包装上的 JS 状态全丢。`EmitObjectEvent` 走的是同一条路，所以**窗口的事件监听器也会静默失效**。
+
+根因是把原生的**边强度**照抄进了 JS。原生用引用计数，`weak` 回边是为了断环；V8 是追踪式 GC，环不要钱。所以边的强度要按 V8 的需求重新定：
+
+> **原生对象 A 持有 B，A 的包装就也持有 B 的包装。**
+
+| 原生边 | 原生强度 | JS 侧 | 不补的后果 |
+| --- | --- | --- | --- |
+| `container` → `child` | strong | ✅ 镜像 | 包装身份丢、监听器失效 |
+| `scene` → `windows` | strong | ✅ 镜像 | 窗口整棵树丢 |
+| `view` → `backgroundColor` / `image` / `font`… | strong | ✅ 镜像 | 同上 |
+| `vc` → `view`、`window` → `rootViewController`、`scene` → `session` | strong | ✅ 镜像 | 同上 |
+| `child` → `superview`、`view` → `window`、`window` → `windowScene` | **weak** | ❌ 不镜像 | 没有——另一端已被上游的所有权边兜住 |
+| `anchor` → `item`（第 3c 步） | **weak** | ✅ 镜像 | **SIGSEGV**，实测 |
+
+实现在 `nacre.js`：一张模块级 `WeakMap`（owner 包装 → 边名 → 包装）。用 `WeakMap` 不用包装上的属性，是因为 JS 侧完全看不见它（`getOwnPropertySymbols` 也列不出来），而且 owner 一死整条记录跟着死。所有权边上的对象属性走 `nativeGetOwned` / `nativeSetOwned`，回边仍走 `nativeGetObject` / `nativeSetObject`——`check-api.sh` 两个都算。
+
+**这张表只给 GC 当根，不参与任何查询**，所有的读都走原生。所以 UIKit 自己改树时（pop 一个控制器之类）镜像会漂，但它**只会多留一份引用，永远不会给错答案**。读 `subviews` / `scenes` 时按原生的真相整层重建，碰到哪层修哪层。
+
+连带的结果：**`UIWindow` 不用再手动保持引用了**。`main.js` 里的 `mainWindow` 变量已删除——屏幕上还有东西，就是这条链接上了的证据。
+
+验证方式（`main.js` 里的三条断言）：运行时没有强制 GC 的手段，所以制造垃圾逼 V8 回收，再拿一个**没有所有者**的包装（`UIColor.systemBrownColor`）当对照组。只有对照组的身份也丢了，才说明 GC 真跑过，这一轮的结论才算数；对照组没丢就报「未验证」，不假装通过。实测三条全过。
+
+还没覆盖的：**UIKit 自己建的边镜像不到**（`pushViewController:` 把 `vc.view` 塞进自己的层级，JS 从没调过 `addSubview`）。要全局正确只有两条路，都等 bindgen：按 `CFGetRetainCount` 在空闲期扫一遍（引用计数有自动释放池干扰，不稳），或者接 V8 的 embedder 根、像 Blink 管 DOM 那样在 GC 时问宿主（引擎级改造）。Apple 自己的 JSC 桥走的是和我们一样的路——`JSVirtualMachine` 的 `addManagedReference:withOwner:` 就是让你**把原生侧的所有权边显式报告给 GC**。
+
 ### 第 0 步的审阅问题（已修复并验证）
 
 三个问题的修复已写入仓库，并已在模拟器上验证通过（结果见下）：
@@ -522,7 +549,7 @@ view.autoresizingMask = ['flexibleWidth', 'flexibleHeight'];   // 位掩码（�
 2. 其余类型转换：字符串、数字、布尔值自动转换；数组和字典作为参数时自动转换，返回值保留原生对象；`NSError **` 转为抛出异常
 3. ~~类型来源~~：**已定并实现**，见下面「类型定义」一节。目录是 `types/` 不是 `ios/Types/`
 
-**接口设计要回头 review（TODO）**：底层的「一一对应」和使用场景的简洁之间有张力。现在让窗口显示出来是四步仪式——建 window、设 `rootViewController`、`makeKeyAndVisible()`、保持引用——每个 App 都要原样抄一遍，这正是原则 2「能力导向而非实现导向」要消灭的东西。
+**接口设计要回头 review（TODO）**：底层的「一一对应」和使用场景的简洁之间有张力。现在让窗口显示出来是三步仪式——建 window、设 `rootViewController`、`makeKeyAndVisible()`——每个 App 都要原样抄一遍（第四步「保持引用」已经被所有权镜像去掉了），这正是原则 2「能力导向而非实现导向」要消灭的东西。
 
 真正的简化应该在**上层**（比如一行 `scene.rootViewController = vc`，窗口由运行时自己建），但上层抽象要等 hello world 跑通、看清视图层该怎么抽象之后再设计，现在造容易造歪；而且在 `UIWindowScene` 上加 ObjC 没有的属性会把上层掺进底层，那个边界糊了很难收回。
 
@@ -565,11 +592,13 @@ Web 能双向字符串化是因为 CSSOM 自己留着声明串，我们没有这
 
 实测数据见 [`UIColor` 文档的「实测：相等性和 `description`」](api/ui-color.md#实测相等性和-description)。真正动手要等视图层起来、看清真实代码里怎么写颜色。
 
-**TODO：JS 子类化原生类。** 现在 `class MyLabel extends UILabel {}` 之后 `new MyLabel()` 建出来的原生对象是 `UILabel`，不是 `MyLabel` 的对应物——每个原生类的构造函数写死了自己的类名。
+**TODO：JS 子类化原生类。** 这条原来写的是「`new MyLabel()` 建出来的原生对象是 `UILabel`」，**实测不对**：`UIView` 的构造函数有一道 `new.target !== UIView` 的闸，子类的 `super()` 走到这里直接返回，**一个原生对象都不建**。
 
-暂时**没有副作用**：JS 侧的方法和属性照样工作（它们在 JS 原型链上），原生侧也不需要知道子类存在。真正出问题要等到需要**覆写原生方法**的时候（比如自定义 `drawRect:`、`layoutSubviews`），那时得动态生成 ObjC 子类并把方法转发回 JS。
+所以今天的实际行为是：`new MyLabel()` 得到的实例没有句柄，之后要么 `requireNative` 抛「还没连接到场景」，要么更糟——`parent.addSubview(子类实例)` 时 `splitArgs` 把它当成普通值，句柄填 0，原生收到 nil，**静默什么都不做**。（做所有权镜像时写验收用例撞上的。）
 
-所以**不限制继承**，先记在这里。限制了反而挡住「用 ES class 给原生类加便利方法」这种合理用法。这条和设计点 1「创建与继承」是同一件事。
+这道闸本身是对的：原生类的构造函数写死了自己的类名，子类的 `super()` 在这里建出一个基类对象只会更错。要真正支持继承，得动态生成 ObjC 子类并把覆写的方法转发回 JS，那才是这条 TODO 的内容。
+
+**没堵上的是那个静默失败**：对象参数没有句柄时应该抛，不该当成 nil。和下面「属性名拼错了不报错」是同一类错。这条和设计点 1「创建与继承」是同一件事。
 
 **TODO：属性名拼错了不报错。** 原生对象的 JS 包装对象是**可扩展**的，所以：
 

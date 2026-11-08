@@ -445,7 +445,8 @@ type WindowEventName = UIWindowEventType | (string & {});
  * 后者让构造和绑定解耦，没有发明新 API——windowScene 本来就是 ObjC 的可写
  * 属性，没有 scene 的 window 在 ObjC 里也是合法状态。
  *
- * 注意要自己保持引用，否则会被回收。
+ * 不用自己保持引用：绑定场景的那一刻，场景就持有了这个窗口
+ * （UIWindowScene.windows 是原生侧的所有权，运行时在 JS 侧也镜像了它）。
  */
 declare class UIWindow extends UIView {
   constructor(scene?: UIWindowScene);

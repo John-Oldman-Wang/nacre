@@ -174,6 +174,81 @@
   function nativeCallVoid(obj, name) {
     native.callVoid(obj[kHandle], name);
   }
+
+  // ---- 所有权镜像 ----
+  //
+  // 原生对象的 JS 包装是弱的（Engine 里 SetWeak）。包装被回收之后再从原生
+  // 读回来，拿到的是**按原生类名新建的**包装——ES 子类实例会变回基类，挂在
+  // 包装上的 JS 状态和事件监听器全丢（EmitObjectEvent 也走同一条路）。
+  //
+  // 修法是在 JS 侧把原生的所有权边补出来：原生对象 A 持有 B，A 的包装就也
+  // 持有 B 的包装。这样从 application 出发可达的原生对象，包装一定活着。
+  // 原生用引用计数，weak 边是为了断环；V8 是追踪式 GC，环不要钱——所以边的
+  // 强度要按 V8 的需求重定，不能照抄原生。
+  //
+  // 用 WeakMap 不用包装上的属性：JS 侧完全看不见（getOwnPropertySymbols 也
+  // 列不出来），而且 owner 一死整条记录跟着死。
+  //
+  // 代价是保活可能过久——UIKit 自己改原生的树时（pop 一个控制器之类）我们
+  // 看不到。但它**只会多留一份引用，永远不会给错答案**：所有的读都走原生，
+  // 这张表只给 GC 当根。读 subviews / scenes 时按原生的真相整层重建，碰到
+  // 哪层修哪层。
+  const ownership = new WeakMap();  // owner 包装 -> Map(边名 -> 包装 | 包装数组)
+
+  function ownSlot(owner) {
+    let slot = ownership.get(owner);
+    if (!slot) ownership.set(owner, (slot = new Map()));
+    return slot;
+  }
+  // 单值边：owner.name 持有 value
+  function own(owner, name, value) {
+    if (owner != null) {
+      if (value == null) {
+        const slot = ownership.get(owner);
+        if (slot) slot.delete(name);
+      } else {
+        ownSlot(owner).set(name, value);
+      }
+    }
+    return value;
+  }
+  // 多值边：按原生的真相整层重建
+  function ownAll(owner, name, values) {
+    if (owner != null) ownSlot(owner).set(name, Array.prototype.slice.call(values));
+    return values;
+  }
+  // 多值边：加一个
+  function ownOne(owner, name, value) {
+    if (owner == null || value == null) return;
+    const slot = ownSlot(owner);
+    const list = slot.get(name);
+    if (!list) slot.set(name, [value]);
+    else if (!list.includes(value)) list.push(value);
+  }
+  // 多值边：去掉一个
+  function disown(owner, name, value) {
+    const slot = owner == null ? undefined : ownership.get(owner);
+    const list = slot === undefined ? undefined : slot.get(name);
+    if (!list) return;
+    const i = list.indexOf(value);
+    if (i >= 0) list.splice(i, 1);
+  }
+  // 所有权边上的对象属性。和 nativeGetObject / nativeSetObject 的差别只是
+  // 记一笔。回边不走这里：superview、window、windowScene 在原生侧也不是
+  // 持有，而且它们的另一端已经被上游的所有权边兜住了。
+  function nativeGetOwned(obj, name) {
+    return own(obj, name, nativeGetObject(obj, name));
+  }
+  function nativeSetOwned(obj, name, value) {
+    nativeSetObject(obj, name, value);
+    own(obj, name, value);
+  }
+  // 换父节点时原生会自动从旧父节点摘掉，镜像要跟上。没有原生对象时返回
+  // null——那种 view 还没进任何树。
+  function superviewOf(view) {
+    if (view == null || view[kHandle] === undefined) return null;
+    return nativeGetObject(view, 'superview');
+  }
   // 带参数的方法。selector 是完整的 ObjC selector，JS 层的
   // 「第一段 + options」在各自的方法里还原成它。
   // 对象参数在 JSON 里留 null，句柄按同样的下标单独传。
@@ -419,27 +494,41 @@
       requireNative(this, 'superview');
       return nativeGetObject(this, 'superview');
     }
-    get subviews() { return nativeGetObjectArray(this, 'subviews'); }
+    // 读的同时按原生的真相重建这一层的持有列表（见「所有权镜像」）
+    get subviews() {
+      return ownAll(this, 'subviews', nativeGetObjectArray(this, 'subviews'));
+    }
     get window() {
       requireNative(this, 'window');
       return nativeGetObject(this, 'window');
     }
-    addSubview(view) { nativeCall(this, 'addSubview:', [view]); }
+    addSubview(view) {
+      const from = superviewOf(view);
+      nativeCall(this, 'addSubview:', [view]);
+      disown(from, 'subviews', view);
+      ownOne(this, 'subviews', view);
+    }
     insertSubview(view, options) {
       const o = options || {};
+      const from = superviewOf(view);
       if ('atIndex' in o) {
-        return nativeCall(this, 'insertSubview:atIndex:', [view, o.atIndex]);
+        nativeCall(this, 'insertSubview:atIndex:', [view, o.atIndex]);
+      } else if ('belowSubview' in o) {
+        nativeCall(this, 'insertSubview:belowSubview:', [view, o.belowSubview]);
+      } else if ('aboveSubview' in o) {
+        nativeCall(this, 'insertSubview:aboveSubview:', [view, o.aboveSubview]);
+      } else {
+        throw new TypeError(
+          'insertSubview 需要 { atIndex } / { belowSubview } / { aboveSubview } 之一');
       }
-      if ('belowSubview' in o) {
-        return nativeCall(this, 'insertSubview:belowSubview:', [view, o.belowSubview]);
-      }
-      if ('aboveSubview' in o) {
-        return nativeCall(this, 'insertSubview:aboveSubview:', [view, o.aboveSubview]);
-      }
-      throw new TypeError(
-        'insertSubview 需要 { atIndex } / { belowSubview } / { aboveSubview } 之一');
+      disown(from, 'subviews', view);
+      ownOne(this, 'subviews', view);
     }
-    removeFromSuperview() { nativeCall(this, 'removeFromSuperview', []); }
+    removeFromSuperview() {
+      const from = superviewOf(this);
+      nativeCall(this, 'removeFromSuperview', []);
+      disown(from, 'subviews', this);
+    }
     bringSubviewToFront(view) { nativeCall(this, 'bringSubviewToFront:', [view]); }
     sendSubviewToBack(view) { nativeCall(this, 'sendSubviewToBack:', [view]); }
     isDescendantOfView(view) {
@@ -454,11 +543,11 @@
     // 背景色。nil 表示透明，JS 侧用 null 表示。
     get backgroundColor() {
       requireNative(this, 'backgroundColor');
-      return nativeGetObject(this, 'backgroundColor');
+      return nativeGetOwned(this, 'backgroundColor');
     }
     set backgroundColor(value) {
       requireNative(this, 'backgroundColor');
-      nativeSetObject(this, 'backgroundColor', value);
+      nativeSetOwned(this, 'backgroundColor', value);
     }
     get alpha() { requireNative(this, 'alpha'); return nativeGet(this, 'alpha'); }
     set alpha(value) { requireNative(this, 'alpha'); nativeSet(this, 'alpha', value); }
@@ -627,15 +716,15 @@
     }
     get text() { requireNative(this, 'text'); return nativeGet(this, 'text'); }
     set text(value) { requireNative(this, 'text'); nativeSet(this, 'text', value); }
-    get font() { requireNative(this, 'font'); return nativeGetObject(this, 'font'); }
-    set font(value) { requireNative(this, 'font'); nativeSetObject(this, 'font', value); }
+    get font() { requireNative(this, 'font'); return nativeGetOwned(this, 'font'); }
+    set font(value) { requireNative(this, 'font'); nativeSetOwned(this, 'font', value); }
     get textColor() {
       requireNative(this, 'textColor');
-      return nativeGetObject(this, 'textColor');
+      return nativeGetOwned(this, 'textColor');
     }
     set textColor(value) {
       requireNative(this, 'textColor');
-      nativeSetObject(this, 'textColor', value);
+      nativeSetOwned(this, 'textColor', value);
     }
     get textAlignment() {
       requireNative(this, 'textAlignment');
@@ -695,11 +784,11 @@
     }
     get highlightedTextColor() {
       requireNative(this, 'highlightedTextColor');
-      return nativeGetObject(this, 'highlightedTextColor');
+      return nativeGetOwned(this, 'highlightedTextColor');
     }
     set highlightedTextColor(value) {
       requireNative(this, 'highlightedTextColor');
-      nativeSetObject(this, 'highlightedTextColor', value);
+      nativeSetOwned(this, 'highlightedTextColor', value);
     }
     get isEnabled() { requireNative(this, 'isEnabled'); return nativeGet(this, 'isEnabled'); }
     set isEnabled(value) {
@@ -708,11 +797,11 @@
     }
     get shadowColor() {
       requireNative(this, 'shadowColor');
-      return nativeGetObject(this, 'shadowColor');
+      return nativeGetOwned(this, 'shadowColor');
     }
     set shadowColor(value) {
       requireNative(this, 'shadowColor');
-      nativeSetObject(this, 'shadowColor', value);
+      nativeSetOwned(this, 'shadowColor', value);
     }
     get shadowOffset() {
       requireNative(this, 'shadowOffset');
@@ -744,19 +833,19 @@
       if (allowNativeConstruct) return;
       constructNative(this, 'UIImageView', []);
     }
-    get image() { requireNative(this, 'image'); return nativeGetObject(this, 'image'); }
+    get image() { requireNative(this, 'image'); return nativeGetOwned(this, 'image'); }
     set image(value) {
       requireNative(this, 'image');
-      nativeSetObject(this, 'image', value);
+      nativeSetOwned(this, 'image', value);
     }
     // isHighlighted 为 true 时显示这张，用于按下态
     get highlightedImage() {
       requireNative(this, 'highlightedImage');
-      return nativeGetObject(this, 'highlightedImage');
+      return nativeGetOwned(this, 'highlightedImage');
     }
     set highlightedImage(value) {
       requireNative(this, 'highlightedImage');
-      nativeSetObject(this, 'highlightedImage', value);
+      nativeSetOwned(this, 'highlightedImage', value);
     }
     get isHighlighted() {
       requireNative(this, 'isHighlighted');
@@ -769,11 +858,11 @@
     // 模板图（renderingMode 为 alwaysTemplate，SF Symbols 默认如此）按这个颜色上色
     get tintColor() {
       requireNative(this, 'tintColor');
-      return nativeGetObject(this, 'tintColor');
+      return nativeGetOwned(this, 'tintColor');
     }
     set tintColor(value) {
       requireNative(this, 'tintColor');
-      nativeSetObject(this, 'tintColor', value);
+      nativeSetOwned(this, 'tintColor', value);
     }
     // 逐帧动画还没做（要先能把 GIF 拆成帧），但这个事实先给出来
     get isAnimating() {
@@ -830,7 +919,7 @@
 
     // 这个场景自己的前后台状态，和 application.state（所有场景的聚合）不是一回事
     get activationState() { return nativeGet(this, 'activationState'); }
-    get session() { return nativeGetObject(this, 'session'); }
+    get session() { return nativeGetOwned(this, 'session'); }
     // ObjC 的属性名是 fullScreen，getter 是 isFullScreen，这里用后者
     get isFullScreen() { return nativeGet(this, 'isFullScreen'); }
 
@@ -851,7 +940,7 @@
       if (allowNativeConstruct) return;  // 包装已有原生对象，句柄由工厂挂
       constructNative(this, 'UIViewController', []);
     }
-    get view() { return nativeGetObject(this, 'view'); }
+    get view() { return nativeGetOwned(this, 'view'); }
   });
 
   // 视图树的根。必须绑定到一个场景——initWithWindowScene: 是唯一未废弃的
@@ -869,7 +958,12 @@
     constructor(scene) {
       super();
       if (allowNativeConstruct) return;
-      if (scene != null) constructNative(this, 'UIWindow', [scene]);
+      // 所有权是「场景持有窗口」——UIWindow.windowScene 在头文件里是 weak，
+      // 真正持有窗口的是 UIWindowScene.windows。所以镜像记在场景那一侧。
+      if (scene != null) {
+        constructNative(this, 'UIWindow', [scene]);
+        ownOne(scene, 'windows', this);
+      }
     }
 
     // 换 scene 就是换显示目标。典型 App 一绑到死，需要改的场景是把窗口
@@ -880,20 +974,26 @@
     }
     set windowScene(value) {
       if (this[kHandle] === undefined) {
-        if (value != null) constructNative(this, 'UIWindow', [value]);
+        if (value != null) {
+          constructNative(this, 'UIWindow', [value]);
+          ownOne(value, 'windows', this);
+        }
         return;
       }
+      const old = nativeGetObject(this, 'windowScene');
       nativeSetObject(this, 'windowScene', value);
+      disown(old, 'windows', this);
+      ownOne(value, 'windows', this);
     }
 
     // 窗口唯一的内容入口，不设就没内容
     get rootViewController() {
       requireNative(this, 'rootViewController');
-      return nativeGetObject(this, 'rootViewController');
+      return nativeGetOwned(this, 'rootViewController');
     }
     set rootViewController(value) {
       requireNative(this, 'rootViewController');
-      nativeSetObject(this, 'rootViewController', value);
+      nativeSetOwned(this, 'rootViewController', value);
     }
 
     // 多窗口的叠放顺序。键盘、alert 都是 level 更高的窗口
@@ -1005,7 +1105,7 @@
 
     // 系统已连接的场景。**启动时通常是空的**——场景在 didFinishLaunching
     // 之后才接入，所以 UI 必须靠 sceneconnect 事件驱动，不能在这里取。
-    get scenes() { return native.scenes(); }
+    get scenes() { return ownAll(this, 'scenes', native.scenes()); }
 
     // --- 方法 ---
     // 打开 URL：跳 Safari、拨号、跳别的 App。URL 无效或系统拒绝时兑现为 false。
@@ -1033,6 +1133,11 @@
       if (payload != null) {
         for (const key of Object.keys(payload)) defineField(event, key, payload[key]);
       }
+      // 场景的包装由 application 兜着：它是永久的，而场景的包装一旦被回收，
+      // 后面派发给这个场景的事件就落到一个新包装上，监听器全丢。
+      const scene = payload == null ? null : payload.scene;
+      if (type === 'sceneconnect') ownOne(application, 'scenes', scene);
+      else if (type === 'scenedisconnect') disown(application, 'scenes', scene);
     }
     return application.dispatchEvent(event);
   });
