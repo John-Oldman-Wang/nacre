@@ -364,9 +364,6 @@ application.addEventListener('sceneconnect', (e) => {
   console.log('  new UIView() 成功, instanceof UIView =', box instanceof UIView,
               '| instanceof UIResponder =', box instanceof UIResponder);
   box.frame = new CGRect(40, 120, 200, 120);
-  setInterval(() => {
-    box.frame = new CGRect(box.frame.x, box.frame.y + 1, box.frame.width, box.frame.height)
-  } , 16)
   box.backgroundColor = UIColor.systemIndigoColor;
   console.log('  写入 frame 后读回 =', '' + box.frame);
   console.log('  写入时用普通对象也行：');
