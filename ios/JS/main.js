@@ -1181,6 +1181,26 @@ application.addEventListener('sceneconnect', (e) => {
       console.log('  ✓ 跨轴连接被拒:', err.message);
     }
 
+    console.log('  --- 参数没有原生对象 ---');
+    {
+      // ES 子类的 super() 不建原生对象（UIView 构造函数里 new.target 那道闸），
+      // 所以这个实例没有句柄。以前它会被当成普通值，原生收到 nil 静默忽略
+      class ProbeSubview extends UIView {}
+      try {
+        card.addSubview(new ProbeSubview());
+        console.log('  ✗ 没有原生对象的参数居然通过了');
+      } catch (err) {
+        console.log('  ✓ 没有原生对象的参数被拒:', err.message);
+      }
+      try {
+        card.addSubview(new UIWindow());   // 没绑场景，同样没有句柄
+        console.log('  ✗ 没绑场景的 UIWindow 居然通过了');
+      } catch (err) {
+        console.log('  ✓ 没绑场景的 UIWindow 被拒:', err.message);
+      }
+      assert('被拒之后 card 的子视图没变多', card.subviews.length, 3);
+    }
+
     console.log('  --- 没有公共祖先 ---');
     {
       const a = new UIView();

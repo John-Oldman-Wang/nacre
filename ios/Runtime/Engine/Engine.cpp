@@ -1342,7 +1342,7 @@ void Engine::FireDueTimers() {
     if (cost > kLongTaskMs && impl_->host.log) {
       char buf[128];
       std::snprintf(buf, sizeof(buf),
-                    "定时器回调占用主线程 %.0f ms，这一帧会掉", cost);
+                    "Timer callback blocked the main thread for %.0f ms; this frame will drop", cost);
       impl_->host.log(LogLevel::Warn, buf);
     }
 

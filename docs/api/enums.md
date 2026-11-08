@@ -24,13 +24,13 @@ view.contentMode    = 'scaleAspectFit';
 
 ```js
 label.textAlignment = 'centre';
-// TypeError: textAlignment 没有 "centre" 这个值，
-//            可选：left / center / right / justified / natural
+// TypeError: textAlignment has no value "centre";
+//            expected one of: left / center / right / justified / natural
 
 UIFont.systemFontOfSize(17, { weight: 'extrabold' });
-// TypeError: weight 没有 "extrabold" 这个值，
-//            可选：ultraLight / thin / light / regular / medium /
-//                  semibold / bold / heavy / black
+// TypeError: weight has no value "extrabold";
+//            expected one of: ultraLight / thin / light / regular /
+//                             medium / semibold / bold / heavy / black
 ```
 
 不会静默忽略，也不会退回默认值。

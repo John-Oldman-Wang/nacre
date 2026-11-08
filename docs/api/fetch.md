@@ -38,7 +38,7 @@ res.status;   // 404
 
 ```js
 await res.json();
-await res.json();   // TypeError: body 已经读过了
+await res.json();   // TypeError: Body has already been read
 ```
 
 Web 规范如此。读过之后 `res.bodyUsed` 是 `true`。

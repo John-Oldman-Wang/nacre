@@ -68,11 +68,11 @@ UIKit 自己缓存了系统字体实例，加上运行时的包装机制保证�
 
 ```js
 UIFont.systemFontOfSize(17, { weight: 'extrabold' });
-// TypeError: weight 没有 "extrabold" 这个值，可选：ultraLight / thin /
-//            light / regular / medium / semibold / bold / heavy / black
+// TypeError: weight has no value "extrabold"; expected one of: ultraLight /
+//            thin / light / regular / medium / semibold / bold / heavy / black
 
 UIFont.preferredFontForTextStyle('subtitle');
-// TypeError: textStyle 没有 "subtitle" 这个值，可选：largeTitle / title1 / ...
+// TypeError: textStyle has no value "subtitle"; expected one of: largeTitle / ...
 ```
 
 不传 `weight` 则用默认值（`systemFontOfSize:` 本身就是 regular），**传错和不传是两件事**。

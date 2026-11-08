@@ -226,7 +226,7 @@ std::string EnumError(NSString* what, id given, NSString* choices) {
   NSString* shown = [given isKindOfClass:NSString.class]
                         ? [NSString stringWithFormat:@"\"%@\"", given]
                         : (given == nil ? @"undefined" : [given description]);
-  return [NSString stringWithFormat:@"%@ 没有 %@ 这个值，可选：%@", what, shown, choices]
+  return [NSString stringWithFormat:@"%@ has no value %@; expected one of: %@", what, shown, choices]
       .UTF8String;
 }
 
@@ -386,7 +386,7 @@ BOOL LayoutPriorityFromValue(id value, UILayoutPriority* out) {
 
 NSString* NamesForLayoutPriority(void) {
   return [JoinEnumNames(LayoutPriorityTable())
-      stringByAppendingString:@"，或者 0 到 1000 之间的数字"];
+      stringByAppendingString:@", or a number between 0 and 1000"];
 }
 
 // 锚点分三类，不能互连——topAnchor 连 leadingAnchor，原生抛
@@ -750,7 +750,7 @@ void WriteNativeProperty(id object, const std::string& name, const std::string& 
       @try {
         c.active = [value boolValue];
       } @catch (NSException* e) {
-        *error = [NSString stringWithFormat:@"约束激活失败：%@", e.reason].UTF8String;
+        *error = [NSString stringWithFormat:@"failed to activate constraint: %@", e.reason].UTF8String;
       }
       return;
     }
@@ -863,7 +863,7 @@ void WriteNativeProperty(id object, const std::string& name, const std::string& 
   // 取值器，名字不认识的赋值压根不会过桥，而是在包装对象上挂一个普通
   // 属性（JS 包装对象还是可扩展的，见 project.md 的 TODO）。这句话是
   // 给直接调 __nacre_native.setProp 的情况兜底的。
-  *error = [NSString stringWithFormat:@"%@ 上没有 %@ 这个可写属性",
+  *error = [NSString stringWithFormat:@"%@ has no writable property %@",
                                       NSStringFromClass([object class]), key]
                .UTF8String;
 }
@@ -1134,7 +1134,7 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
           [NSLayoutConstraint deactivateConstraints:list];
         }
       } @catch (NSException* e) {
-        *error = [NSString stringWithFormat:@"约束激活失败：%@", e.reason].UTF8String;
+        *error = [NSString stringWithFormat:@"failed to activate constraint: %@", e.reason].UTF8String;
       }
       return {};
     }
@@ -1457,12 +1457,12 @@ nacre::NativeObjectRef CallObjectMethod(id object, const std::string& name,
     }
 
     if (![otherRaw isKindOfClass:NSLayoutAnchor.class]) {
-      *error = [NSString stringWithFormat:@"%@ 需要一个锚点作参数", sel].UTF8String;
+      *error = [NSString stringWithFormat:@"%@ needs an anchor as its argument", sel].UTF8String;
       return {};
     }
     NSLayoutAnchor* other = (NSLayoutAnchor*)otherRaw;
     if (strcmp(AnchorClassName(anchor), AnchorClassName(other)) != 0) {
-      *error = [NSString stringWithFormat:@"%s 不能连到 %s：两端的单位不兼容",
+      *error = [NSString stringWithFormat:@"%s cannot be constrained to %s: their units are not compatible",
                                           AnchorClassName(anchor),
                                           AnchorClassName(other)]
                    .UTF8String;
@@ -1640,7 +1640,7 @@ std::string InfoDictionaryJSON() {
   NSError* error = nil;
   NSData* data = [NSJSONSerialization dataWithJSONObject:safe options:0 error:&error];
   if (!data) {
-    WriteRuntimeLog([NSString stringWithFormat:@"Info.plist 序列化失败: %@", error.localizedDescription]);
+    WriteRuntimeLog([NSString stringWithFormat:@"failed to serialize Info.plist: %@", error.localizedDescription]);
     return "{}";
   }
   return std::string(static_cast<const char*>(data.bytes), data.length);
@@ -1866,8 +1866,8 @@ std::string InfoDictionaryJSON() {
   const BOOL cancelled = error.code == NSURLErrorCancelled;
   const std::string name = cancelled ? "AbortError" : "TypeError";
   NSString* text = cancelled
-                       ? @"请求已取消"
-                       : [NSString stringWithFormat:@"网络请求失败：%@",
+                       ? @"The operation was aborted"
+                       : [NSString stringWithFormat:@"Network request failed: %@",
                                                     error.localizedDescription];
   const std::string message = text.UTF8String;
   dispatch_async(dispatch_get_main_queue(), ^{
@@ -2239,14 +2239,14 @@ nacre::NativeObjectRef CreateBlob(
     NSURL* url = [NSBundle.mainBundle URLForResource:@"nacre" withExtension:@"js" subdirectory:@"Builtin"];
     NSString* source = url ? [NSString stringWithContentsOfURL:url encoding:NSUTF8StringEncoding error:nil] : nil;
     if (!source) {
-      WriteRuntimeLog(@"内置脚本 Builtin/nacre.js 缺失，上层 API 不可用");
+      WriteRuntimeLog(@"builtin script Builtin/nacre.js is missing; the upper-layer API is unavailable");
       return;
     }
     // 脚本名用 nacre:internal/ 前缀而不是文件路径：调用栈里一眼能看出是运行时内部，
     // 和 Node 的 node:internal/... 同样的做法
     double t0 = NowMs();
     bool ok = (*engine)->Evaluate({"nacre:internal/nacre.js", source.UTF8String});
-    WriteRuntimeLog([NSString stringWithFormat:@"内置脚本 %@ in %.1f ms", ok ? @"ready" : @"failed", NowMs() - t0]);
+    WriteRuntimeLog([NSString stringWithFormat:@"builtin script %@ in %.1f ms", ok ? @"ready" : @"failed", NowMs() - t0]);
   }];
 
   // 3. 加载并执行 main.js

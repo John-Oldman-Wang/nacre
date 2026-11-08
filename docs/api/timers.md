@@ -94,7 +94,7 @@ setTimeout(() => { while (Date.now() - t < 500) {} }, 0);   // 界面冻 500ms
 这是使用方的问题，不是运行时要解决的（浏览器里一个 `for` 循环跑 500ms 照样冻住页面）。但运行时会**让它可见**，超过 50ms 记一条：
 
 ```
-[warn] 定时器回调占用主线程 83 ms，这一帧会掉
+[warn] Timer callback blocked the main thread for 83 ms; this frame will drop
 ```
 
 阈值参照 Chromium 的 Long Task API。取 8ms 会被正常的布局计算刷屏，取 50ms 基本只有真卡才响。符合[原则 7](../project.md#原则)：运行时提供事实，JS 做判断。

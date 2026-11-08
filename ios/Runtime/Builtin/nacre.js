@@ -96,7 +96,7 @@
             entry.callback.call(this, event);
           } catch (e) {
             // 一个监听器抛异常不能中断其余监听器，也不能冒到派发方
-            console.error('事件监听器抛出异常: ' + (e && e.stack ? e.stack : e));
+            console.error('Event listener threw: ' + (e && e.stack ? e.stack : e));
           }
           if (event[kStopImmediate]) break;
         }
@@ -270,12 +270,27 @@
   // 带参数的方法。selector 是完整的 ObjC selector，JS 层的
   // 「第一段 + options」在各自的方法里还原成它。
   // 对象参数在 JSON 里留 null，句柄按同样的下标单独传。
-  function splitArgs(args) {
+  // 看着像原生对象、却没有句柄 —— 原生对象还没创建。两种来头：
+  //   new UIWindow()          还没绑场景
+  //   class C extends UIView  子类的 super() 不建原生对象（见构造函数里的
+  //                           new.target 那道闸）
+  // 不拦的话它会走「普通值」那条路，句柄填 0，原生收到 nil 然后**静默
+  // 什么都不做**——实测 parent.addSubview(子类实例) 就是这个下场。
+  // 和只读属性静默失败是同一类错，所以一样要抛。
+  function rejectUnbacked(value, where) {
+    if (value instanceof NSObject) {
+      const name = (value.constructor && value.constructor.name) || 'object';
+      throw new TypeError(
+        where + ': ' + name + ' has no native object yet, so it cannot be passed as an argument');
+    }
+  }
+  function splitArgs(args, where) {
     const list = args || [];
     const values = [];
     const handles = [];
     for (const a of list) {
       const isObject = a != null && a[kHandle] !== undefined;
+      if (!isObject) rejectUnbacked(a, where || 'call');
       values.push(isObject ? null : a);
       handles.push(isObject ? a[kHandle] : 0);
     }
@@ -283,13 +298,13 @@
   }
   function nativeCall(obj, selector, args) {
     requireNative(obj, selector);
-    const { values, handles } = splitArgs(args);
+    const { values, handles } = splitArgs(args, selector);
     return JSON.parse(
       native.call(obj[kHandle], selector, JSON.stringify(values), handles));
   }
   function nativeCallObject(obj, selector, args) {
     requireNative(obj, selector);
-    const { values, handles } = splitArgs(args);
+    const { values, handles } = splitArgs(args, selector);
     const result =
       native.callObj(obj[kHandle], selector, JSON.stringify(values), handles);
     return result === undefined ? null : result;
@@ -301,12 +316,12 @@
   // 返回原生对象数组的方法。参数规则和 nativeCall 一样
   function nativeCallObjectArray(obj, selector, args) {
     requireNative(obj, selector);
-    const { values, handles } = splitArgs(args);
+    const { values, handles } = splitArgs(args, selector);
     return native.callObjArray(obj[kHandle], selector, JSON.stringify(values), handles);
   }
   // 带参数的类方法，比如 UIFont.systemFontOfSize(17)
   function nativeClassCall(className, selector, args) {
-    const { values, handles } = splitArgs(args);
+    const { values, handles } = splitArgs(args, className + '.' + selector);
     const result =
       native.classCall(className, selector, JSON.stringify(values), handles);
     return result === undefined ? null : result;
@@ -319,7 +334,11 @@
   // JS 构造原生对象：先有 this，再让原生造出对象并和 this 绑定。
   // 和包装工厂方向相反——那边是原生对象先有、JS 包装后建。
   function constructNative(wrapper, className, args) {
-    const handles = (args || []).map((a) => (a == null ? 0 : a[kHandle]));
+    const handles = (args || []).map((a) => {
+      if (a == null) return 0;
+      if (a[kHandle] === undefined) rejectUnbacked(a, 'new ' + className);
+      return a[kHandle] || 0;
+    });
     const handle = native.construct(className, handles, wrapper);
     if (handle) Object.defineProperty(wrapper, kHandle, { value: handle });
   }
@@ -329,7 +348,8 @@
   // 与其返回一个编出来的值，不如直接报错
   function requireNative(obj, what) {
     if (obj[kHandle] === undefined) {
-      throw new TypeError(what + '：这个对象还没连接到场景，原生对象尚未创建');
+      throw new TypeError(
+        what + ': this object is not connected to a scene yet, so no native object exists');
     }
   }
 
@@ -357,7 +377,7 @@
         get: () => value,
         set() {
           throw new TypeError(
-            name + ' 是只读的：结构体按值传递，要改请整体赋一个新的');
+            name + ' is read-only: structs are values, assign a whole new one instead');
         },
       });
     }
@@ -414,13 +434,15 @@
   // 缺字段直接抛，不默认补 0——那是静默出错。
   function structArg(value, fields, what) {
     if (value == null || typeof value !== 'object') {
-      throw new TypeError(what + ' 需要一个 ' + fields.join(' / ') + ' 俱全的对象');
+      throw new TypeError(
+        what + ' needs an object with all of: ' + fields.join(', '));
     }
     const out = {};
     for (const f of fields) {
       const n = Number(value[f]);
       if (!Number.isFinite(n)) {
-        throw new TypeError(what + ' 缺少字段 ' + f + '，或者它不是有限的数字');
+        throw new TypeError(
+          what + ' is missing ' + f + ', or it is not a finite number');
       }
       out[f] = n;
     }
@@ -692,14 +714,14 @@
       const o = options || {};
       if ('toView' in o) return toPoint(nativeCall(this, 'convertPoint:toView:', [p, o.toView]));
       if ('fromView' in o) return toPoint(nativeCall(this, 'convertPoint:fromView:', [p, o.fromView]));
-      throw new TypeError('convertPoint 需要 { toView } 或 { fromView }');
+      throw new TypeError('convertPoint needs { toView } or { fromView }');
     }
     convertRect(rect, options) {
       const r = structArg(rect, RECT_FIELDS, 'convertRect');
       const o = options || {};
       if ('toView' in o) return toRect(nativeCall(this, 'convertRect:toView:', [r, o.toView]));
       if ('fromView' in o) return toRect(nativeCall(this, 'convertRect:fromView:', [r, o.fromView]));
-      throw new TypeError('convertRect 需要 { toView } 或 { fromView }');
+      throw new TypeError('convertRect needs { toView } or { fromView }');
     }
     hitTest(point) {
       return nativeCallObject(this, 'hitTest:withEvent:',
@@ -736,7 +758,7 @@
         nativeCall(this, 'insertSubview:aboveSubview:', [view, o.aboveSubview]);
       } else {
         throw new TypeError(
-          'insertSubview 需要 { atIndex } / { belowSubview } / { aboveSubview } 之一');
+          'insertSubview needs one of { atIndex } / { belowSubview } / { aboveSubview }');
       }
       disown(from, 'subviews', view);
       ownOne(this, 'subviews', view);
@@ -824,7 +846,7 @@
     setContentHuggingPriority(priority, options) {
       const o = options || {};
       if (!('forAxis' in o)) {
-        throw new TypeError('setContentHuggingPriority 需要 { forAxis }');
+        throw new TypeError('setContentHuggingPriority needs { forAxis }');
       }
       nativeCall(this, 'setContentHuggingPriority:forAxis:', [priority, o.forAxis]);
     }
@@ -834,7 +856,7 @@
     setContentCompressionResistancePriority(priority, options) {
       const o = options || {};
       if (!('forAxis' in o)) {
-        throw new TypeError('setContentCompressionResistancePriority 需要 { forAxis }');
+        throw new TypeError('setContentCompressionResistancePriority needs { forAxis }');
       }
       nativeCall(this, 'setContentCompressionResistancePriority:forAxis:',
                  [priority, o.forAxis]);
@@ -948,7 +970,7 @@
     }
     static fontWithName(name, options) {
       const o = options || {};
-      if (!('size' in o)) throw new TypeError('fontWithName 需要 { size }');
+      if (!('size' in o)) throw new TypeError('fontWithName needs { size }');
       return nativeClassCall('UIFont', 'fontWithName:size:', [name, o.size]);
     }
     // 动态字体：跟随系统的「文字大小」设置
@@ -1014,7 +1036,7 @@
     resizableImage(options) {
       const o = options || {};
       if (!('withCapInsets' in o)) {
-        throw new TypeError('resizableImage 需要 { withCapInsets }');
+        throw new TypeError('resizableImage needs { withCapInsets }');
       }
       const insets = structArg(o.withCapInsets, INSETS_FIELDS, 'withCapInsets');
       if ('resizingMode' in o) {
@@ -1511,9 +1533,9 @@
       if (p === null) {
         throw new TypeError(
           base === undefined
-            ? 'URL 解析失败：' + JSON.stringify(String(url)) +
-              '。没有 base 时必须是绝对 URL——这个运行时不通过 HTTP 加载，没有 location'
-            : 'URL 解析失败：' + JSON.stringify(String(url)) +
+            ? 'Invalid URL: ' + JSON.stringify(String(url)) +
+              '. Without a base it must be absolute: this runtime does not load over HTTP, so there is no location'
+            : 'Invalid URL: ' + JSON.stringify(String(url)) +
               '（base ' + JSON.stringify(String(base)) + '）');
       }
       this[kParts] = p;
@@ -1528,7 +1550,7 @@
     get href() { return serializeURL(this[kParts]); }
     set href(v) {
       const p = parseURLParts(v);
-      if (p === null) throw new TypeError('URL 解析失败：' + JSON.stringify(String(v)));
+      if (p === null) throw new TypeError('Invalid URL: ' + JSON.stringify(String(v)));
       this[kParts] = p;
       if (this[kParams]) syncParams(this[kParams], p.search);
     }
@@ -1613,11 +1635,11 @@
     let text = String(init);
     if (text.startsWith('?')) text = text.slice(1);
     if (text === '') return out;
-    for (const 片 of text.split('&')) {
-      if (片 === '') continue;
-      const i = 片.indexOf('=');
-      if (i < 0) out.push([decodeFormComponent(片), '']);
-      else out.push([decodeFormComponent(片.slice(0, i)), decodeFormComponent(片.slice(i + 1))]);
+    for (const part of text.split('&')) {
+      if (part === '') continue;
+      const i = part.indexOf('=');
+      if (i < 0) out.push([decodeFormComponent(part), '']);
+      else out.push([decodeFormComponent(part.slice(0, i)), decodeFormComponent(part.slice(i + 1))]);
     }
     return out;
   }
@@ -1645,7 +1667,7 @@
         if (Array.isArray(init)) {
           this[kPairs] = init.map((pair) => {
             if (!Array.isArray(pair) || pair.length !== 2) {
-              throw new TypeError('URLSearchParams 的数组形式要求每项是 [名, 值]');
+              throw new TypeError('URLSearchParams in array form needs every entry to be [name, value]');
             }
             return [String(pair[0]), String(pair[1])];
           });
@@ -1660,10 +1682,10 @@
       }
       delete(name, value) {
         const n = String(name);
-        const 有值 = value !== undefined;
-        const v = 有值 ? String(value) : null;
+        const hasValue = value !== undefined;
+        const v = hasValue ? String(value) : null;
         this[kPairs] = this[kPairs].filter(
-          (pair) => !(pair[0] === n && (!有值 || pair[1] === v)));
+          (pair) => !(pair[0] === n && (!hasValue || pair[1] === v)));
         flushParams(this);
       }
       get(name) {
@@ -1677,24 +1699,24 @@
       }
       has(name, value) {
         const n = String(name);
-        const 有值 = value !== undefined;
-        const v = 有值 ? String(value) : null;
+        const hasValue = value !== undefined;
+        const v = hasValue ? String(value) : null;
         return this[kPairs].some(
-          (pair) => pair[0] === n && (!有值 || pair[1] === v));
+          (pair) => pair[0] === n && (!hasValue || pair[1] === v));
       }
       // set 的语义：替换第一个同名的，删掉其余同名的，位置保持
       set(name, value) {
         const n = String(name);
         const v = String(value);
-        let 放好了 = false;
+        let placed = false;
         const out = [];
         for (const pair of this[kPairs]) {
           if (pair[0] !== n) { out.push(pair); continue; }
-          if (放好了) continue;
+          if (placed) continue;
           out.push([n, v]);
-          放好了 = true;
+          placed = true;
         }
-        if (!放好了) out.push([n, v]);
+        if (!placed) out.push([n, v]);
         this[kPairs] = out;
         flushParams(this);
       }
@@ -1735,7 +1757,7 @@
     const n = String(name);
     // HTTP 的 token 规则：这些字符不允许出现在首部名里
     if (n === '' || /[^!#$%&'*+\-.^_`|~0-9A-Za-z]/.test(n)) {
-      throw new TypeError('不是合法的首部名：' + JSON.stringify(n));
+      throw new TypeError('Invalid header name: ' + JSON.stringify(n));
     }
     return n.toLowerCase();
   }
@@ -1743,7 +1765,7 @@
     // 首尾的空白要去掉；中间的 NUL / CR / LF 会撕裂报文，必须拒绝
     const v = String(value).replace(/^[\t\n\r ]+|[\t\n\r ]+$/g, '');
     if (/[\0\r\n]/.test(v)) {
-      throw new TypeError('首部值里不能有 NUL、CR 或 LF');
+      throw new TypeError('Header value cannot contain NUL, CR or LF');
     }
     return v;
   }
@@ -1759,7 +1781,7 @@
       const 条目 = Array.isArray(init) ? init : Object.entries(init);
       for (const pair of 条目) {
         if (!Array.isArray(pair) || pair.length !== 2) {
-          throw new TypeError('Headers 的数组形式要求每项是 [名, 值]');
+          throw new TypeError('Headers in array form needs every entry to be [name, value]');
         }
         this.append(pair[0], pair[1]);
       }
@@ -1814,13 +1836,13 @@
       const type = 'type' in o ? String(o.type) : '';
       // 字符串走 JSON，ArrayBuffer / TypedArray 的字节按下标单独过去，
       // 嵌套的 Blob 第一版不支持（要先把它的字节取出来）
-      const 预处理 = list.map((item) => {
+      const prepared = list.map((item) => {
         if (item instanceof Blob) {
-          throw new TypeError('第一版的 Blob 还不能由别的 Blob 拼成');
+          throw new TypeError('Blob parts cannot be Blobs yet');
         }
         return item;
       });
-      const handle = native.createBlob(预处理, type, '');
+      const handle = native.createBlob(prepared, type, '');
       if (handle) Object.defineProperty(this, kHandle, { value: handle[kHandle] });
     }
     get size() { requireNative(this, 'size'); return nativeGet(this, 'size'); }
@@ -1844,7 +1866,7 @@
       constructor() {
         super();
         if (!allowAbortSignalConstruct) {
-          throw new TypeError('AbortSignal 不能直接构造，用 new AbortController()');
+          throw new TypeError('AbortSignal cannot be constructed directly, use new AbortController()');
         }
         this[kAborted] = false;
         this[kReason] = undefined;
@@ -1862,7 +1884,7 @@
       static timeout(ms) {
         const s = makeSignal();
         setTimeout(() => {
-          const err = new Error('等待超时');
+          const err = new Error('The operation timed out');
           err.name = 'TimeoutError';
           abortSignal(s, err);
         }, Number(ms) || 0);
@@ -1880,7 +1902,7 @@
     if (signal[kAborted]) return;   // 只中止一次
     signal[kAborted] = true;
     if (reason === undefined) {
-      const err = new Error('操作已中止');
+      const err = new Error('The operation was aborted');
       err.name = 'AbortError';   // Web 用 DOMException，我们没有那个类
       signal[kReason] = err;
     } else {
@@ -1917,23 +1939,23 @@
     native.fetchRelease(requestId);
   });
 
-  function 读body(target, kind) {
+  function readBody(target, kind) {
     if (target[kBodyUsed]) {
       // Web 规范：body 只能读一次。读过第二次要抛，不能静默给空的
-      return Promise.reject(new TypeError('body 已经读过了，不能再读一次'));
+      return Promise.reject(new TypeError('Body has already been read'));
     }
     target[kBodyUsed] = true;
     const id = target[kRequestId];
-    if (!id) return Promise.reject(new TypeError('这个对象没有 body'));
+    if (!id) return Promise.reject(new TypeError('This object has no body'));
     return native.fetchReadBody(id, kind);
   }
 
   class Body {
     get bodyUsed() { return this[kBodyUsed]; }
-    arrayBuffer() { return 读body(this, 'arrayBuffer'); }
-    text() { return 读body(this, 'text'); }
-    async json() { return JSON.parse(await 读body(this, 'text')); }
-    blob() { return 读body(this, 'blob'); }
+    arrayBuffer() { return readBody(this, 'arrayBuffer'); }
+    text() { return readBody(this, 'text'); }
+    async json() { return JSON.parse(await readBody(this, 'text')); }
+    blob() { return readBody(this, 'blob'); }
   }
 
   const Response = define(globalThis, 'Response', class Response extends Body {
@@ -1964,15 +1986,15 @@
     constructor(input, init) {
       super();
       const o = init === undefined || init === null ? {} : init;
-      const 来自请求 = input instanceof Request;
+      const fromRequest = input instanceof Request;
       this[kRequestId] = 0;
       this[kBodyUsed] = false;
-      this.url = 来自请求 ? input.url : new URL(String(input)).href;
-      this.method = ('method' in o ? String(o.method) : 来自请求 ? input.method : 'GET')
+      this.url = fromRequest ? input.url : new URL(String(input)).href;
+      this.method = ('method' in o ? String(o.method) : fromRequest ? input.method : 'GET')
                       .toUpperCase();
       this.headers = new Headers(
-        'headers' in o ? o.headers : 来自请求 ? input.headers : undefined);
-      const body = 'body' in o ? o.body : 来自请求 ? input[kBodyText] : undefined;
+        'headers' in o ? o.headers : fromRequest ? input.headers : undefined);
+      const body = 'body' in o ? o.body : fromRequest ? input[kBodyText] : undefined;
       this[kBodyText] = body === undefined || body === null ? null : String(body);
       // 不 Object.freeze：bodyUsed 是读 body 时才置上的，冻了就写不进去。
       // Web 的 Request 用内部槽存这个状态，我们用 Symbol 属性，所以不能冻。
@@ -2043,7 +2065,7 @@
   }
   function addTimer(handler, delay, args, repeats, who) {
     if (typeof handler !== 'function') {
-      throw new TypeError(who + ' 的第一个参数要是函数');
+      throw new TypeError(who + ': the first argument must be a function');
     }
     // 额外参数透传是标准行为：setTimeout(fn, 0, a, b) 会用 (a, b) 调 fn
     const callback = args.length === 0 ? handler : () => handler(...args);
@@ -2067,7 +2089,7 @@
   // 同样是生态假设存在的东西。
   define(globalThis, 'queueMicrotask', function queueMicrotask(callback) {
     if (typeof callback !== 'function') {
-      throw new TypeError('queueMicrotask 的参数要是函数');
+      throw new TypeError('queueMicrotask: the argument must be a function');
     }
     Promise.resolve().then(callback);
   });
