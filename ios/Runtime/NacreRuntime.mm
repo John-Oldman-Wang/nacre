@@ -175,6 +175,10 @@ id DecodeJSON(const std::string& json) {
 // 线上格式是内部约定，以后换编码不影响 JS。
 NSDictionary* PointToJSON(CGPoint p) { return @{@"x": @(p.x), @"y": @(p.y)}; }
 NSDictionary* SizeToJSON(CGSize z) { return @{@"width": @(z.width), @"height": @(z.height)}; }
+NSDictionary* InsetsToJSON(UIEdgeInsets i) {
+  return @{@"top": @(i.top), @"left": @(i.left),
+           @"bottom": @(i.bottom), @"right": @(i.right)};
+}
 NSDictionary* RectToJSON(CGRect r) {
   return @{@"x": @(r.origin.x), @"y": @(r.origin.y),
            @"width": @(r.size.width), @"height": @(r.size.height)};
@@ -191,6 +195,11 @@ CGRect JSONToRect(id v) {
   NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
   return CGRectMake([d[@"x"] doubleValue], [d[@"y"] doubleValue],
                     [d[@"width"] doubleValue], [d[@"height"] doubleValue]);
+}
+UIEdgeInsets JSONToInsets(id v) {
+  NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
+  return UIEdgeInsetsMake([d[@"top"] doubleValue], [d[@"left"] doubleValue],
+                          [d[@"bottom"] doubleValue], [d[@"right"] doubleValue]);
 }
 
 // 枚举：JS 侧一律用字符串。名字是我们定的（去掉类型前缀、首字母小写），
@@ -278,6 +287,31 @@ NACRE_ENUM_MAP(BaselineAdjustment, UIBaselineAdjustment,
                @"alignBaselines": @(UIBaselineAdjustmentAlignBaselines),
                @"alignCenters": @(UIBaselineAdjustmentAlignCenters),
                @"none": @(UIBaselineAdjustmentNone))
+
+// 图片的方向。相机拍出来的图常常是「横着存、靠这个标记转正」的，
+// 所以读 size 和读方向要一起看：size 已经反映了方向。
+NACRE_ENUM_MAP(ImageOrientation, UIImageOrientation,
+               @"up": @(UIImageOrientationUp),
+               @"down": @(UIImageOrientationDown),
+               @"left": @(UIImageOrientationLeft),
+               @"right": @(UIImageOrientationRight),
+               @"upMirrored": @(UIImageOrientationUpMirrored),
+               @"downMirrored": @(UIImageOrientationDownMirrored),
+               @"leftMirrored": @(UIImageOrientationLeftMirrored),
+               @"rightMirrored": @(UIImageOrientationRightMirrored))
+
+// 模板图：忽略原图颜色，整张按 tintColor 上色。SF Symbols 默认走这个。
+NACRE_ENUM_MAP(ImageRenderingMode, UIImageRenderingMode,
+               @"automatic": @(UIImageRenderingModeAutomatic),
+               @"alwaysOriginal": @(UIImageRenderingModeAlwaysOriginal),
+               @"alwaysTemplate": @(UIImageRenderingModeAlwaysTemplate))
+
+// 九宫格的中间那块怎么填。注意这个枚举的数值**随 ABI 变**
+// （TARGET_ABI_USES_IOS_VALUES：iOS 上 Tile=0，别处 Stretch=0），
+// 正好又一次说明名字↔数值的映射只能放在原生层。
+NACRE_ENUM_MAP(ImageResizingMode, UIImageResizingMode,
+               @"tile": @(UIImageResizingModeTile),
+               @"stretch": @(UIImageResizingModeStretch))
 
 // 字体的粗细和文本样式不是枚举，是 CGFloat / NSString 常量，
 // 但 JS 侧一样用字符串，所以放在一起。
@@ -393,9 +427,7 @@ std::string ReadNativeProperty(id object, const std::string& name) {
     } else if ([key isEqualToString:@"center"]) {
       value = PointToJSON(view.center);
     } else if ([key isEqualToString:@"safeAreaInsets"]) {
-      UIEdgeInsets i = view.safeAreaInsets;
-      value = @{@"top": @(i.top), @"left": @(i.left),
-                @"bottom": @(i.bottom), @"right": @(i.right)};
+      value = InsetsToJSON(view.safeAreaInsets);
     } else if ([key isEqualToString:@"alpha"]) {
       value = @(view.alpha);
     } else if ([key isEqualToString:@"isHidden"]) {
@@ -438,6 +470,39 @@ std::string ReadNativeProperty(id object, const std::string& name) {
       value = SizeToJSON(label.shadowOffset);
     } else if ([key isEqualToString:@"baselineAdjustment"]) {
       value = NameForBaselineAdjustment(label.baselineAdjustment);
+    }
+  }
+  // UIImageView 要放在 UILabel 之前吗？不用——两者都是 UIView 的兄弟，
+  // 名字不重叠。但 isHighlighted 两边都有，所以各自的分支里都写一遍。
+  if (value == nil && [object isKindOfClass:UIImageView.class]) {
+    UIImageView* iv = (UIImageView*)object;
+    if ([key isEqualToString:@"isHighlighted"]) {
+      value = @(iv.isHighlighted);
+    } else if ([key isEqualToString:@"isAnimating"]) {
+      value = @(iv.isAnimating);
+    }
+  }
+  if (value == nil && [object isKindOfClass:UIImage.class]) {
+    UIImage* image = (UIImage*)object;
+    if ([key isEqualToString:@"size"]) {
+      // 点，不是像素。像素 = size × scale
+      value = SizeToJSON(image.size);
+    } else if ([key isEqualToString:@"scale"]) {
+      value = @(image.scale);
+    } else if ([key isEqualToString:@"imageOrientation"]) {
+      value = NameForImageOrientation(image.imageOrientation);
+    } else if ([key isEqualToString:@"isSymbolImage"]) {
+      value = @(image.isSymbolImage);
+    } else if ([key isEqualToString:@"renderingMode"]) {
+      value = NameForImageRenderingMode(image.renderingMode);
+    } else if ([key isEqualToString:@"capInsets"]) {
+      value = InsetsToJSON(image.capInsets);
+    } else if ([key isEqualToString:@"resizingMode"]) {
+      value = NameForImageResizingMode(image.resizingMode);
+    } else if ([key isEqualToString:@"alignmentRectInsets"]) {
+      value = InsetsToJSON(image.alignmentRectInsets);
+    } else if ([key isEqualToString:@"duration"]) {
+      value = @(image.duration);
     }
   }
   if (value == nil && [object isKindOfClass:NacreBlob.class]) {
@@ -536,6 +601,13 @@ void WriteNativeProperty(id object, const std::string& name, const std::string& 
       return;
     }
   }
+  if ([object isKindOfClass:UIImageView.class]) {
+    UIImageView* iv = (UIImageView*)object;
+    if ([key isEqualToString:@"isHighlighted"]) {
+      iv.highlighted = [value boolValue];
+      return;
+    }
+  }
   if ([object isKindOfClass:UILabel.class]) {
     UILabel* label = (UILabel*)object;
     if ([key isEqualToString:@"text"]) {
@@ -624,6 +696,14 @@ nacre::NativeObjectRef ReadNativeObjectProperty(id object, const std::string& na
     if (name == "backgroundColor") return {(__bridge void*)view.backgroundColor, "UIColor"};
     if (name == "superview") return {(__bridge void*)view.superview, "UIView"};
     if (name == "window") return {(__bridge void*)view.window, "UIWindow"};
+  }
+  if ([object isKindOfClass:UIImageView.class]) {
+    UIImageView* iv = (UIImageView*)object;
+    if (name == "image") return {(__bridge void*)iv.image, "UIImage"};
+    if (name == "highlightedImage") {
+      return {(__bridge void*)iv.highlightedImage, "UIImage"};
+    }
+    if (name == "tintColor") return {(__bridge void*)iv.tintColor, "UIColor"};
   }
   if ([object isKindOfClass:UILabel.class]) {
     UILabel* label = (UILabel*)object;
@@ -841,6 +921,51 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
     if (font == nil) return {};
     return {(__bridge void*)font, "UIFont"};
   }
+
+  // UIImage 的四条取图路径。返回 nil 是**合法答案**（名字不存在、文件读不到、
+  // 字节解不出来），所以这里只在参数类型不对时才填 error。
+  if (className == "UIImage") {
+    UIImage* image = nil;
+    NSString* text = [arg(0) isKindOfClass:NSString.class] ? arg(0) : nil;
+    if ([sel isEqualToString:@"imageNamed:"]) {
+      // Asset Catalog 和 bundle 里的普通文件都能命中，而且认子目录路径
+      // （实测 'assets/logo' 可以，但不会递归搜）
+      if (text == nil) {
+        *error = "imageNamed 需要一个字符串名字";
+        return {};
+      }
+      image = [UIImage imageNamed:text];
+    } else if ([sel isEqualToString:@"systemImageNamed:"]) {
+      if (text == nil) {
+        *error = "systemImageNamed 需要一个字符串名字";
+        return {};
+      }
+      image = [UIImage systemImageNamed:text];
+    } else if ([sel isEqualToString:@"imageWithContentsOfFile:"]) {
+      if (text == nil) {
+        *error = "imageWithContentsOfFile 需要一个字符串路径";
+        return {};
+      }
+      image = [UIImage imageWithContentsOfFile:text];
+    } else if ([sel isEqualToString:@"imageWithData:"] ||
+               [sel isEqualToString:@"imageWithData:scale:"]) {
+      // 字节来自 Blob，全程不进 V8 堆——fetch 下来的图直接上屏走这条
+      id source = argPtrs.empty() ? nil : (__bridge id)argPtrs[0];
+      if (![source isKindOfClass:NacreBlob.class]) {
+        *error = "imageWithData 需要一个 Blob";
+        return {};
+      }
+      NSData* data = ((NacreBlob*)source).data;
+      if ([sel isEqualToString:@"imageWithData:scale:"]) {
+        double scale = [arg(1) doubleValue];
+        image = [UIImage imageWithData:data scale:scale > 0 ? scale : 1.0];
+      } else {
+        image = [UIImage imageWithData:data];
+      }
+    }
+    if (image == nil) return {};
+    return {(__bridge void*)image, "UIImage"};
+  }
   return {};
 }
 
@@ -865,6 +990,18 @@ void WriteNativeObjectProperty(id object, const std::string& name, void* valuePt
   }
   if ([object isKindOfClass:UIView.class] && name == "backgroundColor") {
     ((UIView*)object).backgroundColor = [value isKindOfClass:UIColor.class] ? value : nil;
+  }
+  if ([object isKindOfClass:UIImageView.class]) {
+    UIImageView* iv = (UIImageView*)object;
+    UIImage* image = [value isKindOfClass:UIImage.class] ? (UIImage*)value : nil;
+    if (name == "image") {
+      iv.image = image;
+    } else if (name == "highlightedImage") {
+      iv.highlightedImage = image;
+    } else if (name == "tintColor") {
+      // null_resettable：赋 nil 是合法的，表示退回继承来的那个
+      iv.tintColor = [value isKindOfClass:UIColor.class] ? (UIColor*)value : nil;
+    }
   }
   if ([object isKindOfClass:UILabel.class]) {
     UILabel* label = (UILabel*)object;
@@ -978,6 +1115,33 @@ nacre::NativeObjectRef CallObjectMethod(id object, const std::string& name,
       return {(__bridge void*)[view hitTest:JSONToPoint(args[0]) withEvent:nil], "UIView"};
     }
   }
+  // UIImage 不可变：这些方法都返回一张新图，不改原图。
+  if ([object isKindOfClass:UIImage.class]) {
+    UIImage* image = (UIImage*)object;
+    auto arg = [&](NSUInteger i) -> id { return i < args.count ? args[i] : nil; };
+    if ([sel isEqualToString:@"resizableImageWithCapInsets:"]) {
+      return {(__bridge void*)[image resizableImageWithCapInsets:JSONToInsets(arg(0))],
+              "UIImage"};
+    }
+    if ([sel isEqualToString:@"resizableImageWithCapInsets:resizingMode:"]) {
+      UIImageResizingMode mode;
+      if (!ImageResizingModeFromName(arg(1), &mode)) {
+        *error = EnumError(@"resizingMode", arg(1), NamesForImageResizingMode());
+        return {};
+      }
+      return {(__bridge void*)[image resizableImageWithCapInsets:JSONToInsets(arg(0))
+                                                    resizingMode:mode],
+              "UIImage"};
+    }
+    if ([sel isEqualToString:@"imageWithRenderingMode:"]) {
+      UIImageRenderingMode mode;
+      if (!ImageRenderingModeFromName(arg(0), &mode)) {
+        *error = EnumError(@"renderingMode", arg(0), NamesForImageRenderingMode());
+        return {};
+      }
+      return {(__bridge void*)[image imageWithRenderingMode:mode], "UIImage"};
+    }
+  }
   return {};
 }
 
@@ -998,6 +1162,8 @@ nacre::NativeObjectRef ConstructNative(const std::string& className,
     object = [[UIView alloc] init];
   } else if (className == "UILabel") {
     object = [[UILabel alloc] init];
+  } else if (className == "UIImageView") {
+    object = [[UIImageView alloc] init];
   }
   if (object == nil) return {};
   return {(void*)CFAutorelease(CFBridgingRetain(object)), className};
@@ -1564,6 +1730,29 @@ nacre::NativeObjectRef CreateBlob(
                 }];
         return;
       }
+      // 图片解码默认发生在**绘制时**，也就是主线程。这两个方法把解码挪到
+      // 后台，解完再把准备好的那张图交回来。JS 本来就在主线程抢时间，
+      // 大图不走这条就会掉帧。
+      if ([object isKindOfClass:UIImage.class]) {
+        UIImage* image = (UIImage*)object;
+        if (name == "prepareForDisplay") {
+          [image prepareForDisplayWithCompletionHandler:^(UIImage* ready) {
+            [strongSelf settleCall:callId withObject:ready className:"UIImage"];
+          }];
+          return;
+        }
+        if (name == "prepareThumbnailOfSize:") {
+          id decoded = DecodeJSON(argsJSON);
+          NSArray* args = [decoded isKindOfClass:NSArray.class] ? decoded : @[];
+          [image prepareThumbnailOfSize:JSONToSize(args.firstObject)
+                      completionHandler:^(UIImage* ready) {
+                        [strongSelf settleCall:callId
+                                    withObject:ready
+                                     className:"UIImage"];
+                      }];
+          return;
+        }
+      }
       [strongSelf settleCall:callId with:NO];
     };
     *engine = std::make_unique<nacre::Engine>(std::move(host));
@@ -1807,6 +1996,18 @@ nacre::NativeObjectRef CreateBlob(
   auto engine = _engine;
   [self postToJS:^{
     if (*engine) (*engine)->SettleBool(callId, value ? true : false);
+  }];
+}
+
+// call_async 这条通道只约定了「异步地兑现 call_id」，没规定兑现成什么。
+// openURL 兑现布尔，图片解码兑现一个原生对象，共用同一条路。
+- (void)settleCall:(int)callId withObject:(id)object className:(const char*)className {
+  auto engine = _engine;
+  std::string name = className;
+  // 捕获 object 本身而不是裸指针：block 要等下一轮主队列才跑，
+  // 这中间必须有人持有它，否则 SettleObject 拿到的是野指针。
+  [self postToJS:^{
+    if (*engine) (*engine)->SettleObject(callId, {(__bridge void*)object, name});
   }];
 }
 

@@ -48,8 +48,8 @@ Promise.reject(new Error('这条不应该被报告')).catch(() => {
 //
 // 这条用例特意放在顶层而不是和 fetch 混在一起：延后结算只保证「晚于当前
 // 已排队的任务」，并发网络请求的回调会插进来，那时就成了竞态。
-const 迟到的 = Promise.reject(new Error('这条不该被上报：handler 在 timer 里补上'));
-setTimeout(() => 迟到的.catch(() => {}), 0);
+const lateRejection = Promise.reject(new Error('这条不该被上报：handler 在 timer 里补上'));
+setTimeout(() => lateRejection.catch(() => {}), 0);
 
 console.log('globalThis 的全部属性 =',
             Object.getOwnPropertyNames(globalThis).sort().join(' '));
@@ -95,36 +95,36 @@ console.log('--- 运行状态 ---');
 console.log('state =', application.state);
 
 console.log('--- EventTarget 语义 ---');
-let 次数 = 0;
-const 监听器 = () => { 次数++; };
-application.addEventListener('自测', 监听器);
-application.addEventListener('自测', 监听器);          // 重复注册应被忽略
+let hits = 0;
+const listener = () => { hits++; };
+application.addEventListener('自测', listener);
+application.addEventListener('自测', listener);          // 重复注册应被忽略
 application.dispatchEvent(new Event('自测'));
-console.log('重复注册只触发一次 =', 次数 === 1);
+console.log('重复注册只触发一次 =', hits === 1);
 
-application.removeEventListener('自测', 监听器);
+application.removeEventListener('自测', listener);
 application.dispatchEvent(new Event('自测'));
-console.log('移除后不再触发 =', 次数 === 1);
+console.log('移除后不再触发 =', hits === 1);
 
-let once次数 = 0;
-application.addEventListener('一次性', () => { once次数++; }, { once: true });
+let onceCount = 0;
+application.addEventListener('一次性', () => { onceCount++; }, { once: true });
 application.dispatchEvent(new Event('一次性'));
 application.dispatchEvent(new Event('一次性'));
-console.log('once 只触发一次 =', once次数 === 1);
+console.log('once 只触发一次 =', onceCount === 1);
 
 application.addEventListener('抛异常', () => { throw new Error('监听器炸了'); });
 application.addEventListener('抛异常', () => console.log('✓ 前一个监听器抛异常不影响后续'));
 application.dispatchEvent(new Event('抛异常'));
 
-const 可取消 = new Event('可取消', { cancelable: true });
+const cancelableEvent = new Event('可取消', { cancelable: true });
 application.addEventListener('可取消', (e) => e.preventDefault());
 console.log('JS 自己派发时 preventDefault 生效，dispatchEvent 返回 =',
-            application.dispatchEvent(可取消));
+            application.dispatchEvent(cancelableEvent));
 
-const 不可取消 = new Event('不可取消');
+const plainEvent = new Event('不可取消');
 application.addEventListener('不可取消', (e) => e.preventDefault());
 console.log('cancelable=false 时静默失效，返回 =',
-            application.dispatchEvent(不可取消));
+            application.dispatchEvent(plainEvent));
 
 console.log('--- 等待原生事件 ---');
 console.log('在模拟器的设备菜单里选 Simulate Memory Warning 触发');
@@ -226,9 +226,9 @@ application.addEventListener('sceneconnect', (e) => {
 
   // 身份一致的实际意义：挂在包装上的自定义属性要能读回来
   // @ts-expect-error 往原生对象上挂自定义属性，运行时允许（见 project.md 的 TODO）
-  scene.我的数据 = { 页面: '首页' };
+  scene.myData = { 页面: '首页' };
   console.log('  自定义属性能从另一处读回 =',
-              /** @type {any} */ (application.scenes[0]).我的数据?.页面 === '首页');
+              /** @type {any} */ (application.scenes[0]).myData?.页面 === '首页');
 
   console.log('  再取一次还是同一个 =', application.scenes[0] === fromList);
 
@@ -547,208 +547,451 @@ application.addEventListener('sceneconnect', (e) => {
 
   // 断言要能失败：只打印数值的「用例」给不了任何保证
   /**
-   * @param {string} 说明
-   * @param {unknown} 实际
-   * @param {unknown} 期望
+   * @param {string} label
+   * @param {unknown} actual
+   * @param {unknown} expected
    */
-  function 断言(说明, 实际, 期望) {
-    const 过了 = String(实际) === String(期望);
-    console.log((过了 ? '  ✓ ' : '  ✗ ') + 说明 + ' = ' + 实际 +
-                (过了 ? '' : '（期望 ' + 期望 + '）'));
+  function assert(label, actual, expected) {
+    const passed = String(actual) === String(expected);
+    console.log((passed ? '  ✓ ' : '  ✗ ') + label + ' = ' + actual +
+                (passed ? '' : '（期望 ' + expected + '）'));
   }
+
+  // ===== 图片 =====
+  console.log('  --- UIImage ---');
+  {
+    // 1. bundle 里的普通文件。JS/ 是 folder reference，目录结构原样进
+    // bundle，所以名字里带路径。实测 imageNamed 认子目录（但不递归搜）。
+    const dot = UIImage.imageNamed('JS/assets/dot');
+    if (dot === null) {
+      console.log('  ✗ JS/assets/dot 没找到');
+    } else {
+      // size 是**点**：三个文件分别是 10/20/30 像素，读出来都该是 10x10
+      assert('size 是点，不随倍率变', dot.size.width + 'x' + dot.size.height, '10x10');
+      assert('@2x/@3x 被自动选中（倍率 > 1）', dot.scale > 1, true);
+      assert('像素 = size × scale', dot.size.width * dot.scale >= 20, true);
+      assert('普通图片不是 symbol', dot.isSymbolImage, false);
+      assert('方向默认朝上', dot.imageOrientation, 'up');
+      assert('普通图片没有九宫格边距', dot.capInsets.top, 0);
+      assert('静态图 duration 为 0', dot.duration, 0);
+    }
+
+    // 2. 找不到是**合法答案**，返回 null 而不是抛
+    assert('名字不存在返回 null', UIImage.imageNamed('根本没有这张图'), null);
+    assert('路径读不到也返回 null',
+         UIImage.imageWithContentsOfFile('/nonexistent/x.png'), null);
+
+    // 3. SF Symbols：上千个图标，不占包体积
+    const star = UIImage.systemImageNamed('star.fill');
+    assert('SF Symbol 拿得到', star !== null, true);
+    if (star) {
+      assert('isSymbolImage 为真', star.isSymbolImage, true);
+      // 实测纠正：SF Symbol 的 renderingMode 是 'automatic'，不是
+      // 'alwaysTemplate'。「按 tintColor 上色」是**绘制上下文**决定的，
+      // 不写在图片上——automatic 的意思正是「由用的地方决定」。
+      assert('symbol 的渲染模式是 automatic', star.renderingMode, 'automatic');
+    }
+
+    // 4. 不可变性：这些方法返回新图，原图不动
+    if (star) {
+      const originalMode = star.imageWithRenderingMode('alwaysOriginal');
+      assert('改渲染模式返回新对象', originalMode === star, false);
+      assert('新图的渲染模式变了', originalMode.renderingMode, 'alwaysOriginal');
+      assert('原图没被改', star.renderingMode, 'automatic');
+    }
+
+    // 5. 九宫格：四条边不拉伸，只拉中间。小图铺大容器的正解。
+    const frame = UIImage.imageNamed('JS/assets/frame');
+    if (frame === null) {
+      console.log('  ✗ JS/assets/frame 没找到');
+    } else {
+      assert('原图没有 capInsets', frame.capInsets.left, 0);
+      const stretchable = frame.resizableImage({
+        withCapInsets: new UIEdgeInsets(6, 6, 6, 6),
+      });
+      assert('九宫格边距读得回来', stretchable.capInsets.left, 6);
+      // 实测纠正：resizableImageWithCapInsets: 这个单参重载默认是 tile，
+      // 要 stretch 得用带 resizingMode 的那个重载显式指定
+      assert('单参重载默认平铺', stretchable.resizingMode, 'tile');
+      const tiled = frame.resizableImage({
+        withCapInsets: new UIEdgeInsets(6, 6, 6, 6),
+        resizingMode: 'stretch',
+      });
+      assert('显式指定 stretch 才拉伸', tiled.resizingMode, 'stretch');
+      // 普通对象也认（写入宽、读出窄）
+      const fromPlainObject = frame.resizableImage({
+        withCapInsets: { top: 2, left: 3, bottom: 4, right: 5 },
+      });
+      assert('capInsets 收普通对象', fromPlainObject.capInsets.right, 5);
+      assert('读出来的是 UIEdgeInsets',
+           fromPlainObject.capInsets instanceof UIEdgeInsets, true);
+    }
+
+    // 6. 枚举写错要抛，不静默忽略也不退回默认值
+    try {
+      // @ts-expect-error 'template' 不是合法的渲染模式
+      star.imageWithRenderingMode('template');
+      console.log('  ✗ 枚举写错居然通过了');
+    } catch (err) {
+      console.log('  ✓ 渲染模式写错被拒:', err.message);
+    }
+
+    // 7. Blob → UIImage：字节全程不进 V8 堆。
+    // 这里用手搓的 2x2 PNG，fetch 下来的 Blob 走的是同一条路。
+    const pngBytes = new Uint8Array([
+      137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 2,
+      0, 0, 0, 2, 8, 6, 0, 0, 0, 114, 182, 13, 36, 0, 0, 0, 17, 73, 68, 65, 84,
+      120, 218, 99, 248, 127, 144, 253, 63, 8, 51, 192, 24, 0, 101, 94, 11, 25,
+      206, 178, 233, 129, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
+    ]);
+    const blob = new Blob([pngBytes], { type: 'image/png' });
+    const fromBytes = UIImage.imageWithData(blob);
+    assert('Blob 解得出图', fromBytes !== null, true);
+    if (fromBytes) {
+      assert('没给 scale 时按 1 算', fromBytes.scale, 1);
+      assert('2x2 像素、scale 1 → size 2x2',
+           fromBytes.size.width + 'x' + fromBytes.size.height, '2x2');
+    }
+    const atScale2 = UIImage.imageWithData(blob, { scale: 2 });
+    assert('给了 scale 之后 size 减半', atScale2 === null ? '?' : atScale2.size.width, 1);
+    assert('不是图片的字节返回 null',
+         UIImage.imageWithData(new Blob(['这不是图片'])), null);
+  }
+
+  // ===== UIImageView =====
+  console.log('  --- UIImageView ---');
+  {
+    const dotImage = UIImage.imageNamed('JS/assets/dot');
+    const iv = new UIImageView();
+    assert('UIImageView 是 UIView', iv instanceof UIView, true);
+    assert('默认没有图', iv.image, null);
+
+    iv.image = dotImage;
+    assert('写进去读回来是同一个对象', iv.image === dotImage, true);
+
+    // 固有尺寸就是图片尺寸——第 3c 步做完 Auto Layout 之后，
+    // 「比例对不上」这个问题大半会自己消失
+    assert('intrinsicContentSize 等于图片尺寸',
+         iv.intrinsicContentSize.width, dotImage === null ? '?' : dotImage.size.width);
+
+    // 小图放进大容器：靠 contentMode，不是 UIImageView 自己的事
+    iv.contentMode = 'scaleAspectFit';
+    iv.clipsToBounds = true;      // scaleAspectFill 时必须配，否则溢出画到外面
+    assert('contentMode 写入生效', iv.contentMode, 'scaleAspectFit');
+
+    const symbol = UIImage.systemImageNamed('star.fill');
+    iv.highlightedImage = symbol;
+    assert('highlightedImage 读回来', iv.highlightedImage === symbol, true);
+    iv.isHighlighted = true;
+    assert('isHighlighted 写入生效', iv.isHighlighted, true);
+    iv.isHighlighted = false;
+    assert('逐帧动画没在跑', iv.isAnimating, false);
+
+    // 上屏：左边原尺寸居中（小图不该被放大），右边等比填满并裁掉溢出
+    const centeredView = new UIImageView();
+    centeredView.image = dotImage;
+    centeredView.contentMode = 'center';
+    centeredView.backgroundColor = UIColor.secondarySystemBackgroundColor;
+    centeredView.frame = new CGRect(20, 560, 100, 60);
+    vc.view.addSubview(centeredView);
+
+    const fillView = new UIImageView();
+    fillView.image = dotImage;
+    fillView.contentMode = 'scaleAspectFill';
+    fillView.clipsToBounds = true;
+    fillView.frame = new CGRect(140, 560, 100, 60);
+    vc.view.addSubview(fillView);
+
+    // 九宫格铺满：20pt 的边框图拉成 100x60，四角不变形
+    const nineSliceView = new UIImageView();
+    const frameImage = UIImage.imageNamed('JS/assets/frame');
+    if (frameImage) {
+      nineSliceView.image = frameImage.resizableImage({
+        withCapInsets: new UIEdgeInsets(6, 6, 6, 6),
+      });
+    }
+    nineSliceView.frame = new CGRect(260, 560, 100, 60);
+    vc.view.addSubview(nineSliceView);
+
+    // 模板图 + tintColor：同一张 symbol 按颜色重新上色
+    const tintedView = new UIImageView();
+    tintedView.image = symbol;
+    tintedView.tintColor = UIColor.systemPinkColor;
+    tintedView.contentMode = 'scaleAspectFit';
+    tintedView.frame = new CGRect(20, 630, 60, 40);
+    vc.view.addSubview(tintedView);
+    assert('tintColor 读回来', tintedView.tintColor === UIColor.systemPinkColor, true);
+
+    // 后台解码：解码默认在绘制时发生（主线程），这个把它挪到后台
+    if (dotImage) {
+      dotImage.prepareForDisplay().then((ready) => {
+        assert('prepareForDisplay 给回一张图', ready !== null, true);
+        assert('解好的图尺寸不变',
+             ready === null ? '?' : ready.size.width, dotImage.size.width);
+      });
+      dotImage.prepareThumbnail(new CGSize(5, 5)).then((thumbnail) => {
+        assert('prepareThumbnail 给回一张图', thumbnail !== null, true);
+      });
+    }
+  }
+
+  // ===== 真实的网络图片：fetch → Blob → UIImage =====
+  //
+  // 这是第 6 步（fetch / Blob）的直接收益：字节从 NSURLSession 下来之后
+  // 一路留在原生的 NSData 里，变成 UIImage 再上屏，**全程不进 V8 堆**。
+  // JS 侧从头到尾只拿着两个句柄。
+  const remoteView = new UIImageView();
+  remoteView.contentMode = 'scaleAspectFill';
+  remoteView.clipsToBounds = true;
+  remoteView.backgroundColor = UIColor.secondarySystemBackgroundColor;
+  remoteView.frame = new CGRect(100, 630, 160, 110);
+  vc.view.addSubview(remoteView);
+
+  (async () => {
+    const imageURL = 'https://picsum.photos/200/200?random=1';
+    console.log('  --- 网络图片 ---');
+    const t0 = Date.now();
+    try {
+      const res = await fetch(imageURL);
+      assert('HTTP 状态', res.ok, true);
+      const blob = await res.blob();
+      console.log('  ✓ 下载完成', blob.size, '字节，type =', blob.type,
+                  '，耗时', Date.now() - t0, 'ms');
+
+      const img = UIImage.imageWithData(blob);
+      if (img === null) {
+        console.log('  ✗ 字节解不成图片');
+        return;
+      }
+      assert('网络图解出来了', img.size.width + 'x' + img.size.height, '200x200');
+      assert('没给 scale，按 1 算', img.scale, 1);
+
+      // 解码挪到后台再上屏。200x200 其实不至于掉帧，但大图必须这么做——
+      // 不走这条，解码会发生在第一次绘制时，也就是主线程。
+      const ready = await img.prepareForDisplay();
+      assert('后台解码后尺寸不变',
+           ready === null ? '?' : ready.size.width, 200);
+      remoteView.image = ready ?? img;
+      console.log('  ✓ 网络图已上屏，全程', Date.now() - t0, 'ms（字节没进过 V8 堆）');
+    } catch (err) {
+      // 没网就是没网，说清楚而不是装作通过了
+      console.log('  ! 网络图片这一段没跑成:', err.message,
+                  '（需要能访问 picsum.photos）');
+    }
+  })();
 
   // ===== URL / URLSearchParams / Headers =====
   console.log('  --- URL ---');
   {
     const u = new URL('https://u:p@EXAMPLE.com:443/a/b/../c?x=1&y=2#f');
-    断言('host 小写化且去掉默认端口', u.host, 'example.com');
-    断言('点段规范化', u.pathname, '/a/c');
-    断言('port 为默认时读出空串', u.port, '');
-    断言('protocol 带冒号', u.protocol, 'https:');
-    断言('search 带问号', u.search, '?x=1&y=2');
-    断言('hash 带井号', u.hash, '#f');
-    断言('origin 不含 userinfo', u.origin, 'https://example.com');
-    断言('username', u.username, 'u');
-    断言('href 能拼回去', u.href, 'https://u:p@example.com/a/c?x=1&y=2#f');
+    assert('host 小写化且去掉默认端口', u.host, 'example.com');
+    assert('点段规范化', u.pathname, '/a/c');
+    assert('port 为默认时读出空串', u.port, '');
+    assert('protocol 带冒号', u.protocol, 'https:');
+    assert('search 带问号', u.search, '?x=1&y=2');
+    assert('hash 带井号', u.hash, '#f');
+    assert('origin 不含 userinfo', u.origin, 'https://example.com');
+    assert('username', u.username, 'u');
+    assert('href 能拼回去', u.href, 'https://u:p@example.com/a/c?x=1&y=2#f');
 
-    断言('空路径补成斜杠', new URL('https://a.com').pathname, '/');
-    断言('非特殊 scheme 的 origin 是 null', new URL('foo://bar/baz').origin, 'null');
-    断言('已编码的不重复编码', new URL('https://a.com/%7Eu').pathname, '/%7Eu');
-    断言('空格编码', new URL('https://a.com/a b').pathname, '/a%20b');
+    assert('空路径补成斜杠', new URL('https://a.com').pathname, '/');
+    assert('非特殊 scheme 的 origin 是 null', new URL('foo://bar/baz').origin, 'null');
+    assert('已编码的不重复编码', new URL('https://a.com/%7Eu').pathname, '/%7Eu');
+    assert('空格编码', new URL('https://a.com/a b').pathname, '/a%20b');
 
     // 没有 base 是这个运行时的硬事实，不是 bug。
     // 注意这里不标 @ts-expect-error：类型上 new URL(string) 完全合法，
     // 它是**运行时**才抛——这正是和浏览器的差异所在，类型系统看不出来。
     try { new URL('/x'); console.log('  ✗ 相对 URL 居然解析成功'); }
-    catch (err) { 断言('相对 URL 无 base 时抛', err.constructor.name, 'TypeError'); }
-    断言('有 base 就能解析', new URL('/x', 'https://a.com').href, 'https://a.com/x');
-    断言('base 下的点段', new URL('../y', 'https://a.com/a/b/c').pathname, '/a/y');
-    断言('canParse 不抛', String(URL.canParse('/x')), 'false');
-    断言('parse 失败返回 null', String(URL.parse('/x')), 'null');
+    catch (err) { assert('相对 URL 无 base 时抛', err.constructor.name, 'TypeError'); }
+    assert('有 base 就能解析', new URL('/x', 'https://a.com').href, 'https://a.com/x');
+    assert('base 下的点段', new URL('../y', 'https://a.com/a/b/c').pathname, '/a/y');
+    assert('canParse 不抛', String(URL.canParse('/x')), 'false');
+    assert('parse 失败返回 null', String(URL.parse('/x')), 'null');
 
     const w = new URL('https://a.com/p');
     w.pathname = 'q';           // 不带斜杠也要补上
     w.hash = 'top';             // 不带井号也要补上
-    断言('setter 会规范化', w.href, 'https://a.com/q#top');
+    assert('setter 会规范化', w.href, 'https://a.com/q#top');
   }
 
   console.log('  --- URLSearchParams ---');
   {
     const q = new URLSearchParams('a=1&b=2&a=3');
-    断言('get 取第一个', q.get('a'), '1');
-    断言('getAll 取全部', q.getAll('a').join(','), '1,3');
-    断言('size', q.size, 3);
+    assert('get 取第一个', q.get('a'), '1');
+    assert('getAll 取全部', q.getAll('a').join(','), '1,3');
+    assert('size', q.size, 3);
     q.set('a', '9');
-    断言('set 替换首个、删其余、位置不变', q.toString(), 'a=9&b=2');
+    assert('set 替换首个、删其余、位置不变', q.toString(), 'a=9&b=2');
     q.append('c', '中 文');
-    断言('空格编码成加号', q.toString(), 'a=9&b=2&c=%E4%B8%AD+%E6%96%87');
-    断言('读回来是解码的', q.get('c'), '中 文');
+    assert('空格编码成加号', q.toString(), 'a=9&b=2&c=%E4%B8%AD+%E6%96%87');
+    assert('读回来是解码的', q.get('c'), '中 文');
     q.delete('a');
-    断言('delete', q.toString(), 'b=2&c=%E4%B8%AD+%E6%96%87');
+    assert('delete', q.toString(), 'b=2&c=%E4%B8%AD+%E6%96%87');
 
     // 和宿主 URL 双向绑定
     const u2 = new URL('https://a.com/?k=1');
     u2.searchParams.append('k2', 'v2');
-    断言('改 searchParams，search 跟着变', u2.search, '?k=1&k2=v2');
+    assert('改 searchParams，search 跟着变', u2.search, '?k=1&k2=v2');
     u2.search = '?z=9';
-    断言('改 search，searchParams 跟着变', u2.searchParams.get('z'), '9');
+    assert('改 search，searchParams 跟着变', u2.searchParams.get('z'), '9');
   }
 
   console.log('  --- Headers ---');
   {
     const h = new Headers({ 'Content-Type': 'application/json' });
-    断言('名字大小写不敏感', h.get('CONTENT-TYPE'), 'application/json');
+    assert('名字大小写不敏感', h.get('CONTENT-TYPE'), 'application/json');
     h.append('Accept', 'a');
     h.append('accept', 'b');
-    断言('同名多值合并', h.get('Accept'), 'a, b');
+    assert('同名多值合并', h.get('Accept'), 'a, b');
     h.append('Set-Cookie', 'x=1');
     h.append('Set-Cookie', 'y=2');
-    断言('Set-Cookie 不合并', h.getSetCookie().join('|'), 'x=1|y=2');
-    断言('迭代按名字排序', [...h.keys()].join(','),
+    assert('Set-Cookie 不合并', h.getSetCookie().join('|'), 'x=1|y=2');
+    assert('迭代按名字排序', [...h.keys()].join(','),
          'accept,content-type,set-cookie,set-cookie');
     h.set('Accept', '只剩这个');
-    断言('set 覆盖全部同名', h.get('accept'), '只剩这个');
+    assert('set 覆盖全部同名', h.get('accept'), '只剩这个');
     h.delete('ACCEPT');
-    断言('delete 大小写不敏感', String(h.has('accept')), 'false');
+    assert('delete 大小写不敏感', String(h.has('accept')), 'false');
     try { h.set('坏 名字', 'v'); console.log('  ✗ 非法首部名居然通过'); }
-    catch (err) { 断言('非法首部名被拒', err.constructor.name, 'TypeError'); }
+    catch (err) { assert('非法首部名被拒', err.constructor.name, 'TypeError'); }
     try { h.set('X', '值里有\r\n换行'); console.log('  ✗ CRLF 居然通过'); }
-    catch (err) { 断言('首部值里的 CRLF 被拒', err.constructor.name, 'TypeError'); }
-    断言('首尾空白被去掉', new Headers({ a: '  v  ' }).get('a'), 'v');
+    catch (err) { assert('首部值里的 CRLF 被拒', err.constructor.name, 'TypeError'); }
+    assert('首尾空白被去掉', new Headers({ a: '  v  ' }).get('a'), 'v');
   }
 
   // ===== fetch =====
-  // 对着本地测试服务器跑。服务器没起的时候这几条会全红，是预期的。
+  // 对着公开的 httpbin.org 跑，不需要本地起服务。代价是这些断言依赖外网：
+  // 没网或者 httpbin 挂了就会整体报错，这是预期的，不是运行时的问题。
+  // 另外耗时里现在含真实的 RTT（实测单次约 1.5 s），别拿来衡量桥的开销。
   (async () => {
-    const 根 = 'http://127.0.0.1:8099';
+    const base = 'https://httpbin.org';
     console.log('  --- fetch ---');
     try {
-      const res = await fetch(根 + '/json');
-      断言('status', res.status, 200);
-      断言('ok', res.ok, true);
-      断言('url 是绝对的', res.url, 根 + '/json');
-      断言('响应首部大小写不敏感', res.headers.get('CONTENT-TYPE'), 'application/json');
-      断言('同名多值合并', res.headers.get('x-multi'), 'one, two');
+      // /response-headers 把查询参数原样回成响应首部，同名的真发两条，
+      // 正好验证「同名多值用 ', ' 合并」
+      const res = await fetch(base + '/response-headers?x-multi=one&x-multi=two');
+      assert('status', res.status, 200);
+      assert('ok', res.ok, true);
+      assert('url 是绝对的', res.url,
+             base + '/response-headers?x-multi=one&x-multi=two');
+      assert('响应首部大小写不敏感', res.headers.get('CONTENT-TYPE'), 'application/json');
+      assert('同名多值合并', res.headers.get('x-multi'), 'one, two');
       const data = await res.json();
-      断言('json() 解析出中文', data.hello, '世界');
-      断言('json() 解析出数字', data.n, 42);
-      断言('body 读过之后 bodyUsed', res.bodyUsed, true);
+      assert('json() 解析出数组', Array.isArray(data['x-multi']), true);
+      assert('body 读过之后 bodyUsed', res.bodyUsed, true);
       try { await res.json(); console.log('  ✗ body 居然能读第二次'); }
-      catch (err) { 断言('body 不能读第二次', err.constructor.name, 'TypeError'); }
+      catch (err) { assert('body 不能读第二次', err.constructor.name, 'TypeError'); }
 
-      const t = await (await fetch(根 + '/text')).text();
-      断言('text()', t, '纯文本 body');
+      // text()：后台 UTF-8 解码
+      const t = await (await fetch(base + '/range/16')).text();
+      assert('text()', t, 'abcdefghijklmnop');
 
       // 404 不是网络错误：fetch 照样兑现，只是 ok 为 false
-      const r404 = await fetch(根 + '/404');
-      断言('404 不拒绝，只是 ok=false', r404.ok, false);
-      断言('404 的 status', r404.status, 404);
+      const r404 = await fetch(base + '/status/404');
+      assert('404 不拒绝，只是 ok=false', r404.ok, false);
+      assert('404 的 status', r404.status, 404);
 
-      // arrayBuffer 走零拷贝那条路
-      const buf = await (await fetch(根 + '/bytes')).arrayBuffer();
-      断言('arrayBuffer 是 ArrayBuffer', buf instanceof ArrayBuffer, true);
-      断言('arrayBuffer 长度', buf.byteLength, 256);
+      // arrayBuffer 走零拷贝那条路。/range/N 是确定的 a-z 循环，不是随机字节
+      const buf = await (await fetch(base + '/range/256')).arrayBuffer();
+      assert('arrayBuffer 是 ArrayBuffer', buf instanceof ArrayBuffer, true);
+      assert('arrayBuffer 长度', buf.byteLength, 256);
       const view = new Uint8Array(buf);
-      断言('arrayBuffer 内容对得上', view[0] + ',' + view[255], '0,255');
+      assert('arrayBuffer 内容对得上', view[0] + ',' + view[255], '97,118');  // 'a','v'
 
-      // POST 带 body 和自定义首部
-      const post = await fetch(根 + '/echo', {
+      // POST 带 body 和自定义首部，/post 把收到的原样回显
+      const post = await fetch(base + '/post', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 来自: 'nacre' }),
       });
       const echo = await post.json();
-      断言('POST 的 method 到了服务器', echo.method, 'POST');
-      断言('POST 的 body 到了服务器', JSON.parse(echo['收到']).来自, 'nacre');
-      断言('自定义首部到了服务器', echo.ct, 'application/json');
+      assert('POST 的 method 到了服务器', echo.method, 'POST');
+      assert('POST 的 body 到了服务器（含中文）', echo.json.来自, 'nacre');
+      assert('自定义首部到了服务器', echo.headers['Content-Type'], 'application/json');
 
       // 网络层失败才拒绝
       try {
         await fetch('http://127.0.0.1:1/nope');
         console.log('  ✗ 连不上居然没拒绝');
       } catch (err) {
-        断言('连不上时拒绝', err.constructor.name, 'TypeError');
+        assert('连不上时拒绝', err.constructor.name, 'TypeError');
       }
       try { await fetch('/相对路径'); console.log('  ✗ 相对 URL 居然通过'); }
-      catch (err) { 断言('相对 URL 被拒（没有 base）', err.constructor.name, 'TypeError'); }
+      catch (err) { assert('相对 URL 被拒（没有 base）', err.constructor.name, 'TypeError'); }
 
       // --- Blob：字节不进 V8 堆 ---
-      const blob = await (await fetch(根 + '/bytes')).blob();
-      断言('blob() 返回 Blob', blob instanceof Blob, true);
-      断言('blob.size', blob.size, 256);
+      const blob = await (await fetch(base + '/range/256')).blob();
+      assert('blob() 返回 Blob', blob instanceof Blob, true);
+      assert('blob.size', blob.size, 256);
       const blobBuf = await blob.arrayBuffer();
-      断言('Blob 能取出字节', new Uint8Array(blobBuf)[255], 255);
+      assert('Blob 能取出字节', new Uint8Array(blobBuf)[255], 118);
       const textBlob = new Blob(['前缀-', '后缀'], { type: 'text/plain' });
-      断言('new Blob 拼字符串', await textBlob.text(), '前缀-后缀');
-      断言('new Blob 的 type', textBlob.type, 'text/plain');
-      断言('new Blob 的 size（UTF-8 字节数）', textBlob.size, 13);  // 6+1+6
+      assert('new Blob 拼字符串', await textBlob.text(), '前缀-后缀');
+      assert('new Blob 的 type', textBlob.type, 'text/plain');
+      assert('new Blob 的 size（UTF-8 字节数）', textBlob.size, 13);  // 6+1+6
       const bytesBlob = new Blob([new Uint8Array([1, 2, 3])]);
-      断言('new Blob 吃 TypedArray', bytesBlob.size, 3);
+      assert('new Blob 吃 TypedArray', bytesBlob.size, 3);
 
       // --- AbortController ---
       const ctrl = new AbortController();
-      断言('signal 初始未中止', ctrl.signal.aborted, false);
-      let 收到abort事件 = false;
-      ctrl.signal.addEventListener('abort', () => { 收到abort事件 = true; });
-      const 慢请求 = fetch(根 + '/slow', { signal: ctrl.signal });
-      setTimeout(() => ctrl.abort(), 50);
+      assert('signal 初始未中止', ctrl.signal.aborted, false);
+      let gotAbortEvent = false;
+      ctrl.signal.addEventListener('abort', () => { gotAbortEvent = true; });
+      // /delay/5 要 5 秒才回，足够在它回来之前把它取消掉
+      const slowRequest = fetch(base + '/delay/5', { signal: ctrl.signal });
+      setTimeout(() => ctrl.abort(), 200);
       try {
-        await 慢请求;
+        await slowRequest;
         console.log('  ✗ 取消了居然还成功');
       } catch (err) {
-        断言('取消后拒绝，name 是 AbortError', err.name, 'AbortError');
+        assert('取消后拒绝，name 是 AbortError', err.name, 'AbortError');
       }
-      断言('abort 事件派发了', 收到abort事件, true);
-      断言('中止后 aborted', ctrl.signal.aborted, true);
+      assert('abort 事件派发了', gotAbortEvent, true);
+      assert('中止后 aborted', ctrl.signal.aborted, true);
       // reason 的类型是 unknown——任何值都能当中止原因，这是 Web 的语义
-      断言('reason 默认是 AbortError',
+      assert('reason 默认是 AbortError',
            /** @type {Error} */ (ctrl.signal.reason).name, 'AbortError');
       ctrl.abort();   // 重复中止是空操作，不该再派发
-      断言('重复 abort 不出错', ctrl.signal.aborted, true);
+      assert('重复 abort 不出错', ctrl.signal.aborted, true);
 
       // 已经中止的 signal，请求根本不该发出去
       try {
-        await fetch(根 + '/json', { signal: AbortSignal.abort() });
+        await fetch(base + '/get', { signal: AbortSignal.abort() });
         console.log('  ✗ 已中止的 signal 居然还发请求');
       } catch (err) {
-        断言('已中止的 signal 直接拒绝', err.name, 'AbortError');
+        assert('已中止的 signal 直接拒绝', err.name, 'AbortError');
       }
       // 超时：有了定时器才做得了
       try {
-        await fetch(根 + '/slow', { signal: AbortSignal.timeout(100) });
+        await fetch(base + '/delay/5', { signal: AbortSignal.timeout(300) });
         console.log('  ✗ 超时了居然还成功');
       } catch (err) {
-        断言('AbortSignal.timeout 到点中止', err.name, 'AbortError');
+        assert('AbortSignal.timeout 到点中止', err.name, 'AbortError');
       }
       try { AbortSignal.abort().throwIfAborted(); console.log('  ✗ throwIfAborted 没抛'); }
-      catch (err) { 断言('throwIfAborted 抛的是 reason', err.name, 'AbortError'); }
+      catch (err) { assert('throwIfAborted 抛的是 reason', err.name, 'AbortError'); }
 
-      // 并发：20 个一起发，验证不串行
+      // 并发：验证请求是并行发出去的，不是一个接一个。
+      //
+      // 断言的是**耗时**不是成功率：httpbin 对突发并发会回 429（实测 10 个
+      // 一起发有 6 个被限流），那是公开服务的配额，不是运行时的问题。
+      // 而 429 本身也是服务器正常答复，照样证明请求发出去了。
+      const single0 = Date.now();
+      await fetch(base + '/range/8?warm=1');
+      const singleMs = Date.now() - single0;
+
       const t0 = Date.now();
-      const 批 = await Promise.all(
-        Array.from({ length: 20 }, () => fetch(根 + '/json').then((r) => r.json())));
-      断言('20 个并发请求都成功', 批.every((d) => d.n === 42), true);
-      console.log('  ✓ 20 个并发请求耗时', Date.now() - t0, 'ms（串行的话要 20 倍）');
+      const batch = await Promise.allSettled(
+        Array.from({ length: 10 }, (_, i) =>
+          fetch(base + '/range/8?i=' + i).then((r) => r.status)));
+      const batchMs = Date.now() - t0;
+      const ok200 = batch.filter(
+        (r) => r.status === 'fulfilled' && r.value === 200).length;
+      assert('10 个请求全都有结果', batch.length, 10);
+      assert('没有串行（10 个的耗时 < 单次的 4 倍）', batchMs < singleMs * 4, true);
+      console.log('  ✓ 单次', singleMs, 'ms，10 个并发', batchMs,
+                  'ms，其中 200 的有', ok200, '个（其余被 httpbin 限流）');
     } catch (err) {
       console.log('  ✗ fetch 用例整体出错:', err && err.message);
     }
@@ -758,39 +1001,39 @@ application.addEventListener('sceneconnect', (e) => {
   console.log('  --- 定时器 ---');
 
   // 1. 同时到期必须按注册顺序（HTML 规范要求，也是我们自己管堆的理由）
-  /** @type {number[]} */ const 顺序 = [];
-  for (let i = 1; i <= 5; i++) setTimeout(() => 顺序.push(i), 30);
+  /** @type {number[]} */ const order = [];
+  for (let i = 1; i <= 5; i++) setTimeout(() => order.push(i), 30);
 
   // 2. 取消
-  let 被取消了 = false;
-  const 要取消的 = setTimeout(() => { 被取消了 = true; }, 30);
-  clearTimeout(要取消的);
-  clearTimeout(要取消的);        // 重复取消不该炸
+  let wasCancelled = false;
+  const toCancel = setTimeout(() => { wasCancelled = true; }, 30);
+  clearTimeout(toCancel);
+  clearTimeout(toCancel);        // 重复取消不该炸
   clearTimeout(999999);          // 不认识的 id 静默忽略
 
   // 3. 嵌套不饿死：每一次都该落在不同轮唤醒上
-  let 嵌套次数 = 0;
-  const 嵌套开始 = Date.now();
-  setTimeout(function 再来一次() {
-    if (++嵌套次数 < 5) setTimeout(再来一次, 0);
+  let nestCount = 0;
+  const nestStart = Date.now();
+  setTimeout(function again() {
+    if (++nestCount < 5) setTimeout(again, 0);
   }, 0);
 
   // 4. setInterval + clearInterval
-  let 重复次数 = 0;
-  const 定时 = setInterval(() => {
-    if (++重复次数 >= 3) clearInterval(定时);
+  let repeatCount = 0;
+  const repeater = setInterval(() => {
+    if (++repeatCount >= 3) clearInterval(repeater);
   }, 10);
 
   // 5. 宏任务 / 微任务的交错顺序，经典用例
-  /** @type {string[]} */ const 交错 = [];
-  setTimeout(() => 交错.push('宏任务'), 0);
-  Promise.resolve().then(() => 交错.push('微任务'));
-  queueMicrotask(() => 交错.push('queueMicrotask'));
-  交错.push('同步');
+  /** @type {string[]} */ const interleaved = [];
+  setTimeout(() => interleaved.push('宏任务'), 0);
+  Promise.resolve().then(() => interleaved.push('微任务'));
+  queueMicrotask(() => interleaved.push('queueMicrotask'));
+  interleaved.push('同步');
 
   // 6. 额外参数透传
-  /** @type {string | null} */ let 透传结果 = null;
-  setTimeout((a, b) => { 透传结果 = a + b; }, 0, '参数', '透传');
+  /** @type {string | null} */ let passthroughResult = null;
+  setTimeout((a, b) => { passthroughResult = a + b; }, 0, '参数', '透传');
 
   // 7. 非函数参数要抛
   // @ts-expect-error 第一个参数必须是函数
@@ -798,33 +1041,44 @@ application.addEventListener('sceneconnect', (e) => {
   catch (err) { console.log('  ✓ setTimeout 拒绝非函数:', err.constructor.name); }
 
 
-  // 9. 和原生事件的顺序：两者在同一个主队列里，按入队时刻 FIFO
-  /** @type {string[]} */ const 混排 = [];
-  setTimeout(() => 混排.push('timer'), 0);
-  win.addEventListener('becomekey', () => 混排.push('窗口事件'), { once: true });
+  // 9. 和原生事件的顺序。
+  //
+  // 定时器和原生事件确实都在主队列上按 FIFO 跑，但**不能用窗口通知来验证
+  // 这一点**：观察者是 addObserverForName:object:queue:（mainQueue）注册的，
+  // UIKit 发通知时先把观察者块排进主队列，块跑起来之后才 postToJS 排第二次；
+  // 而 setTimeout(fn, 0) 只排一跳。两跳里第一跳什么时候入队由 UIKit 决定，
+  // 所以相对顺序**不是确定的**——两种顺序都实测到过。
+  //
+  // 这里只断言两边都到了。顺序那条由上面的「同时到期按注册顺序」保证，
+  // 那个才是我们自己的队列说了算的。
+  /** @type {string[]} */ const mixedOrder = [];
+  setTimeout(() => mixedOrder.push('timer'), 0);
+  win.addEventListener('becomekey', () => mixedOrder.push('窗口事件'), { once: true });
 
   // 不用固定延迟汇总：App 启动时主线程很忙（首次布局、字体、首帧渲染），
   // 实测 0ms 的定时器可能等 250ms 才轮到。用轮询等条件齐了再汇总，
   // 既不依赖绝对时间，本身也是一次「定时器确实在推进」的验证。
-  /** @param {number} 剩余轮次 */
-  function 等齐了再汇总(剩余轮次) {
-    const 齐了 = 嵌套次数 >= 5 && 重复次数 >= 3 && 顺序.length >= 5;
-    if (!齐了 && 剩余轮次 > 0) {
-      setTimeout(() => 等齐了再汇总(剩余轮次 - 1), 20);
+  /** @param {number} roundsLeft */
+  function summarizeWhenReady(roundsLeft) {
+    const allDone = nestCount >= 5 && repeatCount >= 3 && order.length >= 5 &&
+                    mixedOrder.length >= 2;
+    if (!allDone && roundsLeft > 0) {
+      setTimeout(() => summarizeWhenReady(roundsLeft - 1), 20);
       return;
     }
-    断言('同时到期按注册顺序', 顺序.join(''), '12345');
-    断言('clearTimeout 生效', !被取消了, true);
-    断言('嵌套跑满且每次一轮唤醒', 嵌套次数, 5);
-    断言('setInterval 被自己的 clearInterval 停住', 重复次数, 3);
-    断言('同步 → 微任务 → 宏任务', 交错.join(','),
+    assert('同时到期按注册顺序', order.join(''), '12345');
+    assert('clearTimeout 生效', !wasCancelled, true);
+    assert('嵌套跑满且每次一轮唤醒', nestCount, 5);
+    assert('setInterval 被自己的 clearInterval 停住', repeatCount, 3);
+    assert('同步 → 微任务 → 宏任务', interleaved.join(','),
          '同步,微任务,queueMicrotask,宏任务');
-    断言('额外参数透传', 透传结果, '参数透传');
-    断言('timer 和原生事件在同一队列', 混排.join(','), '窗口事件,timer');
+    assert('额外参数透传', passthroughResult, '参数透传');
+    assert('timer 和窗口事件都到了 JS',
+           [...mixedOrder].sort().join(','), 'timer,窗口事件');
     console.log('  ✓ 定时器全部跑完（从注册到跑满',
-                Date.now() - 嵌套开始, 'ms，含启动时的主线程繁忙）');
+                Date.now() - nestStart, 'ms，含启动时的主线程繁忙）');
   }
-  等齐了再汇总(50);
+  summarizeWhenReady(50);
 
   mainWindow = win;
   console.log('✓ 屏幕上：三个色块 + 标题 + 两行说明 + 一行等宽数字');

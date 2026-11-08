@@ -101,15 +101,30 @@ setTimeout(() => { while (Date.now() - t < 500) {} }, 0);   // 界面冻 500ms
 
 ## 和原生事件的顺序
 
-定时器的唤醒走 `dispatch_after`，原生事件走 `dispatch_async`，**两者提交到同一个主队列**，按入队时刻 FIFO。所以先后是确定的：
+定时器的唤醒走 `dispatch_after`，原生事件走 `dispatch_async`，**两者提交到同一个主队列**，按入队时刻 FIFO。一个先入队的 `dispatch_async` 确实会排在更早到期的 timer 之前——这条实测验证过。
 
-```js
-setTimeout(() => console.log('timer'), 0);
-win.addEventListener('becomekey', () => console.log('窗口事件'));
-// 窗口事件先入队就先执行
+**但「原生事件」不等于「一次 dispatch_async」。** UIKit 的通知要走两跳：
+
+```
+UIKit 发通知
+   ↓  观察者是用 addObserverForName:object:queue:（mainQueue）注册的
+第一跳：观察者块排进主队列
+   ↓  块跑起来之后才 postToJS
+第二跳：事件派发给 JS
 ```
 
-> 这条实测验证过：一个先入队的 `dispatch_async` 会排在更早到期的 timer 之前。
+而 `setTimeout(fn, 0)` 只排一跳。两跳里**第一跳什么时候入队由 UIKit 决定**，所以：
+
+```js
+win.makeKeyAndVisible();
+setTimeout(() => log('timer'), 0);
+win.addEventListener('becomekey', () => log('窗口事件'));
+// 顺序不确定——两种都实测到过
+```
+
+**不能靠「谁先发生」推断「谁先到 JS」。** 要排顺序就用自己能控制的那一端：同一批 `setTimeout` 之间的顺序是有保证的（见上面「同时到期按注册顺序」），跨到 UIKit 通知就没有了。
+
+> 这一条是做图片那一步时被验收用例抓出来的。原来这里举的例子和 `main.js` 里的断言都写着「窗口事件先」，把两跳当成了一跳；换个负载顺序就翻了。现在验收只断言两边都到了。
 
 **实现上有个坑**：`dispatch_after` 即使延迟为 0 也要过一次内核 timer，排进队列的时刻比当场 `dispatch_async` 晚。所以 `setTimeout(fn, 0)` 的唤醒**不走 `dispatch_after`，直接 `dispatch_async`**。
 

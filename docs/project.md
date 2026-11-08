@@ -351,13 +351,13 @@ Commit message 格式：
 | 2 | 窗口和根页面由 JS 创建 | 场景事件转发、UIWindow、UIViewController、UIColor | 已在模拟器验证通过：JS 创建窗口和根页面，并设好底色，屏幕不再是黑的 |
 | 2.5 | `UIView` 的几何、层级、外观 | 结构体、带参数的方法通道、对象数组 | 已在模拟器验证通过：JS 建子视图、设 frame 和颜色，屏幕上出现色块 |
 | 3a | 文字 | UILabel、UIFont、枚举、带参数的类方法 | 已在模拟器验证通过：JS 设字体、颜色、对齐和行数，文字上屏并正确截断；顺带补上 `UIWindow` 的四个 key/可见性事件 |
-| 3b | 图片 | UIImageView、UIImage、读 Bundle 文件 | 待讨论 |
+| 3b | 图片 | UIImageView、UIImage、Blob 解码、后台解码 | 已在模拟器验证通过：bundle 图自动选 @3x、SF Symbol、九宫格、fetch 下来的网络图上屏 |
 | 3c | Auto Layout | NSLayoutConstraint、锚点、UILayoutGuide | 待讨论 |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | 4 | 按钮和点击事件 | Target-Action、JS 回调 | 待讨论 |
 | 5 | 页面跳转 | UINavigationController、继承 UIViewController | 待讨论 |
 | 6a | `URL` / `URLSearchParams` / `Headers` | NSURLComponents、WHATWG 语义 | 已在模拟器验证通过：37 条断言全过，和 Chrome 对撞过一批 URL |
-| 6b | `fetch` / `Request` / `Response` | NSURLSession、BackingStore 零拷贝 | 已在模拟器验证通过：对着本地服务器跑，20 个并发 36ms；`Blob` 挪到 6c |
+| 6b | `fetch` / `Request` / `Response` | NSURLSession、BackingStore 零拷贝 | 已在模拟器验证通过：当初对着本地服务器跑，20 个并发 36ms；验收用例在 3b 改成打公开的 `httpbin.org`，不用再起服务 |
 | 6c | `Blob` + `AbortController` 和取消 | NSURLSessionTask.cancel、原生对象包装 | 已在模拟器验证通过：blob 零拷贝、取消、超时中止 |
 | 7 | 本地存储 | UserDefaults、文件读写 | 待讨论 |
 | 8 | 列表 | UICollectionView、DataSource（同步回调） | 待讨论 |
@@ -403,6 +403,23 @@ iOS 层是一张**写死的名字表**，不是用名字拼 selector 再 `perfor
 | `write_property` 也收进同一个出口 | 原来返回 `bool` 让 JS 凑错误信息，需要 JS 侧抄一份可选值列表。改成带外错误后，错误信息由原生层凑——那张表就在它手里，而且它知道是哪个类的哪个属性。按属性名索引的表迟早会撞：`UIControl.state` 和 `UIGestureRecognizer.state` 是两个毫无关系的枚举，三个不相干的枚举都叫 `style` |
 
 枚举的决定见上面的设计点 3。
+
+#### 第 3b 步：没有新增通道，但纠正了三个事实
+
+做图片**一条新通道都没加**，全部复用现成的：取图是 `call_class_object_method`，九宫格是 `call_object_method`，后台解码是 `call_async`。
+
+`call_async` 原来只兑现布尔（`scene.openURL`），这次加了个 `settleCall:withObject:`。**通道本身没变**——它约定的只是「异步地兑现 call_id」，兑现成什么一直是宿主的自由，Engine 侧 `SettleObject` 早就有了。
+
+实测纠正的三条：
+
+1. **`imageNamed:` 认子目录路径**（`'JS/assets/logo'` 能找到），而且**普通文件也自动选 @2x/@3x**。原来以为这两条都要 Asset Catalog 才有。意味着「丢文件进目录」这条零配置的路比想象中好用，Asset Catalog 换来的只剩深浅色自动切和 App Thinning
+2. **Asset Catalog 不收 webp**。`actool` 只认 `.png` / `.jpg` / `.heic` / `.svg` / `.pdf`，喂 webp 报「does not have a valid extension」，而且**整个 catalog 一个产物都不出**。而运行时能解 webp（58 种类型之一）——所以 webp 只能当普通文件。反过来 SVG 是 Asset Catalog 吃得下、运行时解不了（编译期就栅格化了）
+3. **SF Symbol 的 `renderingMode` 是 `'automatic'` 不是 `'alwaysTemplate'`**。「按 tintColor 上色」是绘制上下文决定的，不写在图片上
+4. **`resizableImageWithCapInsets:` 单参重载默认是 `tile` 不是 `stretch`**。要拉伸得用带 `resizingMode` 的那个重载显式指定
+
+还抓出一条旧账：**不能用窗口通知来验证「定时器和原生事件同队列 FIFO」**。观察者是 `addObserverForName:object:queue:`（mainQueue）注册的，先排一次观察者块，块跑起来才 `postToJS` 排第二次；而 `setTimeout(fn, 0)` 只排一跳。两跳里第一跳什么时候入队由 UIKit 决定，**相对顺序不确定**——两种顺序都实测到过。原来 `timers.md` 里举的例子和 `main.js` 里的断言都把两跳当成了一跳，已改成只断言两边都到了。
+
+FIFO 那条本身没问题，由「同时到期按注册顺序」那条断言保证——那个队列是我们自己的。
 
 ### 第 0 步的审阅问题（已修复并验证）
 

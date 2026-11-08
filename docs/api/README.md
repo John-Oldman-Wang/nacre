@@ -20,6 +20,7 @@ Nacre 的 API 分两层：
 | [`UIView`](ui-view.md) | 视图。几何、层级、外观 |
 | [`UILabel`](ui-label.md) | 文字 |
 | [`UIFont`](ui-font.md) | 字体 |
+| [`UIImage` / `UIImageView`](ui-image.md) | 图片。四条取图路径，`size` 是点不是像素 |
 | [结构体](structs.md) | `CGPoint`、`CGSize`、`CGRect`、`UIEdgeInsets`，只读 |
 | [枚举](enums.md) | 一律用字符串 |
 | [定时器](timers.md) | `setTimeout` 系列。调度参考 Chromium |

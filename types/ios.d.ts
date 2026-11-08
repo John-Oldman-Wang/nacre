@@ -48,6 +48,23 @@ type UIViewContentMode =
 
 type UIBaselineAdjustment = 'alignBaselines' | 'alignCenters' | 'none';
 
+/** 图片的方向标记。相机常常横着存、靠这个转正，所以 size 已经反映了方向。 */
+type UIImageOrientation =
+  | 'up'
+  | 'down'
+  | 'left'
+  | 'right'
+  | 'upMirrored'
+  | 'downMirrored'
+  | 'leftMirrored'
+  | 'rightMirrored';
+
+/** alwaysTemplate：忽略原图颜色，整张按 tintColor 上色。SF Symbols 默认如此。 */
+type UIImageRenderingMode = 'automatic' | 'alwaysOriginal' | 'alwaysTemplate';
+
+/** 九宫格中间那块怎么填。 */
+type UIImageResizingMode = 'tile' | 'stretch';
+
 /** ObjC 里是 CGFloat 常量不是枚举，JS 侧一视同仁用字符串。 */
 type UIFontWeight =
   | 'ultraLight'
@@ -245,6 +262,67 @@ declare class UIFont extends NSObject {
 }
 
 // ---------------------------------------------------------------------------
+// 图片
+// ---------------------------------------------------------------------------
+
+/**
+ * 图片。不能直接构造，走类方法——四条取图路径都是工厂方法。
+ *
+ * **每一条都可能返回 null**：名字不存在、文件读不到、字节解不出来，这是
+ * 合法答案而不是错误。
+ *
+ * `UIImage` 是不可变的：改渲染模式、做九宫格都返回一张新图。
+ */
+declare class UIImage extends NSObject {
+  private constructor();
+
+  /**
+   * Asset Catalog 和 bundle 里的普通文件都能命中，认子目录路径
+   * （`'assets/logo'` 可以，但不会递归搜）。`@2x` / `@3x` 由系统按屏幕自动选。
+   *
+   * 注意：进了 Asset Catalog 的图编译后就没有「文件」了，只能用这个名字取，
+   * `imageWithContentsOfFile` 读不到，字节也拿不出来。
+   */
+  static imageNamed(name: string): UIImage | null;
+  /** SF Symbols，上千个图标，不占包体积。 */
+  static systemImageNamed(name: string): UIImage | null;
+  /** 完整路径，只认真实文件，不碰 Asset Catalog。 */
+  static imageWithContentsOfFile(path: string): UIImage | null;
+  /** 吃 Blob：fetch 下来的字节直接变成图，全程不进 V8 堆。 */
+  static imageWithData(blob: Blob, options?: { scale?: number }): UIImage | null;
+
+  /** **点**，不是像素。像素 = `size` × `scale`。 */
+  readonly size: CGSize;
+  readonly scale: number;
+  readonly imageOrientation: UIImageOrientation;
+  readonly isSymbolImage: boolean;
+  readonly renderingMode: UIImageRenderingMode;
+  /** 九宫格里四条不参与拉伸的边；普通图片全是 0。 */
+  readonly capInsets: UIEdgeInsets;
+  readonly resizingMode: UIImageResizingMode;
+  readonly alignmentRectInsets: UIEdgeInsets;
+  /** 逐帧动画的一轮时长；静态图是 0。 */
+  readonly duration: number;
+
+  /**
+   * 九宫格：四条边不参与拉伸，只拉中间。**小图铺大容器的正解**——
+   * 把图整个放大只会糊，这个不会。
+   */
+  resizableImage(options: {
+    withCapInsets: UIEdgeInsetsLike;
+    resizingMode?: UIImageResizingMode;
+  }): UIImage;
+  imageWithRenderingMode(mode: UIImageRenderingMode): UIImage;
+
+  /**
+   * 解码默认发生在**绘制时**，也就是主线程。这两个把解码挪到后台，
+   * 解完再给一张准备好的图。JS 本来就在主线程抢时间，大图要走这条。
+   */
+  prepareForDisplay(): Promise<UIImage | null>;
+  prepareThumbnail(size: CGSizeLike): Promise<UIImage | null>;
+}
+
+// ---------------------------------------------------------------------------
 // 场景
 // ---------------------------------------------------------------------------
 
@@ -420,4 +498,28 @@ declare class UILabel extends UIView {
   set shadowOffset(value: CGSizeLike);
   /** 多行文字算固有高度时要先知道宽度，就靠这个。 */
   preferredMaxLayoutWidth: number;
+}
+
+// ---------------------------------------------------------------------------
+// 图片上屏
+// ---------------------------------------------------------------------------
+
+/**
+ * 「图比容器大 / 小 / 比例不一样怎么办」靠的是 `UIView` 的 `contentMode`，
+ * 不是这个类的事。
+ *
+ * `contentMode` 设成 `'scaleAspectFill'` 时记得一起设 `clipsToBounds = true`，
+ * 否则溢出的部分会画到容器外面——`contentMode` 只管内容怎么摆，不负责裁剪。
+ */
+declare class UIImageView extends UIView {
+  constructor();
+  image: UIImage | null;
+  /** `isHighlighted` 为 true 时显示这张，用于按下态。 */
+  highlightedImage: UIImage | null;
+  isHighlighted: boolean;
+  /** 模板图（`renderingMode` 为 `'alwaysTemplate'`）按这个颜色上色。 */
+  get tintColor(): UIColor;
+  set tintColor(value: UIColor | null);
+  /** 逐帧动画还没做（要先能把 GIF 拆成帧），但这个事实先给出来。 */
+  readonly isAnimating: boolean;
 }

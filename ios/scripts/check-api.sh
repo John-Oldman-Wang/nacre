@@ -147,7 +147,10 @@ def dts_union(name):
 for macro, tsname in [('TextAlignment', 'NSTextAlignment'),
                       ('LineBreakMode', 'NSLineBreakMode'),
                       ('ContentMode', 'UIViewContentMode'),
-                      ('BaselineAdjustment', 'UIBaselineAdjustment')]:
+                      ('BaselineAdjustment', 'UIBaselineAdjustment'),
+                      ('ImageOrientation', 'UIImageOrientation'),
+                      ('ImageRenderingMode', 'UIImageRenderingMode'),
+                      ('ImageResizingMode', 'UIImageResizingMode')]:
     a, b = mm_enum(macro), dts_union(tsname)
     if not a: complain('枚举', f'没能从 NacreRuntime.mm 解析出 {macro}，脚本要更新')
     elif a != b:

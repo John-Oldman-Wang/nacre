@@ -330,9 +330,12 @@
   const RECT_FIELDS = ['x', 'y', 'width', 'height'];
   const POINT_FIELDS = ['x', 'y'];
   const SIZE_FIELDS = ['width', 'height'];
+  const INSETS_FIELDS = ['top', 'left', 'bottom', 'right'];
   const toRect = (o) => (o == null ? null : new CGRect(o.x, o.y, o.width, o.height));
   const toPoint = (o) => (o == null ? null : new CGPoint(o.x, o.y));
   const toSize = (o) => (o == null ? null : new CGSize(o.width, o.height));
+  const toInsets = (o) =>
+    (o == null ? null : new UIEdgeInsets(o.top, o.left, o.bottom, o.right));
 
   // ---- 继承链的空壳 ----
   // 照搬 ObjC 的继承关系，现在先空着，以后往上加成员时子类自动继承。
@@ -385,8 +388,7 @@
     }
     get safeAreaInsets() {
       requireNative(this, 'safeAreaInsets');
-      const i = nativeGet(this, 'safeAreaInsets');
-      return i == null ? null : new UIEdgeInsets(i.top, i.left, i.bottom, i.right);
+      return toInsets(nativeGet(this, 'safeAreaInsets'));
     }
     sizeThatFits(size) {
       return toSize(nativeCall(this, 'sizeThatFits:',
@@ -544,6 +546,78 @@
     get leading() { return nativeGet(this, 'leading'); }
   });
 
+  // 图片。和 UIFont 一样走类方法，不能 new——四条取图路径都是工厂方法，
+  // 而且都可能返回 null（名字不存在、文件读不到、字节解不出来），
+  // 这是合法答案，不是错误。
+  //
+  // UIImage 是**不可变**的：改渲染模式、做九宫格都返回一张新图。
+  defineNativeClass('UIImage', class UIImage extends NSObject {
+    constructor() { nativeOnly(); super(); }
+
+    // Asset Catalog 和 bundle 里的普通文件都能命中，认子目录路径
+    // （'assets/logo' 可以，但不会递归搜）。@2x/@3x 由系统按屏幕自动选。
+    static imageNamed(name) {
+      return nativeClassCall('UIImage', 'imageNamed:', [name]);
+    }
+    // SF Symbols，上千个图标，不占包体积
+    static systemImageNamed(name) {
+      return nativeClassCall('UIImage', 'systemImageNamed:', [name]);
+    }
+    // 完整路径，只认真实文件，不碰 Asset Catalog
+    static imageWithContentsOfFile(path) {
+      return nativeClassCall('UIImage', 'imageWithContentsOfFile:', [path]);
+    }
+    // 吃 Blob：fetch 下来的字节直接变成图，全程不进 V8 堆
+    static imageWithData(blob, options) {
+      const o = options || {};
+      if ('scale' in o) {
+        return nativeClassCall('UIImage', 'imageWithData:scale:', [blob, o.scale]);
+      }
+      return nativeClassCall('UIImage', 'imageWithData:', [blob]);
+    }
+
+    // size 是**点**不是像素。像素 = size × scale
+    get size() { return toSize(nativeGet(this, 'size')); }
+    get scale() { return nativeGet(this, 'scale'); }
+    get imageOrientation() { return nativeGet(this, 'imageOrientation'); }
+    get isSymbolImage() { return nativeGet(this, 'isSymbolImage'); }
+    get renderingMode() { return nativeGet(this, 'renderingMode'); }
+    get capInsets() { return toInsets(nativeGet(this, 'capInsets')); }
+    get resizingMode() { return nativeGet(this, 'resizingMode'); }
+    get alignmentRectInsets() {
+      return toInsets(nativeGet(this, 'alignmentRectInsets'));
+    }
+    get duration() { return nativeGet(this, 'duration'); }
+
+    // 九宫格：四条边不参与拉伸，只拉中间。小图铺大容器的正解——
+    // 把图放大只会糊，这个不会。
+    resizableImage(options) {
+      const o = options || {};
+      if (!('withCapInsets' in o)) {
+        throw new TypeError('resizableImage 需要 { withCapInsets }');
+      }
+      const insets = structArg(o.withCapInsets, INSETS_FIELDS, 'withCapInsets');
+      if ('resizingMode' in o) {
+        return nativeCallObject(this, 'resizableImageWithCapInsets:resizingMode:',
+                                [insets, o.resizingMode]);
+      }
+      return nativeCallObject(this, 'resizableImageWithCapInsets:', [insets]);
+    }
+    imageWithRenderingMode(mode) {
+      return nativeCallObject(this, 'imageWithRenderingMode:', [mode]);
+    }
+
+    // 解码默认发生在绘制时，也就是主线程。这两个把解码挪到后台，
+    // 解完再给一张准备好的图。JS 本来就在主线程抢时间，大图要走这条。
+    prepareForDisplay() {
+      return nativeCallAsync(this, 'prepareForDisplay', []);
+    }
+    prepareThumbnail(size) {
+      return nativeCallAsync(this, 'prepareThumbnailOfSize:',
+                             [structArg(size, SIZE_FIELDS, 'prepareThumbnail')]);
+    }
+  });
+
   // 文字。
   defineNativeClass('UILabel', class UILabel extends UIView {
     constructor() {
@@ -656,6 +730,55 @@
     set preferredMaxLayoutWidth(value) {
       requireNative(this, 'preferredMaxLayoutWidth');
       nativeSet(this, 'preferredMaxLayoutWidth', value);
+    }
+  });
+
+  // 图片上屏。
+  //
+  // 「图比容器大/小/比例不一样怎么办」全靠 UIView 的 contentMode，
+  // 不是这个类的事——那 13 个取值第 2.5 步就有了。
+  // scaleAspectFill 记得配 clipsToBounds，否则溢出会画到容器外面。
+  defineNativeClass('UIImageView', class UIImageView extends UIView {
+    constructor() {
+      super();
+      if (allowNativeConstruct) return;
+      constructNative(this, 'UIImageView', []);
+    }
+    get image() { requireNative(this, 'image'); return nativeGetObject(this, 'image'); }
+    set image(value) {
+      requireNative(this, 'image');
+      nativeSetObject(this, 'image', value);
+    }
+    // isHighlighted 为 true 时显示这张，用于按下态
+    get highlightedImage() {
+      requireNative(this, 'highlightedImage');
+      return nativeGetObject(this, 'highlightedImage');
+    }
+    set highlightedImage(value) {
+      requireNative(this, 'highlightedImage');
+      nativeSetObject(this, 'highlightedImage', value);
+    }
+    get isHighlighted() {
+      requireNative(this, 'isHighlighted');
+      return nativeGet(this, 'isHighlighted');
+    }
+    set isHighlighted(value) {
+      requireNative(this, 'isHighlighted');
+      nativeSet(this, 'isHighlighted', value);
+    }
+    // 模板图（renderingMode 为 alwaysTemplate，SF Symbols 默认如此）按这个颜色上色
+    get tintColor() {
+      requireNative(this, 'tintColor');
+      return nativeGetObject(this, 'tintColor');
+    }
+    set tintColor(value) {
+      requireNative(this, 'tintColor');
+      nativeSetObject(this, 'tintColor', value);
+    }
+    // 逐帧动画还没做（要先能把 GIF 拆成帧），但这个事实先给出来
+    get isAnimating() {
+      requireNative(this, 'isAnimating');
+      return nativeGet(this, 'isAnimating');
     }
   });
 

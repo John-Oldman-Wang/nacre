@@ -86,7 +86,7 @@ ObjC 里 `view.frame.x = 10` 是编译错误（改的是一个临时副本）。
 | `isOpaque` | `boolean` 读写 | `true` |
 | `isUserInteractionEnabled` | `boolean` 读写 | `true` |
 | `tag` | `number` 读写 | `0` |
-| `contentMode` | 枚举字符串 读写 | `'scaleToFill'`，见[枚举文档](enums.md) |
+| `contentMode` | 枚举字符串 读写 | `'scaleToFill'`，13 个取值见[图片文档](ui-image.md#小图放进大容器) |
 
 > **`alpha` 读回来会有浮点误差**：写 `0.6`，读回 `0.6000000238418579`。这是 UIKit 自己的行为——`alpha` 背后是 `CALayer.opacity`，那是个 32 位 float。不是我们这一层的编码问题。
 
