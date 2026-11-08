@@ -8,6 +8,7 @@
 #pragma once
 
 #import <UIKit/UIKit.h>
+#import <QuartzCore/QuartzCore.h>
 
 #include <memory>
 #include <mutex>
@@ -72,6 +73,13 @@ std::string EnumError(NSString* what, id given, NSString* choices);
   NSString* NameFor##FuncName(Type value);              \
   NSString* NamesFor##FuncName(void);
 
+// 位掩码。和单值枚举的区别只有一处：一个数值对应**一组**名字，所以 JS 侧
+// 是字符串数组。空数组是合法的（表示一个都不选），但「不是数组」要抛。
+#define NACRE_MASK_DECL(FuncName, Type)                 \
+  BOOL FuncName##FromNames(id value, Type* out, id* bad); \
+  NSArray<NSString*>* NamesIn##FuncName(Type value);    \
+  NSString* NamesFor##FuncName(void);
+
 NACRE_ENUM_DECL(TextAlignment, NSTextAlignment)
 NACRE_ENUM_DECL(LineBreakMode, NSLineBreakMode)
 NACRE_ENUM_DECL(ContentMode, UIViewContentMode)
@@ -82,6 +90,12 @@ NACRE_ENUM_DECL(ImageResizingMode, UIImageResizingMode)
 NACRE_ENUM_DECL(LayoutRelation, NSLayoutRelation)
 NACRE_ENUM_DECL(LayoutAttribute, NSLayoutAttribute)
 NACRE_ENUM_DECL(LayoutConstraintAxis, UILayoutConstraintAxis)
+NACRE_MASK_DECL(CornerMask, CACornerMask)
+
+// cornerCurve 的值是 NSString 常量，不是枚举，和文本样式一样
+NSString* CornerCurveFromName(NSString* name);
+NSString* NameForCornerCurve(NSString* curve);
+NSString* NamesForCornerCurve(void);
 
 // 字重和文本样式不是枚举（CGFloat / NSString 常量），但 JS 侧一样用字符串
 BOOL FontWeightFromName(NSString* name, UIFontWeight* out);

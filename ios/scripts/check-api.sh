@@ -156,14 +156,24 @@ for macro, tsname in [('TextAlignment', 'NSTextAlignment'),
                       ('BaselineAdjustment', 'UIBaselineAdjustment'),
                       ('ImageOrientation', 'UIImageOrientation'),
                       ('ImageRenderingMode', 'UIImageRenderingMode'),
-                      ('ImageResizingMode', 'UIImageResizingMode')]:
+                      ('ImageResizingMode', 'UIImageResizingMode'),
+                      ('LayoutRelation', 'NSLayoutRelation'),
+                      ('LayoutAttribute', 'NSLayoutAttribute'),
+                      ('LayoutConstraintAxis', 'UILayoutConstraintAxis')]:
     a, b = mm_enum(macro), dts_union(tsname)
     if not a: complain('枚举', f'没能从 NacreRuntime.mm 解析出 {macro}，脚本要更新')
     elif a != b:
         if a - b: complain(tsname, f'd.ts 缺这些值：{sorted(a - b)}')
         if b - a: complain(tsname, f'd.ts 多这些值：{sorted(b - a)}')
 
-# 字重和文本样式不走宏，单独对
+# 位掩码走另一个宏：一个数值对一组名字
+m = re.search(r'NACRE_MASK_MAP\(CornerMask,[^,]+,(.*?)\)\n\n', mm, re.S)
+a = set(re.findall(r'@"(\w+)":', m.group(1))) if m else set()
+b = dts_union('CACornerMask')
+if not a: complain('枚举', '没能从 mm 解析出 CornerMask，脚本要更新')
+elif a != b: complain('CACornerMask', f'缺 {sorted(a-b)} 多 {sorted(b-a)}')
+
+# 字重、文本样式、圆角曲线、布局优先级不走宏，单独对
 m = re.search(r'FontWeightTable\(void\).*?@\{(.*?)\};', mm, re.S)
 a = set(re.findall(r'@"(\w+)":', m.group(1))) if m else set()
 b = dts_union('UIFontWeight')
@@ -173,6 +183,16 @@ m = re.search(r'TextStylePairs\(void\).*?pairs = @\[(.*?)\];', mm, re.S)
 a = set(re.findall(r'@\[\s*@"(\w+)"', m.group(1))) if m else set()
 b = dts_union('UIFontTextStyle')
 if a != b: complain('UIFontTextStyle', f'缺 {sorted(a-b)} 多 {sorted(b-a)}')
+
+m = re.search(r'CornerCurvePairs\(void\).*?pairs = @\[(.*?)\];', mm, re.S)
+a = set(re.findall(r'@\[\s*@"(\w+)"', m.group(1))) if m else set()
+b = dts_union('CALayerCornerCurve')
+if a != b: complain('CALayerCornerCurve', f'缺 {sorted(a-b)} 多 {sorted(b-a)}')
+
+m = re.search(r'LayoutPriorityTable\(void\).*?@\{(.*?)\};', mm, re.S)
+a = set(re.findall(r'@"(\w+)":', m.group(1))) if m else set()
+b = dts_union('UILayoutPriorityName')
+if a != b: complain('UILayoutPriorityName', f'缺 {sorted(a-b)} 多 {sorted(b-a)}')
 
 # ------------------------------- 5. nacre.js 的属性读写对 NacreRuntime.mm
 # 对象属性有两条路：所有权边走 nativeGetOwned / nativeSetOwned（会在 JS 侧

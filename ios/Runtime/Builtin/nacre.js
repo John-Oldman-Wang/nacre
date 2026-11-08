@@ -473,6 +473,88 @@
   const UIScene = defineNativeClass('UIScene', class UIScene extends UIResponder {
     constructor() { shellOnly(new.target, UIScene); super(); }
   });
+  // 图层。每个 UIView 背后都有一个，真正把东西画出来的是它。
+  //
+  // 这里**只暴露 UIView 上没有的**：圆角、边框、阴影。重叠的那些
+  // （opacity / backgroundColor / masksToBounds / 几何）不开第二个写法——
+  // 同一件事两种写法正是原则 1 要消灭的东西。能力没丢：它们在 UIView 上。
+  defineNativeClass('CALayer', class CALayer extends NSObject {
+    constructor() { nativeOnly(); super(); }
+
+    // ---- 圆角 ----
+    get cornerRadius() {
+      requireNative(this, 'cornerRadius');
+      return nativeGet(this, 'cornerRadius');
+    }
+    set cornerRadius(value) {
+      requireNative(this, 'cornerRadius');
+      nativeSet(this, 'cornerRadius', value);
+    }
+    // 'continuous' 是 Apple 自己在用的那种圆角（超椭圆），过渡比正圆弧顺。
+    // 图标、卡片都是它；默认是 'circular'
+    get cornerCurve() {
+      requireNative(this, 'cornerCurve');
+      return nativeGet(this, 'cornerCurve');
+    }
+    set cornerCurve(value) {
+      requireNative(this, 'cornerCurve');
+      nativeSet(this, 'cornerCurve', value);
+    }
+    // 哪几个角要圆。位掩码，所以是字符串数组。
+    // UIKit 的 y 轴朝下，minY 是上边——minXMinY 就是左上角
+    get maskedCorners() {
+      requireNative(this, 'maskedCorners');
+      return nativeGet(this, 'maskedCorners');
+    }
+    set maskedCorners(value) {
+      requireNative(this, 'maskedCorners');
+      nativeSet(this, 'maskedCorners', value);
+    }
+
+    // ---- 边框 ----
+    get borderWidth() {
+      requireNative(this, 'borderWidth');
+      return nativeGet(this, 'borderWidth');
+    }
+    set borderWidth(value) {
+      requireNative(this, 'borderWidth');
+      nativeSet(this, 'borderWidth', value);
+    }
+    // ObjC 这里是 CGColorRef，JS 侧统一用 UIColor。**读出来是新建的对象**，
+    // 而且动态色在写入的那一刻就被定死了，详见 ca-layer.md
+    get borderColor() { return nativeGetOwned(this, 'borderColor'); }
+    set borderColor(value) { nativeSetOwned(this, 'borderColor', value); }
+
+    // ---- 阴影 ----
+    // 默认 opacity 是 0，所以只设颜色看不见任何东西
+    get shadowColor() { return nativeGetOwned(this, 'shadowColor'); }
+    set shadowColor(value) { nativeSetOwned(this, 'shadowColor', value); }
+    get shadowOpacity() {
+      requireNative(this, 'shadowOpacity');
+      return nativeGet(this, 'shadowOpacity');
+    }
+    set shadowOpacity(value) {
+      requireNative(this, 'shadowOpacity');
+      nativeSet(this, 'shadowOpacity', value);
+    }
+    get shadowRadius() {
+      requireNative(this, 'shadowRadius');
+      return nativeGet(this, 'shadowRadius');
+    }
+    set shadowRadius(value) {
+      requireNative(this, 'shadowRadius');
+      nativeSet(this, 'shadowRadius', value);
+    }
+    get shadowOffset() {
+      requireNative(this, 'shadowOffset');
+      return toSize(nativeGet(this, 'shadowOffset'));
+    }
+    set shadowOffset(value) {
+      requireNative(this, 'shadowOffset');
+      nativeSet(this, 'shadowOffset', structArg(value, SIZE_FIELDS, 'shadowOffset'));
+    }
+  });
+
   // ---------- Auto Layout ----------
   //
   // 一条约束就是一句等式：
@@ -777,6 +859,9 @@
     setNeedsLayout() { nativeCall(this, 'setNeedsLayout', []); }
     layoutIfNeeded() { nativeCall(this, 'layoutIfNeeded', []); }
     setNeedsDisplay() { nativeCall(this, 'setNeedsDisplay', []); }
+
+    // 圆角、边框、阴影都在这上面。view 和 layer 是一对一的，取两次是同一个对象
+    get layer() { return nativeGetOwned(this, 'layer'); }
 
     // ---- Auto Layout ----
     //

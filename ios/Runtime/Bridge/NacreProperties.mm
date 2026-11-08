@@ -94,6 +94,24 @@ std::string ReadNativeProperty(id object, const std::string& name) {
       value = c.identifier;
     }
   }
+  if (value == nil && [object isKindOfClass:CALayer.class]) {
+    CALayer* layer = (CALayer*)object;
+    if ([key isEqualToString:@"cornerRadius"]) {
+      value = @(layer.cornerRadius);
+    } else if ([key isEqualToString:@"cornerCurve"]) {
+      value = NameForCornerCurve(layer.cornerCurve);
+    } else if ([key isEqualToString:@"maskedCorners"]) {
+      value = NamesInCornerMask(layer.maskedCorners);
+    } else if ([key isEqualToString:@"borderWidth"]) {
+      value = @(layer.borderWidth);
+    } else if ([key isEqualToString:@"shadowOpacity"]) {
+      value = @(layer.shadowOpacity);
+    } else if ([key isEqualToString:@"shadowRadius"]) {
+      value = @(layer.shadowRadius);
+    } else if ([key isEqualToString:@"shadowOffset"]) {
+      value = SizeToJSON(layer.shadowOffset);
+    }
+  }
   if (value == nil && [object isKindOfClass:UILayoutGuide.class]) {
     UILayoutGuide* guide = (UILayoutGuide*)object;
     if ([key isEqualToString:@"layoutFrame"]) {
@@ -258,6 +276,52 @@ void WriteNativeProperty(id object, const std::string& name, const std::string& 
       return;
     }
   }
+  if ([object isKindOfClass:CALayer.class]) {
+    CALayer* layer = (CALayer*)object;
+    if ([key isEqualToString:@"cornerRadius"]) {
+      layer.cornerRadius = [value doubleValue];
+      return;
+    }
+    if ([key isEqualToString:@"borderWidth"]) {
+      layer.borderWidth = [value doubleValue];
+      return;
+    }
+    if ([key isEqualToString:@"shadowOpacity"]) {
+      layer.shadowOpacity = [value floatValue];
+      return;
+    }
+    if ([key isEqualToString:@"shadowRadius"]) {
+      layer.shadowRadius = [value doubleValue];
+      return;
+    }
+    if ([key isEqualToString:@"shadowOffset"]) {
+      layer.shadowOffset = JSONToSize(value);
+      return;
+    }
+    if ([key isEqualToString:@"cornerCurve"]) {
+      NSString* curve = CornerCurveFromName(value);
+      if (curve == nil) {
+        *error = EnumError(@"cornerCurve", value, NamesForCornerCurve());
+        return;
+      }
+      layer.cornerCurve = curve;
+      return;
+    }
+    if ([key isEqualToString:@"maskedCorners"]) {
+      CACornerMask mask;
+      id bad = nil;
+      if (!CornerMaskFromNames(value, &mask, &bad)) {
+        *error = bad != nil
+                     ? EnumError(@"maskedCorners", bad, NamesForCornerMask())
+                     : [NSString stringWithFormat:
+                           @"maskedCorners needs an array of names; expected any of: %@",
+                           NamesForCornerMask()].UTF8String;
+        return;
+      }
+      layer.maskedCorners = mask;
+      return;
+    }
+  }
   if ([object isKindOfClass:UILayoutGuide.class]) {
     if ([key isEqualToString:@"identifier"]) {
       ((UILayoutGuide*)object).identifier =
@@ -403,8 +467,22 @@ nacre::NativeObjectRef ReadNativeObjectProperty(id object, const std::string& na
       return {(__bridge void*)c.secondAnchor, AnchorClassName(c.secondAnchor)};
     }
   }
+  // CGColorRef 不是 ObjC 对象，JS 侧统一用 UIColor。读出来是新建的包装——
+  // 动态色在这一步被定死了，见 docs/api/ca-layer.md。
+  if ([object isKindOfClass:CALayer.class]) {
+    CALayer* layer = (CALayer*)object;
+    if (name == "borderColor") {
+      if (layer.borderColor == NULL) return {};
+      return {(__bridge void*)[UIColor colorWithCGColor:layer.borderColor], "UIColor"};
+    }
+    if (name == "shadowColor") {
+      if (layer.shadowColor == NULL) return {};
+      return {(__bridge void*)[UIColor colorWithCGColor:layer.shadowColor], "UIColor"};
+    }
+  }
   if ([object isKindOfClass:UIView.class]) {
     UIView* view = (UIView*)object;
+    if (name == "layer") return {(__bridge void*)view.layer, "CALayer"};
     if (name == "backgroundColor") return {(__bridge void*)view.backgroundColor, "UIColor"};
     if (name == "safeAreaLayoutGuide") {
       return {(__bridge void*)view.safeAreaLayoutGuide, "UILayoutGuide"};
@@ -543,6 +621,15 @@ void WriteNativeObjectProperty(id object, const std::string& name, void* valuePt
       window.rootViewController = [value isKindOfClass:UIViewController.class] ? value : nil;
     } else if (name == "windowScene") {
       window.windowScene = [value isKindOfClass:UIWindowScene.class] ? value : nil;
+    }
+  }
+  if ([object isKindOfClass:CALayer.class]) {
+    CALayer* layer = (CALayer*)object;
+    UIColor* color = [value isKindOfClass:UIColor.class] ? (UIColor*)value : nil;
+    if (name == "borderColor") {
+      layer.borderColor = color.CGColor;
+    } else if (name == "shadowColor") {
+      layer.shadowColor = color.CGColor;
     }
   }
   if ([object isKindOfClass:UIView.class] && name == "backgroundColor") {

@@ -144,6 +144,86 @@ NACRE_ENUM_MAP(LayoutAttribute, NSLayoutAttribute,
                @"centerYWithinMargins": @(NSLayoutAttributeCenterYWithinMargins),
                @"notAnAttribute": @(NSLayoutAttributeNotAnAttribute))
 
+// 位掩码。一个数值拆成一组名字，所以 JS 侧是字符串数组。
+// 单值枚举那套宏不够用：它一个名字对一个值，这里要双向拆合。
+#define NACRE_MASK_MAP(FuncName, Type, ...)                                   \
+  static NSDictionary<NSString*, NSNumber*>* FuncName##Table(void) {          \
+    static NSDictionary<NSString*, NSNumber*>* table;                         \
+    static dispatch_once_t once;                                              \
+    dispatch_once(&once, ^{ table = @{__VA_ARGS__}; });                       \
+    return table;                                                             \
+  }                                                                           \
+  BOOL FuncName##FromNames(id value, Type* out, id* bad) {                    \
+    *bad = nil;                                                               \
+    /* 「不是数组」和「名字不认识」是两种错，要分开报 */                        \
+    if (![value isKindOfClass:NSArray.class]) return NO;                      \
+    NSDictionary<NSString*, NSNumber*>* table = FuncName##Table();            \
+    Type mask = (Type)0;                                                      \
+    for (id name in (NSArray*)value) {                                        \
+      NSNumber* bit = [name isKindOfClass:NSString.class] ? table[name] : nil; \
+      if (bit == nil) { *bad = name; return NO; }                             \
+      mask = (Type)(mask | (Type)bit.unsignedIntegerValue);                   \
+    }                                                                         \
+    *out = mask;                                                              \
+    return YES;                                                               \
+  }                                                                           \
+  NSArray<NSString*>* NamesIn##FuncName(Type value) {                         \
+    NSDictionary<NSString*, NSNumber*>* table = FuncName##Table();            \
+    NSArray<NSString*>* keys = [table.allKeys                                 \
+        sortedArrayUsingComparator:^NSComparisonResult(NSString* a, NSString* b) { \
+          return [table[a] compare:table[b]];                                 \
+        }];                                                                   \
+    NSMutableArray<NSString*>* out = [NSMutableArray array];                  \
+    for (NSString* key in keys) {                                             \
+      if (value & (Type)table[key].unsignedIntegerValue) [out addObject:key]; \
+    }                                                                         \
+    return out;                                                               \
+  }                                                                           \
+  NSString* NamesFor##FuncName(void) { return JoinEnumNames(FuncName##Table()); }
+
+// 哪几个角要圆。名字是 ObjC 常量去掉 kCALayer 前缀和 Corner 后缀。
+// UIKit 的 y 轴朝下，所以 MinY 是上边：minXMinY 就是左上角。
+NACRE_MASK_MAP(CornerMask, CACornerMask,
+               @"minXMinY": @(kCALayerMinXMinYCorner),
+               @"maxXMinY": @(kCALayerMaxXMinYCorner),
+               @"minXMaxY": @(kCALayerMinXMaxYCorner),
+               @"maxXMaxY": @(kCALayerMaxXMaxYCorner))
+
+// 圆角的曲线。continuous 是 Apple 自己在用的那种「超椭圆」圆角，
+// 比正圆弧过渡得更顺——图标、卡片都是它。
+static NSArray<NSArray*>* CornerCurvePairs(void) {
+  static NSArray<NSArray*>* pairs;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    pairs = @[
+      @[ @"circular", kCACornerCurveCircular ],
+      @[ @"continuous", kCACornerCurveContinuous ],
+    ];
+  });
+  return pairs;
+}
+
+NSString* CornerCurveFromName(NSString* name) {
+  if (![name isKindOfClass:NSString.class]) return nil;
+  for (NSArray* pair in CornerCurvePairs()) {
+    if ([pair[0] isEqualToString:name]) return pair[1];
+  }
+  return nil;
+}
+
+NSString* NameForCornerCurve(NSString* curve) {
+  for (NSArray* pair in CornerCurvePairs()) {
+    if ([pair[1] isEqualToString:curve]) return pair[0];
+  }
+  return nil;
+}
+
+NSString* NamesForCornerCurve(void) {
+  NSMutableArray<NSString*>* names = [NSMutableArray array];
+  for (NSArray* pair in CornerCurvePairs()) [names addObject:pair[0]];
+  return [names componentsJoinedByString:@" / "];
+}
+
 NACRE_ENUM_MAP(LayoutConstraintAxis, UILayoutConstraintAxis,
                @"horizontal": @(UILayoutConstraintAxisHorizontal),
                @"vertical": @(UILayoutConstraintAxisVertical))

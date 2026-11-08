@@ -22,3 +22,4 @@
 /// <reference path="./ios/scene.d.ts" />
 /// <reference path="./ios/view.d.ts" />
 /// <reference path="./ios/layout.d.ts" />
+/// <reference path="./ios/layer.d.ts" />

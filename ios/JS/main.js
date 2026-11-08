@@ -1284,6 +1284,84 @@ application.addEventListener('sceneconnect', (e) => {
     assert('撤掉高度约束后塌成上下两个间距', card.frame.height, 16);
     cardHeight.isActive = true;
     root.layoutIfNeeded();
+
+    // ===== CALayer：圆角、边框、阴影 =====
+    console.log('--- CALayer ---');
+    {
+      // 用上面那张卡片：加圆角、边框、阴影，顺便验证 view 和 layer 一对一
+      assert('layer 取两次是同一个对象', card.layer === card.layer, true);
+      assert('两个 view 的 layer 不是同一个', card.layer === left.layer, false);
+
+      const layer = card.layer;
+      assert('cornerRadius 默认 0', layer.cornerRadius, 0);
+      // 头文件写的是「Defaults to kCACornerCurveCircular」，实测不是——
+    // 裸 CALayer 自己就是 continuous
+    assert('cornerCurve 实测默认 continuous', layer.cornerCurve, 'continuous');
+      assert('maskedCorners 默认四个角全圆',
+             layer.maskedCorners.join(','), 'minXMinY,maxXMinY,minXMaxY,maxXMaxY');
+      assert('borderWidth 默认 0', layer.borderWidth, 0);
+      // 默认是不透明黑，不是空。配上默认 0 的 borderWidth，所以看不见
+    assert('borderColor 默认是个颜色不是 null',
+           layer.borderColor instanceof UIColor, true);
+      assert('shadowOpacity 默认 0——只设颜色看不见东西', layer.shadowOpacity, 0);
+      assert('shadowRadius 默认 3', layer.shadowRadius, 3);
+      assert('shadowOffset 默认 (0, -3)', '' + layer.shadowOffset, 'CGSize(0, -3)');
+
+      layer.cornerRadius = 14;
+      layer.cornerCurve = 'continuous';
+      layer.borderWidth = 2;
+      layer.borderColor = UIColor.systemBlueColor;
+      layer.shadowColor = UIColor.blackColor;
+      layer.shadowOpacity = 0.25;
+      layer.shadowRadius = 8;
+      layer.shadowOffset = new CGSize(0, 4);
+      assert('圆角写进去了', layer.cornerRadius, 14);
+      assert('cornerCurve 写进去了', layer.cornerCurve, 'continuous');
+      assert('borderWidth 写进去了', layer.borderWidth, 2);
+      assert('shadowOffset 写进去了', '' + layer.shadowOffset, 'CGSize(0, 4)');
+
+      // 位掩码：第一个用字符串数组的属性
+      layer.maskedCorners = ['minXMinY', 'maxXMinY'];
+      assert('只圆上面两个角', layer.maskedCorners.join(','), 'minXMinY,maxXMinY');
+      layer.maskedCorners = [];
+      assert('空数组＝一个角都不圆', layer.maskedCorners.length, 0);
+      layer.maskedCorners = ['minXMinY', 'maxXMinY', 'minXMaxY', 'maxXMaxY'];
+      try {
+        // @ts-expect-error 位掩码只认那四个名字
+        layer.maskedCorners = ['topLeft'];
+        console.log('  ✗ 不认识的角名居然通过了');
+      } catch (err) {
+        console.log('  ✓ 不认识的角名被拒:', err.message.slice(0, 44) + '…');
+      }
+      try {
+        // @ts-expect-error 位掩码要数组，不是单个字符串
+        layer.maskedCorners = 'minXMinY';
+        console.log('  ✗ 位掩码给了非数组居然通过了');
+      } catch (err) {
+        console.log('  ✓ 位掩码给非数组被拒:', err.message.slice(0, 40) + '…');
+      }
+      try {
+        // @ts-expect-error cornerCurve 只有两个值
+        layer.cornerCurve = 'squircle';
+        console.log('  ✗ 不认识的 cornerCurve 居然通过了');
+      } catch (err) {
+        console.log('  ✓ 不认识的 cornerCurve 被拒:', err.message.slice(0, 40) + '…');
+      }
+
+      // CGColorRef 的代价：读出来是新建的 UIColor，不是写进去的那个
+      assert('颜色读回来不是同一个对象（经过了 CGColor）',
+             layer.borderColor === UIColor.systemBlueColor, false);
+      assert('但确实是个 UIColor', layer.borderColor instanceof UIColor, true);
+      // 更狠的一条：读两次也不是同一个对象。colorWithCGColor: 每次新建，
+      // 而包装的身份是按**原生指针**保证的，这里指针本来就不一样
+      assert('同一个属性读两次也不相等（CGColor 的代价）',
+             layer.borderColor === layer.borderColor, false);
+
+      // 每个 view 都有自己的 layer——给三个子块也来点圆角，
+      // 免得直角戳出卡片的圆角
+      for (const child of [left, middle, right]) child.layer.cornerRadius = 6;
+      assert('子块也圆了', left.layer.cornerRadius, 6);
+    }
   }
 
   // ===== 所有权镜像 =====

@@ -63,6 +63,9 @@ declare class UIView extends UIResponder {
   layoutIfNeeded(): void;
   setNeedsDisplay(): void;
 
+  /** 圆角、边框、阴影都在这上面。view 和 layer 一对一，取两次是同一个对象。 */
+  readonly layer: CALayer;
+
   // ---- Auto Layout ----
 
   /**

@@ -55,6 +55,15 @@ type UIImageRenderingMode = 'automatic' | 'alwaysOriginal' | 'alwaysTemplate';
 /** 九宫格中间那块怎么填。 */
 type UIImageResizingMode = 'tile' | 'stretch';
 
+/** 圆角的曲线。continuous 是 Apple 自己在用的超椭圆圆角。 */
+type CALayerCornerCurve = 'circular' | 'continuous';
+
+/**
+ * 哪几个角。位掩码，所以用字符串数组。
+ * UIKit 的 y 轴朝下，minY 是上边——minXMinY 就是左上角。
+ */
+type CACornerMask = 'minXMinY' | 'maxXMinY' | 'minXMaxY' | 'maxXMaxY';
+
 type NSLayoutRelation = 'lessThanOrEqual' | 'equal' | 'greaterThanOrEqual';
 
 type UILayoutConstraintAxis = 'horizontal' | 'vertical';
