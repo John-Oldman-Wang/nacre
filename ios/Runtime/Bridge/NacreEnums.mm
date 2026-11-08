@@ -189,6 +189,50 @@ NACRE_MASK_MAP(CornerMask, CACornerMask,
                @"minXMaxY": @(kCALayerMinXMaxYCorner),
                @"maxXMaxY": @(kCALayerMaxXMaxYCorner))
 
+// 控件事件。16 个具体事件，另外 5 个是聚合掩码（AllTouchEvents 之类），
+// 不暴露——JS 侧一次订阅一个类型。
+//
+// 名字是 ObjC 常量去掉 UIControlEvent 前缀、首字母小写。
+NACRE_ENUM_MAP(ControlEvent, UIControlEvents,
+               @"touchDown": @(UIControlEventTouchDown),
+               @"touchDownRepeat": @(UIControlEventTouchDownRepeat),
+               @"touchDragInside": @(UIControlEventTouchDragInside),
+               @"touchDragOutside": @(UIControlEventTouchDragOutside),
+               @"touchDragEnter": @(UIControlEventTouchDragEnter),
+               @"touchDragExit": @(UIControlEventTouchDragExit),
+               @"touchUpInside": @(UIControlEventTouchUpInside),
+               @"touchUpOutside": @(UIControlEventTouchUpOutside),
+               @"touchCancel": @(UIControlEventTouchCancel),
+               @"valueChanged": @(UIControlEventValueChanged),
+               @"primaryActionTriggered": @(UIControlEventPrimaryActionTriggered),
+               @"menuActionTriggered": @(UIControlEventMenuActionTriggered),
+               @"editingDidBegin": @(UIControlEventEditingDidBegin),
+               @"editingChanged": @(UIControlEventEditingChanged),
+               @"editingDidEnd": @(UIControlEventEditingDidEnd),
+               @"editingDidEndOnExit": @(UIControlEventEditingDidEndOnExit))
+
+// 控件状态。normal 是 0，所以它在掩码里永远拆不出来——
+// 读的那一侧单独处理：掩码为 0 时给 ['normal']。
+NACRE_MASK_MAP(ControlState, UIControlState,
+               @"highlighted": @(UIControlStateHighlighted),
+               @"disabled": @(UIControlStateDisabled),
+               @"selected": @(UIControlStateSelected),
+               @"focused": @(UIControlStateFocused))
+
+NACRE_ENUM_MAP(ControlHorizontalAlignment, UIControlContentHorizontalAlignment,
+               @"center": @(UIControlContentHorizontalAlignmentCenter),
+               @"left": @(UIControlContentHorizontalAlignmentLeft),
+               @"right": @(UIControlContentHorizontalAlignmentRight),
+               @"fill": @(UIControlContentHorizontalAlignmentFill),
+               @"leading": @(UIControlContentHorizontalAlignmentLeading),
+               @"trailing": @(UIControlContentHorizontalAlignmentTrailing))
+
+NACRE_ENUM_MAP(ControlVerticalAlignment, UIControlContentVerticalAlignment,
+               @"center": @(UIControlContentVerticalAlignmentCenter),
+               @"top": @(UIControlContentVerticalAlignmentTop),
+               @"bottom": @(UIControlContentVerticalAlignmentBottom),
+               @"fill": @(UIControlContentVerticalAlignmentFill))
+
 // 圆角的曲线。continuous 是 Apple 自己在用的那种「超椭圆」圆角，
 // 比正圆弧过渡得更顺——图标、卡片都是它。
 static NSArray<NSArray*>* CornerCurvePairs(void) {

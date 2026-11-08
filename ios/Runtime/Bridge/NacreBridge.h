@@ -91,6 +91,11 @@ NACRE_ENUM_DECL(LayoutRelation, NSLayoutRelation)
 NACRE_ENUM_DECL(LayoutAttribute, NSLayoutAttribute)
 NACRE_ENUM_DECL(LayoutConstraintAxis, UILayoutConstraintAxis)
 NACRE_MASK_DECL(CornerMask, CACornerMask)
+NACRE_MASK_DECL(ControlState, UIControlState)
+// 控件事件：值本身是位，但 JS 侧一次只订阅一个类型，所以按单值查
+NACRE_ENUM_DECL(ControlEvent, UIControlEvents)
+NACRE_ENUM_DECL(ControlHorizontalAlignment, UIControlContentHorizontalAlignment)
+NACRE_ENUM_DECL(ControlVerticalAlignment, UIControlContentVerticalAlignment)
 
 // cornerCurve 的值是 NSString 常量，不是枚举，和文本样式一样
 NSString* CornerCurveFromName(NSString* name);

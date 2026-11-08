@@ -434,10 +434,13 @@ Commit message 格式：
 | 3c | Auto Layout | NSLayoutConstraint、锚点、UILayoutGuide | 已在模拟器验证通过：锚点建约束、批量激活、flex-1 式的抱紧优先级、UILayoutGuide、三个调试接口 |
 | 3d | 圆角、边框、阴影 | CALayer、位掩码 | 已在模拟器验证通过：卡片有圆角和边框，子块也圆了 |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
-| **M1** | **原生回调回 JS**（含同步回调） | 回调注册表、生命周期、重入 | **没有逃生口**，和第 4 步一起做 |
+| **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |
+| **M1b** | **同步回调回 JS** | 重入判定：UIKit 主动调我们才允许同步 | **没有逃生口**，第 8 步列表绕不过去 |
 | **M2** | **JS 子类化原生类** | 动态生成 ObjC 子类、方法转发回 JS | **没有逃生口**：覆写 `drawRect:`、`layoutSubviews`、任何 delegate 协议都要它 |
 | **M3** | **通用能力暴露**（bindgen） | 从 SDK 头文件生成元数据，运行时动态调用 | **没有逃生口**：不做这个，覆盖面永远追不上，而且手写的三份分发表注定要漂 |
-| 4 | 按钮和点击事件 | Target-Action、JS 回调 | 待讨论（依赖 M1） |
+| 4a | `UIControl` 的 16 个控件事件 | 订阅通道、target-action | 已在模拟器验证通过：261 条断言全过，含真机点击 |
+| 4b | `UIButton` | `setTitle:forState:`、`state` 位掩码 | 待讨论 |
+| 4c | first responder | `becomeFirstResponder` / `resignFirstResponder` | 待讨论，和第 9 步绑一起 |
 | 5 | 页面跳转 | UINavigationController、继承 UIViewController | 待讨论 |
 | 6a | `URL` / `URLSearchParams` / `Headers` | NSURLComponents、WHATWG 语义 | 已在模拟器验证通过：37 条断言全过，和 Chrome 对撞过一批 URL |
 | 6b | `fetch` / `Request` / `Response` | NSURLSession、BackingStore 零拷贝 | 已在模拟器验证通过：当初对着本地服务器跑，20 个并发 36ms；验收用例在 3b 改成打公开的 `httpbin.org`，不用再起服务 |
@@ -450,6 +453,33 @@ Commit message 格式：
 | 12 | App 生命周期 | 前后台切换、深链接 | 待讨论 |
 
 注意：第 0 步中的 `App/RootViewController.swift` 由原生创建根页面，不符合第 1 节的边界。第 2 步已把它移到 JS 中，该文件已删除，`SceneDelegate` 只剩空壳。
+
+#### 第 4 步：按事件机制的层分，一步一层
+
+iOS 的触摸不是一套机制，是**四套并行**的（hit-testing、responder chain、手势识别器、`UIControl` 的 target-action），实测细节见[事件模型](internals/events.md)。所以第 4 步按「碰哪一层」切开，一步只碰一层：
+
+| | 碰哪一层 | 依赖 |
+| --- | --- | --- |
+| **4a** | 只碰 `UIControl` 的 target-action | M1a |
+| 4b | 不碰事件，纯属性 | — |
+| 4c | first responder | 和第 9 步输入框一起 |
+| 第 10 步 | 手势识别器 | 抢占语义没有 Web 参照，要单独设计 |
+| — | `touchesBegan` 这一层裸暴露 | M2（要能覆写原生方法） |
+
+**为什么 4a 能先做**：target-action 是四套里唯一**不走 responder chain、不受手势抢占影响**的——它是直接注册的。所以做它不需要先想清楚传播和抢占。
+
+**4a 只需要 M1 的一半。** 控件事件是「原生发生了什么，告诉 JS」，延后一轮没问题；同步回调（`cellForRowAtIndexPath:` 必须立刻返回一个 cell）要到第 8 步才绕不过去。所以 M1 拆成 M1a / M1b。
+
+已定的几条（未回答的按推荐方案）：
+
+| | 定法 |
+| --- | --- |
+| 订阅 | **惰性**：某类型第一次有监听器时通知原生，最后一个移走时取消。`EventTarget` 加钩子，这个钩子将来所有原生事件源都要用 |
+| 原生侧怎么接 | **自己持有的 trampoline 对象，持有 handle 不持有 JS 函数**。派发时拿 handle 查包装再 `dispatchEvent` —— 生命周期就只剩「包装活不活」，而那个所有权镜像已经解决了 |
+| 事件名 | 按已定规则去前缀首字母小写：`'touchUpInside'`、`'valueChanged'`、`'editingChanged'`。**不加 `'click'` 别名**——Web 的 `click` 含键盘和辅助功能触发，iOS 的对应物是 `primaryActionTriggered` 而不是 `touchUpInside`，加别名等于把两个不同的东西糊在一起 |
+| 派发时机 | **延后一轮**，和现有的原生通知一致。`cancelable` 为 `false` |
+| `dispatchEvent` | **不触发原生 action**。它是 `EventTarget` 的语义，只派发给 JS 监听器；要真的触发原生用显式的 `sendActionsForControlEvents([...])` |
+| 事件对象 | 第一版只有 `type` 和 `target`，**不带触点位置**。要位置等手势那一步 |
 
 #### 屏幕方向（方案已定，未实现）
 

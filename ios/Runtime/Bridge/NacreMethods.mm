@@ -210,6 +210,28 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
       [view layoutIfNeeded];
     } else if ([sel isEqualToString:@"setNeedsDisplay"]) {
       [view setNeedsDisplay];
+    } else if ([sel isEqualToString:@"sendActionsForControlEvents:"] &&
+               [view isKindOfClass:UIControl.class]) {
+      // 参数是字符串数组，一次可以触发多个
+      id given = valueArg(0);
+      UIControlEvents mask = (UIControlEvents)0;
+      if (![given isKindOfClass:NSArray.class]) {
+        *error = [NSString stringWithFormat:
+                      @"sendActionsForControlEvents needs an array of names; "
+                      @"expected any of: %@", NamesForControlEvent()].UTF8String;
+      } else {
+        BOOL ok = YES;
+        for (id name in (NSArray*)given) {
+          UIControlEvents bit;
+          if (!ControlEventFromName(name, &bit)) {
+            *error = EnumError(@"sendActionsForControlEvents", name, NamesForControlEvent());
+            ok = NO;
+            break;
+          }
+          mask |= bit;
+        }
+        if (ok) [(UIControl*)view sendActionsForControlEvents:mask];
+      }
     } else if ([sel isEqualToString:@"invalidateIntrinsicContentSize"]) {
       [view invalidateIntrinsicContentSize];
     } else if ([sel isEqualToString:@"addLayoutGuide:"]) {
@@ -486,6 +508,8 @@ nacre::NativeObjectRef ConstructNative(const std::string& className,
     object = [[UILabel alloc] init];
   } else if (className == "UIImageView") {
     object = [[UIImageView alloc] init];
+  } else if (className == "UIControl") {
+    object = [[UIControl alloc] init];
   } else if (className == "UILayoutGuide") {
     object = [[UILayoutGuide alloc] init];
   }

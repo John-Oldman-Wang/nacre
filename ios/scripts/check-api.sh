@@ -159,7 +159,10 @@ for macro, tsname in [('TextAlignment', 'NSTextAlignment'),
                       ('ImageResizingMode', 'UIImageResizingMode'),
                       ('LayoutRelation', 'NSLayoutRelation'),
                       ('LayoutAttribute', 'NSLayoutAttribute'),
-                      ('LayoutConstraintAxis', 'UILayoutConstraintAxis')]:
+                      ('LayoutConstraintAxis', 'UILayoutConstraintAxis'),
+                      ('ControlEvent', 'UIControlEventType'),
+                      ('ControlHorizontalAlignment', 'UIControlContentHorizontalAlignment'),
+                      ('ControlVerticalAlignment', 'UIControlContentVerticalAlignment')]:
     a, b = mm_enum(macro), dts_union(tsname)
     if not a: complain('枚举', f'没能从 NacreRuntime.mm 解析出 {macro}，脚本要更新')
     elif a != b:
@@ -172,6 +175,13 @@ a = set(re.findall(r'@"(\w+)":', m.group(1))) if m else set()
 b = dts_union('CACornerMask')
 if not a: complain('枚举', '没能从 mm 解析出 CornerMask，脚本要更新')
 elif a != b: complain('CACornerMask', f'缺 {sorted(a-b)} 多 {sorted(b-a)}')
+
+# UIControlState 的 normal 是 0，掩码表里没有它，d.ts 里有——对比时补上
+m = re.search(r'NACRE_MASK_MAP\(ControlState,[^,]+,(.*?)\)\n\n', mm, re.S)
+a = (set(re.findall(r'@"(\w+)":', m.group(1))) | {'normal'}) if m else set()
+b = dts_union('UIControlStateName')
+if not a: complain('枚举', '没能从 mm 解析出 ControlState，脚本要更新')
+elif a != b: complain('UIControlStateName', f'缺 {sorted(a-b)} 多 {sorted(b-a)}')
 
 # 字重、文本样式、圆角曲线、布局优先级不走宏，单独对
 m = re.search(r'FontWeightTable\(void\).*?@\{(.*?)\};', mm, re.S)

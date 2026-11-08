@@ -8,6 +8,12 @@
   const kDefaultPrevented = Symbol('defaultPrevented');
   const kStopImmediate = Symbol('stopImmediate');
   const kListeners = Symbol('listeners');
+  // 原生类覆写它来接「某个类型的监听器从无到有 / 从有到无」。
+  // 默认什么都不做——纯 JS 的 EventTarget 不需要告诉谁。
+  const kSubscribe = Symbol('subscribe');
+  // 订阅是一条**所有权边**：原生那边登记了对这个对象的兴趣，它的 JS 包装
+  // 就不能死——包装一死，后面来的事件会落到一个新包装上，监听器全丢。
+  const subscribed = new Set();
 
   function define(obj, name, value) {
     // 和 ECMAScript 内置一致：不可枚举、可写、可配置
@@ -70,15 +76,28 @@
       // 同一个 (type, callback) 只注册一次，和标准一致
       for (const entry of list) if (entry.callback === callback) return;
       list.push({ callback, once });
+      // 这个类型从无到有：告诉原生「我要听了」
+      if (list.length === 1) this[kSubscribe](t, true);
     }
 
     removeEventListener(type, callback) {
-      const list = this[kListeners].get(String(type));
+      const t = String(type);
+      const list = this[kListeners].get(t);
       if (list === undefined) return;
       for (let i = 0; i < list.length; i++) {
-        if (list[i].callback === callback) { list.splice(i, 1); return; }
+        if (list[i].callback !== callback) continue;
+        list.splice(i, 1);
+        // 这个类型从有到无：告诉原生「不用再发了」
+        if (list.length === 0) {
+          this[kListeners].delete(t);
+          this[kSubscribe](t, false);
+        }
+        return;
       }
     }
+
+    // 默认不订阅任何东西。原生类覆写它。
+    [kSubscribe](type, on) {}
 
     dispatchEvent(event) {
       if (!(event instanceof Event)) {
@@ -1142,6 +1161,81 @@
     prepareThumbnail(size) {
       return nativeCallAsync(this, 'prepareThumbnailOfSize:',
                              [structArg(size, SIZE_FIELDS, 'prepareThumbnail')]);
+    }
+  });
+
+  // 会接收触摸、并把触摸翻译成「控件事件」的视图。按钮、开关、滑块、
+  // 输入框都是它的子类。
+  //
+  // 它是 iOS 四套事件机制里唯一**直接注册**的那套——不走 responder chain、
+  // 不受手势抢占影响，所以最接近 addEventListener。另外三套（hit-testing、
+  // responder chain、手势识别器）见 docs/internals/events.md。
+  defineNativeClass('UIControl', class UIControl extends UIView {
+    constructor() {
+      super();
+      if (allowNativeConstruct || new.target !== UIControl) return;
+      constructNative(this, 'UIControl', []);
+    }
+
+    // ---- 状态 ----
+    // 关掉之后不接收触摸，子类还会画成灰的
+    get isEnabled() { requireNative(this, 'isEnabled'); return nativeGet(this, 'isEnabled'); }
+    set isEnabled(value) { requireNative(this, 'isEnabled'); nativeSet(this, 'isEnabled', value); }
+    // 由 App 自己用，UIKit 不会自动改
+    get isSelected() { requireNative(this, 'isSelected'); return nativeGet(this, 'isSelected'); }
+    set isSelected(value) { requireNative(this, 'isSelected'); nativeSet(this, 'isSelected', value); }
+    // 手指按下时 UIKit 自动置上，抬起时清掉
+    get isHighlighted() {
+      requireNative(this, 'isHighlighted');
+      return nativeGet(this, 'isHighlighted');
+    }
+    set isHighlighted(value) {
+      requireNative(this, 'isHighlighted');
+      nativeSet(this, 'isHighlighted', value);
+    }
+    // 只读，由上面三个合成。位掩码，所以是字符串数组；都没置上时是 ['normal']
+    get state() { requireNative(this, 'state'); return nativeGet(this, 'state'); }
+    // 只读，只在跟踪触摸期间有意义
+    get isTracking() { requireNative(this, 'isTracking'); return nativeGet(this, 'isTracking'); }
+    get isTouchInside() {
+      requireNative(this, 'isTouchInside');
+      return nativeGet(this, 'isTouchInside');
+    }
+
+    // ---- 内容对齐 ----
+    get contentHorizontalAlignment() {
+      requireNative(this, 'contentHorizontalAlignment');
+      return nativeGet(this, 'contentHorizontalAlignment');
+    }
+    set contentHorizontalAlignment(value) {
+      requireNative(this, 'contentHorizontalAlignment');
+      nativeSet(this, 'contentHorizontalAlignment', value);
+    }
+    get contentVerticalAlignment() {
+      requireNative(this, 'contentVerticalAlignment');
+      return nativeGet(this, 'contentVerticalAlignment');
+    }
+    set contentVerticalAlignment(value) {
+      requireNative(this, 'contentVerticalAlignment');
+      nativeSet(this, 'contentVerticalAlignment', value);
+    }
+
+    // 主动触发，一次可以触发多个。注意 dispatchEvent 不走这条——
+    // 那个是 EventTarget 的语义，只派发给 JS 监听器
+    sendActionsForControlEvents(types) {
+      nativeCall(this, 'sendActionsForControlEvents:', [types]);
+    }
+
+    // 惰性订阅：某个类型第一次有监听器时才告诉原生。
+    // touchDragInside 在手指移动时每帧都发，没人听还过桥是白费。
+    [kSubscribe](type, on) {
+      requireNative(this, 'addEventListener');
+      native.subscribe(this[kHandle], type, on);
+      if (on) {
+        subscribed.add(this);
+      } else if (this[kListeners].size === 0) {
+        subscribed.delete(this);
+      }
     }
   });
 

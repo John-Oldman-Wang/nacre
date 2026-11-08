@@ -93,6 +93,13 @@ struct EngineHost {
                                              std::string* error)>
       call_object_array_method;
 
+  // 按对象订阅事件。JS 第一次给某个类型加监听器时打开，最后一个移走时关掉。
+  // 和启动时注册的全局观察者是两种模式：那种是「通知本来就是广播」，
+  // 这种是「每个对象各自注册」——控件事件必须走这种，touchDragInside
+  // 在手指移动时每帧都发，没人听还过桥是白费。
+  std::function<void(void* ptr, const std::string& type, bool on, std::string* error)>
+      set_event_subscription;
+
   // 类级属性。没有实例，所以用类名定位，比如 UIColor.whiteColor
   std::function<NativeObjectRef(const std::string& class_name, const std::string& name)>
       read_class_object_property;

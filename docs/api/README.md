@@ -27,6 +27,7 @@ Nacre 的 API 分两层：
 | [`UIImage` / `UIImageView`](ui-image.md) | 图片。四条取图路径，`size` 是点不是像素 |
 | [Auto Layout](auto-layout.md) | 约束、锚点、`UILayoutGuide`。用了约束就别再写 frame |
 | [`CALayer`](ca-layer.md) | 圆角、边框、阴影 |
+| [`UIControl`](ui-control.md) | 控件事件。16 个事件名，`addEventListener` 直接用 |
 | [结构体](structs.md) | `CGPoint`、`CGSize`、`CGRect`、`UIEdgeInsets`，只读 |
 | [枚举](enums.md) | 一律用字符串 |
 | [定时器](timers.md) | `setTimeout` 系列。调度参考 Chromium |

@@ -744,6 +744,18 @@ struct Engine::Impl {
   }
 
   // 属性值是原生对象数组，比如 subviews
+  // 订阅或取消订阅某个对象的某类事件：(handle, type, on)
+  static void NativeSubscribe(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    void* ptr = self->PtrForHandle(info, 0);
+    if (!ptr || !self->host.set_event_subscription || info.Length() < 3) return;
+    std::string error;
+    self->host.set_event_subscription(ptr, SafeToString(isolate, info[1]),
+                                      info[2]->BooleanValue(isolate), &error);
+    Rejected(isolate, error);
+  }
+
   // 返回原生对象数组的方法。和 NativeObjectArrayProperty 的区别只是带参数，
   // 所以也带 error 出参——「没命中」返回空数组，「你问错了」抛 TypeError。
   static void NativeCallObjectArray(const v8::FunctionCallbackInfo<v8::Value>& info) {
@@ -861,6 +873,7 @@ struct Engine::Impl {
         {"callObj", NativeCallObject},
         {"getObjArray", NativeObjectArrayProperty},
         {"callObjArray", NativeCallObjectArray},
+        {"subscribe", NativeSubscribe},
         {"callAsync", NativeCallAsync},
     };
     for (const Entry& e : entries) {

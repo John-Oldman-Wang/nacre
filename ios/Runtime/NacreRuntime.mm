@@ -2,6 +2,7 @@
 
 #import <UIKit/UIKit.h>
 #import <os/log.h>
+#import <objc/runtime.h>
 
 #include <memory>
 #include <mutex>
@@ -45,7 +46,33 @@ using namespace nacre_bridge;
 @end
 
 @interface NacreRuntime () <NSURLSessionDataDelegate>
+- (void)emitControlEvent:(NSString*)type from:(UIControl*)control;
+- (void)setSubscription:(id)object
+                   type:(const std::string&)type
+                     on:(BOOL)on
+                  error:(std::string*)error;
 @end
+
+// 控件事件的中转。
+//
+// control 通过关联对象持有它（`addTarget:action:` 自己**不**持有 target，
+// 头文件原话 "the target is not retained"），它只记一个事件名和一个回
+// 运行时的弱引用——**不持有任何 JS 函数**。派发时拿原生指针查包装，再走
+// 包装自己的 dispatchEvent。于是回调的生命周期问题就只剩「包装活不活」，
+// 而那个所有权镜像已经解决了。
+@interface NacreControlTarget : NSObject
+@property(nonatomic, weak) NacreRuntime* runtime;
+@property(nonatomic, copy) NSString* type;
+@end
+
+@implementation NacreControlTarget
+- (void)fire:(UIControl*)sender {
+  [self.runtime emitControlEvent:self.type from:sender];
+}
+@end
+
+// 关联对象的 key：事件名 → NacreControlTarget
+static const void* kNacreControlTargetsKey = &kNacreControlTargetsKey;
 
 @implementation NacreRuntime {
   BOOL _started;
@@ -480,6 +507,11 @@ nacre::NativeObjectRef CreateBlob(
     host.read_object_array_property = [](void* ptr, const std::string& name) {
       return ReadNativeObjectArrayProperty((__bridge id)ptr, name);
     };
+    host.set_event_subscription = [weakSelf](void* ptr, const std::string& type,
+                                             bool on, std::string* error) {
+      NacreRuntime* strongSelf = weakSelf;
+      if (strongSelf) [strongSelf setSubscription:(__bridge id)ptr type:type on:on error:error];
+    };
     host.call_object_array_method = [](void* ptr, const std::string& name,
                                        const std::string& argsJSON,
                                        const std::vector<void*>& argPtrs,
@@ -824,6 +856,56 @@ nacre::NativeObjectRef CreateBlob(
                   }];
                 }];
     [_observers addObject:token];
+  }
+}
+
+// 控件事件：延后一轮再进 JS，和别的原生通知一致。
+// 这里捕获的是 control 的强引用，保证 block 跑起来时它还活着。
+- (void)emitControlEvent:(NSString*)type from:(UIControl*)control {
+  auto engine = _engine;
+  std::string t = type.UTF8String;
+  [self postToJS:^{
+    if (*engine) {
+      (*engine)->EmitObjectEvent({(__bridge void*)control, "UIControl"}, t);
+    }
+  }];
+}
+
+// 按对象订阅。JS 侧某个类型第一次有监听器时 on=YES，最后一个移走时 on=NO。
+- (void)setSubscription:(id)object
+                   type:(const std::string&)type
+                     on:(BOOL)on
+                  error:(std::string*)error {
+  if (![object isKindOfClass:UIControl.class]) {
+    *error = "this object does not support event subscription";
+    return;
+  }
+  UIControl* control = (UIControl*)object;
+  NSString* name = @(type.c_str());
+  UIControlEvents bit;
+  if (!ControlEventFromName(name, &bit)) {
+    *error = EnumError(@"addEventListener", name, NamesForControlEvent());
+    return;
+  }
+  NSMutableDictionary<NSString*, NacreControlTarget*>* table =
+      objc_getAssociatedObject(control, kNacreControlTargetsKey);
+  if (table == nil) {
+    table = [NSMutableDictionary dictionary];
+    objc_setAssociatedObject(control, kNacreControlTargetsKey, table,
+                             OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  }
+  if (on) {
+    if (table[name] != nil) return;   // 已经订阅过这个类型
+    NacreControlTarget* target = [NacreControlTarget new];
+    target.runtime = self;
+    target.type = name;
+    table[name] = target;
+    [control addTarget:target action:@selector(fire:) forControlEvents:bit];
+  } else {
+    NacreControlTarget* target = table[name];
+    if (target == nil) return;
+    [control removeTarget:target action:@selector(fire:) forControlEvents:bit];
+    [table removeObjectForKey:name];
   }
 }
 

@@ -73,6 +73,29 @@ std::string ReadNativeProperty(id object, const std::string& name) {
       value = @(view.hasAmbiguousLayout);
     }
   }
+  // UIControl 放在 UIView 之后：它是 UIView 的子类，名字不重叠
+  if (value == nil && [object isKindOfClass:UIControl.class]) {
+    UIControl* control = (UIControl*)object;
+    if ([key isEqualToString:@"isEnabled"]) {
+      value = @(control.isEnabled);
+    } else if ([key isEqualToString:@"isSelected"]) {
+      value = @(control.isSelected);
+    } else if ([key isEqualToString:@"isHighlighted"]) {
+      value = @(control.isHighlighted);
+    } else if ([key isEqualToString:@"isTracking"]) {
+      value = @(control.isTracking);
+    } else if ([key isEqualToString:@"isTouchInside"]) {
+      value = @(control.isTouchInside);
+    } else if ([key isEqualToString:@"state"]) {
+      // normal 是 0，从掩码里拆不出来，单独给
+      NSArray<NSString*>* names = NamesInControlState(control.state);
+      value = names.count > 0 ? names : @[ @"normal" ];
+    } else if ([key isEqualToString:@"contentHorizontalAlignment"]) {
+      value = NameForControlHorizontalAlignment(control.contentHorizontalAlignment);
+    } else if ([key isEqualToString:@"contentVerticalAlignment"]) {
+      value = NameForControlVerticalAlignment(control.contentVerticalAlignment);
+    }
+  }
   if (value == nil && [object isKindOfClass:NSLayoutConstraint.class]) {
     NSLayoutConstraint* c = (NSLayoutConstraint*)object;
     if ([key isEqualToString:@"isActive"]) {
@@ -245,6 +268,35 @@ void WriteNativeProperty(id object, const std::string& name, const std::string& 
     if ([key isEqualToString:@"userInfo"]) {
       ((UISceneSession*)object).userInfo =
           [value isKindOfClass:NSDictionary.class] ? value : nil;
+      return;
+    }
+  }
+  if ([object isKindOfClass:UIControl.class]) {
+    UIControl* control = (UIControl*)object;
+    if ([key isEqualToString:@"isEnabled"]) { control.enabled = [value boolValue]; return; }
+    if ([key isEqualToString:@"isSelected"]) { control.selected = [value boolValue]; return; }
+    if ([key isEqualToString:@"isHighlighted"]) {
+      control.highlighted = [value boolValue];
+      return;
+    }
+    if ([key isEqualToString:@"contentHorizontalAlignment"]) {
+      UIControlContentHorizontalAlignment a;
+      if (!ControlHorizontalAlignmentFromName(value, &a)) {
+        *error = EnumError(@"contentHorizontalAlignment", value,
+                           NamesForControlHorizontalAlignment());
+        return;
+      }
+      control.contentHorizontalAlignment = a;
+      return;
+    }
+    if ([key isEqualToString:@"contentVerticalAlignment"]) {
+      UIControlContentVerticalAlignment a;
+      if (!ControlVerticalAlignmentFromName(value, &a)) {
+        *error = EnumError(@"contentVerticalAlignment", value,
+                           NamesForControlVerticalAlignment());
+        return;
+      }
+      control.contentVerticalAlignment = a;
       return;
     }
   }
