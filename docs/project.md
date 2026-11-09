@@ -760,6 +760,13 @@ JS 侧的属性是一个个显式定义的取值器，名字不认识的赋值�
 
 和[子类化原生类](#待讨论的设计问题)那条相关，一起定。
 
+**TODO：`transform` 还没暴露。** `UIView.transform`（`CGAffineTransform`）和 `layer.transform`（`CATransform3D`）都没有。它挡着两类很常见的效果：
+
+- **滚动驱动的变形**：吸顶头缩小、视差。变色、变高、变透明度今天就能做（`layer` 和约束都有），缩放做不了
+- **轮播的层叠效果**（coverflow 那种）：基础 Swiper 今天就能写（`isPagingEnabled` + stack + `setContentOffset`），但进阶形态要 transform
+
+体量不大：一个 `CGAffineTransform` 结构体（六个字段，和 `CGRect` 一样做成只读）加一个属性，不需要新通道。顺带要定的是**怎么构造**——ObjC 侧是 `CGAffineTransformMakeScale` 这类 C 函数，不是方法，所以要么暴露成类方法，要么在 JS 侧给几个工厂（`CGAffineTransform.scale(2, 2)`）。这是第一次遇到「C 函数而不是 ObjC 方法」的能力，值得单独一步。
+
 **TODO：`UITraitCollection` 还没暴露。** 这一条挡着三件事：
 
 - JS 读不到当前是深色还是浅色、文字大小是多少、对比度设置
