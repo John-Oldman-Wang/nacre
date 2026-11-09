@@ -132,6 +132,11 @@ TypeError: Cannot redefine property: Symbol(nativeHandle)
 
 真实的返回按钮点击验过：点一下，`didshow` 报「首页」，栈深从 2 变 1。
 
+**左滑返回也验过**：从导航视图的左边缘（x≈252，窗口左边是 248）往右滑 144pt，同样 pop 到「首页」。两点值得记：
+
+- 边缘手势认的是**导航控制器自己 view 的左边缘**，不是屏幕边缘——所以放在一个 (248, 130) 的小窗口里照样能滑
+- 它和点按钮走**同一条 delegate 链**，JS 侧收到的 `didshow` 一模一样，不需要为手势单独做什么
+
 ---
 
 ← 返回[实现原理](README.md) ・ [包装机制](wrapper.md) ・ [API 文档](../api/ui-navigation-controller.md)
