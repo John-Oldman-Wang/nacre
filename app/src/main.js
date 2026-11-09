@@ -31,6 +31,7 @@ import { stepScroll } from './steps/scroll.js';
 import { stepStack } from './steps/stack.js';
 import { stepTransform } from './steps/transform.js';
 import { stepNavigation } from './steps/navigation.js';
+import { stepModal } from './steps/modal.js';
 import { stepOwnership } from './steps/ownership.js';
 
 /**
@@ -42,6 +43,7 @@ import { stepOwnership } from './steps/ownership.js';
  * @property {UIViewController} vc 根页面，由 stepWindow 建好后写回来
  * @property {UIWindow} win 窗口，同上。timers 那段要在它上面挂 becomekey
  * @property {UINavigationController} [nav] 导航控制器，GC 那一步要用它验栈的持有边
+ * @property {UIViewController} [modalPage] 可以拖走的那张卡片，由 stepModal 建
  */
 
 application.addEventListener('sceneconnect', (e) => {
@@ -61,6 +63,7 @@ application.addEventListener('sceneconnect', (e) => {
   stepStack(ctx);
   stepTransform(ctx);
   stepNavigation(ctx);
+  stepModal(ctx);
   stepOwnership(ctx);
 
   console.log('✓ 屏幕上：三个色块 + 标题 + 两行说明 + 一行等宽数字');

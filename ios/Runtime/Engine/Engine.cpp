@@ -848,8 +848,11 @@ struct Engine::Impl {
     }
     int id = self->next_call_id++;
     self->pending_calls[id].Reset(isolate, resolver);
-    self->host.call_async(ptr, SafeToString(isolate, info[1]),
-                          info.Length() > 2 ? SafeToString(isolate, info[2]) : "[]", id);
+    self->host.call_async(
+        ptr, SafeToString(isolate, info[1]),
+        info.Length() > 2 ? SafeToString(isolate, info[2]) : "[]",
+        info.Length() > 3 ? self->HandlesToPtrs(ctx, info[3]) : std::vector<void*>{},
+        id);
   }
 
   void InstallNativeBridge(v8::Local<v8::Context> ctx) {

@@ -251,6 +251,59 @@ return {(__bridge void*)[[UIBarButtonItem alloc]
 `UIBarButtonItem` 在 ObjC 里继承 `UIBarItem`，`title` / `image` / `isEnabled` / `tag` 四个属性都在基类上。虽然 `UIBarItem` 自己不能构造（JS 侧构造直接抛），还是把它建成了一个类——`UITabBarItem` 将来继承同一个基类，那时这四个属性不用重写一遍。
 
 
+## 5c：模态呈现
+
+### `call_async` 补了对象参数
+
+`presentViewController:animated:completion:` 是第一个**既异步、参数里又有原生对象**的方法。原来的 `call_async` 只有 `args_json`，没有 `arg_ptrs`：
+
+```cpp
+std::function<void(void* ptr, const std::string& name,
+                   const std::string& args_json, int call_id)> call_async;
+```
+
+之前的用户（`openURL` 收字符串、`prepareForDisplay` 无参、`prepareThumbnailOfSize:` 收结构体）都不需要。补成和 `call_method` 一样的形状——`args_json` 里留 `null`，指针按同样的下标在 `arg_ptrs` 里。
+
+### `presentationController` 要等呈现才存在
+
+delegate 挂在 `vc.presentationController` 上，而那个对象**要开始呈现才有**。所以 JS 在 `present` 之前订阅时装不上。
+
+做法是把订阅状态记在 **VC** 上（关联对象），装 delegate 这件事在两处各做一次：
+
+- JS 订阅时（已经在呈现中就立刻装）
+- `present` 时（`presentViewController:` 一调用 `presentationController` 就有了，不用等动画跑完）
+
+### 又一次「同步返回值 → 预先声明的状态」
+
+`presentationControllerShouldDismiss:` 要同步返回 BOOL。**没做**——UIKit 自己已经给了状态版本：`isModalInPresentation`。
+
+这是[那条规则](../project.md#屏幕方向方案已定未实现)的第二次应用（第一次是屏幕方向）。两次都说明：**UIKit 里「要同步回答的问题」往往同时存在一个属性版本**，先找那个，找不到才需要 M1b。
+
+### 三条实测
+
+| | 结果 |
+| --- | --- |
+| `modalPresentationStyle` 的默认值 | 头文件写 `Automatic`，但**读出来是解析后的具体样式**，实测 `'formSheet'`。别拿它和 `'automatic'` 比 |
+| `presentingViewController` | 从导航控制器的子页面呈现，它是**那个导航控制器**，不是发起者。`presentedViewController` 那一侧倒是记在发起者身上 |
+| 程序调用 `dismiss()` | **三条事件一个都不发**（实测 `[]`）。那几个 delegate 只管用户发起的关闭 |
+
+真实交互验过：向下拖 → `willdismiss` → `diddismiss`；打开 `isModalInPresentation` 再拖 → 只有 `dismissattempted`，卡片不动。
+
+### 给基类加订阅钩子的连带效应
+
+给 `UIViewController` 加 `[kSubscribe]` 之后，验收用例当场挂了一段——GC 那段里有一行：
+
+```js
+ghost.addEventListener('nav-probe', () => {});
+```
+
+以前 `UIViewController` 没有订阅钩子，这就是个**纯 JS 的监听器**，随便起什么名字都行。加了钩子之后它要过桥，名字不认识就抛 `TypeError`，而这一抛发生在 `sceneconnect` 的回调里，**把后面所有步骤都打断了**。
+
+> 这是一条真实的限制，不是 bug：**原生类上只能用它自己认识的事件名。** 好处是事件名打错会当场报（和枚举写错一个待遇）；坏处是 Web 里合法的「在任意 EventTarget 上挂自定义事件」在原生类上做不到。
+>
+> 还有一个连带：`UINavigationController` 覆写了这个钩子，所以**一个被模态呈现的导航控制器收不到关闭事件**——它那一侧只认导航事件。要修得让订阅**按事件名分流而不是按类分流**。两条都记进 TODO。
+
+
 ---
 
 ← 返回[实现原理](README.md) ・ [包装机制](wrapper.md) ・ [API 文档](../api/ui-navigation-controller.md)

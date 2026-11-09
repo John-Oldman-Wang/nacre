@@ -205,7 +205,7 @@ export function stepNavigation(ctx) {
     const ghost = new UIViewController();
     ghost.title = '幽灵页';
     /** @type {any} */ (ghost).probe = '挂在包装上的 JS 状态';
-    ghost.addEventListener('nav-probe', () => {});
+    ghost.addEventListener('diddismiss', () => {});
     probe.pushViewController(ghost, { animated: false });
   })();   // ← ghost 出作用域，JS 这边不再引用
   ctx.nav = probe;

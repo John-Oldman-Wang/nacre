@@ -187,7 +187,8 @@
     return result === undefined ? null : result;
   }
   function nativeCallAsync(obj, name, args) {
-    return native.callAsync(obj[kHandle], name, JSON.stringify(args || []));
+    const { values, handles } = splitArgs(args, name);
+    return native.callAsync(obj[kHandle], name, JSON.stringify(values), handles);
   }
   function nativeSetObject(obj, name, value) {
     native.setObjProp(obj[kHandle], name, value == null ? 0 : value[kHandle]);
@@ -1972,6 +1973,67 @@
     get title() { requireNative(this, 'title'); return nativeGet(this, 'title'); }
     set title(value) { requireNative(this, 'title'); nativeSet(this, 'title', value); }
     // 两条都是 ObjC 侧的 weak 回边，所以 JS 侧翻成 strong
+    // 模态事件（willdismiss / diddismiss / dismissattempted）。
+    // 注意 UINavigationController 覆写了这个钩子，所以一个被模态呈现的导航
+    // 控制器收不到这几条——它那一侧只认导航事件，见文档的「还没做」
+    [kSubscribe](type, on) {
+      requireNative(this, 'addEventListener');
+      native.subscribe(this[kHandle], type, on);
+      if (on) subscribed.add(this);
+      else if (this[kListeners].size === 0) subscribed.delete(this);
+    }
+
+    // ---- 模态呈现 ----
+    // completion 是 block，所以这里是 Promise——异步一律 Promise
+    presentViewController(viewController, options) {
+      const o = options || {};
+      const done = nativeCallAsync(this, 'presentViewController',
+                                   [viewController, !!o.animated]);
+      // 原生侧 presentedViewController 是强引用，JS 侧也要有对应的一条。
+      // presentViewController: 是同步建立这层关系的，所以这里就记
+      own(this, 'presentedViewController', viewController);
+      return done;
+    }
+    dismissViewController(options) {
+      const o = options || {};
+      const done = nativeCallAsync(this, 'dismissViewController', [!!o.animated]);
+      own(this, 'presentedViewController', null);
+      return done;
+    }
+    get presentedViewController() {
+      return nativeGetOwned(this, 'presentedViewController');
+    }
+    // weak 回边，JS 侧翻成 strong
+    get presentingViewController() {
+      return nativeGetOwned(this, 'presentingViewController');
+    }
+    get modalPresentationStyle() {
+      requireNative(this, 'modalPresentationStyle');
+      return nativeGet(this, 'modalPresentationStyle');
+    }
+    set modalPresentationStyle(value) {
+      requireNative(this, 'modalPresentationStyle');
+      nativeSet(this, 'modalPresentationStyle', value);
+    }
+    get modalTransitionStyle() {
+      requireNative(this, 'modalTransitionStyle');
+      return nativeGet(this, 'modalTransitionStyle');
+    }
+    set modalTransitionStyle(value) {
+      requireNative(this, 'modalTransitionStyle');
+      nativeSet(this, 'modalTransitionStyle', value);
+    }
+    // 打开之后用户拖不走它，只能走你给的那个出口。
+    // 这是 presentationControllerShouldDismiss: 那个同步回调的「预先声明」版本
+    get isModalInPresentation() {
+      requireNative(this, 'isModalInPresentation');
+      return nativeGet(this, 'isModalInPresentation');
+    }
+    set isModalInPresentation(value) {
+      requireNative(this, 'isModalInPresentation');
+      nativeSet(this, 'isModalInPresentation', value);
+    }
+
     // 这一页在导航条上的配置，VC 自己懒加载的
     get navigationItem() { return nativeGetOwned(this, 'navigationItem'); }
     get navigationController() { return nativeGetOwned(this, 'navigationController'); }

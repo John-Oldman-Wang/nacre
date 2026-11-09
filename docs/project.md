@@ -558,7 +558,7 @@ Commit message 格式：
 | 4c | first responder | `becomeFirstResponder` / `resignFirstResponder` | 待讨论，和第 9 步绑一起 |
 | 5a | 页面栈 | UINavigationController、可写的对象数组属性、导航级事件 | 已在模拟器验证通过：真实点返回和左滑返回都走通，GC 回归证明栈的持有边有效；外加一个**写在 JS 里**的 router（`app/src/router.js`），三页跳转实测通过 |
 | 5b | 导航条上的东西 | UINavigationItem、UIBarButtonItem、UIBarItem | 已在模拟器验证通过：导航条上真的有「完成」按钮并且点得动；实测 vc.title 和 navigationItem.title 是单向的 |
-| 5c | 模态呈现 | present / dismiss，completion 做成 Promise | 待讨论 |
+| 5c | 模态呈现 | present / dismiss 是 Promise、关闭事件、call_async 补对象参数 | 已在模拟器验证通过：真实向下拖走、锁住后拖只收到 dismissattempted；实测程序 dismiss 不发事件 |
 | — | 页面生命周期（viewDidLoad 等） | **M2**——全是覆写点不是 delegate | 待讨论 |
 | 6a | `URL` / `URLSearchParams` / `Headers` | NSURLComponents、WHATWG 语义 | 已在模拟器验证通过：37 条断言全过，和 Chrome 对撞过一批 URL |
 | 6b | `fetch` / `Request` / `Response` | NSURLSession、BackingStore 零拷贝 | 已在模拟器验证通过：当初对着本地服务器跑，20 个并发 36ms；验收用例在 3b 改成打公开的 `httpbin.org`，不用再起服务 |
@@ -769,6 +769,13 @@ JS 侧的属性是一个个显式定义的取值器，名字不认识的赋值�
 要堵只能靠 `Object.preventExtensions`，而那是个真实的取舍：JS 开发者习惯往对象上挂自己的数据（`view.myData = {...}`），禁止扩展就挂不了，连 ES 子类的 `this.xxx = ...` 也一起挡掉。候选是给原生对象留一个专门的地方放用户数据，或者干脆接受这个缺口。
 
 和[子类化原生类](#待讨论的设计问题)那条相关，一起定。
+
+**TODO：订阅按事件名分流，而不是按类分流。** 现在 `setSubscription:` 是按对象的类挑分支的，于是两个问题：
+
+- **原生类上只能用它自己认识的事件名**，Web 里合法的「在任意 EventTarget 上挂自定义事件」做不到。好处是打错名字当场报，坏处是没有逃生口
+- **被模态呈现的 `UINavigationController` 收不到关闭事件**——它的分支只认导航事件，`willdismiss` 那三条过不去
+
+两个都是同一个根因。改法是先按事件名查一张总表，再决定交给哪个 trampoline。做 5c 时撞出来的。
 
 **TODO：`layer.transform`（`CATransform3D`）还没暴露。** `UIView.transform`（`CGAffineTransform`）已经做了，见[结构体文档](api/structs.md#cgaffinetransform)。剩下 3D 的那一半：16 个字段，而且 `m34` 那种透视参数单靠结构体不好用，要和动画一起看。
 

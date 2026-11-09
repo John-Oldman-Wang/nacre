@@ -39,7 +39,7 @@ Nacre 的 API 分两层：
 | [`URL` / `Headers`](url.md) | WHATWG 三件套。和浏览器有五处已知差异 |
 | [`fetch`](fetch.md) | 网络请求。线程分工是实测定下来的 |
 | [`UIColor`](ui-color.md) | 颜色。基础色、系统色、语义色 |
-| `UIViewController` | 页面。可构造，有 `view`、`title`、`navigationController`（文档待补） |
+| [`UIViewController`](ui-view-controller.md) | 页面。`view`、`title`、模态呈现 |
 | `NSObject` | ObjC 的根类，所有原生类的基类（继承 `EventTarget`） |
 | `EventTarget` / `Event` | 事件基类，见 [`application`](application.md) 的「继承关系」 |
 | `ErrorEvent` / `PromiseRejectionEvent` | 错误类事件对象，见 [`application`](application.md) 的「事件」 |

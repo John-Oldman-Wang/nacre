@@ -80,6 +80,19 @@ type NSLayoutAttribute =
   | 'notAnAttribute';
 
 /** 七个具名值。中间的值（749 之类）没有名字，所以写的时候也接受数字。 */
+/** 模态页怎么呈现。默认 `'automatic'`，在 iPhone 上落到 `'pageSheet'`。 */
+type UIModalPresentationStyle =
+  | 'automatic' | 'fullScreen' | 'pageSheet' | 'formSheet'
+  | 'currentContext' | 'overFullScreen' | 'overCurrentContext'
+  | 'popover' | 'custom' | 'none';
+
+/** 模态页进出的动画。 */
+type UIModalTransitionStyle =
+  | 'coverVertical' | 'flipHorizontal' | 'crossDissolve' | 'partialCurl';
+
+/** 模态页被关掉时的三条通知。 */
+type UIPresentationEventType = 'willdismiss' | 'diddismiss' | 'dismissattempted';
+
 /** 系统预置的导航条按钮。 */
 type UIBarButtonSystemItem =
   | 'done' | 'cancel' | 'edit' | 'save' | 'add'

@@ -367,6 +367,38 @@ declare class UIViewController extends UIResponder {
   title: string | null;
   /** 这一页在导航条上的配置。VC 自己懒加载的，永远非 `null`。 */
   readonly navigationItem: UINavigationItem;
+
+  /**
+   * 模态呈现一个页面。`completion` 是 block，所以这里是 Promise——
+   * 呈现动画跑完才兑现。
+   */
+  presentViewController(
+    viewController: UIViewController,
+    options?: { animated?: boolean },
+  ): Promise<boolean>;
+  /** 关掉自己呈现出来的那个模态页。 */
+  dismissViewController(options?: { animated?: boolean }): Promise<boolean>;
+  /** 它呈现出来的那个模态页。 */
+  readonly presentedViewController: UIViewController | null;
+  /** 呈现它的那一个。 */
+  readonly presentingViewController: UIViewController | null;
+  /** 怎么呈现。默认 `'automatic'`（iPhone 上落到 `'pageSheet'`）。 */
+  modalPresentationStyle: UIModalPresentationStyle;
+  /** 进出动画。默认 `'coverVertical'`。 */
+  modalTransitionStyle: UIModalTransitionStyle;
+  /**
+   * 打开之后用户**拖不走它**，只能走你给的出口。默认 `false`。
+   *
+   * 这是 `presentationControllerShouldDismiss:` 那个同步回调的
+   * 「预先声明的状态」版本——所以那条不需要同步回 JS 的能力。
+   */
+  isModalInPresentation: boolean;
+
+  addEventListener(
+    type: UIPresentationEventType | (string & {}),
+    callback: EventListener | null,
+    options?: AddEventListenerOptions,
+  ): void;
   /** 它所在的导航控制器；不在栈上就是 `null`。 */
   readonly navigationController: UINavigationController | null;
   /** 容器父控制器（导航控制器就是一种容器）。 */

@@ -60,6 +60,7 @@ using namespace nacre_bridge;
                    type:(const std::string&)type
                      on:(BOOL)on
                   error:(std::string*)error;
+- (void)installPresentationDelegate:(UIViewController*)vc;
 @end
 
 // 控件事件的中转。
@@ -176,6 +177,40 @@ using namespace nacre_bridge;
 
 @end
 
+// 模态页被关掉的 trampoline。delegate 挂在 presentationController 上，但
+// 事件派发到**被呈现的那个 VC** 上——UIPresentationController 对 JS 没有别的
+// 用处，暴露出来只为挂一个 delegate。
+//
+// 麻烦的一点：presentationController 要等到开始呈现才存在，所以 JS 在 present
+// 之前订阅时装不上。办法是订阅状态记在 VC 上，present 的时候再装一次。
+@interface NacrePresentationDelegate : NSObject <UIAdaptivePresentationControllerDelegate>
+@property(nonatomic, weak) NacreRuntime* runtime;
+@property(nonatomic, strong) NSMutableSet<NSString*>* types;
+@end
+
+@implementation NacrePresentationDelegate
+
+- (void)emit:(NSString*)type from:(UIPresentationController*)pc {
+  if (![self.types containsObject:type]) return;
+  [self.runtime emitEvent:type
+                     from:pc.presentedViewController
+                className:"UIViewController"
+                     then:nil];
+}
+
+- (void)presentationControllerWillDismiss:(UIPresentationController*)pc {
+  [self emit:@"willdismiss" from:pc];
+}
+- (void)presentationControllerDidDismiss:(UIPresentationController*)pc {
+  [self emit:@"diddismiss" from:pc];
+}
+// 用户想关但被挡住了（isModalInPresentation 开着）
+- (void)presentationControllerDidAttemptToDismiss:(UIPresentationController*)pc {
+  [self emit:@"dismissattempted" from:pc];
+}
+
+@end
+
 // 关联对象的 key：事件名 → NacreControlTarget
 static const void* kNacreControlTargetsKey = &kNacreControlTargetsKey;
 // 关联对象的 key：UIScrollView → NacreScrollDelegate。
@@ -183,6 +218,9 @@ static const void* kNacreControlTargetsKey = &kNacreControlTargetsKey;
 static const void* kNacreScrollDelegateKey = &kNacreScrollDelegateKey;
 // 同理：navigationController.delegate 也是 weak
 static const void* kNacreNavDelegateKey = &kNacreNavDelegateKey;
+// 关联对象的 key：UIViewController → NacrePresentationDelegate。
+// 记在 VC 上而不是 presentationController 上，因为后者要等呈现时才存在
+static const void* kNacrePresentationDelegateKey = &kNacrePresentationDelegateKey;
 
 @implementation NacreRuntime {
   BOOL _started;
@@ -694,10 +732,46 @@ nacre::NativeObjectRef CreateBlob(
       CallVoidMethod((__bridge id)ptr, name);
     };
     host.call_async = [weakSelf](void* ptr, const std::string& name,
-                                 const std::string& argsJSON, int callId) {
+                                 const std::string& argsJSON,
+                                 const std::vector<void*>& argPtrs, int callId) {
       NacreRuntime* strongSelf = weakSelf;
       if (!strongSelf) return;
       id object = (__bridge id)ptr;
+      if ([object isKindOfClass:UIViewController.class] &&
+          name == "presentViewController") {
+        NSArray* args = DecodeJSON(argsJSON);
+        BOOL animated = [args isKindOfClass:NSArray.class] && args.count > 1
+                            ? [args[1] boolValue] : NO;
+        UIViewController* host = (UIViewController*)object;
+        id first = argPtrs.empty() ? nil : (__bridge id)argPtrs[0];
+        UIViewController* modal =
+            [first isKindOfClass:UIViewController.class] ? (UIViewController*)first : nil;
+        if (modal == nil) {
+          [strongSelf settleCall:callId with:NO];
+          return;
+        }
+        // 订阅可能在 present 之前就挂上了，这会儿 presentationController 才有
+        [host presentViewController:modal
+                           animated:animated
+                         completion:^{
+                           [strongSelf installPresentationDelegate:modal];
+                           [strongSelf settleCall:callId with:YES];
+                         }];
+        // 呈现一开始 presentationController 就有了，不用等动画跑完
+        [strongSelf installPresentationDelegate:modal];
+        return;
+      }
+      if ([object isKindOfClass:UIViewController.class] &&
+          name == "dismissViewController") {
+        NSArray* args = DecodeJSON(argsJSON);
+        BOOL animated = [args isKindOfClass:NSArray.class] && args.count > 0
+                            ? [args[0] boolValue] : NO;
+        [(UIViewController*)object dismissViewControllerAnimated:animated
+                                                      completion:^{
+          [strongSelf settleCall:callId with:YES];
+        }];
+        return;
+      }
       if ([object isKindOfClass:UIScene.class] && name == "openURL") {
         NSArray* args = DecodeJSON(argsJSON);
         NSString* text = [args isKindOfClass:NSArray.class] ? args.firstObject : nil;
@@ -1013,6 +1087,16 @@ nacre::NativeObjectRef CreateBlob(
   }];
 }
 
+// presentationController 要等呈现开始才存在，所以这个方法在两处调用：
+// JS 订阅的时候（可能还没呈现，那就先记着），以及 present 的时候。
+- (void)installPresentationDelegate:(UIViewController*)vc {
+  NacrePresentationDelegate* d =
+      objc_getAssociatedObject(vc, kNacrePresentationDelegateKey);
+  if (d == nil || d.types.count == 0) return;
+  UIPresentationController* pc = vc.presentationController;
+  if (pc != nil && pc.delegate != d) pc.delegate = d;
+}
+
 // 按对象订阅。JS 侧某个类型第一次有监听器时 on=YES，最后一个移走时 on=NO。
 - (void)setSubscription:(id)object
                    type:(const std::string&)type
@@ -1071,6 +1155,39 @@ nacre::NativeObjectRef CreateBlob(
       if (d.types.count == 0) {
         nav.delegate = nil;
         objc_setAssociatedObject(nav, kNacreNavDelegateKey, nil,
+                                 OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+      }
+    }
+    return;
+  }
+  // 放在 UINavigationController 之后：它是 UIViewController 的子类，
+  // 导航事件先认走，剩下的才轮到模态事件
+  if ([object isKindOfClass:UIViewController.class]) {
+    UIViewController* vc = (UIViewController*)object;
+    NSString* name = @(type.c_str());
+    if (!IsPresentationEventName(name)) {
+      *error = EnumError(@"addEventListener", name, NamesForPresentationEvent());
+      return;
+    }
+    NacrePresentationDelegate* d =
+        objc_getAssociatedObject(vc, kNacrePresentationDelegateKey);
+    if (on) {
+      if (d == nil) {
+        d = [NacrePresentationDelegate new];
+        d.runtime = self;
+        d.types = [NSMutableSet set];
+        objc_setAssociatedObject(vc, kNacrePresentationDelegateKey, d,
+                                 OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+      }
+      [d.types addObject:name];
+      // 已经在呈现中就立刻装上；还没呈现的话 present 时会再装一次
+      [self installPresentationDelegate:vc];
+    } else if (d != nil) {
+      [d.types removeObject:name];
+      if (d.types.count == 0) {
+        UIPresentationController* pc = vc.presentationController;
+        if (pc != nil && pc.delegate == d) pc.delegate = nil;
+        objc_setAssociatedObject(vc, kNacrePresentationDelegateKey, nil,
                                  OBJC_ASSOCIATION_RETAIN_NONATOMIC);
       }
     }

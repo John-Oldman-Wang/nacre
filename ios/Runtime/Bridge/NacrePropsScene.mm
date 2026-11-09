@@ -27,8 +27,15 @@ id ReadSceneProperty(id object, NSString* key) {
     }
   }
   if (value == nil && [object isKindOfClass:UIViewController.class]) {
+    UIViewController* vc = (UIViewController*)object;
     if ([key isEqualToString:@"title"]) {
-      value = ((UIViewController*)object).title;
+      value = vc.title;
+    } else if ([key isEqualToString:@"modalPresentationStyle"]) {
+      value = NameForModalPresentationStyle(vc.modalPresentationStyle);
+    } else if ([key isEqualToString:@"modalTransitionStyle"]) {
+      value = NameForModalTransitionStyle(vc.modalTransitionStyle);
+    } else if ([key isEqualToString:@"isModalInPresentation"]) {
+      value = @(vc.isModalInPresentation);
     }
   }
   if ([object isKindOfClass:UIScene.class]) {
@@ -90,6 +97,31 @@ BOOL WriteSceneProperty(id object, NSString* key, id value,
     }
   }
   if ([object isKindOfClass:UIViewController.class]) {
+    UIViewController* vc = (UIViewController*)object;
+    if ([key isEqualToString:@"modalPresentationStyle"]) {
+      UIModalPresentationStyle style;
+      if (!ModalPresentationStyleFromName(value, &style)) {
+        *error = EnumError(@"modalPresentationStyle", value,
+                           NamesForModalPresentationStyle());
+        return YES;
+      }
+      vc.modalPresentationStyle = style;
+      return YES;
+    }
+    if ([key isEqualToString:@"modalTransitionStyle"]) {
+      UIModalTransitionStyle style;
+      if (!ModalTransitionStyleFromName(value, &style)) {
+        *error = EnumError(@"modalTransitionStyle", value,
+                           NamesForModalTransitionStyle());
+        return YES;
+      }
+      vc.modalTransitionStyle = style;
+      return YES;
+    }
+    if ([key isEqualToString:@"isModalInPresentation"]) {
+      vc.modalInPresentation = [value boolValue];
+      return YES;
+    }
     if ([key isEqualToString:@"title"]) {
       // 返回按钮的标题默认取上一页的 title，所以这一个属性就够走通「返回」
       ((UIViewController*)object).title =
@@ -146,6 +178,12 @@ nacre::NativeObjectRef ReadSceneObjectProperty(id object,
     }
     if (name == "parentViewController") {
       return {(__bridge void*)vc.parentViewController, "UIViewController"};
+    }
+    if (name == "presentedViewController") {
+      return {(__bridge void*)vc.presentedViewController, "UIViewController"};
+    }
+    if (name == "presentingViewController") {
+      return {(__bridge void*)vc.presentingViewController, "UIViewController"};
     }
   }
   if ([object isKindOfClass:UINavigationItem.class] && name == "titleView") {

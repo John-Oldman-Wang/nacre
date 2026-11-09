@@ -113,9 +113,10 @@ struct EngineHost {
                                 const std::string& args_json,
                                 const std::vector<void*>& arg_ptrs, std::string* error)>
       call_class_object_method;
-  // 异步方法，完成后调 Engine::SettleBool
+  // 异步方法，完成后调 Engine::SettleBool。对象参数和 call_method 一样：
+  // args_json 里留 null，真正的指针按同样的下标在 arg_ptrs 里
   std::function<void(void* ptr, const std::string& name, const std::string& args_json,
-                     int call_id)>
+                     const std::vector<void*>& arg_ptrs, int call_id)>
       call_async;
 
   // 异步读一个原生对象的内容。kind 是 'text' / 'arrayBuffer'。

@@ -101,6 +101,8 @@ NACRE_ENUM_DECL(ControlVerticalAlignment, UIControlContentVerticalAlignment)
 NACRE_ENUM_DECL(ButtonType, UIButtonType)
 NACRE_ENUM_DECL(ButtonRole, UIButtonRole)
 NACRE_ENUM_DECL(StackDistribution, UIStackViewDistribution)
+NACRE_ENUM_DECL(ModalPresentationStyle, UIModalPresentationStyle)
+NACRE_ENUM_DECL(ModalTransitionStyle, UIModalTransitionStyle)
 NACRE_ENUM_DECL(BarButtonSystemItem, UIBarButtonSystemItem)
 // 第二个带别名的枚举（done == prominent），同样不走宏，见 NacreEnums.mm
 NACRE_ENUM_DECL(BarButtonItemStyle, UIBarButtonItemStyle)
@@ -134,6 +136,8 @@ NSString* NamesForDecelerationRate(void);
 
 // UIScrollView 的事件名。它们派生自 delegate 的方法名而不是 ObjC 常量，
 // 所以按我们自己起名的惯例全小写（和 scene / window 的事件一致）。
+BOOL IsPresentationEventName(NSString* name);
+NSString* NamesForPresentationEvent(void);
 BOOL IsBarButtonEventName(NSString* name);
 NSString* NamesForBarButtonEvent(void);
 BOOL IsNavEventName(NSString* name);
