@@ -372,7 +372,12 @@
       return a[kHandle] || 0;
     });
     const handle = native.construct(className, handles, wrapper);
-    if (handle) Object.defineProperty(wrapper, kHandle, { value: handle });
+    // 建不出来就抛，别留一个没句柄的空壳——那种对象之后每碰一下都报
+    // 「还没连接到场景」，根本看不出真正的原因在构造这一步
+    if (!handle) {
+      throw new TypeError('cannot construct ' + className + ' with these arguments');
+    }
+    Object.defineProperty(wrapper, kHandle, { value: handle });
   }
 
   // 只有被原生侧创建时才允许构造。用于系统给的对象（场景、session）。

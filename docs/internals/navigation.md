@@ -121,21 +121,75 @@ TypeError: Cannot redefine property: Symbol(nativeHandle)
 
 > **正经的修法不是继续加闸，是把构造挪出构造函数**：让最底下那个类按 `new.target` 的真实类名去建，而不是每个类各自硬编一个类名。那样一次 `constructNative` 都不会重复，`new.target` 闸整套可以撤掉，ES 子类也自然拿到对的原生对象。代价是每个类的构造参数不一样（`UIWindow` 收场景、`UIStackView` 收数组、`UINavigationController` 收根页面），要重新组织一次。这件事和「JS 子类化原生类」是同一个 TODO，一起做。
 
-## 验收用例为什么放在第二个窗口里
+## 多页面 demo：router 是**用户侧**的东西
 
-主窗口上已经堆了十几步的东西，把导航塞进去要么盖住别人、要么被别人盖住（第一次放在 y=300 那条带上，正好压在滚动列表的上沿）。
+做完栈之后在 `app/src/router.js` 写了一个路由器，**它不在运行时里**：
 
-所以给它**一个自己的 `UIWindow`**，放在右上角那块空区（`CGRect(248, 130, 156, 150)`）：
+```js
+const router = createRouter(nav, {
+  '/': () => vc,
+  '/list': () => makePage({ … }),
+  '/detail/:id': (params) => makePage({ heading: '详情 #' + params.id, … }),
+}, '/');
 
-- 实测 **UIKit 认自定义 frame**，不会把场景里的窗口撑满屏幕
-- 只设 `isHidden = false`，**不调 `makeKeyAndVisible`**——可见就能收触摸，没必要把 key 从主窗口抢走（抢了会给主窗口发一串 `resignkey`）
+router.push('/detail/1');
+router.back();
+router.onChange((path, depth) => …);
+```
 
-真实的返回按钮点击验过：点一下，`didshow` 报「首页」，栈深从 2 变 1。
+这是两层 API 分工的第一个实证：**运行时只裸暴露 `UINavigationController`，「路由」这层抽象 JS 自己搭得出来**，七十行，不需要运行时帮忙。
 
-**左滑返回也验过**：从导航视图的左边缘（x≈252，窗口左边是 248）往右滑 144pt，同样 pop 到「首页」。两点值得记：
+### 它的关键设计和所有权镜像同构
 
-- 边缘手势认的是**导航控制器自己 view 的左边缘**，不是屏幕边缘——所以放在一个 (248, 130) 的小窗口里照样能滑
-- 它和点按钮走**同一条 delegate 链**，JS 侧收到的 `didshow` 一模一样，不需要为手势单独做什么
+**原生栈是真相。** 返回按钮和左滑返回**都不经过 router**——用户的手指直接作用在 UIKit 上。所以 router 不能自己记一份权威的栈，只能在 `didshow` 里按 `nav.viewControllers.length` **收缩**自己那份 path 栈：
+
+```js
+nav.addEventListener('didshow', () => {
+  while (paths.length > nav.viewControllers.length) paths.pop();
+  …
+});
+```
+
+和 `ownAll`「按原生真相整层重建」是同一个道理，也是同一个理由：**JS 侧记的任何一份影子状态，都必须能从原生的真相重新对齐。**
+
+实测走查（真实点击 + 真实左滑）：
+
+```
+点「进入路由 →」  → /list      （栈深 2）
+点「打开 #1」      → /detail/1  （栈深 3）
+左滑              → /list      （栈深 2）
+```
+
+### 撞出来的崩溃：窗口根不能当子控制器
+
+第一版 demo 是 `new UINavigationController(vc)`——把现有的根页面包起来。**App 当场死掉**：
+
+```
+*** Terminating app due to uncaught exception 'UIViewControllerHierarchyInconsistency',
+reason: 'adding a root view controller as a child of view controller:<UINavigationController>'
+```
+
+两件事都要修：
+
+1. **顺序**：先 `win.rootViewController = nav`（空栈），再 `nav.pushViewController(vc)`。那时 `vc` 已经不是根了
+2. **不该崩**：这是调用方写错，不该打死 App。按[约束激活](auto-layout.md)那条判据，在 `pushViewController`、`setViewControllers` 和构造函数三处 `@try/@catch`，转成 `TypeError`
+
+顺带发现构造这条通道**没有 `error` 出参**，所以构造失败只能返回空。原来 JS 侧是「拿不到句柄就什么都不做」，于是得到一个没有句柄的空壳，之后每碰一次都报「还没连接到场景」——真正的原因在构造那一步，完全看不出来。改成**建不出来就当场抛**。
+
+### 一条自己坑自己的「回归用例」
+
+想给上面那条坑补个回归，第一版写成：
+
+```js
+win.rootViewController = nav;
+nav.pushViewController(vc, { animated: false });
+try { new UINavigationController(vc); } catch { /* 期望抛 */ }
+```
+
+**它没抛，而且把 demo 搞坏了**——那时 `vc` 已经不是窗口根而是 `nav` 的子控制器，UIKit 允许把它**转移**给另一个导航控制器。于是 `vc.view` 连同整棵视图树被端到一个不在任何窗口里的导航控制器下，屏幕上什么都不剩，连带 `scroll` 的动画断言也挂了（不在窗口里的 scroll view 没有逐帧动画）。
+
+回归用例要放在**重新挂根之前**——那一刻 `vc` 才真的是窗口的根。
+
 
 ---
 

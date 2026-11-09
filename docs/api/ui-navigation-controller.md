@@ -108,6 +108,29 @@ didshow：现在显示「详情」，栈深 2
 didshow：现在显示「首页」，栈深 1
 ```
 
+## 一个会让 App 崩掉的坑
+
+**正当着窗口根的 `UIViewController` 不能直接塞进导航控制器。**
+
+```js
+// ✗ UIKit 抛 UIViewControllerHierarchyInconsistency：
+//   "adding a root view controller as a child of view controller"
+win.rootViewController = page;
+const nav = new UINavigationController(page);
+```
+
+正确的顺序是**先让空的导航控制器接管窗口**，这时 `page` 不再是根，再把它压进去：
+
+```js
+const nav = new UINavigationController();
+win.rootViewController = nav;
+nav.pushViewController(page, { animated: false });
+```
+
+两步在同一轮 JS 里跑完，中间不会渲染出一帧空白。
+
+> 运行时现在把这类 UIKit 异常**接住转成 `TypeError`**（`pushViewController`、`setViewControllers`、构造函数三处），所以写错只是抛，不会再把 App 打死。判据和[约束激活](auto-layout.md)一样：不接的代价是崩溃，而错误来自调用方。
+
 ## 左滑返回：默认就有
 
 **不用写任何代码。** `UINavigationController` 自带边缘返回手势，从页面左边缘往右滑就会 pop，而且走的是和点返回按钮**同一条事件链**——JS 照样收到 `willshow` / `didshow`。

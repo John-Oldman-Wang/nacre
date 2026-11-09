@@ -239,7 +239,14 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
         *error = "pushViewController: expects a UIViewController";
         return "null";
       }
-      [nav pushViewController:vc animated:animated];
+      // UIKit 会为「层级不一致」抛 ObjC 异常，最典型的是把一个正在当窗口根
+      // 的 VC 塞进来（UIViewControllerHierarchyInconsistency）。不接住就是
+      // 整个 App 死掉，而错误来自调用方——和约束激活同一个判据
+      @try {
+        [nav pushViewController:vc animated:animated];
+      } @catch (NSException* e) {
+        *error = [NSString stringWithFormat:@"pushViewController: %@", e.reason].UTF8String;
+      }
       return "null";
     }
     if ([sel isEqualToString:@"setNavigationBarHidden:animated:"]) {
@@ -681,7 +688,11 @@ std::vector<nacre::NativeObjectRef> CallObjectArrayMethod(
         if (vc != nil) [list addObject:vc];
       }
       BOOL animated = args.count > 0 && [args.lastObject boolValue];
-      [nav setViewControllers:list animated:animated];
+      @try {
+        [nav setViewControllers:list animated:animated];
+      } @catch (NSException* e) {
+        *error = [NSString stringWithFormat:@"setViewControllers: %@", e.reason].UTF8String;
+      }
       return {};
     }
     if (matched) {
@@ -738,7 +749,13 @@ nacre::NativeObjectRef ConstructNative(const std::string& className,
   } else if (className == "UINavigationController") {
     id root = args.empty() ? nil : (__bridge id)args[0];
     if ([root isKindOfClass:UIViewController.class]) {
-      object = [[UINavigationController alloc] initWithRootViewController:root];
+      // 同上：根页面如果正当着某个窗口的根，UIKit 会抛。构造这条通道没有
+      // error 出参，所以只能接住返回空——JS 侧会因为拿不到句柄而抛
+      @try {
+        object = [[UINavigationController alloc] initWithRootViewController:root];
+      } @catch (NSException* e) {
+        object = nil;
+      }
     } else {
       object = [[UINavigationController alloc] init];
     }

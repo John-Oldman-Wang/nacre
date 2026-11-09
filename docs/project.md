@@ -555,7 +555,7 @@ Commit message 格式：
 | 4a | `UIControl` 的 16 个控件事件 | 订阅通道、target-action | 已在模拟器验证通过：261 条断言全过，含真机点击 |
 | 4b | `UIButton` | `setTitle:forState:`、状态作参数 | 已在模拟器验证通过：按状态设标题/颜色/图，真实点击收到 primaryActionTriggered |
 | 4c | first responder | `becomeFirstResponder` / `resignFirstResponder` | 待讨论，和第 9 步绑一起 |
-| 5a | 页面栈 | UINavigationController、可写的对象数组属性、导航级事件 | 已在模拟器验证通过：真实点返回按钮走通，GC 回归证明栈的持有边有效 |
+| 5a | 页面栈 | UINavigationController、可写的对象数组属性、导航级事件 | 已在模拟器验证通过：真实点返回和左滑返回都走通，GC 回归证明栈的持有边有效；外加一个**写在 JS 里**的 router（`app/src/router.js`），三页跳转实测通过 |
 | 5b | 导航条上的东西 | UINavigationItem、UIBarButtonItem | 待讨论 |
 | 5c | 模态呈现 | present / dismiss，completion 做成 Promise | 待讨论 |
 | — | 页面生命周期（viewDidLoad 等） | **M2**——全是覆写点不是 delegate | 待讨论 |
