@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 核对同一套 API 在三个地方是否一致：
 #
-#   NacreRuntime.mm  分发表        ← 真相，决定运行时实际能做什么
+#   Runtime/**/*.mm  分发表        ← 真相，决定运行时实际能做什么
 #   nacre.js         取值器和方法  ← 桥，JS 能碰到的东西
 #   types/*.d.ts     类型声明      ← 契约，开发者看到的东西
 #
@@ -238,29 +238,43 @@ if a != b: complain('UILayoutPriorityName', f'缺 {sorted(a-b)} 多 {sorted(b-a)
 def js_calls(fn):
     return set(re.findall(r"\b%s\(this, '(\w+)'" % fn, js))
 
-def mm_block(start_sig):
-    i = mm.index(start_sig)
-    return mm[i:mm.index('\n}\n', i)]
+def mm_bodies(sig_pattern):
+    """按签名正则收集所有匹配函数的函数体，拼成一份来扫。
+
+    属性分发按能力域拆成了 NacreProps*.mm 里的 Read<域>Property /
+    Write<域>Property 等一组函数，所以这里不能只认一个签名。分发器自己
+    （ReadNativeProperty 一类）也会被正则扫到，但它体内没有属性名，
+    扫进来不影响结果。"""
+    out = []
+    for m in re.finditer(sig_pattern, mm, re.M):
+        i = m.start()
+        out.append(mm[i:mm.index('\n}\n', i)])
+    if not out:
+        complain('脚本', f'没有函数匹配 {sig_pattern}，拆分之后脚本要更新')
+    return '\n'.join(out)
 
 pairs = [
     ('标量读', js_calls('nativeGet'),
-     set(re.findall(r'isEqualToString:@"(\w+)"', mm_block('std::string ReadNativeProperty')))),
+     set(re.findall(r'isEqualToString:@"(\w+)"',
+                    mm_bodies(r'^id Read\w+Property\(id object, NSString\* key\)')))),
     ('标量写', js_calls('nativeSet'),
-     set(re.findall(r'isEqualToString:@"(\w+)"', mm_block('void WriteNativeProperty')))),
+     set(re.findall(r'isEqualToString:@"(\w+)"',
+                    mm_bodies(r'^BOOL Write\w+Property\(id object, NSString\* key')))),
     # 锚点在 mm 里单独一个函数（UIView 12 个、UILayoutGuide 10 个，名字重叠），
     # JS 侧走 anchorOf。两边都并进来，否则这 12 个名字谁都盯不到。
     ('对象读',
      js_calls('nativeGetObject') | js_calls('nativeGetOwned') | js_calls('anchorOf'),
      set(re.findall(r'name == "(\w+)"',
-                    mm_block('nacre::NativeObjectRef ReadNativeObjectProperty'))) |
+                    mm_bodies(r'^nacre::NativeObjectRef Read\w+ObjectProperty\('))) |
      set(re.findall(r'name == "(\w+)"',
-                    mm_block('nacre::NativeObjectRef AnchorNamed')))),
+                    mm_bodies(r'^nacre::NativeObjectRef AnchorNamed')))),
     ('对象写', js_calls('nativeSetObject') | js_calls('nativeSetOwned'),
-     set(re.findall(r'name == "(\w+)"', mm_block('void WriteNativeObjectProperty')))),
+     set(re.findall(r'name == "(\w+)"',
+                    mm_bodies(r'^void Write\w+ObjectProperty\(')))),
 ]
 for label, a, b in pairs:
-    if a - b: complain(label, f'nacre.js 有但 NacreRuntime.mm 没有：{sorted(a - b)}')
-    if b - a: complain(label, f'NacreRuntime.mm 有但 nacre.js 没有：{sorted(b - a)}')
+    if a - b: complain(label, f'nacre.js 有但原生层没有：{sorted(a - b)}')
+    if b - a: complain(label, f'原生层有但 nacre.js 没有：{sorted(b - a)}')
 
 # ------------------------------------------------------------------ 报告
 if problems:

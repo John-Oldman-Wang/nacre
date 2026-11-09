@@ -162,6 +162,44 @@ nacre::NativeObjectRef ReadClassObjectProperty(const std::string& className,
                                                const std::string& name);
 NSDictionary<NSString*, UIColor*>* NamedColors();
 
+// 按能力域拆开的属性实现，一个域一个 NacreProps*.mm。分发器只决定问的顺序，
+// 见 NacreProperties.mm 开头的说明。约定：
+//   读     返回 nil 表示这个域不认识这个名字
+//   写     返回 YES 表示这个域处理了（写成了，或者填了 error）
+//   对象读 返回 class_name 为空的 ref 表示没处理
+//   数组读 只管往 refs 里追加，没有「谁先认领」
+
+id ReadSceneProperty(id object, NSString* key);
+BOOL WriteSceneProperty(id object, NSString* key, id value, std::string* error);
+nacre::NativeObjectRef ReadSceneObjectProperty(id object, const std::string& name);
+void WriteSceneObjectProperty(id object, const std::string& name, id value);
+
+id ReadControlProperty(id object, NSString* key);
+BOOL WriteControlProperty(id object, NSString* key, id value, std::string* error);
+nacre::NativeObjectRef ReadControlObjectProperty(id object, const std::string& name);
+
+id ReadLayoutProperty(id object, NSString* key);
+BOOL WriteLayoutProperty(id object, NSString* key, id value, std::string* error);
+nacre::NativeObjectRef ReadLayoutObjectProperty(id object, const std::string& name);
+
+id ReadLayerProperty(id object, NSString* key);
+BOOL WriteLayerProperty(id object, NSString* key, id value, std::string* error);
+nacre::NativeObjectRef ReadLayerObjectProperty(id object, const std::string& name);
+void WriteLayerObjectProperty(id object, const std::string& name, id value);
+
+id ReadScrollProperty(id object, NSString* key);
+BOOL WriteScrollProperty(id object, NSString* key, id value, std::string* error);
+nacre::NativeObjectRef ReadScrollObjectProperty(id object, const std::string& name);
+void ReadScrollObjectArray(id object, const std::string& name, std::vector<nacre::NativeObjectRef>& refs);
+
+id ReadViewProperty(id object, NSString* key);
+BOOL WriteViewProperty(id object, NSString* key, id value, std::string* error);
+nacre::NativeObjectRef ReadViewObjectProperty(id object, const std::string& name);
+void ReadViewObjectArray(id object, const std::string& name, std::vector<nacre::NativeObjectRef>& refs);
+void WriteViewObjectProperty(id object, const std::string& name, id value);
+
+id ReadResourceProperty(id object, NSString* key);
+
 // ---- 方法分发 ----
 // name 是完整的 ObjC selector（JS 层负责把「第一段 + options」还原成它），
 // 所以这里的表和 Apple 文档一一对上。对象参数在 args 里是 NSNull，真正的
