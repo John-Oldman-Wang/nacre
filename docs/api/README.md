@@ -26,6 +26,7 @@ Nacre 的 API 分两层：
 | [`UIFont`](ui-font.md) | 字体 |
 | [`UIImage` / `UIImageView`](ui-image.md) | 图片。四条取图路径，`size` 是点不是像素 |
 | [Auto Layout](auto-layout.md) | 约束、锚点、`UILayoutGuide`。用了约束就别再写 frame |
+| [`UIStackView`](ui-stack-view.md) | 一维排列容器。约束的工厂，不是第二套布局引擎 |
 | [`CALayer`](ca-layer.md) | 圆角、边框、阴影 |
 | [`UIControl`](ui-control.md) | 控件事件。16 个事件名，`addEventListener` 直接用 |
 | [`UIButton`](ui-button.md) | 按钮。标题、颜色、图片按状态设 |

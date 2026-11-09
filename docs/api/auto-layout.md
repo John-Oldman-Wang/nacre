@@ -235,6 +235,10 @@ a.constraintEqualToConstant(50).isActive = true; // 照样能用
 
 锚点持有它的视图，约束持有两端的锚点。**不用自己留引用。**
 
+## 不用手写约束的那一半
+
+排成一行或一列不必自己建约束，[`UIStackView`](ui-stack-view.md) 就是干这个的——它是约束的**工厂**，不是第二套布局引擎。上面那段「三个等距的块」手写了六条约束，用 stack 是四行属性。
+
 ## 还没做
 
 | | 为什么 |
@@ -243,7 +247,6 @@ a.constraintEqualToConstant(50).isActive = true; // 照样能用
 | 7 参的 `constraintWithItem:…` | 锚点完全覆盖它，而且不用暴露 21 个值的 `NSLayoutAttribute` |
 | `addConstraint:` / `removeConstraint:` | 头文件写明 should be avoided，用 `isActive` |
 | `updateConstraints` 系列 | 是覆写点，要先能用 JS 子类化原生类 |
-| `UIStackView` | 它是约束的**工厂**不是第二套布局引擎。单独一步做 |
 | `alignmentRectForFrame:`、`viewForFirstBaselineLayout` | 边缘能力，留给 bindgen |
 
 ## 和原生的对照

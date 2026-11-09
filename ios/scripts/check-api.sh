@@ -164,7 +164,8 @@ for macro, tsname in [('TextAlignment', 'NSTextAlignment'),
                       ('ControlHorizontalAlignment', 'UIControlContentHorizontalAlignment'),
                       ('ControlVerticalAlignment', 'UIControlContentVerticalAlignment'),
                       ('ButtonType', 'UIButtonType'),
-                      ('ButtonRole', 'UIButtonRole')]:
+                      ('ButtonRole', 'UIButtonRole'),
+                      ('StackDistribution', 'UIStackViewDistribution')]:
     a, b = mm_enum(macro), dts_union(tsname)
     if not a: complain('枚举', f'没能从 NacreRuntime.mm 解析出 {macro}，脚本要更新')
     elif a != b:
@@ -195,6 +196,14 @@ m = re.search(r'TextStylePairs\(void\).*?pairs = @\[(.*?)\];', mm, re.S)
 a = set(re.findall(r'@\[\s*@"(\w+)"', m.group(1))) if m else set()
 b = dts_union('UIFontTextStyle')
 if a != b: complain('UIFontTextStyle', f'缺 {sorted(a-b)} 多 {sorted(b-a)}')
+
+# UIStackViewAlignment 不走宏：leading==top、trailing==bottom，一个值两个名字，
+# 所以实现用有序 pairs（无序字典反查会不确定）。别名也是可写的，一起对
+m = re.search(r'StackAlignmentPairs\(void\).*?pairs = @\[(.*?)\];', mm, re.S)
+a = set(re.findall(r'@\[\s*@"(\w+)"', m.group(1))) if m else set()
+b = dts_union('UIStackViewAlignment')
+if not a: complain('枚举', '没能从 mm 解析出 StackAlignment，脚本要更新')
+elif a != b: complain('UIStackViewAlignment', f'缺 {sorted(a-b)} 多 {sorted(b-a)}')
 
 m = re.search(r'CornerCurvePairs\(void\).*?pairs = @\[(.*?)\];', mm, re.S)
 a = set(re.findall(r'@\[\s*@"(\w+)"', m.group(1))) if m else set()

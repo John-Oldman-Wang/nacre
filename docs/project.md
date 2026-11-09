@@ -433,6 +433,7 @@ Commit message 格式：
 | 3b | 图片 | UIImageView、UIImage、Blob 解码、后台解码 | 已在模拟器验证通过：bundle 图自动选 @3x、SF Symbol、九宫格、fetch 下来的网络图上屏 |
 | 3c | Auto Layout | NSLayoutConstraint、锚点、UILayoutGuide | 已在模拟器验证通过：锚点建约束、批量激活、flex-1 式的抱紧优先级、UILayoutGuide、三个调试接口 |
 | 3d | 圆角、边框、阴影 | CALayer、位掩码 | 已在模拟器验证通过：卡片有圆角和边框，子块也圆了 |
+| 3e | 一维排列 | UIStackView、别名枚举、哨兵常量 | 已在模拟器验证通过：三等分排开、嵌套、隐藏即塌陷，49 条断言全过 |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |
 | **M1b** | **同步回调回 JS** | 重入判定：UIKit 主动调我们才允许同步 | **没有逃生口**，第 8 步列表绕不过去 |
@@ -555,6 +556,10 @@ view.autoresizingMask = ['flexibleWidth', 'flexibleHeight'];   // 位掩码（�
 参数位的枚举（`UIFont.systemFontOfSize(17, { weight })`）和属性位一样抛。Web 在这一点上自己就是分两套的——CSS 属性值给错了静默保持原值，而 Web IDL 的 enum 参数（`Request` 的 `mode`、`animate` 的 `fill`）一律抛 `TypeError`。我们的 options 键在形状上就是后者。实测对照记在[枚举文档](internals/enums.md#为什么不学-css)。
 
 **名字 ↔ 数值的映射只能放在原生层**：`NSTextAlignment` 的数值随 ABI 变（`TARGET_ABI_USES_IOS_VALUES`——iOS 上 `Center` 是 1，macOS 上是 2），JS 里按数组下标映射换个平台就全错。为此 `write_property` 改成返回 `bool`：原生层查不到名字就返回 `false`，JS 据此抛异常。写不进去又不报错是最难查的那种错。
+
+**别名：写入全认，读出给主名。** `UIStackViewAlignment` 里 `Top = Leading`、`Bottom = Trailing`，一个数值两个名字。两个名字都要认（照 Apple 文档写 `.top` 不能抛），但读出来只能有一个确定答案——这类枚举**不能用无序字典做反查表**，否则同一个进程里两次读可能不一样。实现改用有序的 pairs，主名在前。主名取头文件里被赋值的那一侧（`Top = Leading` ⇒ 主名是 `leading`）。
+
+**平台的哨兵常量也用字符串。** `UIStackViewSpacingUseSystem` 是 `FLT_MIN`、`UseDefault` 是 `FLT_MAX`，它们是**令牌不是数量**。让 JS 写 `1.1754943508222875e-38` 不现实，硬编进 JS 换个 CGFloat 宽度就全错，所以映射同样留在原生层：`spacing = 'system'`。代价是这类属性的类型成了 `number | 'system'`。
 
 详见 [枚举文档](api/enums.md)。
 

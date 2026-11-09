@@ -1474,6 +1474,110 @@
   // 语义色（systemBackgroundColor、labelColor 等）是动态颜色：
   // 它在绘制时按当时的外观（深色/浅色）解析，所以取一次就能一直用。
   // 带参数的类方法（colorWithRed:green:blue:alpha:）等方法名映射定了再加。
+  // 一维排列容器。它自己不画东西，职责是把「排成一行 / 一列」翻译成约束：
+  // 三个等宽等距的块原来要手写 6 条约束，这里是 4 行属性。
+  defineNativeClass('UIStackView', class UIStackView extends UIView {
+    // new UIStackView() 或 new UIStackView([a, b, c])。数组按「每个参数一个
+    // 句柄」传给原生，和 NSLayoutConstraint.activateConstraints 一条路子。
+    constructor(arrangedSubviews) {
+      super();
+      if (allowNativeConstruct) return;
+      const views = arrangedSubviews == null ? [] : Array.from(arrangedSubviews);
+      // 旧的 superview 要在原生动手之前读，之后它们已经挂到 stack 上了
+      const from = views.map(superviewOf);
+      constructNative(this, 'UIStackView', views);
+      for (let i = 0; i < views.length; i++) {
+        disown(from[i], 'subviews', views[i]);
+        ownOne(this, 'subviews', views[i]);
+      }
+    }
+
+    // ---- 排列 ----
+    get axis() { requireNative(this, 'axis'); return nativeGet(this, 'axis'); }
+    set axis(value) { requireNative(this, 'axis'); nativeSet(this, 'axis', value); }
+    get distribution() {
+      requireNative(this, 'distribution');
+      return nativeGet(this, 'distribution');
+    }
+    set distribution(value) {
+      requireNative(this, 'distribution');
+      nativeSet(this, 'distribution', value);
+    }
+    // 'leading' 和 'top' 是同一个值（'trailing' / 'bottom' 同理）。两个名字
+    // 都写得进去，读出来永远是 leading / trailing —— 头文件里 Top = Leading，
+    // 别名那一侧没法反查
+    get alignment() {
+      requireNative(this, 'alignment');
+      return nativeGet(this, 'alignment');
+    }
+    set alignment(value) {
+      requireNative(this, 'alignment');
+      nativeSet(this, 'alignment', value);
+    }
+    // 数字，或 'system' 要系统标准间距
+    get spacing() { requireNative(this, 'spacing'); return nativeGet(this, 'spacing'); }
+    set spacing(value) { requireNative(this, 'spacing'); nativeSet(this, 'spacing', value); }
+    get isBaselineRelativeArrangement() {
+      requireNative(this, 'isBaselineRelativeArrangement');
+      return nativeGet(this, 'isBaselineRelativeArrangement');
+    }
+    set isBaselineRelativeArrangement(value) {
+      requireNative(this, 'isBaselineRelativeArrangement');
+      nativeSet(this, 'isBaselineRelativeArrangement', value);
+    }
+    get isLayoutMarginsRelativeArrangement() {
+      requireNative(this, 'isLayoutMarginsRelativeArrangement');
+      return nativeGet(this, 'isLayoutMarginsRelativeArrangement');
+    }
+    set isLayoutMarginsRelativeArrangement(value) {
+      requireNative(this, 'isLayoutMarginsRelativeArrangement');
+      nativeSet(this, 'isLayoutMarginsRelativeArrangement', value);
+    }
+
+    // ---- 排列里的子视图 ----
+    // arrangedSubviews 是 subviews 的子集，但顺序是排列顺序，不是 z 序
+    get arrangedSubviews() {
+      return ownAll(this, 'arrangedSubviews',
+                    nativeGetObjectArray(this, 'arrangedSubviews'));
+    }
+    // 进了排列就一定也是 subview，所以持有边和 addSubview 走同一条
+    addArrangedSubview(view) {
+      const from = superviewOf(view);
+      nativeCall(this, 'addArrangedSubview:', [view]);
+      disown(from, 'subviews', view);
+      ownOne(this, 'subviews', view);
+    }
+    // 只移出排列，view 仍然是 subview（只是不再被排版），所以那条持有边不动。
+    // 真要移走用 view.removeFromSuperview()，stack 会自己把它从排列里摘掉
+    removeArrangedSubview(view) {
+      nativeCall(this, 'removeArrangedSubview:', [view]);
+    }
+    insertArrangedSubview(view, options) {
+      const o = options || {};
+      if (!('atIndex' in o)) {
+        throw new TypeError('insertArrangedSubview needs { atIndex }');
+      }
+      const from = superviewOf(view);
+      nativeCall(this, 'insertArrangedSubview:atIndex:', [view, o.atIndex]);
+      disown(from, 'subviews', view);
+      ownOne(this, 'subviews', view);
+    }
+
+    // ---- 单独调某一项后面的间距 ----
+    // spacing 可以是数字、'system'（系统标准间距）或 'default'（撤回，回到
+    // spacing 属性）。两个哨兵在 ObjC 里是 FLT_MIN / FLT_MAX，不让它们进 JS
+    setCustomSpacing(spacing, options) {
+      const o = options || {};
+      if (!('afterView' in o)) {
+        throw new TypeError('setCustomSpacing needs { afterView }');
+      }
+      nativeCall(this, 'setCustomSpacing:afterView:', [spacing, o.afterView]);
+    }
+    customSpacingAfterView(view) {
+      return nativeCall(this, 'customSpacingAfterView:', [view]);
+    }
+  });
+
   const UIColor = defineNativeClass('UIColor', class UIColor extends NSObject {
     constructor() { nativeOnly(); super(); }
   });

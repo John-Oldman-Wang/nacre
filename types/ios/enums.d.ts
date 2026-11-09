@@ -80,6 +80,37 @@ type NSLayoutAttribute =
   | 'notAnAttribute';
 
 /** 七个具名值。中间的值（749 之类）没有名字，所以写的时候也接受数字。 */
+/** UIStackView 沿轴的分配方式。 */
+type UIStackViewDistribution =
+  | 'fill'
+  | 'fillEqually'
+  | 'fillProportionally'
+  | 'equalSpacing'
+  | 'equalCentering';
+
+/**
+ * UIStackView 垂直于轴的对齐。
+ *
+ * `'top'` 和 `'leading'` 是**同一个值**，`'bottom'` 和 `'trailing'` 也是——
+ * UIKit 自己就是这么定义的（`UIStackViewAlignmentTop = ...Leading`）。两个
+ * 名字都写得进去，但**读出来永远是 `'leading'` / `'trailing'`**。
+ */
+type UIStackViewAlignment =
+  | 'fill'
+  | 'leading'
+  | 'top'
+  | 'firstBaseline'
+  | 'center'
+  | 'trailing'
+  | 'bottom'
+  | 'lastBaseline';
+
+/** 间距：一个数字，或 `'system'` 表示系统标准间距。 */
+type UIStackViewSpacing = number | 'system';
+
+/** 自定义间距比 spacing 多一个 `'default'`，表示撤回、回到 spacing。 */
+type UIStackViewCustomSpacing = UIStackViewSpacing | 'default';
+
 type UILayoutPriorityName =
   | 'required'                   // 1000
   | 'defaultHigh'                // 750

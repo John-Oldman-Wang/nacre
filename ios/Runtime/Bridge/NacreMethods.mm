@@ -226,6 +226,48 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
     }
   }
 
+  if ([object isKindOfClass:UIStackView.class]) {
+    UIStackView* stack = (UIStackView*)object;
+    if ([sel isEqualToString:@"addArrangedSubview:"]) {
+      if (UIView* child = viewArg(0)) [stack addArrangedSubview:child];
+      return "null";
+    }
+    if ([sel isEqualToString:@"removeArrangedSubview:"]) {
+      // 只移出排列，不移出 subviews——头文件明说的，要移走得自己
+      // removeFromSuperview（那边 stack 会自动把它从排列里摘掉）
+      if (UIView* child = viewArg(0)) [stack removeArrangedSubview:child];
+      return "null";
+    }
+    if ([sel isEqualToString:@"insertArrangedSubview:atIndex:"]) {
+      if (UIView* child = viewArg(0)) {
+        NSInteger index = [valueArg(1) integerValue];
+        if (index < 0 || (NSUInteger)index > stack.arrangedSubviews.count) {
+          *error = [NSString stringWithFormat:
+                       @"insertArrangedSubview: atIndex %ld is out of range (0...%lu)",
+                       (long)index, (unsigned long)stack.arrangedSubviews.count].UTF8String;
+          return "null";
+        }
+        [stack insertArrangedSubview:child atIndex:(NSUInteger)index];
+      }
+      return "null";
+    }
+    if ([sel isEqualToString:@"setCustomSpacing:afterView:"]) {
+      CGFloat spacing;
+      if (!StackSpacingFromValue(valueArg(0), &spacing, YES)) {
+        *error = EnumError(@"setCustomSpacing", valueArg(0), NamesForStackSpacing(YES));
+        return "null";
+      }
+      if (UIView* child = viewArg(1)) [stack setCustomSpacing:spacing afterView:child];
+      return "null";
+    }
+    if ([sel isEqualToString:@"customSpacingAfterView:"]) {
+      if (UIView* child = viewArg(0)) {
+        return EncodeJSON(ValueForStackSpacing([stack customSpacingAfterView:child]));
+      }
+      return "null";
+    }
+  }
+
   if ([object isKindOfClass:UIView.class]) {
     UIView* view = (UIView*)object;
     if ([sel isEqualToString:@"addSubview:"]) {
@@ -599,6 +641,15 @@ nacre::NativeObjectRef ConstructNative(const std::string& className,
     object = [[UIButton alloc] init];
   } else if (className == "UIControl") {
     object = [[UIControl alloc] init];
+  } else if (className == "UIStackView") {
+    // initWithArrangedSubviews: 的数组按「每个参数一个句柄」传过来，
+    // 和 activateConstraints: 一样，不用为数组参数另开通道
+    NSMutableArray<UIView*>* views = [NSMutableArray array];
+    for (void* ptr : args) {
+      id v = (__bridge id)ptr;
+      if ([v isKindOfClass:UIView.class]) [views addObject:v];
+    }
+    object = [[UIStackView alloc] initWithArrangedSubviews:views];
   } else if (className == "UILayoutGuide") {
     object = [[UILayoutGuide alloc] init];
   }

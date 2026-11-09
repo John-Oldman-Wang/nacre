@@ -73,6 +73,23 @@ std::string ReadNativeProperty(id object, const std::string& name) {
       value = @(view.hasAmbiguousLayout);
     }
   }
+  if (value == nil && [object isKindOfClass:UIStackView.class]) {
+    UIStackView* stack = (UIStackView*)object;
+    if ([key isEqualToString:@"axis"]) {
+      value = NameForLayoutConstraintAxis(stack.axis);
+    } else if ([key isEqualToString:@"distribution"]) {
+      value = NameForStackDistribution(stack.distribution);
+    } else if ([key isEqualToString:@"alignment"]) {
+      // 别名在这里收敛：leading 和 top 是同一个值，读出来永远是 leading
+      value = NameForStackAlignment(stack.alignment);
+    } else if ([key isEqualToString:@"spacing"]) {
+      value = ValueForStackSpacing(stack.spacing);
+    } else if ([key isEqualToString:@"isBaselineRelativeArrangement"]) {
+      value = @(stack.isBaselineRelativeArrangement);
+    } else if ([key isEqualToString:@"isLayoutMarginsRelativeArrangement"]) {
+      value = @(stack.isLayoutMarginsRelativeArrangement);
+    }
+  }
   // UIButton 放在 UIControl 之前：它是 UIControl 的子类
   if (value == nil && [object isKindOfClass:UIButton.class]) {
     UIButton* button = (UIButton*)object;
@@ -434,6 +451,53 @@ void WriteNativeProperty(id object, const std::string& name, const std::string& 
       return;
     }
   }
+  if ([object isKindOfClass:UIStackView.class]) {
+    UIStackView* stack = (UIStackView*)object;
+    if ([key isEqualToString:@"axis"]) {
+      UILayoutConstraintAxis axis;
+      if (!LayoutConstraintAxisFromName(value, &axis)) {
+        *error = EnumError(@"axis", value, NamesForLayoutConstraintAxis());
+        return;
+      }
+      stack.axis = axis;
+      return;
+    }
+    if ([key isEqualToString:@"distribution"]) {
+      UIStackViewDistribution d;
+      if (!StackDistributionFromName(value, &d)) {
+        *error = EnumError(@"distribution", value, NamesForStackDistribution());
+        return;
+      }
+      stack.distribution = d;
+      return;
+    }
+    if ([key isEqualToString:@"alignment"]) {
+      UIStackViewAlignment a;
+      if (!StackAlignmentFromName(value, &a)) {
+        *error = EnumError(@"alignment", value, NamesForStackAlignment());
+        return;
+      }
+      stack.alignment = a;
+      return;
+    }
+    if ([key isEqualToString:@"spacing"]) {
+      CGFloat spacing;
+      if (!StackSpacingFromValue(value, &spacing, NO)) {
+        *error = EnumError(@"spacing", value, NamesForStackSpacing(NO));
+        return;
+      }
+      stack.spacing = spacing;
+      return;
+    }
+    if ([key isEqualToString:@"isBaselineRelativeArrangement"]) {
+      stack.baselineRelativeArrangement = [value boolValue];
+      return;
+    }
+    if ([key isEqualToString:@"isLayoutMarginsRelativeArrangement"]) {
+      stack.layoutMarginsRelativeArrangement = [value boolValue];
+      return;
+    }
+  }
   if ([object isKindOfClass:UIImageView.class]) {
     UIImageView* iv = (UIImageView*)object;
     if ([key isEqualToString:@"isHighlighted"]) {
@@ -610,6 +674,13 @@ std::vector<nacre::NativeObjectRef> ReadNativeObjectArrayProperty(
   std::vector<nacre::NativeObjectRef> refs;
   if ([object isKindOfClass:UIView.class] && name == "subviews") {
     for (UIView* child in ((UIView*)object).subviews) {
+      refs.push_back({(__bridge void*)child, "UIView"});
+    }
+  }
+  // arrangedSubviews 是 subviews 的子集，但顺序由 stack 的排列决定，
+  // 不是 subview 的 z 序，所以两个都要能读
+  if ([object isKindOfClass:UIStackView.class] && name == "arrangedSubviews") {
+    for (UIView* child in ((UIStackView*)object).arrangedSubviews) {
       refs.push_back({(__bridge void*)child, "UIView"});
     }
   }

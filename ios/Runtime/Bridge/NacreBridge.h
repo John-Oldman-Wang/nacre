@@ -98,11 +98,25 @@ NACRE_ENUM_DECL(ControlHorizontalAlignment, UIControlContentHorizontalAlignment)
 NACRE_ENUM_DECL(ControlVerticalAlignment, UIControlContentVerticalAlignment)
 NACRE_ENUM_DECL(ButtonType, UIButtonType)
 NACRE_ENUM_DECL(ButtonRole, UIButtonRole)
+NACRE_ENUM_DECL(StackDistribution, UIStackViewDistribution)
+// UIStackViewAlignment 是第一个带别名的枚举（leading==top、trailing==bottom），
+// 所以它不走 NACRE_ENUM_MAP：那个宏的 NameFor 遍历无序字典，同一个值挂两个
+// key 时读出来的字符串会不确定。实现改用有序 pairs，见 NacreEnums.mm
+NACRE_ENUM_DECL(StackAlignment, UIStackViewAlignment)
 
 // 状态**作参数**时和读 state 不一样：'normal' 要认。它的值是 0，
 // 不在位掩码表里，但 setTitle(…, { forState: ['normal'] }) 是最常用的写法。
 BOOL ControlStateArgFromNames(id value, UIControlState* out, id* bad);
 NSString* NamesForControlStateArg(void);
+
+// spacing 的两个哨兵值（UseSystem 是 FLT_MIN、UseDefault 是 FLT_MAX）在 JS 侧
+// 是字符串 'system' / 'default'。数值不过桥，理由和枚举一样：让 JS 开发者手写
+// 1.1754943508222875e-38 不现实，而且把平台常量硬编码进 JS 换个平台就错。
+// allowDefault 为 NO 时只认 'system'——spacing 属性设成 UseDefault 的效果是 0，
+// 没有意义，只有 setCustomSpacing:afterView: 才需要「撤回」。
+BOOL StackSpacingFromValue(id value, CGFloat* out, BOOL allowDefault);
+id ValueForStackSpacing(CGFloat spacing);
+NSString* NamesForStackSpacing(BOOL allowDefault);
 
 // cornerCurve 的值是 NSString 常量，不是枚举，和文本样式一样
 NSString* CornerCurveFromName(NSString* name);

@@ -120,6 +120,61 @@ declare class NSLayoutConstraint extends NSObject {
 }
 
 /**
+ * 一维排列容器：把「排成一行 / 一列」翻译成约束。
+ *
+ * 它自己不画东西，所以 `backgroundColor` 之类设了也看不见——要底色就套一层
+ * 普通 `UIView`。
+ *
+ * ```js
+ * const row = new UIStackView([avatar, name, badge]);
+ * row.axis = 'horizontal';
+ * row.distribution = 'fillEqually';
+ * row.spacing = 12;
+ * ```
+ *
+ * 把某一项 `isHidden = true`，它会**塌陷**，其余项自动重排——这是手写约束
+ * 做不到的事（约束只能停用，不会自动补位）。
+ */
+declare class UIStackView extends UIView {
+  /** 不传就是空的；传数组等于 `initWithArrangedSubviews:`。 */
+  constructor(arrangedSubviews?: readonly UIView[]);
+
+  /** 排成一行还是一列。默认 `'horizontal'`。 */
+  axis: UILayoutConstraintAxis;
+  /** 沿轴怎么分配空间。默认 `'fill'`。 */
+  distribution: UIStackViewDistribution;
+  /** 垂直于轴怎么对齐。默认 `'fill'`。写 `'top'` 读回 `'leading'`。 */
+  alignment: UIStackViewAlignment;
+  /** 相邻两项之间的间距。默认 `0`，负值可以让它们重叠。 */
+  spacing: UIStackViewSpacing;
+  /** 纵向排列时按基线算间距。默认 `false`，横向排列时无效。 */
+  isBaselineRelativeArrangement: boolean;
+  /** 边缘约束用 layout margins 而不是边框。默认 `false`。 */
+  isLayoutMarginsRelativeArrangement: boolean;
+
+  /** 排列顺序，不是 `subviews` 的 z 序。是 `subviews` 的子集。 */
+  readonly arrangedSubviews: UIView[];
+
+  /** 加到排列末尾。不是 subview 的话顺带也加进 `subviews`。 */
+  addArrangedSubview(view: UIView): void;
+  /**
+   * 移出排列，但**仍然是 subview**——只是不再被排版，位置停在原地。
+   * 真要移走用 `view.removeFromSuperview()`，那边会自动出排列。
+   */
+  removeArrangedSubview(view: UIView): void;
+  /** 插到排列的指定位置。`atIndex` 越界抛 TypeError。 */
+  insertArrangedSubview(view: UIView, options: { atIndex: number }): void;
+
+  /** 单独指定某一项后面的间距，优先于 `spacing`。 */
+  setCustomSpacing(
+    spacing: UIStackViewCustomSpacing,
+    options: { afterView: UIView },
+  ): void;
+  /** 没设过就是 `'default'`。 */
+  customSpacingAfterView(view: UIView): UIStackViewCustomSpacing;
+}
+
+/**
  * 不画东西的矩形。占位、分组、做间距，比塞一个透明 UIView 省一个图层。
  * 比 UIView 少两个锚点：没有基线，因为它没有文字。
  */

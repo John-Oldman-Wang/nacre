@@ -250,6 +250,93 @@ NACRE_ENUM_MAP(ButtonRole, UIButtonRole,
                @"cancel": @(UIButtonRoleCancel),
                @"destructive": @(UIButtonRoleDestructive))
 
+NACRE_ENUM_MAP(StackDistribution, UIStackViewDistribution,
+               @"fill": @(UIStackViewDistributionFill),
+               @"fillEqually": @(UIStackViewDistributionFillEqually),
+               @"fillProportionally": @(UIStackViewDistributionFillProportionally),
+               @"equalSpacing": @(UIStackViewDistributionEqualSpacing),
+               @"equalCentering": @(UIStackViewDistributionEqualCentering))
+
+// UIStackViewAlignment 是第一个一个值挂两个名字的枚举。头文件原话：
+//   UIStackViewAlignmentTop    = UIStackViewAlignmentLeading    （都是 1）
+//   UIStackViewAlignmentBottom = UIStackViewAlignmentTrailing   （都是 5）
+// 别名是真实的能力——照 Apple 文档写 .top 必须认——但读出来只能有一个确定的
+// 答案，不能看字典的遍历顺序。所以用有序数组：主名在前、别名在后，NameFor
+// 取第一个命中的。主名取 leading / trailing 那一侧，因为头文件里是
+// Top = Leading，前者才是声明，后者是别名。
+static NSArray<NSArray*>* StackAlignmentPairs(void) {
+  static NSArray<NSArray*>* pairs;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    pairs = @[
+      @[ @"fill", @(UIStackViewAlignmentFill) ],
+      @[ @"leading", @(UIStackViewAlignmentLeading) ],
+      @[ @"firstBaseline", @(UIStackViewAlignmentFirstBaseline) ],
+      @[ @"center", @(UIStackViewAlignmentCenter) ],
+      @[ @"trailing", @(UIStackViewAlignmentTrailing) ],
+      @[ @"lastBaseline", @(UIStackViewAlignmentLastBaseline) ],
+      // 以下是别名：写得进去，读不出来
+      @[ @"top", @(UIStackViewAlignmentTop) ],
+      @[ @"bottom", @(UIStackViewAlignmentBottom) ],
+    ];
+  });
+  return pairs;
+}
+
+BOOL StackAlignmentFromName(NSString* name, UIStackViewAlignment* out) {
+  if (![name isKindOfClass:NSString.class]) return NO;
+  for (NSArray* pair in StackAlignmentPairs()) {
+    if ([pair[0] isEqualToString:name]) {
+      *out = (UIStackViewAlignment)[pair[1] integerValue];
+      return YES;
+    }
+  }
+  return NO;
+}
+
+NSString* NameForStackAlignment(UIStackViewAlignment value) {
+  for (NSArray* pair in StackAlignmentPairs()) {
+    if ([pair[1] integerValue] == (NSInteger)value) return pair[0];
+  }
+  return nil;
+}
+
+NSString* NamesForStackAlignment(void) {
+  NSMutableArray<NSString*>* names = [NSMutableArray array];
+  for (NSArray* pair in StackAlignmentPairs()) [names addObject:pair[0]];
+  return [names componentsJoinedByString:@" / "];
+}
+
+// spacing 的哨兵值 ↔ JS 的字符串。== 比较浮点在这里是对的：这两个值是
+// 原样存进属性的令牌，不参与任何算术，UIKit 自己也是这么比的。
+BOOL StackSpacingFromValue(id value, CGFloat* out, BOOL allowDefault) {
+  if ([value isKindOfClass:NSString.class]) {
+    if ([value isEqualToString:@"system"]) {
+      *out = UIStackViewSpacingUseSystem;
+      return YES;
+    }
+    if (allowDefault && [value isEqualToString:@"default"]) {
+      *out = UIStackViewSpacingUseDefault;
+      return YES;
+    }
+    return NO;
+  }
+  if (![value isKindOfClass:NSNumber.class]) return NO;
+  *out = [value doubleValue];
+  return YES;
+}
+
+id ValueForStackSpacing(CGFloat spacing) {
+  if (spacing == UIStackViewSpacingUseSystem) return @"system";
+  if (spacing == UIStackViewSpacingUseDefault) return @"default";
+  return @(spacing);
+}
+
+NSString* NamesForStackSpacing(BOOL allowDefault) {
+  return allowDefault ? @"a number / \"system\" / \"default\""
+                      : @"a number / \"system\"";
+}
+
 // 状态作参数：'normal' 是 0，位掩码表里没有它，但它是最常用的写法，
 // 所以单独认一下。读 state 的那一侧是反过来的——掩码为 0 时给 ['normal']。
 BOOL ControlStateArgFromNames(id value, UIControlState* out, id* bad) {
