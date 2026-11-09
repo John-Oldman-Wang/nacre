@@ -48,6 +48,34 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
     }
   }
 
+  // systemItem 只能在 init 里给（没有对应的可写属性），所以走类方法这条路。
+  // target/action 留空——订阅通道会在第一个监听器挂上时接管它们
+  if (className == "UIBarButtonItem") {
+    if ([sel isEqualToString:@"systemItemWithName:"]) {
+      UIBarButtonSystemItem systemItem;
+      if (!BarButtonSystemItemFromName(arg(0), &systemItem)) {
+        *error = EnumError(@"systemItem", arg(0), NamesForBarButtonSystemItem());
+        return {};
+      }
+      UIBarButtonItem* made =
+          [[UIBarButtonItem alloc] initWithBarButtonSystemItem:systemItem
+                                                        target:nil
+                                                        action:nil];
+      // 自己 alloc 的要 CFAutorelease，不然出了这个语句 ARC 就放掉它，
+      // WrapNative 再 retain 就是野指针。UIKit 那些类方法返回的本来就在
+      // 自动释放池里，所以它们直接 __bridge 没问题
+      return {(void*)CFAutorelease(CFBridgingRetain(made)), "UIBarButtonItem"};
+    }
+    if ([sel isEqualToString:@"flexibleSpaceItem"]) {
+      return {(__bridge void*)[UIBarButtonItem flexibleSpaceItem], "UIBarButtonItem"};
+    }
+    if ([sel isEqualToString:@"fixedSpaceItemOfWidth:"]) {
+      return {(__bridge void*)[UIBarButtonItem
+                  fixedSpaceItemOfWidth:[arg(0) doubleValue]],
+              "UIBarButtonItem"};
+    }
+  }
+
   if (className == "UIButton" && [sel isEqualToString:@"buttonWithType:"]) {
     UIButtonType type;
     if (!ButtonTypeFromName(arg(0), &type)) {
@@ -746,6 +774,15 @@ nacre::NativeObjectRef ConstructNative(const std::string& className,
     object = [[UIButton alloc] init];
   } else if (className == "UIControl") {
     object = [[UIControl alloc] init];
+  } else if (className == "UIBarButtonItem") {
+    // 三种口味：{ title }、{ systemItem }、{ customView }。target/action 这里
+    // 不接，交给订阅通道（见 setSubscription:）——JS 侧统一走 addEventListener
+    id first = args.empty() ? nil : (__bridge id)args[0];
+    if ([first isKindOfClass:UIView.class]) {
+      object = [[UIBarButtonItem alloc] initWithCustomView:(UIView*)first];
+    } else {
+      object = [[UIBarButtonItem alloc] init];
+    }
   } else if (className == "UINavigationController") {
     id root = args.empty() ? nil : (__bridge id)args[0];
     if ([root isKindOfClass:UIViewController.class]) {

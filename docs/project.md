@@ -557,7 +557,7 @@ Commit message 格式：
 | 4b | `UIButton` | `setTitle:forState:`、状态作参数 | 已在模拟器验证通过：按状态设标题/颜色/图，真实点击收到 primaryActionTriggered |
 | 4c | first responder | `becomeFirstResponder` / `resignFirstResponder` | 待讨论，和第 9 步绑一起 |
 | 5a | 页面栈 | UINavigationController、可写的对象数组属性、导航级事件 | 已在模拟器验证通过：真实点返回和左滑返回都走通，GC 回归证明栈的持有边有效；外加一个**写在 JS 里**的 router（`app/src/router.js`），三页跳转实测通过 |
-| 5b | 导航条上的东西 | UINavigationItem、UIBarButtonItem | 待讨论 |
+| 5b | 导航条上的东西 | UINavigationItem、UIBarButtonItem、UIBarItem | 已在模拟器验证通过：导航条上真的有「完成」按钮并且点得动；实测 vc.title 和 navigationItem.title 是单向的 |
 | 5c | 模态呈现 | present / dismiss，completion 做成 Promise | 待讨论 |
 | — | 页面生命周期（viewDidLoad 等） | **M2**——全是覆写点不是 delegate | 待讨论 |
 | 6a | `URL` / `URLSearchParams` / `Headers` | NSURLComponents、WHATWG 语义 | 已在模拟器验证通过：37 条断言全过，和 Chrome 对撞过一批 URL |
@@ -674,7 +674,7 @@ view.autoresizingMask = ['flexibleWidth', 'flexibleHeight'];   // 位掩码（�
 
 **名字 ↔ 数值的映射只能放在原生层**：`NSTextAlignment` 的数值随 ABI 变（`TARGET_ABI_USES_IOS_VALUES`——iOS 上 `Center` 是 1，macOS 上是 2），JS 里按数组下标映射换个平台就全错。为此 `write_property` 改成返回 `bool`：原生层查不到名字就返回 `false`，JS 据此抛异常。写不进去又不报错是最难查的那种错。
 
-**别名：写入全认，读出给主名。** `UIStackViewAlignment` 里 `Top = Leading`、`Bottom = Trailing`，一个数值两个名字。两个名字都要认（照 Apple 文档写 `.top` 不能抛），但读出来只能有一个确定答案——这类枚举**不能用无序字典做反查表**，否则同一个进程里两次读可能不一样。实现改用有序的 pairs，主名在前。主名取头文件里被赋值的那一侧（`Top = Leading` ⇒ 主名是 `leading`）。
+**别名：写入全认，读出给主名。** 已经撞上两次（`UIStackViewAlignment` 的 `Top = Leading`、`UIBarButtonItemStyle` 的 `Done = Prominent`），所以**新加枚举前先扫一眼头文件里有没有 `= 另一个值` 的写法**——`NACRE_ENUM_MAP` 的反查用无序字典，碰上别名会给出不确定的答案。 `UIStackViewAlignment` 里 `Top = Leading`、`Bottom = Trailing`，一个数值两个名字。两个名字都要认（照 Apple 文档写 `.top` 不能抛），但读出来只能有一个确定答案——这类枚举**不能用无序字典做反查表**，否则同一个进程里两次读可能不一样。实现改用有序的 pairs，主名在前。主名取头文件里被赋值的那一侧（`Top = Leading` ⇒ 主名是 `leading`）。
 
 **平台的哨兵常量也用字符串。** `UIStackViewSpacingUseSystem` 是 `FLT_MIN`、`UseDefault` 是 `FLT_MAX`，它们是**令牌不是数量**。让 JS 写 `1.1754943508222875e-38` 不现实，硬编进 JS 换个 CGFloat 宽度就全错，所以映射同样留在原生层：`spacing = 'system'`。代价是这类属性的类型成了 `number | 'system'`。
 

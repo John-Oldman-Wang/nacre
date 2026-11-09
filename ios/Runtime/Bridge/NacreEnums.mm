@@ -319,6 +319,97 @@ NSString* NamesForStackAlignment(void) {
   return [names componentsJoinedByString:@" / "];
 }
 
+NACRE_ENUM_MAP(BarButtonSystemItem, UIBarButtonSystemItem,
+               @"done": @(UIBarButtonSystemItemDone),
+               @"cancel": @(UIBarButtonSystemItemCancel),
+               @"edit": @(UIBarButtonSystemItemEdit),
+               @"save": @(UIBarButtonSystemItemSave),
+               @"add": @(UIBarButtonSystemItemAdd),
+               @"flexibleSpace": @(UIBarButtonSystemItemFlexibleSpace),
+               @"fixedSpace": @(UIBarButtonSystemItemFixedSpace),
+               @"compose": @(UIBarButtonSystemItemCompose),
+               @"reply": @(UIBarButtonSystemItemReply),
+               @"action": @(UIBarButtonSystemItemAction),
+               @"organize": @(UIBarButtonSystemItemOrganize),
+               @"bookmarks": @(UIBarButtonSystemItemBookmarks),
+               @"search": @(UIBarButtonSystemItemSearch),
+               @"refresh": @(UIBarButtonSystemItemRefresh),
+               @"stop": @(UIBarButtonSystemItemStop),
+               @"camera": @(UIBarButtonSystemItemCamera),
+               @"trash": @(UIBarButtonSystemItemTrash),
+               @"play": @(UIBarButtonSystemItemPlay),
+               @"pause": @(UIBarButtonSystemItemPause),
+               @"rewind": @(UIBarButtonSystemItemRewind),
+               @"fastForward": @(UIBarButtonSystemItemFastForward),
+               @"undo": @(UIBarButtonSystemItemUndo),
+               @"redo": @(UIBarButtonSystemItemRedo),
+               @"pageCurl": @(UIBarButtonSystemItemPageCurl),
+               @"close": @(UIBarButtonSystemItemClose),
+               @"writingTools": @(UIBarButtonSystemItemWritingTools))
+
+// 第二个带别名的枚举。iOS 26 的头文件：
+//   UIBarButtonItemStyleProminent = 2
+//   UIBarButtonItemStyleDone      = UIBarButtonItemStyleProminent
+// 所以 done 和 prominent 是同一个值。还有一个 Bordered = 1 已经废弃，不暴露。
+// 和 UIStackViewAlignment 一样用有序 pairs：主名在前（头文件里 Done 是被赋
+// 值的那一侧，所以主名是 prominent），别名在后，读出来只给主名。
+static NSArray<NSArray*>* BarButtonItemStylePairs(void) {
+  static NSArray<NSArray*>* pairs;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    pairs = @[
+      @[ @"plain", @(UIBarButtonItemStylePlain) ],
+      @[ @"prominent", @(UIBarButtonItemStyleProminent) ],
+      // 别名：写得进去，读不出来
+      @[ @"done", @(UIBarButtonItemStyleDone) ],
+    ];
+  });
+  return pairs;
+}
+
+BOOL BarButtonItemStyleFromName(NSString* name, UIBarButtonItemStyle* out) {
+  if (![name isKindOfClass:NSString.class]) return NO;
+  for (NSArray* pair in BarButtonItemStylePairs()) {
+    if ([pair[0] isEqualToString:name]) {
+      *out = (UIBarButtonItemStyle)[pair[1] integerValue];
+      return YES;
+    }
+  }
+  return NO;
+}
+
+NSString* NameForBarButtonItemStyle(UIBarButtonItemStyle value) {
+  for (NSArray* pair in BarButtonItemStylePairs()) {
+    if ([pair[1] integerValue] == (NSInteger)value) return pair[0];
+  }
+  return nil;
+}
+
+NSString* NamesForBarButtonItemStyle(void) {
+  NSMutableArray<NSString*>* names = [NSMutableArray array];
+  for (NSArray* pair in BarButtonItemStylePairs()) [names addObject:pair[0]];
+  return [names componentsJoinedByString:@" / "];
+}
+
+// UIBarButtonItem 的事件名。它不是 UIControl，没有控件事件，只有 target/action
+// 一个点——但名字沿用 UIButton 那个 primaryActionTriggered：JS 开发者在按钮和
+// 导航条按钮之间切换时不该还要记两个名字。
+static NSArray<NSString*>* BarButtonEventNamesList(void) {
+  static NSArray<NSString*>* names;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{ names = @[ @"primaryActionTriggered" ]; });
+  return names;
+}
+
+BOOL IsBarButtonEventName(NSString* name) {
+  return [name isKindOfClass:NSString.class] &&
+         [BarButtonEventNamesList() containsObject:name];
+}
+
+NSString* NamesForBarButtonEvent(void) {
+  return [BarButtonEventNamesList() componentsJoinedByString:@" / "];
+}
+
 // spacing 的哨兵值 ↔ JS 的字符串。== 比较浮点在这里是对的：这两个值是
 // 原样存进属性的令牌，不参与任何算术，UIKit 自己也是这么比的。
 BOOL StackSpacingFromValue(id value, CGFloat* out, BOOL allowDefault) {

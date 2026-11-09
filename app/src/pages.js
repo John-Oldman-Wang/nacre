@@ -11,10 +11,18 @@
  * @param {UIColor} spec.color 底色
  * @param {string} spec.heading 页面中间那行大字
  * @param {[string, () => void][]} spec.buttons [按钮文字, 点了干嘛]
+ * @param {[string, () => void]} [spec.rightButton] 导航条右侧那个按钮
  */
 export function makePage(spec) {
   const page = new UIViewController();
   page.title = spec.title;
+
+  if (spec.rightButton) {
+    const [label, onTap] = spec.rightButton;
+    const item = new UIBarButtonItem({ title: label, style: 'prominent' });
+    item.addEventListener('primaryActionTriggered', onTap);
+    page.navigationItem.rightBarButtonItems = [item];
+  }
 
   const root = page.view;
   root.backgroundColor = spec.color;

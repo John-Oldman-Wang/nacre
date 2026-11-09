@@ -8,6 +8,22 @@ namespace nacre_bridge {
 
 id ReadControlProperty(id object, NSString* key) {
   id value = nil;
+  if ([object isKindOfClass:UIBarButtonItem.class]) {
+    UIBarButtonItem* item = (UIBarButtonItem*)object;
+    if ([key isEqualToString:@"style"]) {
+      value = NameForBarButtonItemStyle(item.style);
+    } else if ([key isEqualToString:@"width"]) {
+      value = @(item.width);
+    } else if ([key isEqualToString:@"isHidden"]) {
+      value = @(item.isHidden);
+    } else if ([key isEqualToString:@"title"]) {
+      value = item.title;
+    } else if ([key isEqualToString:@"isEnabled"]) {
+      value = @(item.isEnabled);
+    } else if ([key isEqualToString:@"tag"]) {
+      value = @(item.tag);
+    }
+  }
   // UIButton 放在 UIControl 之前：它是 UIControl 的子类
   if (value == nil && [object isKindOfClass:UIButton.class]) {
     UIButton* button = (UIButton*)object;
@@ -48,6 +64,29 @@ id ReadControlProperty(id object, NSString* key) {
 
 BOOL WriteControlProperty(id object, NSString* key, id value,
                       std::string* error) {
+  if ([object isKindOfClass:UIBarButtonItem.class]) {
+    UIBarButtonItem* item = (UIBarButtonItem*)object;
+    if ([key isEqualToString:@"style"]) {
+      UIBarButtonItemStyle style;
+      if (!BarButtonItemStyleFromName(value, &style)) {
+        *error = EnumError(@"style", value, NamesForBarButtonItemStyle());
+        return YES;
+      }
+      item.style = style;
+      return YES;
+    }
+    if ([key isEqualToString:@"width"]) { item.width = [value doubleValue]; return YES; }
+    if ([key isEqualToString:@"isHidden"]) { item.hidden = [value boolValue]; return YES; }
+    if ([key isEqualToString:@"title"]) {
+      item.title = [value isKindOfClass:NSString.class] ? value : nil;
+      return YES;
+    }
+    if ([key isEqualToString:@"isEnabled"]) {
+      item.enabled = [value boolValue];
+      return YES;
+    }
+    if ([key isEqualToString:@"tag"]) { item.tag = [value integerValue]; return YES; }
+  }
   if ([object isKindOfClass:UIButton.class]) {
     if ([key isEqualToString:@"role"]) {
       UIButtonRole role;
@@ -94,6 +133,15 @@ BOOL WriteControlProperty(id object, NSString* key, id value,
 
 nacre::NativeObjectRef ReadControlObjectProperty(id object,
                                             const std::string& name) {
+  if ([object isKindOfClass:UIBarButtonItem.class]) {
+    UIBarButtonItem* item = (UIBarButtonItem*)object;
+    if (name == "customView") {
+      return {(__bridge void*)item.customView, "UIView"};
+    }
+    if (name == "image") {
+      return {(__bridge void*)item.image, "UIImage"};
+    }
+  }
   if ([object isKindOfClass:UIButton.class]) {
     UIButton* button = (UIButton*)object;
     if (name == "titleLabel") return {(__bridge void*)button.titleLabel, "UILabel"};
@@ -107,6 +155,17 @@ nacre::NativeObjectRef ReadControlObjectProperty(id object,
     }
   }
   return {};
+}
+
+void WriteControlObjectProperty(id object, const std::string& name, id value) {
+  if ([object isKindOfClass:UIBarButtonItem.class]) {
+    UIBarButtonItem* item = (UIBarButtonItem*)object;
+    if (name == "customView") {
+      item.customView = [value isKindOfClass:UIView.class] ? value : nil;
+    } else if (name == "image") {
+      item.image = [value isKindOfClass:UIImage.class] ? value : nil;
+    }
+  }
 }
 
 }  // namespace nacre_bridge

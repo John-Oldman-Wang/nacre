@@ -14,6 +14,18 @@ id ReadSceneProperty(id object, NSString* key) {
       value = @(nav.isNavigationBarHidden);
     }
   }
+  if ([object isKindOfClass:UINavigationItem.class]) {
+    UINavigationItem* item = (UINavigationItem*)object;
+    if ([key isEqualToString:@"title"]) {
+      value = item.title;
+    } else if ([key isEqualToString:@"subtitle"]) {
+      value = item.subtitle;
+    } else if ([key isEqualToString:@"backButtonTitle"]) {
+      value = item.backButtonTitle;
+    } else if ([key isEqualToString:@"hidesBackButton"]) {
+      value = @(item.hidesBackButton);
+    }
+  }
   if (value == nil && [object isKindOfClass:UIViewController.class]) {
     if ([key isEqualToString:@"title"]) {
       value = ((UIViewController*)object).title;
@@ -58,6 +70,22 @@ BOOL WriteSceneProperty(id object, NSString* key, id value,
   if ([object isKindOfClass:UINavigationController.class]) {
     if ([key isEqualToString:@"isNavigationBarHidden"]) {
       ((UINavigationController*)object).navigationBarHidden = [value boolValue];
+      return YES;
+    }
+  }
+  if ([object isKindOfClass:UINavigationItem.class]) {
+    UINavigationItem* item = (UINavigationItem*)object;
+    auto str = [&](id v) -> NSString* {
+      return [v isKindOfClass:NSString.class] ? (NSString*)v : nil;
+    };
+    if ([key isEqualToString:@"title"]) { item.title = str(value); return YES; }
+    if ([key isEqualToString:@"subtitle"]) { item.subtitle = str(value); return YES; }
+    if ([key isEqualToString:@"backButtonTitle"]) {
+      item.backButtonTitle = str(value);
+      return YES;
+    }
+    if ([key isEqualToString:@"hidesBackButton"]) {
+      item.hidesBackButton = [value boolValue];
       return YES;
     }
   }
@@ -120,6 +148,14 @@ nacre::NativeObjectRef ReadSceneObjectProperty(id object,
       return {(__bridge void*)vc.parentViewController, "UIViewController"};
     }
   }
+  if ([object isKindOfClass:UINavigationItem.class] && name == "titleView") {
+    return {(__bridge void*)((UINavigationItem*)object).titleView, "UIView"};
+  }
+  // navigationItem 由 VC 自己懒加载，JS 第一次读到就要记边
+  if ([object isKindOfClass:UIViewController.class] && name == "navigationItem") {
+    return {(__bridge void*)((UIViewController*)object).navigationItem,
+            "UINavigationItem"};
+  }
   if ([object isKindOfClass:UIScene.class] && name == "session") {
     return {(__bridge void*)((UIScene*)object).session, "UISceneSession"};
   }
@@ -139,6 +175,11 @@ nacre::NativeObjectRef ReadSceneObjectProperty(id object,
 }
 
 void WriteSceneObjectProperty(id object, const std::string& name, id value) {
+  if ([object isKindOfClass:UINavigationItem.class] && name == "titleView") {
+    ((UINavigationItem*)object).titleView =
+        [value isKindOfClass:UIView.class] ? value : nil;
+    return;
+  }
   if ([object isKindOfClass:UIWindow.class]) {
     UIWindow* window = (UIWindow*)object;
     if (name == "rootViewController") {
@@ -151,6 +192,15 @@ void WriteSceneObjectProperty(id object, const std::string& name, id value) {
 
 void ReadSceneObjectArray(id object, const std::string& name,
                           std::vector<nacre::NativeObjectRef>& refs) {
+  if ([object isKindOfClass:UINavigationItem.class]) {
+    UINavigationItem* item = (UINavigationItem*)object;
+    NSArray<UIBarButtonItem*>* list = nil;
+    if (name == "leftBarButtonItems") list = item.leftBarButtonItems;
+    else if (name == "rightBarButtonItems") list = item.rightBarButtonItems;
+    for (UIBarButtonItem* b in list) {
+      refs.push_back({(__bridge void*)b, "UIBarButtonItem"});
+    }
+  }
   if ([object isKindOfClass:UINavigationController.class] &&
       name == "viewControllers") {
     for (UIViewController* vc in ((UINavigationController*)object).viewControllers) {
@@ -163,6 +213,22 @@ void ReadSceneObjectArray(id object, const std::string& name,
 // 「参数类型不对但有句柄 → 静默忽略」那条 TODO 在这里就不再欠了。
 BOOL WriteSceneObjectArray(id object, const std::string& name,
                            const std::vector<void*>& values, std::string* error) {
+  if ([object isKindOfClass:UINavigationItem.class] &&
+      (name == "leftBarButtonItems" || name == "rightBarButtonItems")) {
+    NSMutableArray<UIBarButtonItem*>* items = [NSMutableArray array];
+    for (void* ptr : values) {
+      id b = (__bridge id)ptr;
+      if (![b isKindOfClass:UIBarButtonItem.class]) {
+        *error = "bar button items only accept UIBarButtonItem";
+        return YES;
+      }
+      [items addObject:b];
+    }
+    UINavigationItem* item = (UINavigationItem*)object;
+    if (name == "leftBarButtonItems") item.leftBarButtonItems = items;
+    else item.rightBarButtonItems = items;
+    return YES;
+  }
   if ([object isKindOfClass:UINavigationController.class] &&
       name == "viewControllers") {
     NSMutableArray<UIViewController*>* list = [NSMutableArray array];

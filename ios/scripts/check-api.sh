@@ -197,6 +197,7 @@ for macro, tsname in [('TextAlignment', 'NSTextAlignment'),
                       ('ButtonType', 'UIButtonType'),
                       ('ButtonRole', 'UIButtonRole'),
                       ('StackDistribution', 'UIStackViewDistribution'),
+                      ('BarButtonSystemItem', 'UIBarButtonSystemItem'),
                       ('IndicatorStyle', 'UIScrollViewIndicatorStyle'),
                       ('ContentInsetAdjustmentBehavior',
                        'UIScrollViewContentInsetAdjustmentBehavior')]:
@@ -235,6 +236,10 @@ for tsname, outer, inner in [
      r'ScrollEventNamesList\(void\).*?names = @\[(.*?)\];', r'@"(\w+)"'),
     ('UINavigationControllerEventType',
      r'NavEventNamesList\(void\).*?names = @\[(.*?)\];', r'@"(\w+)"'),
+    ('UIBarButtonItemEventType',
+     r'BarButtonEventNamesList\(void\).*?names = @\[(.*?)\];', r'@"(\w+)"'),
+    ('UIBarButtonItemStyle',
+     r'BarButtonItemStylePairs\(void\).*?pairs = @\[(.*?)\];', r'@\[\s*@"(\w+)"'),
 ]:
     compare(tsname, extract(f'原生层的 {tsname} 表', outer, mm, inner), dts_union(tsname))
 

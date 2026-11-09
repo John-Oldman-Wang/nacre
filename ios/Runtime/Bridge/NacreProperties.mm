@@ -93,6 +93,7 @@ std::vector<nacre::NativeObjectRef> ReadNativeObjectArrayProperty(
 void WriteNativeObjectProperty(id object, const std::string& name, void* valuePtr) {
   id value = (__bridge id)valuePtr;
   WriteSceneObjectProperty(object, name, value);
+  WriteControlObjectProperty(object, name, value);
   WriteLayerObjectProperty(object, name, value);
   WriteViewObjectProperty(object, name, value);
 }

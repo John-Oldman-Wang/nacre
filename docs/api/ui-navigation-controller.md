@@ -173,11 +173,14 @@ nav.pushViewController(page, { animated: false });
 | `- navigationController:didShowViewController:animated:` | `nav.addEventListener('didshow', …)` |
 | `nav.delegate` | **不暴露**——它是运行时自己设的，JS 改它会把事件源掐断 |
 
+## 导航条上的标题和按钮
+
+见 [导航条上的东西](ui-bar-button-item.md)——`UINavigationItem` 和 `UIBarButtonItem`。
+
 ## 还没做
 
 | | |
 | --- | --- |
-| `UINavigationItem` / `UIBarButtonItem` | 导航条上的标题、返回按钮、左右按钮，是一整个子系统（光 `UINavigationItem` 就 20+ 个属性，还牵着 `UIMenu`、`UIAction`）。单独一步 |
 | 模态呈现 `present` / `dismiss` | 单独一步。`completion` 是 block，会做成 Promise |
 | **页面生命周期** | `viewDidLoad`、`viewWillAppear`、`viewDidAppear` 等**全是覆写点不是 delegate**，要能用 JS 子类化原生类才拿得到。`willshow` / `didshow` 是它在导航这一层的替代品 |
 | `ES class` 继承 `UIViewController` | 同上。现在 `class MyPage extends UIViewController {}` **建不出原生对象**，见[项目说明](../project.md)的 TODO |

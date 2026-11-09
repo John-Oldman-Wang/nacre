@@ -78,6 +78,11 @@ using namespace nacre_bridge;
 - (void)fire:(UIControl*)sender {
   [self.runtime emitControlEvent:self.type from:sender];
 }
+// UIBarButtonItem 不是 UIControl，但 target/action 是同一套，所以复用这个
+// trampoline，只是 sender 的类名不一样
+- (void)fireBarButton:(UIBarButtonItem*)sender {
+  [self.runtime emitEvent:self.type from:sender className:"UIBarButtonItem" then:nil];
+}
 @end
 
 // 滚动的 trampoline。和控件那个一样**只持有 handle 不持有 JS 函数**，
@@ -1013,6 +1018,36 @@ nacre::NativeObjectRef CreateBlob(
                    type:(const std::string&)type
                      on:(BOOL)on
                   error:(std::string*)error {
+  if ([object isKindOfClass:UIBarButtonItem.class]) {
+    UIBarButtonItem* item = (UIBarButtonItem*)object;
+    NSString* name = @(type.c_str());
+    if (!IsBarButtonEventName(name)) {
+      *error = EnumError(@"addEventListener", name, NamesForBarButtonEvent());
+      return;
+    }
+    NSMutableDictionary<NSString*, NacreControlTarget*>* table =
+        objc_getAssociatedObject(item, kNacreControlTargetsKey);
+    if (table == nil) {
+      table = [NSMutableDictionary dictionary];
+      objc_setAssociatedObject(item, kNacreControlTargetsKey, table,
+                               OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    if (on) {
+      if (table[name] != nil) return;
+      NacreControlTarget* target = [NacreControlTarget new];
+      target.runtime = self;
+      target.type = name;
+      table[name] = target;
+      // target 是 weak 的，所以 trampoline 由上面那个关联对象持有
+      item.target = target;
+      item.action = @selector(fireBarButton:);
+    } else if (table[name] != nil) {
+      item.target = nil;
+      item.action = nil;
+      [table removeObjectForKey:name];
+    }
+    return;
+  }
   if ([object isKindOfClass:UINavigationController.class]) {
     UINavigationController* nav = (UINavigationController*)object;
     NSString* name = @(type.c_str());

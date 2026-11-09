@@ -80,6 +80,27 @@ type NSLayoutAttribute =
   | 'notAnAttribute';
 
 /** 七个具名值。中间的值（749 之类）没有名字，所以写的时候也接受数字。 */
+/** 系统预置的导航条按钮。 */
+type UIBarButtonSystemItem =
+  | 'done' | 'cancel' | 'edit' | 'save' | 'add'
+  | 'flexibleSpace' | 'fixedSpace' | 'compose' | 'reply' | 'action'
+  | 'organize' | 'bookmarks' | 'search' | 'refresh' | 'stop'
+  | 'camera' | 'trash' | 'play' | 'pause' | 'rewind' | 'fastForward'
+  | 'undo' | 'redo' | 'pageCurl' | 'close' | 'writingTools';
+
+/**
+ * 导航条按钮的样式。
+ *
+ * `'done'` 和 `'prominent'` 是**同一个值**（iOS 26 的头文件里
+ * `UIBarButtonItemStyleDone = UIBarButtonItemStyleProminent`），两个名字都
+ * 写得进去，但**读出来永远是 `'prominent'`**。和 `UIStackViewAlignment`
+ * 的 `top`/`leading` 同一回事。
+ */
+type UIBarButtonItemStyle = 'plain' | 'prominent' | 'done';
+
+/** 导航条按钮上能监听的事件。沿用 UIButton 那个名字。 */
+type UIBarButtonItemEventType = 'primaryActionTriggered';
+
 /** 导航控制器上能监听的事件。 */
 type UINavigationControllerEventType = 'willshow' | 'didshow';
 

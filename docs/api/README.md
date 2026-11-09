@@ -29,6 +29,7 @@ Nacre 的 API 分两层：
 | [`UIStackView`](ui-stack-view.md) | 一维排列容器。约束的工厂，不是第二套布局引擎 |
 | [`UIScrollView`](ui-scroll-view.md) | 滚动。事件会合并，数据去对象上读 |
 | [`UINavigationController`](ui-navigation-controller.md) | 页面栈。push / pop，返回按钮靠 `title` |
+| [导航条上的东西](ui-bar-button-item.md) | `UINavigationItem` / `UIBarButtonItem`。标题、返回按钮、左右按钮 |
 | [`CALayer`](ca-layer.md) | 圆角、边框、阴影 |
 | [`UIControl`](ui-control.md) | 控件事件。16 个事件名，`addEventListener` 直接用 |
 | [`UIButton`](ui-button.md) | 按钮。标题、颜色、图片按状态设 |

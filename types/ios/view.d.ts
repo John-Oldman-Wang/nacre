@@ -240,6 +240,32 @@ declare class UIScrollView extends UIView {
   ): void;
 }
 
+/**
+ * 导航条上「这一页」的那份配置。不能构造——每个 `UIViewController` 自带一个。
+ *
+ * ```js
+ * page.navigationItem.title = '设置';
+ * page.navigationItem.rightBarButtonItems = [new UIBarButtonItem({ title: '完成' })];
+ * ```
+ */
+declare class UINavigationItem extends NSObject {
+  private constructor();
+  /** 导航条正中那行字。和 `UIViewController.title` 是同一个东西。 */
+  title: string | null;
+  /** 副标题（iOS 26 起）。 */
+  subtitle: string | null;
+  /** 下一页返回按钮上的字。不设就用这一页的 `title`。 */
+  backButtonTitle: string | null;
+  /** 藏掉返回按钮。**藏了之后左滑返回也跟着失效。** */
+  hidesBackButton: boolean;
+  /** 放一个自定义 view 当标题。设了它，`title` 就被忽略。 */
+  titleView: UIView | null;
+  /** 左侧按钮。**设了之后左滑返回会失效**——系统不再敢假设返回语义。 */
+  leftBarButtonItems: readonly UIBarButtonItem[];
+  /** 右侧按钮。 */
+  rightBarButtonItems: readonly UIBarButtonItem[];
+}
+
 type NavEventName = UINavigationControllerEventType | (string & {});
 
 /**
@@ -339,6 +365,8 @@ declare class UIViewController extends UIResponder {
   readonly view: UIView;
   /** 导航条上的标题。下一页的返回按钮默认显示这个。 */
   title: string | null;
+  /** 这一页在导航条上的配置。VC 自己懒加载的，永远非 `null`。 */
+  readonly navigationItem: UINavigationItem;
   /** 它所在的导航控制器；不在栈上就是 `null`。 */
   readonly navigationController: UINavigationController | null;
   /** 容器父控制器（导航控制器就是一种容器）。 */

@@ -121,3 +121,58 @@ declare class UIButton extends UIControl {
   readonly titleLabel: UILabel | null;
   readonly imageView: UIImageView | null;
 }
+
+/** 导航条 / 工具条上一个「项」的公共部分。抽象基类，不能构造。 */
+declare class UIBarItem extends NSObject {
+  protected constructor();
+  title: string | null;
+  image: UIImage | null;
+  isEnabled: boolean;
+  tag: number;
+}
+
+type BarButtonEventName = UIBarButtonItemEventType | (string & {});
+
+/**
+ * 导航条上的按钮。**它不是 `UIView` 也不是 `UIControl`**——是一个描述对象，
+ * UIKit 照着它画。
+ *
+ * ```js
+ * const save = new UIBarButtonItem({ title: '保存', style: 'prominent' });
+ * save.addEventListener('primaryActionTriggered', () => submit());
+ * page.navigationItem.rightBarButtonItems = [save];
+ * ```
+ *
+ * `systemItem` 只能在构造时给（ObjC 没有对应的可写属性），所以它是**类方法**；
+ * `title` / `style` 这些构造完当属性设就行。
+ */
+declare class UIBarButtonItem extends UIBarItem {
+  constructor(options?: {
+    title?: string;
+    image?: UIImage;
+    style?: UIBarButtonItemStyle;
+    isEnabled?: boolean;
+    /** 放一个自己的 view 进去，等价于 `initWithCustomView:` */
+    customView?: UIView;
+  });
+
+  /** 系统预置的那二十几个。 */
+  static systemItem(name: UIBarButtonSystemItem): UIBarButtonItem;
+  /** 占位用的弹性空白。 */
+  static flexibleSpace(): UIBarButtonItem;
+  /** 占位用的固定宽度空白。 */
+  static fixedSpace(width: number): UIBarButtonItem;
+
+  /** 默认 `'plain'`。写 `'done'` 读回 `'prominent'`。 */
+  style: UIBarButtonItemStyle;
+  /** 默认 `0`，只对固定宽度的项有意义。 */
+  width: number;
+  isHidden: boolean;
+  customView: UIView | null;
+
+  addEventListener(
+    type: BarButtonEventName,
+    callback: EventListener | null,
+    options?: AddEventListenerOptions,
+  ): void;
+}

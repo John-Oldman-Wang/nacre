@@ -101,6 +101,9 @@ NACRE_ENUM_DECL(ControlVerticalAlignment, UIControlContentVerticalAlignment)
 NACRE_ENUM_DECL(ButtonType, UIButtonType)
 NACRE_ENUM_DECL(ButtonRole, UIButtonRole)
 NACRE_ENUM_DECL(StackDistribution, UIStackViewDistribution)
+NACRE_ENUM_DECL(BarButtonSystemItem, UIBarButtonSystemItem)
+// 第二个带别名的枚举（done == prominent），同样不走宏，见 NacreEnums.mm
+NACRE_ENUM_DECL(BarButtonItemStyle, UIBarButtonItemStyle)
 NACRE_ENUM_DECL(IndicatorStyle, UIScrollViewIndicatorStyle)
 NACRE_ENUM_DECL(ContentInsetAdjustmentBehavior,
                 UIScrollViewContentInsetAdjustmentBehavior)
@@ -131,6 +134,8 @@ NSString* NamesForDecelerationRate(void);
 
 // UIScrollView 的事件名。它们派生自 delegate 的方法名而不是 ObjC 常量，
 // 所以按我们自己起名的惯例全小写（和 scene / window 的事件一致）。
+BOOL IsBarButtonEventName(NSString* name);
+NSString* NamesForBarButtonEvent(void);
 BOOL IsNavEventName(NSString* name);
 NSString* NamesForNavEvent(void);
 BOOL IsScrollEventName(NSString* name);
@@ -186,6 +191,7 @@ BOOL WriteSceneObjectArray(id object, const std::string& name, const std::vector
 id ReadControlProperty(id object, NSString* key);
 BOOL WriteControlProperty(id object, NSString* key, id value, std::string* error);
 nacre::NativeObjectRef ReadControlObjectProperty(id object, const std::string& name);
+void WriteControlObjectProperty(id object, const std::string& name, id value);
 
 id ReadLayoutProperty(id object, NSString* key);
 BOOL WriteLayoutProperty(id object, NSString* key, id value, std::string* error);

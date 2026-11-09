@@ -191,6 +191,66 @@ try { new UINavigationController(vc); } catch { /* 期望抛 */ }
 回归用例要放在**重新挂根之前**——那一刻 `vc` 才真的是窗口的根。
 
 
+## 5b：导航条上的东西
+
+### 一个会段错误的所有权约定
+
+`UIBarButtonItem.systemItem('add')` 第一次跑直接 **SIGSEGV，崩在 `objc_retain` 里**：
+
+```
+objc_retain
+NacreRuntime.mm:576            ← host.retain_native
+Engine.cpp:398 WrapNative
+Engine.cpp:725 NativeClassCall
+```
+
+原因是我写了：
+
+```objc
+return {(__bridge void*)[[UIBarButtonItem alloc]
+            initWithBarButtonSystemItem:systemItem target:nil action:nil],
+        "UIBarButtonItem"};
+```
+
+**`__bridge` 不转移所有权。** 自己 `alloc` 出来的对象是 ARC 持有的 +1，出了这条语句就被放掉，`WrapNative` 再去 retain 就是野指针。
+
+**两条通道的约定本来就不一样**，这是关键：
+
+| 通道 | 怎么还对象 |
+| --- | --- |
+| `ConstructNative` | 末尾统一 `return {(void*)CFAutorelease(CFBridgingRetain(object)), className}` |
+| `CallClassObjectMethod` | 各分支直接 `return {(__bridge void*)…}` |
+
+后者一直是对的，因为此前所有分支返回的都是 **UIKit 自己造好、已经进了自动释放池**的对象（`buttonWithType:`、`fontWithName:`、`flexibleSpaceItem`）。`__bridge` 对它们安全。**`alloc` 出来的那一类是第一次出现。**
+
+> 规矩记下来：**在类方法通道里自己 `alloc` 的对象必须 `CFAutorelease(CFBridgingRetain(…))`；只有 UIKit 返回的自动释放对象才能直接 `__bridge`。** `Engine.h` 上那句「宿主必须保证返回的对象活到调用方 retain 为止」说的就是这件事，但它写在 `construct_native` 旁边，类方法这条通道容易漏看。
+
+### `vc.title` 和 `navigationItem.title` 是单向的
+
+两条断言都是**预判错了才测出来的**：
+
+| 做什么 | 结果 |
+| --- | --- |
+| `vc.title = '首页'` | `navigationItem.title` → `'首页'`（透下去了） |
+| `navigationItem.title = '改过的'` | **`vc.title` 还是 `'首页'`** |
+| `navigationItem.title = null` | **就是 `null`，不回落到 `vc.title`** |
+| 再 `vc.title = '首页'` | `navigationItem.title` → `'首页'`（又透下去） |
+
+所以它们是两份存储，`vc.title` 的 setter 会写穿到 `navigationItem`，而 `navigationItem` 的 setter 只管自己。一旦直接写过 `navigationItem.title`，它就彻底独立了。
+
+结论写进 [API 文档](../api/ui-bar-button-item.md)：**只用一边**。
+
+### 第二个带别名的枚举
+
+`UIBarButtonItemStyleDone = UIBarButtonItemStyleProminent`，和 `UIStackViewAlignment` 的 `Top = Leading` 同构。[有序 pairs 那套](enums.md)原样复用，主名取 `prominent`（头文件里 `Done` 是被赋值的那一侧）。
+
+> 两次都撞上，说明别名在 UIKit 里不是个例。**`NACRE_ENUM_MAP` 那个宏的反查用无序字典，碰上别名就会给出不确定的答案**——以后新加枚举，先扫一眼有没有 `= 另一个值` 的写法。
+
+### `UIBarItem` 这个抽象基类加了
+
+`UIBarButtonItem` 在 ObjC 里继承 `UIBarItem`，`title` / `image` / `isEnabled` / `tag` 四个属性都在基类上。虽然 `UIBarItem` 自己不能构造（JS 侧构造直接抛），还是把它建成了一个类——`UITabBarItem` 将来继承同一个基类，那时这四个属性不用重写一遍。
+
+
 ---
 
 ← 返回[实现原理](README.md) ・ [包装机制](wrapper.md) ・ [API 文档](../api/ui-navigation-controller.md)

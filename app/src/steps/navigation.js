@@ -103,6 +103,101 @@ export function stepNavigation(ctx) {
     console.log('  ✓ 不认识的事件名被拒:', err.message.slice(0, 48) + '…');
   }
 
+  // ---- 导航条上的东西（5b）----
+  console.log('  --- UIBarButtonItem / UINavigationItem ---');
+
+  const save = new UIBarButtonItem({ title: '保存' });
+  assert('是 UIBarItem 的子类', save instanceof UIBarItem, true);
+  assert('不是 UIView', save instanceof UIView, false);
+  assert('title 读回来', save.title, '保存');
+  assert('默认样式', save.style, 'plain');
+  assert('默认可用', save.isEnabled, true);
+  assert('默认宽度 0', save.width, 0);
+
+  // 第二个带别名的枚举：done == prominent
+  save.style = 'done';
+  assert('写 done 读回 prominent', save.style, 'prominent');
+  save.style = 'prominent';
+  assert('写 prominent 也读回 prominent', save.style, 'prominent');
+
+  // systemItem 只能在构造时给，所以它是类方法
+  const add = UIBarButtonItem.systemItem('add');
+  assert('systemItem 给的是 UIBarButtonItem', add instanceof UIBarButtonItem, true);
+  const space = UIBarButtonItem.flexibleSpace();
+  assert('flexibleSpace 也是', space instanceof UIBarButtonItem, true);
+  const fixed = UIBarButtonItem.fixedSpace(20);
+  assert('fixedSpace 的宽度', fixed.width, 20);
+
+  const custom = new UIBarButtonItem({ customView: new UILabel() });
+  assert('customView 读回来是同一个包装', custom.customView instanceof UILabel, true);
+
+  try {
+    // @ts-expect-error 没有这个系统项
+    UIBarButtonItem.systemItem('explode');
+    console.log('  ✗ 不认识的 systemItem 居然通过了');
+  } catch (err) {
+    console.log('  ✓ 不认识的 systemItem 被拒:', err.message.slice(0, 44) + '…');
+  }
+  try {
+    // @ts-expect-error 已废弃，不暴露
+    save.style = 'bordered';
+    console.log('  ✗ 废弃的样式居然通过了');
+  } catch (err) {
+    console.log('  ✓ 废弃的 bordered 被拒:', err.message.slice(0, 44) + '…');
+  }
+
+  // navigationItem 由 VC 自己懒加载
+  const item = home.navigationItem;
+  assert('navigationItem 不是 null', item instanceof UINavigationItem, true);
+  assert('读两次是同一个包装', home.navigationItem === item, true);
+  assert('不可构造', (() => {
+    // @ts-expect-error 不可构造：每个 VC 自带一个
+    try { new UINavigationItem(); return false; } catch { return true; }
+  })(), true);
+  // vc.title 和 navigationItem.title 的关系——实测是**单向**的
+  assert('vc.title 透到了 navigationItem.title', item.title, '首页');
+  item.title = '改过的首页';
+  assert('实测：反过来不通，vc.title 不跟着变', home.title, '首页');
+  assert('但 navigationItem 自己是新值（导航条显示的是它）',
+         item.title, '改过的首页');
+  item.title = null;
+  assert('实测：清掉也不回落，就是 null', item.title, null);
+  // 想恢复只能从 vc.title 那一侧再写一次
+  home.title = '首页';
+  assert('再写 vc.title 又透下去了', item.title, '首页');
+
+  item.subtitle = '副标题';
+  assert('iOS 26 的副标题', item.subtitle, '副标题');
+  item.subtitle = null;
+  item.backButtonTitle = '返回';
+  assert('返回按钮的字', item.backButtonTitle, '返回');
+  assert('默认不藏返回按钮', item.hidesBackButton, false);
+
+  // 左右按钮走的是这一步新开的那条可写对象数组通道
+  item.rightBarButtonItems = [save, add];
+  assert('右侧按钮进去了', item.rightBarButtonItems.length, 2);
+  assert('包装身份一致', item.rightBarButtonItems[0] === save, true);
+  item.leftBarButtonItems = [space];
+  assert('左侧按钮也进去了', item.leftBarButtonItems.length, 1);
+  item.rightBarButtonItems = [];
+  item.leftBarButtonItems = [];
+  assert('清空', item.rightBarButtonItems.length, 0);
+
+  try {
+    // @ts-expect-error 不是 UIBarButtonItem
+    item.rightBarButtonItems = [UIColor.redColor];
+    console.log('  ✗ 塞颜色进按钮栏居然通过了');
+  } catch (err) {
+    console.log('  ✓ 塞非 UIBarButtonItem 被拒:', err.message.slice(0, 46) + '…');
+  }
+
+  const titleLabel = new UILabel();
+  titleLabel.text = '自定义标题';
+  item.titleView = titleLabel;
+  assert('titleView 读回同一个包装', item.titleView === titleLabel, true);
+  item.titleView = null;
+  assert('能清掉', item.titleView, null);
+
   // ---- GC 回归的现场：push 完丢掉 JS 引用，包装得活着 ----
   // 断言在 ownership 那一步做——那边有「对照组证明 GC 真跑过」的那一套。
   // 必须同步做完：ownership 是紧接着同步调用的
@@ -154,6 +249,7 @@ export function stepNavigation(ctx) {
       title: '列表',
       color: UIColor.systemIndigoColor,
       heading: '这是第二页\n（列表）',
+      rightButton: ['完成', () => router.home()],
       buttons: [
         ['打开 #1', () => router.push('/detail/1')],
         ['打开 #2', () => router.push('/detail/2')],
@@ -164,6 +260,7 @@ export function stepNavigation(ctx) {
       title: '详情 ' + params.id,
       color: UIColor.systemPinkColor,
       heading: '这是第三页\n详情 #' + params.id,
+      rightButton: ['下一个', () => router.push('/detail/' + (Number(params.id) + 1))],
       buttons: [
         ['返回上一页', () => router.back()],
         ['回首页', () => router.home()],

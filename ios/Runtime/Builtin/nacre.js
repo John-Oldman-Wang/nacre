@@ -1972,6 +1972,8 @@
     get title() { requireNative(this, 'title'); return nativeGet(this, 'title'); }
     set title(value) { requireNative(this, 'title'); nativeSet(this, 'title', value); }
     // 两条都是 ObjC 侧的 weak 回边，所以 JS 侧翻成 strong
+    // 这一页在导航条上的配置，VC 自己懒加载的
+    get navigationItem() { return nativeGetOwned(this, 'navigationItem'); }
     get navigationController() { return nativeGetOwned(this, 'navigationController'); }
     get parentViewController() { return nativeGetOwned(this, 'parentViewController'); }
   });
@@ -1987,6 +1989,135 @@
   // 后者让「构造」和「绑定」解耦，而且没有发明新 API——windowScene 本来就是
   // ObjC 的可写属性，没有 scene 的 window 在 ObjC 里也本来就是合法状态
   // （windowScene 是 nullable）。
+  // 导航条和工具条上的一个「项」。它不是 UIView，也不是 UIControl——
+  // 是一个描述对象，UIKit 自己照着它画按钮。
+  const UIBarItem = defineNativeClass('UIBarItem', class UIBarItem extends NSObject {
+    constructor() {
+      super();
+      if (allowNativeConstruct || new.target !== UIBarItem) return;
+      // UIBarItem 是抽象基类，ObjC 侧没有可用的 init，不给构造
+      throw new TypeError('UIBarItem is abstract; construct UIBarButtonItem instead');
+    }
+    get title() { requireNative(this, 'title'); return nativeGet(this, 'title'); }
+    set title(value) { requireNative(this, 'title'); nativeSet(this, 'title', value); }
+    get image() { return nativeGetOwned(this, 'image'); }
+    set image(value) { nativeSetOwned(this, 'image', value); }
+    get isEnabled() {
+      requireNative(this, 'isEnabled');
+      return nativeGet(this, 'isEnabled');
+    }
+    set isEnabled(value) {
+      requireNative(this, 'isEnabled');
+      nativeSet(this, 'isEnabled', value);
+    }
+    get tag() { requireNative(this, 'tag'); return nativeGet(this, 'tag'); }
+    set tag(value) { requireNative(this, 'tag'); nativeSet(this, 'tag', value); }
+  });
+
+  // 导航条上的按钮。
+  //
+  // 三种口味：{ title }、{ customView }，以及类方法 systemItem(name)——
+  // systemItem 只能在 init 里给（ObjC 没有对应的可写属性），所以它走类方法，
+  // 而 title / style 这些构造完当属性设就行。
+  //
+  // 它不是 UIControl，但 target/action 是同一套，所以事件名沿用 UIButton 的
+  // primaryActionTriggered：在按钮和导航条按钮之间切换时不该还要记两个名字。
+  defineNativeClass('UIBarButtonItem', class UIBarButtonItem extends UIBarItem {
+    constructor(options) {
+      super();
+      if (allowNativeConstruct) return;
+      const o = options || {};
+      constructNative(this, 'UIBarButtonItem',
+                      o.customView == null ? [] : [o.customView]);
+      if (o.title !== undefined) this.title = o.title;
+      if (o.image !== undefined) this.image = o.image;
+      if (o.style !== undefined) this.style = o.style;
+      if (o.isEnabled !== undefined) this.isEnabled = o.isEnabled;
+    }
+
+    /** 系统预置的那二十几个（'add'、'done'、'trash'…） */
+    static systemItem(name) {
+      return nativeClassCall('UIBarButtonItem', 'systemItemWithName:', [name]);
+    }
+    /** 占位用的弹性空白 */
+    static flexibleSpace() {
+      return nativeClassCall('UIBarButtonItem', 'flexibleSpaceItem', []);
+    }
+    /** 占位用的固定宽度空白 */
+    static fixedSpace(width) {
+      return nativeClassCall('UIBarButtonItem', 'fixedSpaceItemOfWidth:', [width]);
+    }
+
+    [kSubscribe](type, on) {
+      requireNative(this, 'addEventListener');
+      native.subscribe(this[kHandle], type, on);
+      if (on) subscribed.add(this);
+      else if (this[kListeners].size === 0) subscribed.delete(this);
+    }
+
+    get style() { requireNative(this, 'style'); return nativeGet(this, 'style'); }
+    set style(value) { requireNative(this, 'style'); nativeSet(this, 'style', value); }
+    get width() { requireNative(this, 'width'); return nativeGet(this, 'width'); }
+    set width(value) { requireNative(this, 'width'); nativeSet(this, 'width', value); }
+    get isHidden() { requireNative(this, 'isHidden'); return nativeGet(this, 'isHidden'); }
+    set isHidden(value) { requireNative(this, 'isHidden'); nativeSet(this, 'isHidden', value); }
+    get customView() { return nativeGetOwned(this, 'customView'); }
+    set customView(value) { nativeSetOwned(this, 'customView', value); }
+  });
+
+  // 导航条上「这一页」的那份配置。不可构造——每个 UIViewController 自带一个。
+  defineNativeClass('UINavigationItem', class UINavigationItem extends NSObject {
+    constructor() {
+      super();
+      if (allowNativeConstruct) return;
+      nativeOnly('UINavigationItem');
+    }
+    get title() { requireNative(this, 'title'); return nativeGet(this, 'title'); }
+    set title(value) { requireNative(this, 'title'); nativeSet(this, 'title', value); }
+    // iOS 26 新加的副标题
+    get subtitle() { requireNative(this, 'subtitle'); return nativeGet(this, 'subtitle'); }
+    set subtitle(value) { requireNative(this, 'subtitle'); nativeSet(this, 'subtitle', value); }
+    // 下一页返回按钮上的字。不设就用这一页的 title
+    get backButtonTitle() {
+      requireNative(this, 'backButtonTitle');
+      return nativeGet(this, 'backButtonTitle');
+    }
+    set backButtonTitle(value) {
+      requireNative(this, 'backButtonTitle');
+      nativeSet(this, 'backButtonTitle', value);
+    }
+    get hidesBackButton() {
+      requireNative(this, 'hidesBackButton');
+      return nativeGet(this, 'hidesBackButton');
+    }
+    set hidesBackButton(value) {
+      requireNative(this, 'hidesBackButton');
+      nativeSet(this, 'hidesBackButton', value);
+    }
+    // 放一个自定义 view 当标题。设了它，title 就被忽略
+    get titleView() { return nativeGetOwned(this, 'titleView'); }
+    set titleView(value) { nativeSetOwned(this, 'titleView', value); }
+
+    get leftBarButtonItems() {
+      return ownAll(this, 'leftBarButtonItems',
+                    nativeGetObjectArray(this, 'leftBarButtonItems'));
+    }
+    set leftBarButtonItems(value) {
+      nativeSetObjectArray(this, 'leftBarButtonItems', value);
+      ownAll(this, 'leftBarButtonItems',
+             nativeGetObjectArray(this, 'leftBarButtonItems'));
+    }
+    get rightBarButtonItems() {
+      return ownAll(this, 'rightBarButtonItems',
+                    nativeGetObjectArray(this, 'rightBarButtonItems'));
+    }
+    set rightBarButtonItems(value) {
+      nativeSetObjectArray(this, 'rightBarButtonItems', value);
+      ownAll(this, 'rightBarButtonItems',
+             nativeGetObjectArray(this, 'rightBarButtonItems'));
+    }
+  });
+
   // 页面栈。push 进去、pop 出来，返回手势和返回按钮都是系统给的。
   //
   // 栈变动之后统一用 ownAll 按原生真相重建持有边：原生侧 nav 强持有栈里的每
