@@ -1,0 +1,29 @@
+{
+  // app/ 是 Nacre 的第一个客户：用它给 types/ 做 dogfooding。
+  // 类型不走相对路径 include，而是像真客户一样把 @nacre/types 装成依赖，
+  // 由 src/main.js 里的 /// <reference types="@nacre/types" /> 引进来——
+  // 这样连 types/package.json 的 types 字段写得对不对都一起验了。
+  "compilerOptions": {
+    "target": "ESNext",
+    // 不要 DOM：这个运行时没有 window、document、location。
+    // ESNext 是因为运行时确实有 Float16Array、Iterator 辅助方法、
+    // DisposableStack 这些新东西（实测 globalThis 得来的）。
+    "lib": ["ESNext"],
+    // 模块由打包器（esbuild）解析，tsc 只管类型
+    "module": "Preserve",
+    "moduleResolution": "bundler",
+    "strict": true,
+    // catch 变量在 strict 下是 unknown。对 .ts 来说这更安全，但这里是 JS
+    // 验收用例，几十处 err.message 都要断言，噪音盖过价值。
+    "useUnknownInCatchVariables": false,
+    "noEmit": true,
+    // JS 文件也检查。故意写错的验收用例都标了 @ts-expect-error，
+    // 所以类型定义漏了什么，这里会反过来报错。
+    "allowJs": true,
+    "checkJs": true,
+    // 不自动捞 node_modules/@types：这个运行时的全局只有我们声明的那些，
+    // @nacre/types 走 main.js 里的 /// <reference types> 进来
+    "types": []
+  },
+  "include": ["src/**/*.js"]
+}

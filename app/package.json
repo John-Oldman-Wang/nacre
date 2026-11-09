@@ -1,0 +1,17 @@
+{
+  "name": "nacre-example-app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Nacre 运行时的第一个客户：这个 App 的全部 JS 逻辑和验收用例",
+  "scripts": {
+    "build": "esbuild src/main.js --bundle --format=iife --platform=neutral --charset=utf8 --outfile=../ios/JS/main.js",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@nacre/types": "file:../types",
+    "esbuild": "0.28.2",
+    "typescript": "5.9.3"
+  },
+  "license": "MIT"
+}

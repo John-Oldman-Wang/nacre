@@ -90,11 +90,11 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 | UI 框架 | UIKit（不用 SwiftUI 作为渲染目标；需要 SwiftUI 组件时通过 `UIHostingController` 嵌入） |
 | 排版 | iOS 原生方式：Auto Layout 约束、UIStackView、CALayer 属性。**不必须实现 DOM、CSS、flexbox**——运行时不提供它们，但也不挡着谁在 JS 层自己做一套 |
 | 加载模型 | JS 在构建时打进 App Bundle，启动时从本地读取。不通过 HTTP 加载，没有 URL、origin、`location`、`history` |
-| 模块化 | 运行时只负责执行 JS 文件，模块化和打包交给社区工具 |
+| 模块化 | 运行时只负责执行 JS 文件，模块化和打包交给社区工具。**已验证**：`app/` 用 esbuild 打成 iife 产物，在运行时上跑通（`--format=iife` 是硬约束，ESM 产物里的 `import` 会直接抛）|
 | 网络 | `NSURLSession` + delegate 两段式。**delegate 队列只投递，重活派到并发队列**——实测 20 个请求每个做 100ms 重活，直接做 2179ms，派出去 166ms。body 的 `arrayBuffer()` 走 `BackingStore` 零拷贝。详见 [fetch 文档](api/fetch.md) |
 | URL 解析 | `NSURLComponents` + `standardizedURL`，规范化全在原生层做完。和 WHATWG 有五处已知差异，最要紧的是**没有 base**（我们没有 location）。详见 [URL 文档](api/url.md) |
 | 任务调度 | 定时器用「一个最小堆 +（到期时间, 注册序号）排序 + 一个唤醒源」，参考 Chromium 的 MessagePump。一次唤醒最多占用主线程 8ms，超了让出去给渲染。详见 [定时器文档](api/timers.md) |
-| 类型定义 | `types/` 下的 `@nacre/types`，手写，靠 `ios/scripts/check-api.sh` 核对三边一致。还没发布到 npm。验证工具用 `npx -y -p typescript tsc`，不写进仓库 |
+| 类型定义 | `types/` 下的 `@nacre/types`，手写，靠 `ios/scripts/check-api.sh` 核对三边一致。还没发布到 npm。类型检查和打包都是 `app/` 的 devDependency，版本钉在它的 `package.json` 里 |
 | 工程管理 | XcodeGen：`ios/project.yml` 描述工程，`Nacre.xcodeproj` 由它生成，不提交 |
 | 代码分层 | Swift：启动壳；ObjC++：运行时入口和 iOS 桥接；C++：引擎封装（`Runtime/Engine/` 只依赖 V8，不依赖 iOS） |
 | 生命周期 | 只使用 Scene 生命周期 |
@@ -272,6 +272,42 @@ ObjC 没有 namespace 机制，Apple 用**类名前缀**代替：`NS`（Foundati
 
 `Intl` 比较特殊：TypeScript 的 ES lib 自带它的类型，**没办法从 `lib` 里减掉**，所以类型上看着存在、运行时会抛 `ReferenceError`。这是已知的不对齐，记在 `types/README.md` 里。
 
+## 3.6 `app/`：运行时的第一个客户
+
+`app/` 是这个 App 的 JS 源码。它和 `ios/`、`types/` 平级，**不在 `ios/` 里面**——第 4 节的 Android 计划是「同一份业务 JS，按平台分支调用各自的原生能力」，而 `ios/` 的约定是「永远表示运行时源码」，跨平台的 JS 放进去从一开始就错了。
+
+**它按真的 JS 工程结构来，这是有意的。** 这个客户是 JS 开发者，如果我们自己的第一个客户都不走 `package.json` + 依赖 + 打包那一套，「社区工具链能不能对准 Nacre」这件事就验不到。
+
+| | |
+| --- | --- |
+| 打包 | esbuild，`npm run build` → `ios/JS/main.js`。**不用 vite**（dev server、HMR、index.html 对我们全没用），也不用 webpack（经典输出给每个模块包一层 CommonJS 壳，而 esbuild 的 scope hoisting 产物几乎就是源码顺序拼起来——运行时没有 source map，产物越接近源码越好） |
+| 硬约束 | `--format=iife`（运行时编译 classic script，ESM 的 `import` 直接抛）、`--platform=neutral`（不能注入 `process` / `Buffer` 的 polyfill）、不压缩 + `--charset=utf8`（报错行号只能靠人去产物里对） |
+| 类型 | 像真客户一样把 `@nacre/types` 装成依赖（`file:../types`），靠 `src/main.js` 里的 `/// <reference types="@nacre/types" />` 引进来，**不走相对路径 include** |
+| 版本 | esbuild 和 typescript 都钉死在 `package.json`，lock 文件提交 |
+
+### 这件事当场抓到两个问题
+
+**1. `types/package.json` 的 `files` 白名单漏了 `ios/`。** 拆分 `ios.d.ts` 的时候没跟着改，`npm pack --dry-run` 只有 5 个文件——这个包一旦发布，装的人拿到的 `ios.d.ts` 是一串指向空气的 `/// <reference path>`，**一个 iOS 类型都没有**。而 `check-api.sh` 和 `tsc` 都查不出来，因为它们走的是相对路径 include，压根没问过「这个包发出去是什么样」。
+
+修法是**把 `files` 删掉**：这个包里除了 `.d.ts` 和 README 什么都没有，白名单只会再漂一次。
+
+**2. 类型检查一直跑在没钉版本的 TypeScript 上。** `npx -y -p typescript tsc` 拉的是**最新**，实测当时已经是 **7.0.2**（Go 重写版），而且是无声变过去的。现在钉成 5.9.3。
+
+### 一条测不出东西的验收
+
+原本想用「把 `types/package.json` 的 `types` 字段改错，类型检查要报错」来验包的入口。**这条是无效的**——Node/TS 解析在 `types` 指不到时会回落到 `index.d.ts`，所以那个字段不承重，改错了照样过。
+
+真能证明的测法是**把 `/// <reference types="@nacre/types" />` 那行去掉**：`UIView`、`UIWindow` 连 `console` 一起全部 `Cannot find name`。这才说明全局确实是通过这个 npm 依赖进来的。
+
+### 怎么分文件
+
+跨段共享的只有三样：`assert`（在 `src/support.js`）、`vc` 和 `win`（由 `stepWindow` 建好后写回 ctx）。其余全是段内局部。
+
+- 顶层那几段（console、application、错误出口、前后台、包装与场景）在脚本顶层执行，所以**作为副作用 import**，执行顺序就是 `src/main.js` 里的 import 顺序
+- 场景回调里那几段是 `export function stepXxx(ctx)`
+
+**CALayer 那段没有自己的文件**——它嵌在 Auto Layout 的块里，用的是同一张卡片。拆的时候 `tsc` 当场报了 `'}' expected`，同理 `timers` 用到 `win` 也是 `tsc` 报出来的。**跨段引用靠类型检查兜住，不靠肉眼。**
+
 ## 4. Android 扩展计划（未开始，仅记录方向）
 
 iOS 的功能清单完成后再开始 Android。以下是目前的方向，开始前需要按 SOP 重新讨论确认：
@@ -295,6 +331,7 @@ nacre/
 ├─ README.md
 ├─ docs/              项目说明、API 文档、实现原理
 ├─ types/             TypeScript 类型定义（@nacre/types），面向使用运行时的开发者
+├─ app/               这个 App 的 JS 源码：运行时的第一个客户
 ├─ ios/               iOS 运行时源码 + App
 └─ android/           以后再加
 ```
@@ -389,7 +426,7 @@ types/
 **两处暂时不拆，理由写下来免得反复讨论：**
 
 - **`nacre.js`**（2600+ 行，**过线了**）：方案已定、暂时不拆，见下面「[`nacre.js` 怎么拆](#nacrejs-怎么拆方案已定未实现)」
-- **`main.js`**：验收用例，按步骤顺序读下来才有意义，拆开反而难读
+- ~~**`main.js`**：验收用例，按步骤顺序读下来才有意义，拆开反而难读~~ → **已拆**，见下面「[`app/`：运行时的第一个客户](#36-app运行时的第一个客户)」。顺序没丢，反而从「隐含在文件位置里」变成了 `src/main.js` 里显式的十几行调用
 
 ### `nacre.js` 怎么拆（方案已定，未实现）
 
@@ -446,7 +483,8 @@ types/
 | `.gitignore` | 平台相关的忽略规则（根目录的 `.gitignore` 里不能出现平台目录名，所以放这里） | 提交 |
 | `App/` | 启动壳：AppDelegate、SceneDelegate | 提交 |
 | `Runtime/` | 运行时和能力暴露：`NacreRuntime`（ObjC++ 启动壳与接线）、`Bridge/`（能力暴露，按能力域分文件）、`Engine/`（纯 C++） | 提交 |
-| `JS/` | 这个 App 的全部逻辑，入口是 `main.js` | 提交 |
+| `JS/assets/` | 图片等资源，整个目录进 App Bundle 的 `JS/` | 提交 |
+| `JS/main.js` | 由 `scripts/build-js.sh` 从 `app/` 打包生成 | 不提交 |
 | `scripts/` | `fetch-v8.sh`（下载 V8）、`run-sim.sh`（一键在模拟器运行） | 提交 |
 | `Nacre.xcodeproj/`、`App/Info.plist` | 由 `project.yml` 生成 | 不提交 |
 | `Vendor/` | 由 `fetch-v8.sh` 下载的 V8 | 不提交 |
@@ -465,8 +503,11 @@ types/
 5. **检查**：能检查的先检查，比如 C++ 对照 V8 头文件做语法检查、脚本做语法检查。另外两条固定要跑：
 
    ```bash
-   bash ios/scripts/check-api.sh                              # 三边符号核对
-   npx -y -p typescript tsc --project ios/JS/tsconfig.json    # 类型检查
+   bash ios/scripts/check-api.sh      # 三边符号核对
+   ```
+
+   ```bash
+   cd app && npm run check            # 类型检查（tsc 版本钉在 app/package.json）
    ```
 
    没有实际运行过的内容，要明确标注"未验证"。
@@ -505,6 +546,7 @@ Commit message 格式：
 | 3e | 一维排列 | UIStackView、别名枚举、哨兵常量 | 已在模拟器验证通过：三等分排开、嵌套、隐藏即塌陷，49 条断言全过 |
 | 3f | 滚动 | UIScrollView、delegate trampoline、事件合并 | 已在模拟器验证通过：真实滑动一次派发 100 个 scroll，事件顺序正确，三次直写合并成一个 |
 | 3g | 缩放 | zoomScale、viewForZooming、捏合手势 | 待讨论，和手势那一步绑一起 |
+| — | `app/`：JS 源码独立成工程，esbuild 打包 | package.json、@nacre/types 当依赖装 | 已在模拟器验证通过：358 条断言和打包前一字不差，含真实滑动和点击 |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |
 | **M1b** | **同步回调回 JS** | 重入判定：UIKit 主动调我们才允许同步 | **没有逃生口**，第 8 步列表绕不过去 |

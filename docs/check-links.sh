@@ -17,7 +17,8 @@ def anchors(path):
     return out
 
 files = [p for p in pathlib.Path('.').rglob('*.md')
-         if not str(p).startswith(('node_modules', 'ios/build', 'ios/Vendor'))]
+         if 'node_modules' not in p.parts
+         and not str(p).startswith(('ios/build', 'ios/Vendor'))]
 bad = []
 for f in files:
     text = f.read_text()

@@ -11,6 +11,8 @@ DEVICE="${NACRE_SIM:-$(xcrun simctl list devices available | awk '/^-- iOS (2[6-
 command -v xcodegen >/dev/null || { echo "请先安装 XcodeGen：brew install xcodegen"; exit 1; }
 
 bash ./scripts/fetch-v8.sh
+# app/ 的 JS 源码 → ios/JS/main.js（产物，不提交）
+bash ./scripts/build-js.sh
 xcodegen generate --quiet
 
 xcodebuild -project Nacre.xcodeproj -scheme Nacre -configuration Debug \
