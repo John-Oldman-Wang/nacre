@@ -8,6 +8,17 @@ namespace nacre_bridge {
 
 id ReadSceneProperty(id object, NSString* key) {
   id value = nil;
+  if ([object isKindOfClass:UINavigationController.class]) {
+    UINavigationController* nav = (UINavigationController*)object;
+    if ([key isEqualToString:@"isNavigationBarHidden"]) {
+      value = @(nav.isNavigationBarHidden);
+    }
+  }
+  if (value == nil && [object isKindOfClass:UIViewController.class]) {
+    if ([key isEqualToString:@"title"]) {
+      value = ((UIViewController*)object).title;
+    }
+  }
   if ([object isKindOfClass:UIScene.class]) {
     UIScene* scene = (UIScene*)object;
     if ([key isEqualToString:@"activationState"]) {
@@ -44,6 +55,20 @@ id ReadSceneProperty(id object, NSString* key) {
 
 BOOL WriteSceneProperty(id object, NSString* key, id value,
                       std::string* error) {
+  if ([object isKindOfClass:UINavigationController.class]) {
+    if ([key isEqualToString:@"isNavigationBarHidden"]) {
+      ((UINavigationController*)object).navigationBarHidden = [value boolValue];
+      return YES;
+    }
+  }
+  if ([object isKindOfClass:UIViewController.class]) {
+    if ([key isEqualToString:@"title"]) {
+      // 返回按钮的标题默认取上一页的 title，所以这一个属性就够走通「返回」
+      ((UIViewController*)object).title =
+          [value isKindOfClass:NSString.class] ? value : nil;
+      return YES;
+    }
+  }
   // 每个分支写完就 return，末尾统一填「没有这个属性」。
   if ([object isKindOfClass:UIScene.class]) {
     UIScene* scene = (UIScene*)object;
@@ -76,6 +101,25 @@ BOOL WriteSceneProperty(id object, NSString* key, id value,
 
 nacre::NativeObjectRef ReadSceneObjectProperty(id object,
                                             const std::string& name) {
+  if ([object isKindOfClass:UINavigationController.class]) {
+    UINavigationController* nav = (UINavigationController*)object;
+    if (name == "topViewController") {
+      return {(__bridge void*)nav.topViewController, "UIViewController"};
+    }
+    if (name == "visibleViewController") {
+      return {(__bridge void*)nav.visibleViewController, "UIViewController"};
+    }
+  }
+  // 两条都是 ObjC 侧的 weak 回边，JS 侧要翻成 strong（见 internals/wrapper.md）
+  if ([object isKindOfClass:UIViewController.class]) {
+    UIViewController* vc = (UIViewController*)object;
+    if (name == "navigationController") {
+      return {(__bridge void*)vc.navigationController, "UINavigationController"};
+    }
+    if (name == "parentViewController") {
+      return {(__bridge void*)vc.parentViewController, "UIViewController"};
+    }
+  }
   if ([object isKindOfClass:UIScene.class] && name == "session") {
     return {(__bridge void*)((UIScene*)object).session, "UISceneSession"};
   }
@@ -103,6 +147,37 @@ void WriteSceneObjectProperty(id object, const std::string& name, id value) {
       window.windowScene = [value isKindOfClass:UIWindowScene.class] ? value : nil;
     }
   }
+}
+
+void ReadSceneObjectArray(id object, const std::string& name,
+                          std::vector<nacre::NativeObjectRef>& refs) {
+  if ([object isKindOfClass:UINavigationController.class] &&
+      name == "viewControllers") {
+    for (UIViewController* vc in ((UINavigationController*)object).viewControllers) {
+      refs.push_back({(__bridge void*)vc, "UIViewController"});
+    }
+  }
+}
+
+// 可写的对象数组属性，目前只有导航栈。类型不对的直接拒，不当 nil 吞掉——
+// 「参数类型不对但有句柄 → 静默忽略」那条 TODO 在这里就不再欠了。
+BOOL WriteSceneObjectArray(id object, const std::string& name,
+                           const std::vector<void*>& values, std::string* error) {
+  if ([object isKindOfClass:UINavigationController.class] &&
+      name == "viewControllers") {
+    NSMutableArray<UIViewController*>* list = [NSMutableArray array];
+    for (void* ptr : values) {
+      id vc = (__bridge id)ptr;
+      if (![vc isKindOfClass:UIViewController.class]) {
+        *error = "viewControllers only accepts UIViewController";
+        return YES;
+      }
+      [list addObject:vc];
+    }
+    ((UINavigationController*)object).viewControllers = list;
+    return YES;
+  }
+  return NO;
 }
 
 }  // namespace nacre_bridge

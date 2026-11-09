@@ -233,6 +233,64 @@ declare class UIScrollView extends UIView {
   ): void;
 }
 
+type NavEventName = UINavigationControllerEventType | (string & {});
+
+/**
+ * 页面栈。push 进去、pop 出来，返回按钮和边缘返回手势都是系统给的。
+ *
+ * ```js
+ * const home = new UIViewController();
+ * home.title = '首页';
+ * const nav = new UINavigationController(home);
+ * win.rootViewController = nav;
+ *
+ * const detail = new UIViewController();
+ * detail.title = '详情';
+ * nav.pushViewController(detail, { animated: true });
+ * ```
+ *
+ * 不用自己保持引用：栈持有栈里的页面，而栈由窗口持有。
+ */
+declare class UINavigationController extends UIViewController {
+  /** 不传就是空栈；传一个就等于 `initWithRootViewController:`。 */
+  constructor(rootViewController?: UIViewController);
+
+  /** 当前的页面栈，栈底在前。读出来是快照，改它用赋值或 `setViewControllers`。 */
+  viewControllers: readonly UIViewController[];
+  /** 栈顶那一个。 */
+  readonly topViewController: UIViewController | null;
+  /** 有模态页就是模态页，否则同 `topViewController`。 */
+  readonly visibleViewController: UIViewController | null;
+
+  /** 压栈。已经在栈上的页面不会被重复压入。 */
+  pushViewController(viewController: UIViewController, options?: { animated?: boolean }): void;
+  /** 出栈，返回被弹出的那一个；栈底弹不动时返回 `null`。 */
+  popViewController(options?: { animated?: boolean }): UIViewController | null;
+  /** 一直弹到这一页在栈顶，返回被弹掉的那些。 */
+  popToViewController(
+    viewController: UIViewController,
+    options?: { animated?: boolean },
+  ): readonly UIViewController[];
+  /** 弹到只剩栈底那一个。 */
+  popToRootViewController(options?: { animated?: boolean }): readonly UIViewController[];
+  /** 整栈替换。`animated` 时系统按新栈顶在不在旧栈里决定演 push 还是 pop。 */
+  setViewControllers(
+    viewControllers: readonly UIViewController[],
+    options?: { animated?: boolean },
+  ): void;
+
+  /** 导航条藏不藏。默认 `false`。 */
+  isNavigationBarHidden: boolean;
+  /** 带动画地藏/显导航条。 */
+  setNavigationBarHidden(hidden: boolean, options?: { animated?: boolean }): void;
+
+  addEventListener(
+    type: NavEventName,
+    callback: EventListener | null,
+    options?: AddEventListenerOptions,
+  ): void;
+}
+
 /** 窗口上能监听的事件。对应 isKeyWindow 和 isHidden 的变化。 */
 type UIWindowEventType = 'becomekey' | 'resignkey' | 'becomevisible' | 'becomehidden';
 
@@ -272,6 +330,12 @@ declare class UIWindow extends UIView {
 declare class UIViewController extends UIResponder {
   constructor();
   readonly view: UIView;
+  /** 导航条上的标题。下一页的返回按钮默认显示这个。 */
+  title: string | null;
+  /** 它所在的导航控制器；不在栈上就是 `null`。 */
+  readonly navigationController: UINavigationController | null;
+  /** 容器父控制器（导航控制器就是一种容器）。 */
+  readonly parentViewController: UIViewController | null;
 }
 
 // ---------------------------------------------------------------------------

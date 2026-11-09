@@ -28,6 +28,7 @@ Nacre 的 API 分两层：
 | [Auto Layout](auto-layout.md) | 约束、锚点、`UILayoutGuide`。用了约束就别再写 frame |
 | [`UIStackView`](ui-stack-view.md) | 一维排列容器。约束的工厂，不是第二套布局引擎 |
 | [`UIScrollView`](ui-scroll-view.md) | 滚动。事件会合并，数据去对象上读 |
+| [`UINavigationController`](ui-navigation-controller.md) | 页面栈。push / pop，返回按钮靠 `title` |
 | [`CALayer`](ca-layer.md) | 圆角、边框、阴影 |
 | [`UIControl`](ui-control.md) | 控件事件。16 个事件名，`addEventListener` 直接用 |
 | [`UIButton`](ui-button.md) | 按钮。标题、颜色、图片按状态设 |
@@ -37,7 +38,7 @@ Nacre 的 API 分两层：
 | [`URL` / `Headers`](url.md) | WHATWG 三件套。和浏览器有五处已知差异 |
 | [`fetch`](fetch.md) | 网络请求。线程分工是实测定下来的 |
 | [`UIColor`](ui-color.md) | 颜色。基础色、系统色、语义色 |
-| `UIViewController` | 页面。目前只有可构造和只读的 `view`（文档待补） |
+| `UIViewController` | 页面。可构造，有 `view`、`title`、`navigationController`（文档待补） |
 | `NSObject` | ObjC 的根类，所有原生类的基类（继承 `EventTarget`） |
 | `EventTarget` / `Event` | 事件基类，见 [`application`](application.md) 的「继承关系」 |
 | `ErrorEvent` / `PromiseRejectionEvent` | 错误类事件对象，见 [`application`](application.md) 的「事件」 |

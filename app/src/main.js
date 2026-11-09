@@ -29,6 +29,7 @@ import { stepControl } from './steps/control.js';
 import { stepButton } from './steps/button.js';
 import { stepScroll } from './steps/scroll.js';
 import { stepStack } from './steps/stack.js';
+import { stepNavigation } from './steps/navigation.js';
 import { stepOwnership } from './steps/ownership.js';
 
 /**
@@ -39,6 +40,8 @@ import { stepOwnership } from './steps/ownership.js';
  * @property {typeof assert} assert 断言
  * @property {UIViewController} vc 根页面，由 stepWindow 建好后写回来
  * @property {UIWindow} win 窗口，同上。timers 那段要在它上面挂 becomekey
+ * @property {UIWindow} [navWindow] 导航用的第二个窗口，由 stepNavigation 建
+ * @property {UINavigationController} [nav] 导航控制器，GC 那一步要用它验栈的持有边
  */
 
 application.addEventListener('sceneconnect', (e) => {
@@ -56,6 +59,7 @@ application.addEventListener('sceneconnect', (e) => {
   stepButton(ctx);
   stepScroll(ctx);
   stepStack(ctx);
+  stepNavigation(ctx);
   stepOwnership(ctx);
 
   console.log('✓ 屏幕上：三个色块 + 标题 + 两行说明 + 一行等宽数字');

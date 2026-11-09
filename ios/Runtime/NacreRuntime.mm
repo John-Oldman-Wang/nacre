@@ -51,6 +51,11 @@ using namespace nacre_bridge;
              from:(id)object
         className:(const char*)className
              then:(dispatch_block_t)completion;
+- (void)emitEvent:(NSString*)type
+             from:(id)object
+        className:(const char*)className
+             with:(id)payload
+    payloadClass:(const char*)payloadClass;
 - (void)setSubscription:(id)object
                    type:(const std::string&)type
                      on:(BOOL)on
@@ -132,11 +137,47 @@ using namespace nacre_bridge;
 
 @end
 
+// 导航的 trampoline。和滚动那个同构，区别是这两条事件**带一个 viewController**：
+// 「哪个页面」在 willShow 那一刻从 nav 上读不到（topViewController 还没换），
+// 所以原生送什么就带什么——事件带不带数据的判据是「那个信息在对象上读不读
+// 得到」，不是「一律不带」。
+@interface NacreNavDelegate : NSObject <UINavigationControllerDelegate>
+@property(nonatomic, weak) NacreRuntime* runtime;
+@property(nonatomic, strong) NSMutableSet<NSString*>* types;
+@end
+
+@implementation NacreNavDelegate
+
+- (void)emit:(NSString*)type from:(UINavigationController*)nav with:(UIViewController*)vc {
+  if (![self.types containsObject:type]) return;
+  [self.runtime emitEvent:type
+                     from:nav
+                className:"UINavigationController"
+                     with:vc
+             payloadClass:"UIViewController"];
+}
+
+- (void)navigationController:(UINavigationController*)navigationController
+      willShowViewController:(UIViewController*)viewController
+                    animated:(BOOL)animated {
+  [self emit:@"willshow" from:navigationController with:viewController];
+}
+
+- (void)navigationController:(UINavigationController*)navigationController
+       didShowViewController:(UIViewController*)viewController
+                    animated:(BOOL)animated {
+  [self emit:@"didshow" from:navigationController with:viewController];
+}
+
+@end
+
 // 关联对象的 key：事件名 → NacreControlTarget
 static const void* kNacreControlTargetsKey = &kNacreControlTargetsKey;
 // 关联对象的 key：UIScrollView → NacreScrollDelegate。
 // scrollView.delegate 是 weak，所以 trampoline 必须由关联对象来持有
 static const void* kNacreScrollDelegateKey = &kNacreScrollDelegateKey;
+// 同理：navigationController.delegate 也是 weak
+static const void* kNacreNavDelegateKey = &kNacreNavDelegateKey;
 
 @implementation NacreRuntime {
   BOOL _started;
@@ -571,6 +612,11 @@ nacre::NativeObjectRef CreateBlob(
     host.read_object_array_property = [](void* ptr, const std::string& name) {
       return ReadNativeObjectArrayProperty((__bridge id)ptr, name);
     };
+    host.write_object_array_property = [](void* ptr, const std::string& name,
+                                          const std::vector<void*>& values,
+                                          std::string* error) {
+      WriteNativeObjectArrayProperty((__bridge id)ptr, name, values, error);
+    };
     host.set_event_subscription = [weakSelf](void* ptr, const std::string& type,
                                              bool on, std::string* error) {
       NacreRuntime* strongSelf = weakSelf;
@@ -944,11 +990,57 @@ nacre::NativeObjectRef CreateBlob(
   }];
 }
 
+// 带一个原生对象作为负载的事件。延后一轮，和别的一致。
+- (void)emitEvent:(NSString*)type
+             from:(id)object
+        className:(const char*)className
+             with:(id)payload
+    payloadClass:(const char*)payloadClass {
+  auto engine = _engine;
+  std::string t = type.UTF8String;
+  std::string cls = className;
+  std::string payloadCls = payloadClass;
+  [self postToJS:^{
+    if (*engine) {
+      (*engine)->EmitObjectEventWith({(__bridge void*)object, cls}, t,
+                                     {(__bridge void*)payload, payloadCls});
+    }
+  }];
+}
+
 // 按对象订阅。JS 侧某个类型第一次有监听器时 on=YES，最后一个移走时 on=NO。
 - (void)setSubscription:(id)object
                    type:(const std::string&)type
                      on:(BOOL)on
                   error:(std::string*)error {
+  if ([object isKindOfClass:UINavigationController.class]) {
+    UINavigationController* nav = (UINavigationController*)object;
+    NSString* name = @(type.c_str());
+    if (!IsNavEventName(name)) {
+      *error = EnumError(@"addEventListener", name, NamesForNavEvent());
+      return;
+    }
+    NacreNavDelegate* d = objc_getAssociatedObject(nav, kNacreNavDelegateKey);
+    if (on) {
+      if (d == nil) {
+        d = [NacreNavDelegate new];
+        d.runtime = self;
+        d.types = [NSMutableSet set];
+        objc_setAssociatedObject(nav, kNacreNavDelegateKey, d,
+                                 OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        nav.delegate = d;
+      }
+      [d.types addObject:name];
+    } else if (d != nil) {
+      [d.types removeObject:name];
+      if (d.types.count == 0) {
+        nav.delegate = nil;
+        objc_setAssociatedObject(nav, kNacreNavDelegateKey, nil,
+                                 OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+      }
+    }
+    return;
+  }
   if ([object isKindOfClass:UIScrollView.class]) {
     UIScrollView* sv = (UIScrollView*)object;
     NSString* name = @(type.c_str());

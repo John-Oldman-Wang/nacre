@@ -11,6 +11,8 @@
   // 原生类覆写它来接「某个类型的监听器从无到有 / 从有到无」。
   // 默认什么都不做——纯 JS 的 EventTarget 不需要告诉谁。
   const kSubscribe = Symbol('subscribe');
+  // 导航栈动过之后重建持有边，见 UINavigationController
+  const kSyncStack = Symbol('syncStack');
   // 订阅是一条**所有权边**：原生那边登记了对这个对象的兴趣，它的 JS 包装
   // 就不能死——包装一死，后面来的事件会落到一个新包装上，监听器全丢。
   const subscribed = new Set();
@@ -327,6 +329,17 @@
     const result =
       native.callObj(obj[kHandle], selector, JSON.stringify(values), handles);
     return result === undefined ? null : result;
+  }
+  // 可写的原生对象数组属性。值按「每个元素一个句柄」传，和方法的数组参数同路
+  function nativeSetObjectArray(obj, name, values) {
+    requireNative(obj, name);
+    const list = Array.from(values || []);
+    const handles = list.map((v) => {
+      if (v == null) return 0;
+      if (v[kHandle] === undefined) rejectUnbacked(v, name);
+      return v[kHandle] || 0;
+    });
+    native.setObjArray(obj[kHandle], name, handles);
   }
   function nativeGetObjectArray(obj, name) {
     requireNative(obj, name);
@@ -1863,10 +1876,20 @@
   defineNativeClass('UIViewController', class UIViewController extends UIResponder {
     constructor() {
       super();
-      if (allowNativeConstruct) return;  // 包装已有原生对象，句柄由工厂挂
+      // 有运行时子类（UINavigationController）继承它，所以要挡一道：否则
+      // super() 先建一个 UIViewController，子类再建一次，kHandle 重复定义
+      // 直接抛。和 UIView / UIControl 同一个套路，代价也一样——ES 子类拿不到
+      // 原生对象（见 project.md 的「JS 子类化原生类」）
+      if (allowNativeConstruct || new.target !== UIViewController) return;
       constructNative(this, 'UIViewController', []);
     }
     get view() { return nativeGetOwned(this, 'view'); }
+    // 导航条上的标题。返回按钮默认取上一页的 title，所以这一个属性就够走通「返回」
+    get title() { requireNative(this, 'title'); return nativeGet(this, 'title'); }
+    set title(value) { requireNative(this, 'title'); nativeSet(this, 'title', value); }
+    // 两条都是 ObjC 侧的 weak 回边，所以 JS 侧翻成 strong
+    get navigationController() { return nativeGetOwned(this, 'navigationController'); }
+    get parentViewController() { return nativeGetOwned(this, 'parentViewController'); }
   });
 
   // 视图树的根。必须绑定到一个场景——initWithWindowScene: 是唯一未废弃的
@@ -1880,6 +1903,97 @@
   // 后者让「构造」和「绑定」解耦，而且没有发明新 API——windowScene 本来就是
   // ObjC 的可写属性，没有 scene 的 window 在 ObjC 里也本来就是合法状态
   // （windowScene 是 nullable）。
+  // 页面栈。push 进去、pop 出来，返回手势和返回按钮都是系统给的。
+  //
+  // 栈变动之后统一用 ownAll 按原生真相重建持有边：原生侧 nav 强持有栈里的每
+  // 个 VC，JS 侧也必须有对应的一条，否则 JS 丢掉引用后包装会被 GC，再从
+  // topViewController 读回来就是个全新的包装——挂的状态和监听器全丢。
+  // 用 ownAll 而不是逐个记进出，是因为它的语义就是「按原生真相整层重建」，
+  // pop / popTo / popToRoot / setViewControllers 一视同仁。
+  defineNativeClass('UINavigationController',
+                    class UINavigationController extends UIViewController {
+    constructor(rootViewController) {
+      super();
+      if (allowNativeConstruct) return;
+      constructNative(this, 'UINavigationController',
+                      rootViewController == null ? [] : [rootViewController]);
+      this[kSyncStack]();
+    }
+
+    // 事件全在 UINavigationControllerDelegate 上，和滚动同构
+    [kSubscribe](type, on) {
+      requireNative(this, 'addEventListener');
+      native.subscribe(this[kHandle], type, on);
+      if (on) subscribed.add(this);
+      else if (this[kListeners].size === 0) subscribed.delete(this);
+    }
+
+    // 栈动过之后重读一次原生真相，把持有边整层重建
+    [kSyncStack]() {
+      ownAll(this, 'viewControllers', nativeGetObjectArray(this, 'viewControllers'));
+    }
+
+    get viewControllers() {
+      return ownAll(this, 'viewControllers',
+                    nativeGetObjectArray(this, 'viewControllers'));
+    }
+    set viewControllers(value) {
+      nativeSetObjectArray(this, 'viewControllers', value);
+      this[kSyncStack]();
+    }
+    get topViewController() { return nativeGetOwned(this, 'topViewController'); }
+    get visibleViewController() {
+      return nativeGetOwned(this, 'visibleViewController');
+    }
+
+    pushViewController(viewController, options) {
+      const o = options || {};
+      nativeCall(this, 'pushViewController:animated:', [viewController, !!o.animated]);
+      this[kSyncStack]();
+    }
+    // 返回被弹出的那一个；栈底弹不动时返回 null
+    popViewController(options) {
+      const o = options || {};
+      const popped = nativeCallObject(this, 'popViewControllerAnimated:', [!!o.animated]);
+      this[kSyncStack]();
+      return popped;
+    }
+    popToViewController(viewController, options) {
+      const o = options || {};
+      const popped = nativeCallObjectArray(
+        this, 'popToViewController:animated:', [viewController, !!o.animated]);
+      this[kSyncStack]();
+      return popped;
+    }
+    popToRootViewController(options) {
+      const o = options || {};
+      const popped = nativeCallObjectArray(
+        this, 'popToRootViewControllerAnimated:', [!!o.animated]);
+      this[kSyncStack]();
+      return popped;
+    }
+    // 整栈替换。数组按「每个元素一个句柄」传，animated 跟在后面
+    setViewControllers(viewControllers, options) {
+      const o = options || {};
+      nativeCallObjectArray(this, 'setViewControllers:animated:',
+                            [...Array.from(viewControllers), !!o.animated]);
+      this[kSyncStack]();
+    }
+
+    get isNavigationBarHidden() {
+      requireNative(this, 'isNavigationBarHidden');
+      return nativeGet(this, 'isNavigationBarHidden');
+    }
+    set isNavigationBarHidden(value) {
+      requireNative(this, 'isNavigationBarHidden');
+      nativeSet(this, 'isNavigationBarHidden', value);
+    }
+    setNavigationBarHidden(hidden, options) {
+      const o = options || {};
+      nativeCall(this, 'setNavigationBarHidden:animated:', [!!hidden, !!o.animated]);
+    }
+  });
+
   defineNativeClass('UIWindow', class UIWindow extends UIView {
     constructor(scene) {
       super();
@@ -1952,9 +2066,22 @@
     }
   });
 
+  // 带原生对象负载的事件，字段名按类型定。
+  //
+  // 「事件带不带数据」的判据是**那个信息在对象上读不读得到**：滚动的位置在
+  // contentOffset 上读得到，所以 scroll 不带（不带才能无损合并）；导航的
+  // 「哪个页面」在 willshow 那一刻从 nav 上读不到（topViewController 还没
+  // 换过去），所以带上。
+  const objectEventField = { willshow: 'viewController', didshow: 'viewController' };
+
   // 原生要给某个对象自己派发事件时回调这里（场景的生命周期事件走这条路）
-  native.setObjectEventSink(function (wrapper, type) {
-    wrapper.dispatchEvent(new Event(type));
+  native.setObjectEventSink(function (wrapper, type, payload) {
+    const event = new Event(type);
+    const field = objectEventField[type];
+    if (field !== undefined && payload !== undefined) {
+      defineField(event, field, payload);
+    }
+    wrapper.dispatchEvent(event);
   });
 
   // C++ 要建包装对象时回调这里。走正常的 new，EventTarget 的构造函数才会跑。

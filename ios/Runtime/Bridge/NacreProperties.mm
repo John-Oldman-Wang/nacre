@@ -82,6 +82,7 @@ nacre::NativeObjectRef ReadNativeObjectProperty(id object, const std::string& na
 std::vector<nacre::NativeObjectRef> ReadNativeObjectArrayProperty(
     id object, const std::string& name) {
   std::vector<nacre::NativeObjectRef> refs;
+  ReadSceneObjectArray(object, name, refs);
   ReadScrollObjectArray(object, name, refs);
   ReadViewObjectArray(object, name, refs);
   return refs;
@@ -94,6 +95,17 @@ void WriteNativeObjectProperty(id object, const std::string& name, void* valuePt
   WriteSceneObjectProperty(object, name, value);
   WriteLayerObjectProperty(object, name, value);
   WriteViewObjectProperty(object, name, value);
+}
+
+// 可写的对象数组属性。目前只有导航栈一个，但通道和读那条是镜像关系，
+// 该有的错误出口也有——类型不对直接拒，不当 nil 吞掉。
+void WriteNativeObjectArrayProperty(id object, const std::string& name,
+                                    const std::vector<void*>& values,
+                                    std::string* error) {
+  if (WriteSceneObjectArray(object, name, values, error)) return;
+  *error = [NSString stringWithFormat:@"%@ has no writable object array property %s",
+                                      NSStringFromClass([object class]), name.c_str()]
+               .UTF8String;
 }
 
 }  // namespace nacre_bridge

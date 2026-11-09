@@ -555,7 +555,10 @@ Commit message 格式：
 | 4a | `UIControl` 的 16 个控件事件 | 订阅通道、target-action | 已在模拟器验证通过：261 条断言全过，含真机点击 |
 | 4b | `UIButton` | `setTitle:forState:`、状态作参数 | 已在模拟器验证通过：按状态设标题/颜色/图，真实点击收到 primaryActionTriggered |
 | 4c | first responder | `becomeFirstResponder` / `resignFirstResponder` | 待讨论，和第 9 步绑一起 |
-| 5 | 页面跳转 | UINavigationController、继承 UIViewController | 待讨论 |
+| 5a | 页面栈 | UINavigationController、可写的对象数组属性、导航级事件 | 已在模拟器验证通过：真实点返回按钮走通，GC 回归证明栈的持有边有效 |
+| 5b | 导航条上的东西 | UINavigationItem、UIBarButtonItem | 待讨论 |
+| 5c | 模态呈现 | present / dismiss，completion 做成 Promise | 待讨论 |
+| — | 页面生命周期（viewDidLoad 等） | **M2**——全是覆写点不是 delegate | 待讨论 |
 | 6a | `URL` / `URLSearchParams` / `Headers` | NSURLComponents、WHATWG 语义 | 已在模拟器验证通过：37 条断言全过，和 Chrome 对撞过一批 URL |
 | 6b | `fetch` / `Request` / `Response` | NSURLSession、BackingStore 零拷贝 | 已在模拟器验证通过：当初对着本地服务器跑，20 个并发 36ms；验收用例在 3b 改成打公开的 `httpbin.org`，不用再起服务 |
 | 6c | `Blob` + `AbortController` 和取消 | NSURLSessionTask.cancel、原生对象包装 | 已在模拟器验证通过：blob 零拷贝、取消、超时中止 |
@@ -730,6 +733,12 @@ Web 能双向字符串化是因为 CSSOM 自己留着声明串，我们没有这
 所以今天的实际行为是：`new MyLabel()` 得到的实例没有句柄，之后要么 `requireNative` 抛「还没连接到场景」，要么更糟——`parent.addSubview(子类实例)` 时 `splitArgs` 把它当成普通值，句柄填 0，原生收到 nil，**静默什么都不做**。（做所有权镜像时写验收用例撞上的。）
 
 这道闸本身是对的：原生类的构造函数写死了自己的类名，子类的 `super()` 在这里建出一个基类对象只会更错。要真正支持继承，得动态生成 ObjC 子类并把覆写的方法转发回 JS，那才是这条 TODO 的内容。
+
+**做 5a 时数出了这道闸的分布规律**：一个类需要 `new.target` 闸，**当且仅当另一个运行时类继承它**。`UIView`（被 `UILabel` / `UIImageView` / `UIScrollView` / `UIControl` 继承）、`UIControl`（被 `UIButton` 继承）有；`UILabel` 这些叶子类没有；`UIViewController` 本来没有，`UINavigationController` 一继承它就非加不可——第一次跑直接抛 `Cannot redefine property: Symbol(nativeHandle)`。
+
+加完的代价是那个洞从「理论缺陷」变成「实际挡路」：`class MyPage extends UIViewController {}` 建不出原生对象，而「用自己的页面类」恰恰是最可能的用法。
+
+**正经的修法不是继续加闸，是把构造挪出构造函数**——让最底下那个类按 `new.target` 的真实类名去建，而不是每个类各自硬编一个类名。那样一次 `constructNative` 都不会重复，`new.target` 闸整套可以撤掉，ES 子类也自然拿到对的原生对象。代价是每个类的构造参数不一样（`UIWindow` 收场景、`UIStackView` 收数组、`UINavigationController` 收根页面），要重新组织一次。和这条 TODO 一起做。
 
 **没堵上的是那个静默失败**：对象参数没有句柄时应该抛，不该当成 nil。和下面「属性名拼错了不报错」是同一类错。这条和设计点 1「创建与继承」是同一件事。
 

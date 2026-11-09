@@ -421,6 +421,25 @@ NSString* NamesForScrollEvent(void) {
   return [ScrollEventNamesList() componentsJoinedByString:@" / "];
 }
 
+// UINavigationController 的事件名。和滚动一样派生自 delegate 方法名，
+// 所以全小写。区别是这两条**带数据**——「哪个页面」在那一刻从 nav 上读不到
+// （willShow 时 topViewController 还没换过去），所以原生送什么就给什么。
+static NSArray<NSString*>* NavEventNamesList(void) {
+  static NSArray<NSString*>* names;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{ names = @[ @"willshow", @"didshow" ]; });
+  return names;
+}
+
+BOOL IsNavEventName(NSString* name) {
+  return [name isKindOfClass:NSString.class] &&
+         [NavEventNamesList() containsObject:name];
+}
+
+NSString* NamesForNavEvent(void) {
+  return [NavEventNamesList() componentsJoinedByString:@" / "];
+}
+
 // 状态作参数：'normal' 是 0，位掩码表里没有它，但它是最常用的写法，
 // 所以单独认一下。读 state 的那一侧是反过来的——掩码为 0 时给 ['normal']。
 BOOL ControlStateArgFromNames(id value, UIControlState* out, id* bad) {

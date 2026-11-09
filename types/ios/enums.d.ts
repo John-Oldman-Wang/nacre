@@ -80,6 +80,9 @@ type NSLayoutAttribute =
   | 'notAnAttribute';
 
 /** 七个具名值。中间的值（749 之类）没有名字，所以写的时候也接受数字。 */
+/** 导航控制器上能监听的事件。 */
+type UINavigationControllerEventType = 'willshow' | 'didshow';
+
 /** 滚动指示条的外观。`'default'` 跟随浅色/深色自动切换。 */
 type UIScrollViewIndicatorStyle = 'default' | 'black' | 'white';
 

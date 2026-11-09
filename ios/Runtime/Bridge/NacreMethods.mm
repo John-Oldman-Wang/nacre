@@ -226,6 +226,28 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
     }
   }
 
+  if ([object isKindOfClass:UINavigationController.class]) {
+    UINavigationController* nav = (UINavigationController*)object;
+    auto vcArg = [&](size_t i) -> UIViewController* {
+      id v = objectArg(i);
+      return [v isKindOfClass:UIViewController.class] ? (UIViewController*)v : nil;
+    };
+    BOOL animated = [valueArg(1) boolValue];
+    if ([sel isEqualToString:@"pushViewController:animated:"]) {
+      UIViewController* vc = vcArg(0);
+      if (vc == nil) {
+        *error = "pushViewController: expects a UIViewController";
+        return "null";
+      }
+      [nav pushViewController:vc animated:animated];
+      return "null";
+    }
+    if ([sel isEqualToString:@"setNavigationBarHidden:animated:"]) {
+      [nav setNavigationBarHidden:[valueArg(0) boolValue] animated:animated];
+      return "null";
+    }
+  }
+
   if ([object isKindOfClass:UIScrollView.class]) {
     UIScrollView* sv = (UIScrollView*)object;
     if ([sel isEqualToString:@"setContentOffset:animated:"]) {
@@ -421,6 +443,18 @@ nacre::NativeObjectRef CallObjectMethod(id object, const std::string& name,
                                         const std::string& argsJSON,
                                         const std::vector<void*>& argPtrs,
                                         std::string* error) {
+  if ([object isKindOfClass:UINavigationController.class]) {
+    UINavigationController* nav = (UINavigationController*)object;
+    if (name == "popViewControllerAnimated:") {
+      id decoded = DecodeJSON(argsJSON);
+      NSArray* args = [decoded isKindOfClass:NSArray.class] ? decoded : @[];
+      BOOL animated = args.count > 0 ? [args[0] boolValue] : NO;
+      // 栈底那一个弹不动，返回 nil —— 「没命中」和「你问错了」要分开，
+      // 所以这里不填 error
+      return {(__bridge void*)[nav popViewControllerAnimated:animated],
+              "UIViewController"};
+    }
+  }
   NSString* sel = @(name.c_str());
   id decoded = DecodeJSON(argsJSON);
   NSArray* args = [decoded isKindOfClass:NSArray.class] ? decoded : @[];
@@ -616,6 +650,48 @@ nacre::NativeObjectRef CallObjectMethod(id object, const std::string& name,
 std::vector<nacre::NativeObjectRef> CallObjectArrayMethod(
     id object, const std::string& name, const std::string& argsJSON,
     const std::vector<void*>& argPtrs, std::string* error) {
+  if ([object isKindOfClass:UINavigationController.class]) {
+    UINavigationController* nav = (UINavigationController*)object;
+    id decoded = DecodeJSON(argsJSON);
+    NSArray* args = [decoded isKindOfClass:NSArray.class] ? decoded : @[];
+    NSArray<UIViewController*>* popped = nil;
+    BOOL matched = NO;
+    if (name == "popToViewController:animated:") {
+      id vc = argPtrs.empty() ? nil : (__bridge id)argPtrs[0];
+      if (![vc isKindOfClass:UIViewController.class]) {
+        *error = "popToViewController: expects a UIViewController";
+        return {};
+      }
+      popped = [nav popToViewController:vc
+                               animated:args.count > 1 ? [args[1] boolValue] : NO];
+      matched = YES;
+    } else if (name == "popToRootViewControllerAnimated:") {
+      popped = [nav popToRootViewControllerAnimated:
+                        args.count > 0 ? [args[0] boolValue] : NO];
+      matched = YES;
+    } else if (name == "setViewControllers:animated:") {
+      // 数组按「每个参数一个句柄」传，最后一个参数是 animated
+      NSMutableArray<UIViewController*>* list = [NSMutableArray array];
+      for (void* ptr : argPtrs) {
+        id vc = (__bridge id)ptr;
+        if (vc != nil && ![vc isKindOfClass:UIViewController.class]) {
+          *error = "setViewControllers: only accepts UIViewController";
+          return {};
+        }
+        if (vc != nil) [list addObject:vc];
+      }
+      BOOL animated = args.count > 0 && [args.lastObject boolValue];
+      [nav setViewControllers:list animated:animated];
+      return {};
+    }
+    if (matched) {
+      std::vector<nacre::NativeObjectRef> refs;
+      for (UIViewController* vc in popped) {
+        refs.push_back({(__bridge void*)vc, "UIViewController"});
+      }
+      return refs;
+    }
+  }
   std::vector<nacre::NativeObjectRef> refs;
   NSString* sel = @(name.c_str());
   id decoded = DecodeJSON(argsJSON);
@@ -659,6 +735,13 @@ nacre::NativeObjectRef ConstructNative(const std::string& className,
     object = [[UIButton alloc] init];
   } else if (className == "UIControl") {
     object = [[UIControl alloc] init];
+  } else if (className == "UINavigationController") {
+    id root = args.empty() ? nil : (__bridge id)args[0];
+    if ([root isKindOfClass:UIViewController.class]) {
+      object = [[UINavigationController alloc] initWithRootViewController:root];
+    } else {
+      object = [[UINavigationController alloc] init];
+    }
   } else if (className == "UIScrollView") {
     object = [[UIScrollView alloc] init];
   } else if (className == "UIStackView") {

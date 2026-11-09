@@ -38,6 +38,45 @@
 
 还没覆盖的：**UIKit 自己建的边镜像不到**（`pushViewController:` 把 `vc.view` 塞进自己的层级，JS 从没调过 `addSubview`）。要全局正确只有两条路，都等 bindgen：按 `CFGetRetainCount` 在空闲期扫一遍（引用计数有自动释放池干扰，不稳），或者接 V8 的 embedder 根、像 Blink 管 DOM 那样在 GC 时问宿主（引擎级改造）。Apple 自己的 JSC 桥走的是和我们一样的路——`JSVirtualMachine` 的 `addManagedReference:withOwner:` 就是让你**把原生侧的所有权边显式报告给 GC**。
 
+## 判据：从 GC 根到它有没有路
+
+「原生的每条强边都在 JS 侧镜像一遍」这个说法**过宽**。真正的判据是：
+
+> **JS 侧只要存在一条从 GC 根（`application`）到那个包装的路径就够了。**
+
+审计过一遍，返回原生对象的取值器分三类：
+
+| | 个数 | 例子 |
+| --- | --- | --- |
+| 记边（`nativeGetOwned`） | 26 | `view`、`layer`、`rootViewController`、`session`、`font`、`titleLabel`、`contentLayoutGuide`、`owningView`、`navigationController` |
+| 锚点（`anchorOf`，自己记 `item` 回边） | 12 | `leadingAnchor` 等 |
+| **不记边**（`nativeGetObject`） | **3** | `superview`、`window`、`windowScene` |
+
+那 3 个不记边是对的，因为从根到它们**已经有路**：
+
+```
+application  →  scenes              （sceneconnect 时 ownOne）
+   scene     →  windows             （windowScene 赋值时 ownOne）
+   window    →  rootViewController   （nativeSetOwned）
+     vc      →  view                 （nativeGetOwned）
+     view    →  subviews             （addSubview 时 ownOne）
+```
+
+祖先在 JS 侧一定是活的，所以 `child.superview` 读回来就是那个还活着的包装。
+
+### 所以漏边只有三种形状
+
+| | 什么时候 | 今天 |
+| --- | --- | --- |
+| **JS 调 API 建了持有，但忘了记边** | `addSubview` / `pushViewController` 忘了 `ownOne` / `ownAll` | 每次加这类方法都要想到 |
+| **原生自建的对象，取值器用了普通版而链路又不通** | 加新的对象取值器时没问「根到它有路吗」 | 三处普通取值器都在链路里，安全 |
+| **派生对象天生不在任何链路里** | 锚点、`UILayoutGuide`、约束——它们不在谁的 `subviews` 里 | 已靠 `anchorOf` / `owningView` 补上。[第 3c 步那次 SIGSEGV](auto-layout.md) 就是这一类 |
+
+> **加一个新的返回原生对象的取值器时，先问：从 `application` 到它有没有路？** 有就用 `nativeGetObject`，没有就用 `nativeGetOwned`。
+
+`check-api.sh` **分不出**该用哪个——它只核对符号齐不齐，两种取值器算在一起。编译器更不知道。唯一的网是那条 GC 回归 + 对照组。
+
+
 ---
 
 ← 返回[实现原理](README.md) ・ [项目说明](../project.md)

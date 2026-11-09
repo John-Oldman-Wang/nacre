@@ -233,6 +233,8 @@ for tsname, outer, inner in [
     # 滚动事件名：原生一张表，d.ts 一个联合，必须一字不差
     ('UIScrollViewEventType',
      r'ScrollEventNamesList\(void\).*?names = @\[(.*?)\];', r'@"(\w+)"'),
+    ('UINavigationControllerEventType',
+     r'NavEventNamesList\(void\).*?names = @\[(.*?)\];', r'@"(\w+)"'),
 ]:
     compare(tsname, extract(f'原生层的 {tsname} 表', outer, mm, inner), dts_union(tsname))
 

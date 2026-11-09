@@ -129,6 +129,8 @@ NSString* NamesForDecelerationRate(void);
 
 // UIScrollView 的事件名。它们派生自 delegate 的方法名而不是 ObjC 常量，
 // 所以按我们自己起名的惯例全小写（和 scene / window 的事件一致）。
+BOOL IsNavEventName(NSString* name);
+NSString* NamesForNavEvent(void);
 BOOL IsScrollEventName(NSString* name);
 NSString* NamesForScrollEvent(void);
 
@@ -158,6 +160,9 @@ nacre::NativeObjectRef ReadNativeObjectProperty(id object, const std::string& na
 void WriteNativeObjectProperty(id object, const std::string& name, void* valuePtr);
 std::vector<nacre::NativeObjectRef> ReadNativeObjectArrayProperty(
     id object, const std::string& name);
+void WriteNativeObjectArrayProperty(id object, const std::string& name,
+                                    const std::vector<void*>& values,
+                                    std::string* error);
 nacre::NativeObjectRef ReadClassObjectProperty(const std::string& className,
                                                const std::string& name);
 NSDictionary<NSString*, UIColor*>* NamedColors();
@@ -173,6 +178,8 @@ id ReadSceneProperty(id object, NSString* key);
 BOOL WriteSceneProperty(id object, NSString* key, id value, std::string* error);
 nacre::NativeObjectRef ReadSceneObjectProperty(id object, const std::string& name);
 void WriteSceneObjectProperty(id object, const std::string& name, id value);
+void ReadSceneObjectArray(id object, const std::string& name, std::vector<nacre::NativeObjectRef>& refs);
+BOOL WriteSceneObjectArray(id object, const std::string& name, const std::vector<void*>& values, std::string* error);
 
 id ReadControlProperty(id object, NSString* key);
 BOOL WriteControlProperty(id object, NSString* key, id value, std::string* error);

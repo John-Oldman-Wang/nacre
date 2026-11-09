@@ -56,6 +56,18 @@ export function stepOwnership(ctx) {
     late.isActive = true;
     assert('GC 之后用孤儿锚点建约束并激活', late.constant, 50);
     assert('它的 view 还活着', late.isActive, true);
+
+    // 导航栈那条边：push 完 JS 就丢掉了引用，包装必须还活着。
+    // 漏了 ownAll 的症状是这里读回来是个全新的包装——probe 没了、监听器也没了
+    const nav = ctx.nav;
+    if (nav != null) {
+      const top = nav.topViewController;
+      assert('导航栈：GC 后栈顶还是原来那个包装',
+             /** @type {any} */ (top).probe, '挂在包装上的 JS 状态');
+      assert('导航栈：标题也还在', top && top.title, '幽灵页');
+    } else {
+      console.log('  ! 没拿到导航控制器，这一条未验证');
+    }
   }
   waitForRealGC(80);
 

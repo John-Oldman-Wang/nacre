@@ -85,6 +85,11 @@ struct EngineHost {
   // 属性值是原生对象数组，比如 UIView.subviews
   std::function<std::vector<NativeObjectRef>(void* ptr, const std::string& name)>
       read_object_array_property;
+  // 可写的原生对象数组属性，比如 UINavigationController.viewControllers。
+  // values 按位置传指针，和 construct_native 的 args 一样
+  std::function<void(void* ptr, const std::string& name,
+                     const std::vector<void*>& values, std::string* error)>
+      write_object_array_property;
   // 返回值是原生对象数组的方法，比如 UIView.constraintsAffectingLayoutForAxis:
   // 参数和 error 规则同 call_method
   std::function<std::vector<NativeObjectRef>(void* ptr, const std::string& name,
@@ -199,6 +204,9 @@ class Engine {
   // 把事件派发给某个原生对象自己的 JS 包装（而不是 application）。
   // 场景的生命周期事件走这条路。
   void EmitObjectEvent(const NativeObjectRef& target, const std::string& type);
+  // 同上，外加一个原生对象作为负载（导航的 willshow / didshow 要带「哪个页面」）
+  void EmitObjectEventWith(const NativeObjectRef& target, const std::string& type,
+                           const NativeObjectRef& payload);
 
   // 结束一个由 JS 发起的异步调用，用布尔值兑现它的 Promise。
   // 只能在 JS 线程上调用；call_id 不存在时静默忽略。

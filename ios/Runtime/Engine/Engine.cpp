@@ -542,6 +542,21 @@ struct Engine::Impl {
   }
 
   // 写一个值为原生对象的属性：(handle, name, valueHandle)。valueHandle 为 0 表示 null
+  // 可写的原生对象数组属性。和写单个对象的区别只有「一个句柄」变成
+  // 「一串句柄」，所以复用 HandlesToPtrs——和方法的数组参数同一条路。
+  static void NativeSetObjectArrayProperty(
+      const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
+    void* ptr = self->PtrForHandle(info, 0);
+    if (!ptr || !self->host.write_object_array_property || info.Length() < 3) return;
+    std::string error;
+    self->host.write_object_array_property(
+        ptr, SafeToString(isolate, info[1]), self->HandlesToPtrs(ctx, info[2]), &error);
+    Rejected(isolate, error);
+  }
+
   static void NativeSetObjectProperty(const v8::FunctionCallbackInfo<v8::Value>& info) {
     v8::Isolate* isolate = info.GetIsolate();
     Impl* self = From(isolate);
@@ -872,6 +887,7 @@ struct Engine::Impl {
         {"call", NativeCall},
         {"callObj", NativeCallObject},
         {"getObjArray", NativeObjectArrayProperty},
+        {"setObjArray", NativeSetObjectArrayProperty},
         {"callObjArray", NativeCallObjectArray},
         {"subscribe", NativeSubscribe},
         {"callAsync", NativeCallAsync},
@@ -1159,6 +1175,33 @@ void Engine::EmitObjectEvent(const NativeObjectRef& target, const std::string& t
     v8::Local<v8::Value> argv[] = {wrapper, Utf8(isolate, type)};
     if (impl_->object_event_sink.Get(isolate)
             ->Call(ctx, ctx->Global(), 2, argv)
+            .IsEmpty()) {
+      impl_->ReportException(ctx, try_catch);
+    }
+  }
+  impl_->ScheduleRejectionFlush();
+}
+void Engine::EmitObjectEventWith(const NativeObjectRef& target,
+                                 const std::string& type,
+                                 const NativeObjectRef& payload) {
+  v8::Isolate* isolate = impl_->isolate;
+  v8::Isolate::Scope isolate_scope(isolate);
+  v8::HandleScope handle_scope(isolate);
+  if (impl_->object_event_sink.IsEmpty()) return;
+
+  v8::Local<v8::Context> ctx = impl_->context.Get(isolate);
+  v8::Context::Scope context_scope(ctx);
+  v8::Local<v8::Object> wrapper = impl_->WrapNative(ctx, target);
+  if (wrapper.IsEmpty()) return;
+  {
+    v8::TryCatch try_catch(isolate);
+    v8::Local<v8::Object> extra = impl_->WrapNative(ctx, payload);
+    v8::Local<v8::Value> argv[] = {
+        wrapper, Utf8(isolate, type),
+        extra.IsEmpty() ? v8::Local<v8::Value>(v8::Undefined(isolate))
+                        : v8::Local<v8::Value>(extra)};
+    if (impl_->object_event_sink.Get(isolate)
+            ->Call(ctx, ctx->Global(), 3, argv)
             .IsEmpty()) {
       impl_->ReportException(ctx, try_catch);
     }
