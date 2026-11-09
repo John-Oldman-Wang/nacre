@@ -46,6 +46,46 @@ new UIEdgeInsets(top, left, bottom, right);
 
 字段名和 ObjC 一致。
 
+## `CGAffineTransform`
+
+2×3 的仿射矩阵，`UIView.transform` 用它。
+
+```
+| a  b  0 |
+| c  d  0 |
+| tx ty 1 |
+```
+
+```js
+view.transform = CGAffineTransform.rotation(Math.PI / 6);      // 转 30°
+view.transform = CGAffineTransform.scale(1.2);                 // 放大 1.2 倍
+view.transform = CGAffineTransform.scale(1.2)
+  .concat(CGAffineTransform.rotation(Math.PI / 6));            // 先缩放再旋转
+view.transform = CGAffineTransform.identity;                   // 复原
+```
+
+| 成员 | 效果 |
+| --- | --- |
+| `CGAffineTransform.identity` | 单位矩阵，什么都不变 |
+| `CGAffineTransform.scale(sx, sy?)` | 缩放。只给一个参数时两轴相同 |
+| `CGAffineTransform.translation(tx, ty)` | 平移 |
+| `CGAffineTransform.rotation(radians)` | 旋转，**弧度**不是角度（和 Core Graphics 一致） |
+| `t.concat(other)` | 先应用 `t` 再应用 `other` |
+| `t.invert()` | 逆矩阵。**不可逆时返回 `null`**，不抛也不悄悄给单位矩阵 |
+| `t.isIdentity` | 是不是单位矩阵 |
+| `new CGAffineTransform(a, b, c, d, tx, ty)` | 六个数全给，兜底用 |
+
+**`concat` 的顺序有讲究**：
+
+```js
+CGAffineTransform.scale(2).concat(CGAffineTransform.translation(10, 20)).tx;   // 10
+CGAffineTransform.translation(10, 20).concat(CGAffineTransform.scale(2)).tx;   // 20
+```
+
+先缩放再平移，平移量不被缩放；反过来就被缩放了。
+
+> 和别的结构体一样**字段只读**，要改就整个换一个新的。静态工厂是 JS 自己算的（那几个 `CGAffineTransformMake*` 是纯算术），没有跨桥。
+
 ## 还没做
 
 `CGAffineTransform`、`CATransform3D`、`CGVector`、`NSRange`、`UIOffset`、`NSDirectionalEdgeInsets`。做法和上面一样，用到了再加。

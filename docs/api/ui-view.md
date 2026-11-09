@@ -42,6 +42,28 @@ new UIView()        // 对应 [[UIView alloc] init]
 
 `sizeThatFits` 是**同步**的，立刻拿到答案，不是回调也不是 Promise。
 
+### `transform`：一旦非单位矩阵，`frame` 就不要再信
+
+```js
+view.transform = CGAffineTransform.rotation(Math.PI / 6);
+```
+
+`transform` 是 [`CGAffineTransform`](structs.md#cgaffinetransform)，默认是单位矩阵。
+
+**UIKit 的规定：`transform` 非单位矩阵时 `frame` 没有意义。** 它报的是变换后的**包围盒**，而 `bounds` 和 `center` 不受影响：
+
+```js
+box.frame = new CGRect(24, 304, 40, 40);
+box.transform = CGAffineTransform.scale(1.2)
+  .concat(CGAffineTransform.rotation(Math.PI / 6));
+
+box.bounds.width;    // 40      ← 不变
+box.center.x;        // 44      ← 不变
+box.frame.width;     // 65.57   ← 变了，= 40 × (|a| + |c|)
+```
+
+实测那条关系确实是 `宽 × (|a| + |c|)`。所以**变换期间要改位置和大小，用 `bounds` 和 `center`**，别碰 `frame`。换回 `identity` 之后 `frame` 就恢复了。
+
 ### 结构体字段改不动
 
 ```js

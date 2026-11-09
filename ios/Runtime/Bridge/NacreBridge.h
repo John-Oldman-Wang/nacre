@@ -54,6 +54,8 @@ CGPoint JSONToPoint(id v);
 CGSize JSONToSize(id v);
 CGRect JSONToRect(id v);
 UIEdgeInsets JSONToInsets(id v);
+NSDictionary* TransformToJSON(CGAffineTransform t);
+CGAffineTransform JSONToTransform(id v);
 
 // ---- 环境快照 ----
 NSString* BackgroundRefreshName(UIBackgroundRefreshStatus status);

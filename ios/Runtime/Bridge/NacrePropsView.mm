@@ -34,6 +34,8 @@ id ReadViewProperty(id object, NSString* key) {
       value = NameForContentMode(view.contentMode);
     } else if ([key isEqualToString:@"intrinsicContentSize"]) {
       value = SizeToJSON(view.intrinsicContentSize);
+    } else if ([key isEqualToString:@"transform"]) {
+      value = TransformToJSON(view.transform);
     } else if ([key isEqualToString:@"translatesAutoresizingMaskIntoConstraints"]) {
       value = @(view.translatesAutoresizingMaskIntoConstraints);
     } else if ([key isEqualToString:@"hasAmbiguousLayout"]) {
@@ -87,6 +89,10 @@ BOOL WriteViewProperty(id object, NSString* key, id value,
     UIView* view = (UIView*)object;
     if ([key isEqualToString:@"translatesAutoresizingMaskIntoConstraints"]) {
       view.translatesAutoresizingMaskIntoConstraints = [value boolValue];
+      return YES;
+    }
+    if ([key isEqualToString:@"transform"]) {
+      view.transform = JSONToTransform(value);
       return YES;
     }
     if ([key isEqualToString:@"frame"]) { view.frame = JSONToRect(value); return YES; }

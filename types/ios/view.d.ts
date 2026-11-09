@@ -72,6 +72,13 @@ declare class UIView extends UIResponder {
    * 用约束之前先设成 false，否则系统会把 frame 翻译成一组 required
    * 优先级的约束，和你写的那些直接打架。默认 true。
    */
+  /**
+   * 仿射变换。
+   *
+   * **非单位矩阵时 `frame` 就没有意义了**（UIKit 的规定）——要改位置和
+   * 大小请用 `bounds` 和 `center`。
+   */
+  transform: CGAffineTransform;
   translatesAutoresizingMaskIntoConstraints: boolean;
 
   readonly leadingAnchor: NSLayoutXAxisAnchor;

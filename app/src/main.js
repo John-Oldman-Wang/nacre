@@ -29,6 +29,7 @@ import { stepControl } from './steps/control.js';
 import { stepButton } from './steps/button.js';
 import { stepScroll } from './steps/scroll.js';
 import { stepStack } from './steps/stack.js';
+import { stepTransform } from './steps/transform.js';
 import { stepNavigation } from './steps/navigation.js';
 import { stepOwnership } from './steps/ownership.js';
 
@@ -58,6 +59,7 @@ application.addEventListener('sceneconnect', (e) => {
   stepButton(ctx);
   stepScroll(ctx);
   stepStack(ctx);
+  stepTransform(ctx);
   stepNavigation(ctx);
   stepOwnership(ctx);
 

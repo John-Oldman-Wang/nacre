@@ -52,3 +52,43 @@ type CGRectLike =
 type UIEdgeInsetsLike =
   | UIEdgeInsets
   | { top: number; left: number; bottom: number; right: number };
+
+/**
+ * 2×3 的仿射矩阵。
+ *
+ * ```
+ * | a  b  0 |
+ * | c  d  0 |
+ * | tx ty 1 |
+ * ```
+ *
+ * ObjC 侧造它的是一组 C 函数（`CGAffineTransformMakeScale` 之类），但那几个
+ * 函数全是纯算术，所以这里的静态工厂是 JS 自己算的，没有跨桥。
+ *
+ * 和别的结构体一样**字段只读**，要改就整个换一个新的。
+ */
+declare class CGAffineTransform {
+  constructor(a: number, b: number, c: number, d: number, tx: number, ty: number);
+  readonly a: number;
+  readonly b: number;
+  readonly c: number;
+  readonly d: number;
+  readonly tx: number;
+  readonly ty: number;
+
+  /** 单位矩阵：什么都不变。 */
+  static readonly identity: CGAffineTransform;
+  /** 缩放。只给一个参数时两轴相同。 */
+  static scale(sx: number, sy?: number): CGAffineTransform;
+  /** 平移。 */
+  static translation(tx: number, ty: number): CGAffineTransform;
+  /** 旋转，**弧度**不是角度（和 Core Graphics 一致）。 */
+  static rotation(radians: number): CGAffineTransform;
+
+  /** 先应用自己再应用 other，等价于 `CGAffineTransformConcat(self, other)`。 */
+  concat(other: CGAffineTransform): CGAffineTransform;
+  /** 逆矩阵。不可逆（行列式为 0）时返回 `null`。 */
+  invert(): CGAffineTransform | null;
+  readonly isIdentity: boolean;
+  toString(): string;
+}

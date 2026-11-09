@@ -547,6 +547,7 @@ Commit message 格式：
 | 3f | 滚动 | UIScrollView、delegate trampoline、事件合并 | 已在模拟器验证通过：真实滑动一次派发 100 个 scroll，事件顺序正确，三次直写合并成一个 |
 | 3g | 缩放 | zoomScale、viewForZooming、捏合手势 | 待讨论，和手势那一步绑一起 |
 | — | `app/`：JS 源码独立成工程，esbuild 打包 | package.json、@nacre/types 当依赖装 | 已在模拟器验证通过：358 条断言和打包前一字不差，含真实滑动和点击 |
+| — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |
 | **M1b** | **同步回调回 JS** | 重入判定：UIKit 主动调我们才允许同步 | **没有逃生口**，第 8 步列表绕不过去 |
@@ -769,12 +770,9 @@ JS 侧的属性是一个个显式定义的取值器，名字不认识的赋值�
 
 和[子类化原生类](#待讨论的设计问题)那条相关，一起定。
 
-**TODO：`transform` 还没暴露。** `UIView.transform`（`CGAffineTransform`）和 `layer.transform`（`CATransform3D`）都没有。它挡着两类很常见的效果：
+**TODO：`layer.transform`（`CATransform3D`）还没暴露。** `UIView.transform`（`CGAffineTransform`）已经做了，见[结构体文档](api/structs.md#cgaffinetransform)。剩下 3D 的那一半：16 个字段，而且 `m34` 那种透视参数单靠结构体不好用，要和动画一起看。
 
-- **滚动驱动的变形**：吸顶头缩小、视差。变色、变高、变透明度今天就能做（`layer` 和约束都有），缩放做不了
-- **轮播的层叠效果**（coverflow 那种）：基础 Swiper 今天就能写（`isPagingEnabled` + stack + `setContentOffset`），但进阶形态要 transform
-
-体量不大：一个 `CGAffineTransform` 结构体（六个字段，和 `CGRect` 一样做成只读）加一个属性，不需要新通道。顺带要定的是**怎么构造**——ObjC 侧是 `CGAffineTransformMakeScale` 这类 C 函数，不是方法，所以要么暴露成类方法，要么在 JS 侧给几个工厂（`CGAffineTransform.scale(2, 2)`）。这是第一次遇到「C 函数而不是 ObjC 方法」的能力，值得单独一步。
+> 记这条 TODO 时担心的「C 函数怎么暴露」**在仿射变换这里没出现**：`CGAffineTransformMakeScale` 那几个全是纯算术，静态工厂在 JS 里算就行，过桥的只有六个数。判据记在[实现原理](internals/structs.md)里——**C 函数只在值类型上做算术就在 JS 侧实现，真要跨桥的是会碰系统状态的那些**。
 
 **TODO：`UITraitCollection` 还没暴露。** 这一条挡着三件事：
 

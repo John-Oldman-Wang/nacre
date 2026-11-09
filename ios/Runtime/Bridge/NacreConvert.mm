@@ -174,6 +174,16 @@ CGRect JSONToRect(id v) {
   return CGRectMake([d[@"x"] doubleValue], [d[@"y"] doubleValue],
                     [d[@"width"] doubleValue], [d[@"height"] doubleValue]);
 }
+NSDictionary* TransformToJSON(CGAffineTransform t) {
+  return @{@"a": @(t.a), @"b": @(t.b), @"c": @(t.c),
+           @"d": @(t.d), @"tx": @(t.tx), @"ty": @(t.ty)};
+}
+CGAffineTransform JSONToTransform(id v) {
+  NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
+  return CGAffineTransformMake([d[@"a"] doubleValue], [d[@"b"] doubleValue],
+                               [d[@"c"] doubleValue], [d[@"d"] doubleValue],
+                               [d[@"tx"] doubleValue], [d[@"ty"] doubleValue]);
+}
 UIEdgeInsets JSONToInsets(id v) {
   NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
   return UIEdgeInsetsMake([d[@"top"] doubleValue], [d[@"left"] doubleValue],
