@@ -382,8 +382,55 @@ types/
 
 **两处暂时不拆，理由写下来免得反复讨论：**
 
-- **`nacre.js`**（已经 2600+ 行，**过线了**）：它是**一个 classic script**，运行时按单文件读取执行。拆开要么靠构建期拼接，要么改成多脚本按序执行——两条都引入新的失败模式（顺序、半加载状态），而现在它一个文件读下来还不难。**但 2500 行这条线已经过了，下次碰它就要定**——要么引入模块化构建，要么按域拆成多个脚本按序执行
+- **`nacre.js`**（2600+ 行，**过线了**）：方案已定、暂时不拆，见下面「[`nacre.js` 怎么拆](#nacrejs-怎么拆方案已定未实现)」
 - **`main.js`**：验收用例，按步骤顺序读下来才有意义，拆开反而难读
+
+### `nacre.js` 怎么拆（方案已定，未实现）
+
+2026-11-09 讨论定的，**当时决定先不拆**——它改的是加载模型而不是挪代码，值得单独走一遍 SOP；而且 JS 开发者对拆不拆毫无感知，优先级低于能看见的能力。
+
+难点和 `.mm` 完全不同：`nacre.js` 整个是**一个 IIFE**，内部状态靠闭包里的 Symbol 共享，故意不暴露。量过共享面——17 个内部 Symbol 里**只有 6 个真跨域**（`kTarget`、`kDefaultPrevented`、`kStopImmediate`、`kListeners`、`kSubscribe`、`kHandle`），其余全是单个域自己的（URL 占 5 个、fetch 占 7 个），加上约 25 个桥接助手。共享面不大，所以可拆。
+
+**定的做法是函数包裹**，也就是 Node 给每个模块套 `(function (exports, require, module, …) { … })` 的那一招：
+
+```js
+// nacre.js —— 入口，只剩几十行
+(function (native) {
+  const ctx = { native };
+  ctx.kHandle = Symbol('nativeHandle');
+  …                              // 6 个跨域 Symbol + 共享助手
+  __nacre_runParts(ctx);         // 原生按序编译执行每个 part
+})(globalThis.__nacre_native);
+```
+
+```js
+// parts/05-view.js —— 整个文件就是一个函数表达式
+(function (ctx) {
+  const { kHandle, nativeGet, requireNative, UIResponder } = ctx;
+  ctx.UIView = ctx.defineNativeClass('UIView', class UIView extends UIResponder { … });
+})
+```
+
+原生侧对每个 part `Compile(源码, ScriptOrigin(文件名))` → `Run()` 拿到函数 → 用 `ctx` 调一下，约 30 行。
+
+被否掉的两条，理由记下来免得重议：
+
+| | 为什么不行 |
+| --- | --- |
+| **多脚本按序执行** | 要共享就得去掉 IIFE、让助手变成顶层 `const`（全局词法绑定，不污染属性列表）。但那会**把内部名变成用户的保留字**——`main.js` 顶层重复声明同名 `const` 是 `SyntaxError`，而我们的内部名里有 `define`、`own`、`num`、`env`。报错还指向用户自己那一行，极难查 |
+| **构建期拼接** | 运行时一个字不用改，但**跑的不是你编辑的那个文件**：报错说 `nacre.js:1234`，而那个 `nacre.js` 是生成物，得回查源文件和行号。还多一个构建步骤 |
+
+函数包裹三条都占住了：每个 part 各自正确的文件名和行号、零全局污染、不占用户的标识符，而且**依赖关系从「隐含在文件顺序里」变成显式的**——每个 part 开头那行解构写明了它要什么。
+
+「半加载状态」这条**不是新增的风险**：今天第 1500 行语法错一样会让整个内置脚本死掉。区别只是 part 化之后前几个 part 已经装上了，状态更让人困惑。所以原生侧要把**任何一个 part 失败都当致命错误**，日志里点名是哪个文件。
+
+切法按已有的域，和 `Bridge/`、`types/ios/` 对齐：`00-core`（桥接助手和所有权镜像）、`01-event`、`02-struct`、`03-layer`、`04-layout`、`05-view`、`06-text-image`、`07-control`、`08-scroll`、`09-scene`、`10-url`、`11-fetch`、`12-timer`，13 个文件，最大的 322 行。
+
+### 分发链一开始就该写成「认不认领」
+
+拆 `NacreProperties.mm` 时学到的：**纯搬家不会引入问题，但把「一个函数里的贯穿链」拆成多个函数必然要新增一个返回约定**，而新增约定就是改设计。那次写通道 88 处 `return;` 要改成 `return YES;`（漏了 12 处写在一行里的，编译器拦住了），对象读通道的 `{}` 则多出了第三个含义。
+
+所以**新写分发链时，每个类分支就返回「我认不认领」**，别依赖「在同一个函数里往下掉」。`NacreMethods.mm`（680 行）下次轮到它拆，先把签名改成这样，拆的时候才是纯搬家。
 
 `ios/` 内部：
 
