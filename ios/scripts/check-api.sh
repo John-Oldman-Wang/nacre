@@ -27,6 +27,27 @@ problems = []
 def complain(section, msg):
     problems.append(f'{section}: {msg}')
 
+# 每个「从源码里抽一组名字」的地方，都要能说出「是我自己失效了」，而不是
+# 安静地返回一个空集合。拆 NacreProperties.mm 时被这个形态咬过一次：
+# mm_block 定位不到签名，给了空集，于是报出一屏看着像真 diff 的假阳性。
+def extract(what, outer, text, inner):
+    m = re.search(outer, text, re.S)
+    if m is None:
+        complain('脚本', f'{what} 定位不到，check-api.sh 要更新')
+        return None
+    names = set(re.findall(inner, m.group(1)))
+    if not names:
+        complain('脚本', f'{what} 抽出来是空的，check-api.sh 要更新')
+        return None
+    return names
+
+def compare(label, a, b, side='d.ts'):
+    """a 或 b 是 None 说明提取点已经报过自己失效了，不再叠一条假的 diff。"""
+    if a is None or b is None:
+        return
+    if a - b: complain(label, f'{side} 缺这些值：{sorted(a - b)}')
+    if b - a: complain(label, f'{side} 多这些值：{sorted(b - a)}')
+
 # ---------------------------------------------------------------- 工具
 def braced_body(text, start):
     """从 start（紧跟在 { 之后）开始，返回配平的大括号内容。"""
@@ -36,6 +57,11 @@ def braced_body(text, start):
         elif text[i] == '}': depth -= 1
         i += 1
     return text[start:i-1]
+
+# UIColor 的颜色常量是循环 Object.defineProperty 加的，不在 class 体里。
+# 两处要用（类成员核对、第 3 节），抽一次
+JS_COLORS = extract('nacre.js 的 UIColor 颜色常量表',
+                    r"// UIColor\.h：基础色(.*?)\]\) \{", js, r"'(\w+)'")
 
 def js_classes():
     """nacre.js 里每个原生类的成员。"""
@@ -49,10 +75,11 @@ def js_classes():
                  if n != 'constructor'} - gets - sets
         statics = set(re.findall(r'^\s{4}static (\w+)\(', b, re.M))
         out[name] = dict(base=base, read=gets, write=sets, methods=meths, statics=statics)
-    # UIColor 的颜色常量是循环 Object.defineProperty 加的，不在 class 体里
-    m = re.search(r"// UIColor\.h：基础色(.*?)\]\) \{", js, re.S)
-    if m and 'UIColor' in out:
-        out['UIColor']['statics'] |= set(re.findall(r"'(\w+)'", m.group(1)))
+    if JS_COLORS and 'UIColor' in out:
+        out['UIColor']['statics'] |= JS_COLORS
+    if not out:
+        complain('脚本', 'nacre.js 里一个 defineNativeClass 都没解析出来，'
+                         'check-api.sh 要更新')
     return out
 
 def dts_classes():
@@ -80,6 +107,8 @@ def dts_classes():
                  - statics_meth - getters - setters - {'constructor'})
         out[name] = dict(base=base, props=props, readonly=ro,
                          methods=meths, statics=statics_prop | statics_meth)
+    if not out:
+        complain('脚本', 'd.ts 里一个 declare class 都没解析出来，check-api.sh 要更新')
     return out
 
 # ---------------------------------------------------------- 1. 类是否齐
@@ -87,10 +116,12 @@ J, D = js_classes(), dts_classes()
 # nacre.js 里用 class 定义、注入全局的非原生类也要有声明
 plain = set(re.findall(r"define\(globalThis,\s*'(\w+)'", js))
 js_all = set(J) | {p for p in plain if p[0].isupper()}
-missing = js_all - set(D)
-extra = set(D) - js_all - {'Intl'}
-if missing: complain('类', f'd.ts 里缺这些类：{sorted(missing)}')
-if extra:   complain('类', f'd.ts 里多出这些类（nacre.js 没有）：{sorted(extra)}')
+# 两个解析器任何一个空了，类的对比就没有意义——它们自己已经报过失效了
+if J and D:
+    missing = js_all - set(D)
+    extra = set(D) - js_all - {'Intl'}
+    if missing: complain('类', f'd.ts 里缺这些类：{sorted(missing)}')
+    if extra:   complain('类', f'd.ts 里多出这些类（nacre.js 没有）：{sorted(extra)}')
 
 # 沿 d.ts 的继承链收集祖先的成员。子类为了收窄类型重新声明一个父类已有的
 # 方法（比如 addEventListener 的重载）是合法的，不该报成「多出来」。
@@ -129,26 +160,26 @@ for name in sorted(set(J) & set(D)):
     if only_js_m:  complain(name, f'd.ts 缺这些方法：{sorted(only_js_m)}')
     if only_dts_m: complain(name, f'd.ts 多这些方法：{sorted(only_dts_m)}')
 
-    only_js_s  = j['statics'] - d['statics']
-    only_dts_s = d['statics'] - j['statics']
-    if only_js_s:  complain(name, f'd.ts 缺这些静态成员：{sorted(only_js_s)}')
-    if only_dts_s: complain(name, f'd.ts 多这些静态成员：{sorted(only_dts_s)}')
+    # 颜色常量表提不出来时，UIColor 的静态成员对比没有意义——提取点已经
+    # 报过自己失效了，这里再报 39 条就是噪音
+    if not (name == 'UIColor' and JS_COLORS is None):
+        only_js_s  = j['statics'] - d['statics']
+        only_dts_s = d['statics'] - j['statics']
+        if only_js_s:  complain(name, f'd.ts 缺这些静态成员：{sorted(only_js_s)}')
+        if only_dts_s: complain(name, f'd.ts 多这些静态成员：{sorted(only_dts_s)}')
 
 # ------------------------------------------------- 3. UIColor 的颜色常量
-m = re.search(r"// UIColor\.h：基础色(.*?)\]\) \{", js, re.S)
-js_colors = set(re.findall(r"'(\w+)'", m.group(1))) if m else set()
-dts_colors = D.get('UIColor', {}).get('statics', set())
-if js_colors - dts_colors: complain('UIColor', f'd.ts 缺这些颜色：{sorted(js_colors - dts_colors)}')
-if dts_colors - js_colors: complain('UIColor', f'd.ts 多这些颜色：{sorted(dts_colors - js_colors)}')
+compare('UIColor', JS_COLORS, D.get('UIColor', {}).get('statics', set()))
 
-# ---------------------------------- 4. 枚举的可选值：d.ts 对 NacreRuntime.mm
+# -------------------------------------- 4. 枚举的可选值：d.ts 对原生层
+# 名字 ↔ 数值的映射只能在原生层（数值随 ABI 变），所以原生层是真相，
+# d.ts 是跟着它走的那一份。
 def mm_enum(macro):
-    m = re.search(r'NACRE_ENUM_MAP\(%s,[^,]+,(.*?)\)\n\n' % macro, mm, re.S)
-    return set(re.findall(r'@"(\w+)":', m.group(1))) if m else set()
+    return extract(f'原生层的 NACRE_ENUM_MAP({macro})',
+                   r'NACRE_ENUM_MAP\(%s,[^,]+,(.*?)\)\n\n' % macro, mm, r'@"(\w+)":')
 
 def dts_union(name):
-    m = re.search(r'type %s =\s*(.*?);' % name, dts, re.S)
-    return set(re.findall(r"'([\w]+)'", m.group(1))) if m else set()
+    return extract(f'd.ts 的 {name}', r'type %s =\s*(.*?);' % name, dts, r"'([\w]+)'")
 
 for macro, tsname in [('TextAlignment', 'NSTextAlignment'),
                       ('LineBreakMode', 'NSLineBreakMode'),
@@ -169,74 +200,62 @@ for macro, tsname in [('TextAlignment', 'NSTextAlignment'),
                       ('IndicatorStyle', 'UIScrollViewIndicatorStyle'),
                       ('ContentInsetAdjustmentBehavior',
                        'UIScrollViewContentInsetAdjustmentBehavior')]:
-    a, b = mm_enum(macro), dts_union(tsname)
-    if not a: complain('枚举', f'没能从 NacreRuntime.mm 解析出 {macro}，脚本要更新')
-    elif a != b:
-        if a - b: complain(tsname, f'd.ts 缺这些值：{sorted(a - b)}')
-        if b - a: complain(tsname, f'd.ts 多这些值：{sorted(b - a)}')
+    compare(tsname, mm_enum(macro), dts_union(tsname))
 
 # 位掩码走另一个宏：一个数值对一组名字
-m = re.search(r'NACRE_MASK_MAP\(CornerMask,[^,]+,(.*?)\)\n\n', mm, re.S)
-a = set(re.findall(r'@"(\w+)":', m.group(1))) if m else set()
-b = dts_union('CACornerMask')
-if not a: complain('枚举', '没能从 mm 解析出 CornerMask，脚本要更新')
-elif a != b: complain('CACornerMask', f'缺 {sorted(a-b)} 多 {sorted(b-a)}')
+compare('CACornerMask',
+        extract('原生层的 CornerMask 掩码表',
+                r'NACRE_MASK_MAP\(CornerMask,[^,]+,(.*?)\)\n\n', mm, r'@"(\w+)":'),
+        dts_union('CACornerMask'))
 
 # UIControlState 的 normal 是 0，掩码表里没有它，d.ts 里有——对比时补上
-m = re.search(r'NACRE_MASK_MAP\(ControlState,[^,]+,(.*?)\)\n\n', mm, re.S)
-a = (set(re.findall(r'@"(\w+)":', m.group(1))) | {'normal'}) if m else set()
-b = dts_union('UIControlStateName')
-if not a: complain('枚举', '没能从 mm 解析出 ControlState，脚本要更新')
-elif a != b: complain('UIControlStateName', f'缺 {sorted(a-b)} 多 {sorted(b-a)}')
+state = extract('原生层的 ControlState 掩码表',
+                r'NACRE_MASK_MAP\(ControlState,[^,]+,(.*?)\)\n\n', mm, r'@"(\w+)":')
+compare('UIControlStateName', (state | {'normal'}) if state else None,
+        dts_union('UIControlStateName'))
 
-# 字重、文本样式、圆角曲线、布局优先级不走宏，单独对
-m = re.search(r'FontWeightTable\(void\).*?@\{(.*?)\};', mm, re.S)
-a = set(re.findall(r'@"(\w+)":', m.group(1))) if m else set()
-b = dts_union('UIFontWeight')
-if a != b: complain('UIFontWeight', f'缺 {sorted(a-b)} 多 {sorted(b-a)}')
+# 这几张表不走宏。pairs 是**有序数组**（反查要有确定答案），table 是字典
+# （只按名字查，不反查），所以内层正则不是同一个。
+for tsname, outer, inner in [
+    ('UIFontWeight', r'FontWeightTable\(void\).*?@\{(.*?)\};', r'@"(\w+)":'),
+    ('UIFontTextStyle', r'TextStylePairs\(void\).*?pairs = @\[(.*?)\];',
+     r'@\[\s*@"(\w+)"'),
+    ('CALayerCornerCurve', r'CornerCurvePairs\(void\).*?pairs = @\[(.*?)\];',
+     r'@\[\s*@"(\w+)"'),
+    ('UILayoutPriorityName', r'LayoutPriorityTable\(void\).*?@\{(.*?)\};',
+     r'@"(\w+)":'),
+    # leading==top、trailing==bottom，一个值两个名字，所以实现用有序 pairs。
+    # 别名也是可写的，一起对
+    ('UIStackViewAlignment', r'StackAlignmentPairs\(void\).*?pairs = @\[(.*?)\];',
+     r'@\[\s*@"(\w+)"'),
+    ('UIScrollViewDecelerationRate',
+     r'DecelerationRatePairs\(void\).*?pairs = @\[(.*?)\];', r'@\[\s*@"(\w+)"'),
+    # 滚动事件名：原生一张表，d.ts 一个联合，必须一字不差
+    ('UIScrollViewEventType',
+     r'ScrollEventNamesList\(void\).*?names = @\[(.*?)\];', r'@"(\w+)"'),
+]:
+    compare(tsname, extract(f'原生层的 {tsname} 表', outer, mm, inner), dts_union(tsname))
 
-m = re.search(r'TextStylePairs\(void\).*?pairs = @\[(.*?)\];', mm, re.S)
-a = set(re.findall(r'@\[\s*@"(\w+)"', m.group(1))) if m else set()
-b = dts_union('UIFontTextStyle')
-if a != b: complain('UIFontTextStyle', f'缺 {sorted(a-b)} 多 {sorted(b-a)}')
-
-# UIStackViewAlignment 不走宏：leading==top、trailing==bottom，一个值两个名字，
-# 所以实现用有序 pairs（无序字典反查会不确定）。别名也是可写的，一起对
-# 滚动事件名：原生一张表，d.ts 一个联合，必须一字不差
-m = re.search(r'ScrollEventNamesList\(void\).*?names = @\[(.*?)\];', mm, re.S)
-a = set(re.findall(r'@"(\w+)"', m.group(1))) if m else set()
-b = dts_union('UIScrollViewEventType')
-if not a: complain('事件名', '没能从 mm 解析出 ScrollEventNamesList，脚本要更新')
-elif a != b: complain('UIScrollViewEventType', f'缺 {sorted(a-b)} 多 {sorted(b-a)}')
-
-# decelerationRate 的两个具名值
-m = re.search(r'DecelerationRatePairs\(void\).*?pairs = @\[(.*?)\];', mm, re.S)
-a = set(re.findall(r'@\[\s*@"(\w+)"', m.group(1))) if m else set()
-b = dts_union('UIScrollViewDecelerationRate')
-if not a: complain('枚举', '没能从 mm 解析出 DecelerationRate，脚本要更新')
-elif a != b: complain('UIScrollViewDecelerationRate', f'缺 {sorted(a-b)} 多 {sorted(b-a)}')
-
-m = re.search(r'StackAlignmentPairs\(void\).*?pairs = @\[(.*?)\];', mm, re.S)
-a = set(re.findall(r'@\[\s*@"(\w+)"', m.group(1))) if m else set()
-b = dts_union('UIStackViewAlignment')
-if not a: complain('枚举', '没能从 mm 解析出 StackAlignment，脚本要更新')
-elif a != b: complain('UIStackViewAlignment', f'缺 {sorted(a-b)} 多 {sorted(b-a)}')
-
-m = re.search(r'CornerCurvePairs\(void\).*?pairs = @\[(.*?)\];', mm, re.S)
-a = set(re.findall(r'@\[\s*@"(\w+)"', m.group(1))) if m else set()
-b = dts_union('CALayerCornerCurve')
-if a != b: complain('CALayerCornerCurve', f'缺 {sorted(a-b)} 多 {sorted(b-a)}')
-
-m = re.search(r'LayoutPriorityTable\(void\).*?@\{(.*?)\};', mm, re.S)
-a = set(re.findall(r'@"(\w+)":', m.group(1))) if m else set()
-b = dts_union('UILayoutPriorityName')
-if a != b: complain('UILayoutPriorityName', f'缺 {sorted(a-b)} 多 {sorted(b-a)}')
-
-# ------------------------------- 5. nacre.js 的属性读写对 NacreRuntime.mm
+# ----------------------------------- 5. nacre.js 的属性读写对原生层
 # 对象属性有两条路：所有权边走 nativeGetOwned / nativeSetOwned（会在 JS 侧
 # 记一笔持有关系），回边走 nativeGetObject / nativeSetObject。两边都要算。
 def js_calls(fn):
-    return set(re.findall(r"\b%s\(this, '(\w+)'" % fn, js))
+    names = set(re.findall(r"\b%s\(this, '(\w+)'" % fn, js))
+    if not names:
+        complain('脚本', f"nacre.js 里找不到 {fn}(this, …) 的调用，check-api.sh 要更新")
+        return None
+    return names
+
+def js_union(*fns):
+    """几个取值器的并集。任何一个提不出来就整个返回 None——并集非空会把
+    单个取值器的失效藏起来，那正是这类保护要防的事。"""
+    out = set()
+    for fn in fns:
+        names = js_calls(fn)
+        if names is None:
+            return None
+        out |= names
+    return out
 
 def mm_bodies(sig_pattern):
     """按签名正则收集所有匹配函数的函数体，拼成一份来扫。
@@ -254,25 +273,30 @@ def mm_bodies(sig_pattern):
     return '\n'.join(out)
 
 pairs = [
-    ('标量读', js_calls('nativeGet'),
+    ('标量读', js_union('nativeGet'),
      set(re.findall(r'isEqualToString:@"(\w+)"',
                     mm_bodies(r'^id Read\w+Property\(id object, NSString\* key\)')))),
-    ('标量写', js_calls('nativeSet'),
+    ('标量写', js_union('nativeSet'),
      set(re.findall(r'isEqualToString:@"(\w+)"',
                     mm_bodies(r'^BOOL Write\w+Property\(id object, NSString\* key')))),
     # 锚点在 mm 里单独一个函数（UIView 12 个、UILayoutGuide 10 个，名字重叠），
     # JS 侧走 anchorOf。两边都并进来，否则这 12 个名字谁都盯不到。
     ('对象读',
-     js_calls('nativeGetObject') | js_calls('nativeGetOwned') | js_calls('anchorOf'),
+     js_union('nativeGetObject', 'nativeGetOwned', 'anchorOf'),
      set(re.findall(r'name == "(\w+)"',
                     mm_bodies(r'^nacre::NativeObjectRef Read\w+ObjectProperty\('))) |
      set(re.findall(r'name == "(\w+)"',
                     mm_bodies(r'^nacre::NativeObjectRef AnchorNamed')))),
-    ('对象写', js_calls('nativeSetObject') | js_calls('nativeSetOwned'),
+    ('对象写', js_union('nativeSetObject', 'nativeSetOwned'),
      set(re.findall(r'name == "(\w+)"',
                     mm_bodies(r'^void Write\w+ObjectProperty\(')))),
 ]
 for label, a, b in pairs:
+    # 任何一侧是空的，都说明某个提取点失效了（它自己已经报过），
+    # 这里再报一百多条按名字的 diff 只会把真正的那一行淹掉
+    if not a or not b:
+        continue
+    # 这一节反过来：原生层是真相，缺的是 nacre.js
     if a - b: complain(label, f'nacre.js 有但原生层没有：{sorted(a - b)}')
     if b - a: complain(label, f'原生层有但 nacre.js 没有：{sorted(b - a)}')
 
@@ -284,7 +308,7 @@ if problems:
     sys.exit(1)
 
 print('API 三边核对：一致')
-print(f'  类 {len(J)} 个，颜色常量 {len(js_colors)} 个，'
+print(f'  类 {len(J)} 个，颜色常量 {len(JS_COLORS or [])} 个，'
       f'标量读写 {len(pairs[0][1])}/{len(pairs[1][1])}，'
       f'对象读写 {len(pairs[2][1])}/{len(pairs[3][1])}')
 PY
