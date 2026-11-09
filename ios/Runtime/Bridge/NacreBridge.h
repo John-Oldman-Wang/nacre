@@ -99,6 +99,9 @@ NACRE_ENUM_DECL(ControlVerticalAlignment, UIControlContentVerticalAlignment)
 NACRE_ENUM_DECL(ButtonType, UIButtonType)
 NACRE_ENUM_DECL(ButtonRole, UIButtonRole)
 NACRE_ENUM_DECL(StackDistribution, UIStackViewDistribution)
+NACRE_ENUM_DECL(IndicatorStyle, UIScrollViewIndicatorStyle)
+NACRE_ENUM_DECL(ContentInsetAdjustmentBehavior,
+                UIScrollViewContentInsetAdjustmentBehavior)
 // UIStackViewAlignment 是第一个带别名的枚举（leading==top、trailing==bottom），
 // 所以它不走 NACRE_ENUM_MAP：那个宏的 NameFor 遍历无序字典，同一个值挂两个
 // key 时读出来的字符串会不确定。实现改用有序 pairs，见 NacreEnums.mm
@@ -117,6 +120,17 @@ NSString* NamesForControlStateArg(void);
 BOOL StackSpacingFromValue(id value, CGFloat* out, BOOL allowDefault);
 id ValueForStackSpacing(CGFloat spacing);
 NSString* NamesForStackSpacing(BOOL allowDefault);
+
+// decelerationRate 和 spacing 一样是「数字或具名常量」：Normal 是 0.998、
+// Fast 是 0.99，没人记得住，但它又确实接受任意数字。
+BOOL DecelerationRateFromValue(id value, CGFloat* out);
+id ValueForDecelerationRate(CGFloat rate);
+NSString* NamesForDecelerationRate(void);
+
+// UIScrollView 的事件名。它们派生自 delegate 的方法名而不是 ObjC 常量，
+// 所以按我们自己起名的惯例全小写（和 scene / window 的事件一致）。
+BOOL IsScrollEventName(NSString* name);
+NSString* NamesForScrollEvent(void);
 
 // cornerCurve 的值是 NSString 常量，不是枚举，和文本样式一样
 NSString* CornerCurveFromName(NSString* name);

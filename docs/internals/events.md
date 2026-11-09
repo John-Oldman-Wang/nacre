@@ -163,6 +163,8 @@ titleForState('disabled')  →  '点我试试'
 
 **system 按钮一样有 `titleLabel` 和 `imageView`。** 头文件的注释写着「always returns nil for system buttons」，实测不对——`titleLabel.text` 就是当前标题。那条注释是老的。
 
+> 第三种事件源（delegate）在 4a 之后才出现，见[滚动](scrolling.md#第三种事件源delegate-trampoline)。
+
 ## 两种事件源
 
 现在运行时里有两种，不要混：

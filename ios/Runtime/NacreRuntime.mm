@@ -47,6 +47,10 @@ using namespace nacre_bridge;
 
 @interface NacreRuntime () <NSURLSessionDataDelegate>
 - (void)emitControlEvent:(NSString*)type from:(UIControl*)control;
+- (void)emitEvent:(NSString*)type
+             from:(id)object
+        className:(const char*)className
+             then:(dispatch_block_t)completion;
 - (void)setSubscription:(id)object
                    type:(const std::string&)type
                      on:(BOOL)on
@@ -71,8 +75,68 @@ using namespace nacre_bridge;
 }
 @end
 
+// 滚动的 trampoline。和控件那个一样**只持有 handle 不持有 JS 函数**，
+// 区别在于 UIScrollView 的事件全在 delegate 上，而 delegate 是一个对象、
+// 不是一组可以分别注册的 action。所以订阅状态要自己记：types 里没有的
+// 类型压根不过桥——这是惰性订阅第一次真的省开销，而不只是整洁。
+@interface NacreScrollDelegate : NSObject <UIScrollViewDelegate>
+@property(nonatomic, weak) NacreRuntime* runtime;
+@property(nonatomic, strong) NSMutableSet<NSString*>* types;
+// 合并用：队列里已经有一个 scroll 在等着就不再排第二个。
+// 这么做是无损的，因为事件不带数据，JS 回头从 contentOffset 上读最新值
+@property(nonatomic, assign) BOOL scrollPending;
+@end
+
+@implementation NacreScrollDelegate
+
+- (void)emit:(NSString*)type from:(UIScrollView*)sv {
+  if (![self.types containsObject:type]) return;
+  [self.runtime emitEvent:type from:sv className:"UIScrollView" then:nil];
+}
+
+- (void)scrollViewDidScroll:(UIScrollView*)scrollView {
+  if (![self.types containsObject:@"scroll"]) return;
+  if (self.scrollPending) return;
+  self.scrollPending = YES;
+  __weak NacreScrollDelegate* weakSelf = self;
+  [self.runtime emitEvent:@"scroll"
+                     from:scrollView
+                className:"UIScrollView"
+                     then:^{ weakSelf.scrollPending = NO; }];
+}
+
+- (void)scrollViewWillBeginDragging:(UIScrollView*)scrollView {
+  [self emit:@"dragbegin" from:scrollView];
+}
+// willDecelerate 这个参数不往事件上放：延后一轮之后 JS 读 isDecelerating
+// 拿到的是事实，而参数只是预测
+- (void)scrollViewDidEndDragging:(UIScrollView*)scrollView
+                  willDecelerate:(BOOL)decelerate {
+  [self emit:@"dragend" from:scrollView];
+}
+- (void)scrollViewWillBeginDecelerating:(UIScrollView*)scrollView {
+  [self emit:@"deceleratebegin" from:scrollView];
+}
+- (void)scrollViewDidEndDecelerating:(UIScrollView*)scrollView {
+  [self emit:@"decelerateend" from:scrollView];
+}
+- (void)scrollViewDidEndScrollingAnimation:(UIScrollView*)scrollView {
+  [self emit:@"scrollanimationend" from:scrollView];
+}
+- (void)scrollViewDidScrollToTop:(UIScrollView*)scrollView {
+  [self emit:@"scrolltotop" from:scrollView];
+}
+- (void)scrollViewDidChangeAdjustedContentInset:(UIScrollView*)scrollView {
+  [self emit:@"adjustedcontentinsetchange" from:scrollView];
+}
+
+@end
+
 // 关联对象的 key：事件名 → NacreControlTarget
 static const void* kNacreControlTargetsKey = &kNacreControlTargetsKey;
+// 关联对象的 key：UIScrollView → NacreScrollDelegate。
+// scrollView.delegate 是 weak，所以 trampoline 必须由关联对象来持有
+static const void* kNacreScrollDelegateKey = &kNacreScrollDelegateKey;
 
 @implementation NacreRuntime {
   BOOL _started;
@@ -862,12 +926,21 @@ nacre::NativeObjectRef CreateBlob(
 // 控件事件：延后一轮再进 JS，和别的原生通知一致。
 // 这里捕获的是 control 的强引用，保证 block 跑起来时它还活着。
 - (void)emitControlEvent:(NSString*)type from:(UIControl*)control {
+  [self emitEvent:type from:control className:"UIControl" then:nil];
+}
+
+// 通用的「原生发生了什么，告诉 JS」。延后一轮，completion 在派发之后跑，
+// 用来清合并标志——清在派发之后，这样派发前又发生的同类事件会被合并掉。
+- (void)emitEvent:(NSString*)type
+             from:(id)object
+        className:(const char*)className
+             then:(dispatch_block_t)completion {
   auto engine = _engine;
   std::string t = type.UTF8String;
+  std::string cls = className;
   [self postToJS:^{
-    if (*engine) {
-      (*engine)->EmitObjectEvent({(__bridge void*)control, "UIControl"}, t);
-    }
+    if (*engine) (*engine)->EmitObjectEvent({(__bridge void*)object, cls}, t);
+    if (completion) completion();
   }];
 }
 
@@ -876,6 +949,36 @@ nacre::NativeObjectRef CreateBlob(
                    type:(const std::string&)type
                      on:(BOOL)on
                   error:(std::string*)error {
+  if ([object isKindOfClass:UIScrollView.class]) {
+    UIScrollView* sv = (UIScrollView*)object;
+    NSString* name = @(type.c_str());
+    if (!IsScrollEventName(name)) {
+      *error = EnumError(@"addEventListener", name, NamesForScrollEvent());
+      return;
+    }
+    NacreScrollDelegate* d =
+        objc_getAssociatedObject(sv, kNacreScrollDelegateKey);
+    if (on) {
+      if (d == nil) {
+        d = [NacreScrollDelegate new];
+        d.runtime = self;
+        d.types = [NSMutableSet set];
+        objc_setAssociatedObject(sv, kNacreScrollDelegateKey, d,
+                                 OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        sv.delegate = d;
+      }
+      [d.types addObject:name];
+    } else if (d != nil) {
+      [d.types removeObject:name];
+      // 一个监听器都不剩就把 delegate 摘掉，回到零开销
+      if (d.types.count == 0) {
+        sv.delegate = nil;
+        objc_setAssociatedObject(sv, kNacreScrollDelegateKey, nil,
+                                 OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+      }
+    }
+    return;
+  }
   if (![object isKindOfClass:UIControl.class]) {
     *error = "this object does not support event subscription";
     return;

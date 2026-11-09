@@ -180,7 +180,7 @@ row.customSpacingAfterView(avatar);     // 40
 | --- | --- |
 | `layoutMargins` / `directionalLayoutMargins` | `isLayoutMarginsRelativeArrangement` 开得了，但**边距的值还读不到也写不了**，所以现在只能用系统默认的那一圈 |
 | `viewForFirstBaselineLayout` / `viewForLastBaselineLayout` | 边缘能力，留给 bindgen |
-| 滚动 | 不是它的事。长内容要滚得等 `UIScrollView` |
+| 滚动 | 不是它的事。长内容要滚，把它放进 [`UIScrollView`](ui-scroll-view.md) |
 | 换行 / grid | UIKit 没有原生容器，等 `UICollectionView` |
 
 ---

@@ -73,6 +73,60 @@ std::string ReadNativeProperty(id object, const std::string& name) {
       value = @(view.hasAmbiguousLayout);
     }
   }
+  if (value == nil && [object isKindOfClass:UIScrollView.class]) {
+    UIScrollView* sv = (UIScrollView*)object;
+    if ([key isEqualToString:@"contentOffset"]) {
+      value = PointToJSON(sv.contentOffset);
+    } else if ([key isEqualToString:@"contentSize"]) {
+      value = SizeToJSON(sv.contentSize);
+    } else if ([key isEqualToString:@"contentInset"]) {
+      value = InsetsToJSON(sv.contentInset);
+    } else if ([key isEqualToString:@"adjustedContentInset"]) {
+      value = InsetsToJSON(sv.adjustedContentInset);
+    } else if ([key isEqualToString:@"contentInsetAdjustmentBehavior"]) {
+      value = NameForContentInsetAdjustmentBehavior(sv.contentInsetAdjustmentBehavior);
+    } else if ([key isEqualToString:@"automaticallyAdjustsScrollIndicatorInsets"]) {
+      value = @(sv.automaticallyAdjustsScrollIndicatorInsets);
+    } else if ([key isEqualToString:@"isScrollEnabled"]) {
+      value = @(sv.isScrollEnabled);
+    } else if ([key isEqualToString:@"isDirectionalLockEnabled"]) {
+      value = @(sv.isDirectionalLockEnabled);
+    } else if ([key isEqualToString:@"bounces"]) {
+      value = @(sv.bounces);
+    } else if ([key isEqualToString:@"alwaysBounceVertical"]) {
+      value = @(sv.alwaysBounceVertical);
+    } else if ([key isEqualToString:@"alwaysBounceHorizontal"]) {
+      value = @(sv.alwaysBounceHorizontal);
+    } else if ([key isEqualToString:@"isPagingEnabled"]) {
+      value = @(sv.isPagingEnabled);
+    } else if ([key isEqualToString:@"scrollsToTop"]) {
+      value = @(sv.scrollsToTop);
+    } else if ([key isEqualToString:@"showsVerticalScrollIndicator"]) {
+      value = @(sv.showsVerticalScrollIndicator);
+    } else if ([key isEqualToString:@"showsHorizontalScrollIndicator"]) {
+      value = @(sv.showsHorizontalScrollIndicator);
+    } else if ([key isEqualToString:@"indicatorStyle"]) {
+      value = NameForIndicatorStyle(sv.indicatorStyle);
+    } else if ([key isEqualToString:@"verticalScrollIndicatorInsets"]) {
+      value = InsetsToJSON(sv.verticalScrollIndicatorInsets);
+    } else if ([key isEqualToString:@"horizontalScrollIndicatorInsets"]) {
+      value = InsetsToJSON(sv.horizontalScrollIndicatorInsets);
+    } else if ([key isEqualToString:@"decelerationRate"]) {
+      value = ValueForDecelerationRate(sv.decelerationRate);
+    } else if ([key isEqualToString:@"delaysContentTouches"]) {
+      value = @(sv.delaysContentTouches);
+    } else if ([key isEqualToString:@"canCancelContentTouches"]) {
+      value = @(sv.canCancelContentTouches);
+    } else if ([key isEqualToString:@"isTracking"]) {
+      value = @(sv.isTracking);
+    } else if ([key isEqualToString:@"isDragging"]) {
+      value = @(sv.isDragging);
+    } else if ([key isEqualToString:@"isDecelerating"]) {
+      value = @(sv.isDecelerating);
+    } else if ([key isEqualToString:@"isScrollAnimating"]) {
+      value = @(sv.isScrollAnimating);
+    }
+  }
   if (value == nil && [object isKindOfClass:UIStackView.class]) {
     UIStackView* stack = (UIStackView*)object;
     if ([key isEqualToString:@"axis"]) {
@@ -451,6 +505,102 @@ void WriteNativeProperty(id object, const std::string& name, const std::string& 
       return;
     }
   }
+  if ([object isKindOfClass:UIScrollView.class]) {
+    UIScrollView* sv = (UIScrollView*)object;
+    if ([key isEqualToString:@"contentOffset"]) {
+      sv.contentOffset = JSONToPoint(value);
+      return;
+    }
+    if ([key isEqualToString:@"contentSize"]) {
+      sv.contentSize = JSONToSize(value);
+      return;
+    }
+    if ([key isEqualToString:@"contentInset"]) {
+      sv.contentInset = JSONToInsets(value);
+      return;
+    }
+    if ([key isEqualToString:@"contentInsetAdjustmentBehavior"]) {
+      UIScrollViewContentInsetAdjustmentBehavior b;
+      if (!ContentInsetAdjustmentBehaviorFromName(value, &b)) {
+        *error = EnumError(@"contentInsetAdjustmentBehavior", value,
+                           NamesForContentInsetAdjustmentBehavior());
+        return;
+      }
+      sv.contentInsetAdjustmentBehavior = b;
+      return;
+    }
+    if ([key isEqualToString:@"automaticallyAdjustsScrollIndicatorInsets"]) {
+      sv.automaticallyAdjustsScrollIndicatorInsets = [value boolValue];
+      return;
+    }
+    if ([key isEqualToString:@"isScrollEnabled"]) {
+      sv.scrollEnabled = [value boolValue];
+      return;
+    }
+    if ([key isEqualToString:@"isDirectionalLockEnabled"]) {
+      sv.directionalLockEnabled = [value boolValue];
+      return;
+    }
+    if ([key isEqualToString:@"bounces"]) { sv.bounces = [value boolValue]; return; }
+    if ([key isEqualToString:@"alwaysBounceVertical"]) {
+      sv.alwaysBounceVertical = [value boolValue];
+      return;
+    }
+    if ([key isEqualToString:@"alwaysBounceHorizontal"]) {
+      sv.alwaysBounceHorizontal = [value boolValue];
+      return;
+    }
+    if ([key isEqualToString:@"isPagingEnabled"]) {
+      sv.pagingEnabled = [value boolValue];
+      return;
+    }
+    if ([key isEqualToString:@"scrollsToTop"]) {
+      sv.scrollsToTop = [value boolValue];
+      return;
+    }
+    if ([key isEqualToString:@"showsVerticalScrollIndicator"]) {
+      sv.showsVerticalScrollIndicator = [value boolValue];
+      return;
+    }
+    if ([key isEqualToString:@"showsHorizontalScrollIndicator"]) {
+      sv.showsHorizontalScrollIndicator = [value boolValue];
+      return;
+    }
+    if ([key isEqualToString:@"indicatorStyle"]) {
+      UIScrollViewIndicatorStyle style;
+      if (!IndicatorStyleFromName(value, &style)) {
+        *error = EnumError(@"indicatorStyle", value, NamesForIndicatorStyle());
+        return;
+      }
+      sv.indicatorStyle = style;
+      return;
+    }
+    if ([key isEqualToString:@"verticalScrollIndicatorInsets"]) {
+      sv.verticalScrollIndicatorInsets = JSONToInsets(value);
+      return;
+    }
+    if ([key isEqualToString:@"horizontalScrollIndicatorInsets"]) {
+      sv.horizontalScrollIndicatorInsets = JSONToInsets(value);
+      return;
+    }
+    if ([key isEqualToString:@"decelerationRate"]) {
+      CGFloat rate;
+      if (!DecelerationRateFromValue(value, &rate)) {
+        *error = EnumError(@"decelerationRate", value, NamesForDecelerationRate());
+        return;
+      }
+      sv.decelerationRate = rate;
+      return;
+    }
+    if ([key isEqualToString:@"delaysContentTouches"]) {
+      sv.delaysContentTouches = [value boolValue];
+      return;
+    }
+    if ([key isEqualToString:@"canCancelContentTouches"]) {
+      sv.canCancelContentTouches = [value boolValue];
+      return;
+    }
+  }
   if ([object isKindOfClass:UIStackView.class]) {
     UIStackView* stack = (UIStackView*)object;
     if ([key isEqualToString:@"axis"]) {
@@ -616,6 +766,17 @@ nacre::NativeObjectRef ReadNativeObjectProperty(id object, const std::string& na
     if (name == "shadowColor") {
       if (layer.shadowColor == NULL) return {};
       return {(__bridge void*)[UIColor colorWithCGColor:layer.shadowColor], "UIColor"};
+    }
+  }
+  // 两个 layout guide：scroll 套 stack 的标准写法全靠它们。
+  // contentLayoutGuide 定内容多大，frameLayoutGuide 定可视范围
+  if ([object isKindOfClass:UIScrollView.class]) {
+    UIScrollView* sv = (UIScrollView*)object;
+    if (name == "contentLayoutGuide") {
+      return {(__bridge void*)sv.contentLayoutGuide, "UILayoutGuide"};
+    }
+    if (name == "frameLayoutGuide") {
+      return {(__bridge void*)sv.frameLayoutGuide, "UILayoutGuide"};
     }
   }
   if ([object isKindOfClass:UIButton.class]) {

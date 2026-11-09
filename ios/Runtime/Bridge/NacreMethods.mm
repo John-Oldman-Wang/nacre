@@ -226,6 +226,24 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
     }
   }
 
+  if ([object isKindOfClass:UIScrollView.class]) {
+    UIScrollView* sv = (UIScrollView*)object;
+    if ([sel isEqualToString:@"setContentOffset:animated:"]) {
+      [sv setContentOffset:JSONToPoint(valueArg(0))
+                  animated:[valueArg(1) boolValue]];
+      return "null";
+    }
+    if ([sel isEqualToString:@"scrollRectToVisible:animated:"]) {
+      [sv scrollRectToVisible:JSONToRect(valueArg(0))
+                     animated:[valueArg(1) boolValue]];
+      return "null";
+    }
+    if ([sel isEqualToString:@"flashScrollIndicators"]) {
+      [sv flashScrollIndicators];
+      return "null";
+    }
+  }
+
   if ([object isKindOfClass:UIStackView.class]) {
     UIStackView* stack = (UIStackView*)object;
     if ([sel isEqualToString:@"addArrangedSubview:"]) {
@@ -641,6 +659,8 @@ nacre::NativeObjectRef ConstructNative(const std::string& className,
     object = [[UIButton alloc] init];
   } else if (className == "UIControl") {
     object = [[UIControl alloc] init];
+  } else if (className == "UIScrollView") {
+    object = [[UIScrollView alloc] init];
   } else if (className == "UIStackView") {
     // initWithArrangedSubviews: 的数组按「每个参数一个句柄」传过来，
     // 和 activateConstraints: 一样，不用为数组参数另开通道

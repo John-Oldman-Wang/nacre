@@ -165,7 +165,10 @@ for macro, tsname in [('TextAlignment', 'NSTextAlignment'),
                       ('ControlVerticalAlignment', 'UIControlContentVerticalAlignment'),
                       ('ButtonType', 'UIButtonType'),
                       ('ButtonRole', 'UIButtonRole'),
-                      ('StackDistribution', 'UIStackViewDistribution')]:
+                      ('StackDistribution', 'UIStackViewDistribution'),
+                      ('IndicatorStyle', 'UIScrollViewIndicatorStyle'),
+                      ('ContentInsetAdjustmentBehavior',
+                       'UIScrollViewContentInsetAdjustmentBehavior')]:
     a, b = mm_enum(macro), dts_union(tsname)
     if not a: complain('枚举', f'没能从 NacreRuntime.mm 解析出 {macro}，脚本要更新')
     elif a != b:
@@ -199,6 +202,20 @@ if a != b: complain('UIFontTextStyle', f'缺 {sorted(a-b)} 多 {sorted(b-a)}')
 
 # UIStackViewAlignment 不走宏：leading==top、trailing==bottom，一个值两个名字，
 # 所以实现用有序 pairs（无序字典反查会不确定）。别名也是可写的，一起对
+# 滚动事件名：原生一张表，d.ts 一个联合，必须一字不差
+m = re.search(r'ScrollEventNamesList\(void\).*?names = @\[(.*?)\];', mm, re.S)
+a = set(re.findall(r'@"(\w+)"', m.group(1))) if m else set()
+b = dts_union('UIScrollViewEventType')
+if not a: complain('事件名', '没能从 mm 解析出 ScrollEventNamesList，脚本要更新')
+elif a != b: complain('UIScrollViewEventType', f'缺 {sorted(a-b)} 多 {sorted(b-a)}')
+
+# decelerationRate 的两个具名值
+m = re.search(r'DecelerationRatePairs\(void\).*?pairs = @\[(.*?)\];', mm, re.S)
+a = set(re.findall(r'@\[\s*@"(\w+)"', m.group(1))) if m else set()
+b = dts_union('UIScrollViewDecelerationRate')
+if not a: complain('枚举', '没能从 mm 解析出 DecelerationRate，脚本要更新')
+elif a != b: complain('UIScrollViewDecelerationRate', f'缺 {sorted(a-b)} 多 {sorted(b-a)}')
+
 m = re.search(r'StackAlignmentPairs\(void\).*?pairs = @\[(.*?)\];', mm, re.S)
 a = set(re.findall(r'@\[\s*@"(\w+)"', m.group(1))) if m else set()
 b = dts_union('UIStackViewAlignment')

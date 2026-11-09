@@ -133,6 +133,106 @@ declare class UIView extends UIResponder {
   ): readonly NSLayoutConstraint[];
 }
 
+type ScrollEventName = UIScrollViewEventType | (string & {});
+
+/**
+ * 可滚动的视图。
+ *
+ * ```js
+ * const scroller = new UIScrollView();
+ * const column = new UIStackView();
+ * column.axis = 'vertical';
+ * scroller.addSubview(column);
+ * NSLayoutConstraint.activateConstraints([
+ *   // 四边钉 contentLayoutGuide：内容多大由它决定
+ *   column.topAnchor.constraintEqualToAnchor(scroller.contentLayoutGuide.topAnchor),
+ *   column.bottomAnchor.constraintEqualToAnchor(scroller.contentLayoutGuide.bottomAnchor),
+ *   column.leadingAnchor.constraintEqualToAnchor(scroller.contentLayoutGuide.leadingAnchor),
+ *   column.trailingAnchor.constraintEqualToAnchor(scroller.contentLayoutGuide.trailingAnchor),
+ *   // 宽度钉 frameLayoutGuide：横向不滚
+ *   column.widthAnchor.constraintEqualToAnchor(scroller.frameLayoutGuide.widthAnchor),
+ * ]);
+ * ```
+ *
+ * 滚动由 UIKit 在**主线程**驱动，JS 只收通知。`scroll` 事件不可取消，而且
+ * 同一轮里的多次滚动会**合并成一次**——所以别指望用事件的个数计数，要位置
+ * 就读 `contentOffset`。
+ */
+declare class UIScrollView extends UIView {
+  constructor();
+
+  /** 滚动位置。内容左上角相对可视区左上角的偏移，向下滚为正。 */
+  contentOffset: CGPoint;
+  /** 内容多大。用约束钉 `contentLayoutGuide` 的话不用自己设。 */
+  contentSize: CGSize;
+  /** 内容四周额外的可滚动余量。 */
+  contentInset: UIEdgeInsets;
+  /** `contentInset` 加上系统自己补的那部分（安全区）。 */
+  readonly adjustedContentInset: UIEdgeInsets;
+  /** 系统要不要把安全区算进 `contentInset`。默认 `'automatic'`。 */
+  contentInsetAdjustmentBehavior: UIScrollViewContentInsetAdjustmentBehavior;
+
+  /** 带动画地滚到某个位置。动画结束发 `scrollanimationend`。 */
+  setContentOffset(offset: CGPoint, options?: { animated?: boolean }): void;
+  /** 滚到这个矩形刚好可见为止。已经完全可见就什么都不做。 */
+  scrollRectToVisible(rect: CGRect, options?: { animated?: boolean }): void;
+  /** 闪一下滚动指示条，提示「这里能滚」。 */
+  flashScrollIndicators(): void;
+
+  /** 内容的范围。四边钉它，内容多大就由内容自己说了算。 */
+  readonly contentLayoutGuide: UILayoutGuide;
+  /** 可视范围。宽度钉它就等于「横向不滚」。 */
+  readonly frameLayoutGuide: UILayoutGuide;
+
+  /** 默认 `true`。临时关掉拖动用它。 */
+  isScrollEnabled: boolean;
+  /** 拖动时锁住一个方向。默认 `false`。 */
+  isDirectionalLockEnabled: boolean;
+  /** 到边回弹。默认 `true`。 */
+  bounces: boolean;
+  /** 内容比可视区小也允许纵向拖。默认 `false`，要 `bounces` 也开着。 */
+  alwaysBounceVertical: boolean;
+  /** 横向版本。默认 `false`。 */
+  alwaysBounceHorizontal: boolean;
+  /** 翻页：停在 `bounds` 宽/高的整数倍上。默认 `false`。 */
+  isPagingEnabled: boolean;
+  /** 点状态栏回到顶部。默认 `true`，同一时刻只能有一个开着。 */
+  scrollsToTop: boolean;
+  /** 延迟把触摸交给内容，先看是不是在拖。默认 `true`。 */
+  delaysContentTouches: boolean;
+  /** 已经按住内容后还能不能改为拖动。默认 `true`。 */
+  canCancelContentTouches: boolean;
+
+  /** 默认 `true`。 */
+  showsVerticalScrollIndicator: boolean;
+  /** 默认 `true`。 */
+  showsHorizontalScrollIndicator: boolean;
+  /** 指示条外观。默认 `'default'`。 */
+  indicatorStyle: UIScrollViewIndicatorStyle;
+  verticalScrollIndicatorInsets: UIEdgeInsets;
+  horizontalScrollIndicatorInsets: UIEdgeInsets;
+  /** 让系统按安全区自动算指示条的边距。默认 `true`。 */
+  automaticallyAdjustsScrollIndicatorInsets: boolean;
+
+  /** 松手后减速的快慢。默认 `'normal'`。 */
+  decelerationRate: UIScrollViewDecelerationRate;
+
+  /** 手指按在上面（还不一定在拖）。 */
+  readonly isTracking: boolean;
+  /** 正在拖。 */
+  readonly isDragging: boolean;
+  /** 松手后正在惯性滑动。 */
+  readonly isDecelerating: boolean;
+  /** 正在跑 `setContentOffset` 的动画。 */
+  readonly isScrollAnimating: boolean;
+
+  addEventListener(
+    type: ScrollEventName,
+    callback: EventListener | null,
+    options?: AddEventListenerOptions,
+  ): void;
+}
+
 /** 窗口上能监听的事件。对应 isKeyWindow 和 isHidden 的变化。 */
 type UIWindowEventType = 'becomekey' | 'resignkey' | 'becomevisible' | 'becomehidden';
 

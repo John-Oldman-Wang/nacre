@@ -1474,6 +1474,229 @@
   // 语义色（systemBackgroundColor、labelColor 等）是动态颜色：
   // 它在绘制时按当时的外观（深色/浅色）解析，所以取一次就能一直用。
   // 带参数的类方法（colorWithRed:green:blue:alpha:）等方法名映射定了再加。
+  // 可滚动的视图。滚动本身由 UIKit 在主线程驱动，JS 只是收通知。
+  //
+  // 事件只有 type 和 target，状态去对象上读（contentOffset、isDecelerating）。
+  // 正因为不带数据，同一轮里的多次 scroll 可以无损合并成一次 —— 和 CSSOM
+  // 「每帧最多一个 scroll 事件」是同一个做法。
+  defineNativeClass('UIScrollView', class UIScrollView extends UIView {
+    constructor() {
+      super();
+      if (allowNativeConstruct) return;
+      constructNative(this, 'UIScrollView', []);
+    }
+
+    // 事件全在 UIScrollViewDelegate 上，而 delegate 是一个对象不是一组
+    // action，所以订阅状态记在原生侧；一个监听器都没有时 delegate 不挂，
+    // 一次桥都不过
+    [kSubscribe](type, on) {
+      requireNative(this, 'addEventListener');
+      native.subscribe(this[kHandle], type, on);
+      if (on) subscribed.add(this);
+      else if (this[kListeners].size === 0) subscribed.delete(this);
+    }
+
+    // ---- 内容和偏移 ----
+    get contentOffset() {
+      requireNative(this, 'contentOffset');
+      return toPoint(nativeGet(this, 'contentOffset'));
+    }
+    set contentOffset(value) {
+      requireNative(this, 'contentOffset');
+      nativeSet(this, 'contentOffset', structArg(value, POINT_FIELDS, 'contentOffset'));
+    }
+    get contentSize() {
+      requireNative(this, 'contentSize');
+      return toSize(nativeGet(this, 'contentSize'));
+    }
+    set contentSize(value) {
+      requireNative(this, 'contentSize');
+      nativeSet(this, 'contentSize', structArg(value, SIZE_FIELDS, 'contentSize'));
+    }
+    get contentInset() {
+      requireNative(this, 'contentInset');
+      return toInsets(nativeGet(this, 'contentInset'));
+    }
+    set contentInset(value) {
+      requireNative(this, 'contentInset');
+      nativeSet(this, 'contentInset', structArg(value, INSETS_FIELDS, 'contentInset'));
+    }
+    // contentInset 加上安全区等系统自己补的那部分。只读
+    get adjustedContentInset() {
+      requireNative(this, 'adjustedContentInset');
+      return toInsets(nativeGet(this, 'adjustedContentInset'));
+    }
+    get contentInsetAdjustmentBehavior() {
+      requireNative(this, 'contentInsetAdjustmentBehavior');
+      return nativeGet(this, 'contentInsetAdjustmentBehavior');
+    }
+    set contentInsetAdjustmentBehavior(value) {
+      requireNative(this, 'contentInsetAdjustmentBehavior');
+      nativeSet(this, 'contentInsetAdjustmentBehavior', value);
+    }
+    setContentOffset(offset, options) {
+      const o = options || {};
+      nativeCall(this, 'setContentOffset:animated:',
+                 [structArg(offset, POINT_FIELDS, 'setContentOffset'), !!o.animated]);
+    }
+    scrollRectToVisible(rect, options) {
+      const o = options || {};
+      nativeCall(this, 'scrollRectToVisible:animated:',
+                 [structArg(rect, RECT_FIELDS, 'scrollRectToVisible'), !!o.animated]);
+    }
+
+    // ---- 两个 layout guide：scroll 套 stack 的标准写法全靠它们 ----
+    // contentLayoutGuide 定内容多大，frameLayoutGuide 定可视范围
+    get contentLayoutGuide() { return nativeGetOwned(this, 'contentLayoutGuide'); }
+    get frameLayoutGuide() { return nativeGetOwned(this, 'frameLayoutGuide'); }
+
+    // ---- 开关 ----
+    get isScrollEnabled() {
+      requireNative(this, 'isScrollEnabled');
+      return nativeGet(this, 'isScrollEnabled');
+    }
+    set isScrollEnabled(value) {
+      requireNative(this, 'isScrollEnabled');
+      nativeSet(this, 'isScrollEnabled', value);
+    }
+    get isDirectionalLockEnabled() {
+      requireNative(this, 'isDirectionalLockEnabled');
+      return nativeGet(this, 'isDirectionalLockEnabled');
+    }
+    set isDirectionalLockEnabled(value) {
+      requireNative(this, 'isDirectionalLockEnabled');
+      nativeSet(this, 'isDirectionalLockEnabled', value);
+    }
+    get bounces() { requireNative(this, 'bounces'); return nativeGet(this, 'bounces'); }
+    set bounces(value) { requireNative(this, 'bounces'); nativeSet(this, 'bounces', value); }
+    get alwaysBounceVertical() {
+      requireNative(this, 'alwaysBounceVertical');
+      return nativeGet(this, 'alwaysBounceVertical');
+    }
+    set alwaysBounceVertical(value) {
+      requireNative(this, 'alwaysBounceVertical');
+      nativeSet(this, 'alwaysBounceVertical', value);
+    }
+    get alwaysBounceHorizontal() {
+      requireNative(this, 'alwaysBounceHorizontal');
+      return nativeGet(this, 'alwaysBounceHorizontal');
+    }
+    set alwaysBounceHorizontal(value) {
+      requireNative(this, 'alwaysBounceHorizontal');
+      nativeSet(this, 'alwaysBounceHorizontal', value);
+    }
+    // 翻页：停在 bounds 宽度的整数倍上。Swiper 就靠这个
+    get isPagingEnabled() {
+      requireNative(this, 'isPagingEnabled');
+      return nativeGet(this, 'isPagingEnabled');
+    }
+    set isPagingEnabled(value) {
+      requireNative(this, 'isPagingEnabled');
+      nativeSet(this, 'isPagingEnabled', value);
+    }
+    // 点状态栏回到顶部。同一时刻只能有一个 scroll view 开着它
+    get scrollsToTop() {
+      requireNative(this, 'scrollsToTop');
+      return nativeGet(this, 'scrollsToTop');
+    }
+    set scrollsToTop(value) {
+      requireNative(this, 'scrollsToTop');
+      nativeSet(this, 'scrollsToTop', value);
+    }
+    get delaysContentTouches() {
+      requireNative(this, 'delaysContentTouches');
+      return nativeGet(this, 'delaysContentTouches');
+    }
+    set delaysContentTouches(value) {
+      requireNative(this, 'delaysContentTouches');
+      nativeSet(this, 'delaysContentTouches', value);
+    }
+    get canCancelContentTouches() {
+      requireNative(this, 'canCancelContentTouches');
+      return nativeGet(this, 'canCancelContentTouches');
+    }
+    set canCancelContentTouches(value) {
+      requireNative(this, 'canCancelContentTouches');
+      nativeSet(this, 'canCancelContentTouches', value);
+    }
+
+    // ---- 指示条 ----
+    get showsVerticalScrollIndicator() {
+      requireNative(this, 'showsVerticalScrollIndicator');
+      return nativeGet(this, 'showsVerticalScrollIndicator');
+    }
+    set showsVerticalScrollIndicator(value) {
+      requireNative(this, 'showsVerticalScrollIndicator');
+      nativeSet(this, 'showsVerticalScrollIndicator', value);
+    }
+    get showsHorizontalScrollIndicator() {
+      requireNative(this, 'showsHorizontalScrollIndicator');
+      return nativeGet(this, 'showsHorizontalScrollIndicator');
+    }
+    set showsHorizontalScrollIndicator(value) {
+      requireNative(this, 'showsHorizontalScrollIndicator');
+      nativeSet(this, 'showsHorizontalScrollIndicator', value);
+    }
+    get indicatorStyle() {
+      requireNative(this, 'indicatorStyle');
+      return nativeGet(this, 'indicatorStyle');
+    }
+    set indicatorStyle(value) {
+      requireNative(this, 'indicatorStyle');
+      nativeSet(this, 'indicatorStyle', value);
+    }
+    get verticalScrollIndicatorInsets() {
+      requireNative(this, 'verticalScrollIndicatorInsets');
+      return toInsets(nativeGet(this, 'verticalScrollIndicatorInsets'));
+    }
+    set verticalScrollIndicatorInsets(value) {
+      requireNative(this, 'verticalScrollIndicatorInsets');
+      nativeSet(this, 'verticalScrollIndicatorInsets',
+                structArg(value, INSETS_FIELDS, 'verticalScrollIndicatorInsets'));
+    }
+    get horizontalScrollIndicatorInsets() {
+      requireNative(this, 'horizontalScrollIndicatorInsets');
+      return toInsets(nativeGet(this, 'horizontalScrollIndicatorInsets'));
+    }
+    set horizontalScrollIndicatorInsets(value) {
+      requireNative(this, 'horizontalScrollIndicatorInsets');
+      nativeSet(this, 'horizontalScrollIndicatorInsets',
+                structArg(value, INSETS_FIELDS, 'horizontalScrollIndicatorInsets'));
+    }
+    get automaticallyAdjustsScrollIndicatorInsets() {
+      requireNative(this, 'automaticallyAdjustsScrollIndicatorInsets');
+      return nativeGet(this, 'automaticallyAdjustsScrollIndicatorInsets');
+    }
+    set automaticallyAdjustsScrollIndicatorInsets(value) {
+      requireNative(this, 'automaticallyAdjustsScrollIndicatorInsets');
+      nativeSet(this, 'automaticallyAdjustsScrollIndicatorInsets', value);
+    }
+    flashScrollIndicators() { nativeCall(this, 'flashScrollIndicators', []); }
+
+    // ---- 减速 ----
+    // 数字，或 'normal'（0.998）/ 'fast'（0.99）
+    get decelerationRate() {
+      requireNative(this, 'decelerationRate');
+      return nativeGet(this, 'decelerationRate');
+    }
+    set decelerationRate(value) {
+      requireNative(this, 'decelerationRate');
+      nativeSet(this, 'decelerationRate', value);
+    }
+
+    // ---- 当前状态，只读 ----
+    get isTracking() { requireNative(this, 'isTracking'); return nativeGet(this, 'isTracking'); }
+    get isDragging() { requireNative(this, 'isDragging'); return nativeGet(this, 'isDragging'); }
+    get isDecelerating() {
+      requireNative(this, 'isDecelerating');
+      return nativeGet(this, 'isDecelerating');
+    }
+    get isScrollAnimating() {
+      requireNative(this, 'isScrollAnimating');
+      return nativeGet(this, 'isScrollAnimating');
+    }
+  });
+
   // 一维排列容器。它自己不画东西，职责是把「排成一行 / 一列」翻译成约束：
   // 三个等宽等距的块原来要手写 6 条约束，这里是 4 行属性。
   defineNativeClass('UIStackView', class UIStackView extends UIView {

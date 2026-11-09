@@ -80,6 +80,30 @@ type NSLayoutAttribute =
   | 'notAnAttribute';
 
 /** 七个具名值。中间的值（749 之类）没有名字，所以写的时候也接受数字。 */
+/** 滚动指示条的外观。`'default'` 跟随浅色/深色自动切换。 */
+type UIScrollViewIndicatorStyle = 'default' | 'black' | 'white';
+
+/** `contentInset` 要不要把安全区算进去。 */
+type UIScrollViewContentInsetAdjustmentBehavior =
+  | 'automatic'
+  | 'scrollableAxes'
+  | 'never'
+  | 'always';
+
+/** 减速快慢：一个数字，或两个具名值。`'normal'` 是 0.998、`'fast'` 是 0.99。 */
+type UIScrollViewDecelerationRate = number | 'normal' | 'fast';
+
+/** 滚动事件。全小写，和 scene / window 的事件一致。 */
+type UIScrollViewEventType =
+  | 'scroll'
+  | 'dragbegin'
+  | 'dragend'
+  | 'deceleratebegin'
+  | 'decelerateend'
+  | 'scrollanimationend'
+  | 'scrolltotop'
+  | 'adjustedcontentinsetchange';
+
 /** UIStackView 沿轴的分配方式。 */
 type UIStackViewDistribution =
   | 'fill'
