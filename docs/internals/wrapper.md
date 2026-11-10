@@ -250,13 +250,31 @@ imageForState(state) {
 
 **读那一侧也要记**：`UIButton.buttonWithType('system')` 的默认图和颜色是 UIKit 自己放进去的，JS 从没调过 setter，只有读的时候才第一次见到它们。这和 `nativeGetOwned` 是同一个道理——取值器读到的对象就地记边。
 
-### 这条该变成机械检查
+### 这条已经变成机械检查
 
-三处是**人工逐条过所有「把对象交给原生」的方法**才找出来的。同样的形状以后还会有，所以判据要固化：
+三处是**人工逐条过所有「把对象交给原生」的方法**才找出来的。同样的形状以后还会有，所以判据固化进了 `check-api.sh`：
 
-> **把对象参数传给原生的方法，必须出现 `own` / `ownOne` / `ownAll` / `nativeSetOwned` 之一，否则名字要登记进白名单。**
+> **原生层说哪些 selector 收对象参数，JS 侧对应的方法就必须出现 `own` / `ownOne` / `ownAll` / `nativeSetOwned` 之一，否则登记进 `OWNERSHIP_EXEMPT`。**
 
-白名单放只读不持有的那些（`convertPoint:toView:`、`isDescendantOfView:`、`hitTest:withEvent:`），一眼能判。还没实现。
+**真相取自原生层**：一个 selector 的分支里用了取对象参数的助手（`objectArg` / `viewArg` / `guideArg` / `colorArg` / `imageArg` / `vcArg`），它就收对象。不靠猜 JS 那边的参数长什么样。
+
+两个实现上的坑：
+
+- **分支体不能按「到下一个分支为止」切**。那些 `...Arg` 的 lambda 就定义在分支之间，而它们的函数体里本来就有 `objectArg(`——`vcArg` 的定义会把它前面那个分支误判成收对象。改成从 selector 判断处找到 `{` 再按括号配对取分支体
+- **`kSyncStack` 要算作记边的写法**。`pushViewController` 自己不调 `ownAll`，它调 `this[kSyncStack]()`，而那个方法按原生真相整层 `ownAll` 一遍
+
+白名单今天 8 条，分三类：只读不持有（`convertPoint:toView:` 一组、`isDescendantOfView:`、`customSpacingAfterView:`）、参数本来就已经被别的边持有（`bringSubviewToFront:`、`sendSubviewToBack:`、`setCustomSpacing:afterView:`）、解除持有（`removeArrangedSubview:`）。白名单里混进一条已经不收对象的，也会被报出来。
+
+**四类弄坏法都验过**，一条噪音都没有：
+
+| 弄坏什么 | 报什么 |
+| --- | --- |
+| 拿掉 `setImage` 的 `own` | `所有权: ['setImage:forState:'] 把对象交给原生，但方法体里没有 own…` |
+| 原生侧取参助手改名 | `脚本: 收对象参数的 selector 抽出来是空的，check-api.sh 要更新` |
+| 分发表的 `isEqualToString:` 改名 | `脚本: 分发表里的 selector 分支定位不到，check-api.sh 要更新` |
+| nacre.js 的 `nativeCall(this, ` 改名 | `脚本: nacre.js 里一个收对象的 selector 都没对上，check-api.sh 要更新` |
+
+最后一条是补上去的——**第一版这里是静默通过的**：JS 侧正则一旦失配，`hit` 永远是空集，这一节就永远「一致」。正是 `extract()` 当初要防的那种失效，所以加了「一个都没对上就报」的守卫。
 
 ---
 

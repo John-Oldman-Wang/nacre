@@ -311,6 +311,100 @@ for label, a, b in pairs:
     if a - b: complain(label, f'nacre.js 有但原生层没有：{sorted(a - b)}')
     if b - a: complain(label, f'原生层有但 nacre.js 没有：{sorted(b - a)}')
 
+# ------------------------------- 6. 把对象交给原生的方法，必须记一条所有权边
+#
+# UIButton 的 setImage:forState: 三兄弟漏过一次：按状态存的东西既不是父子边
+# 也不是属性，从 ownOne 和 nativeSetOwned 两张网中间掉了下去，实测确认 GC
+# 之后读回来是个全新的包装。那次是人工逐条过所有方法才找出来的，所以判据
+# 固化在这里。
+#
+# 真相在原生层：一个 selector 的分支里用了取对象参数的助手，它就收对象。
+OBJ_ARG_HELPERS = re.compile(r'\b(?:objectArg|viewArg|guideArg|colorArg|imageArg|vcArg)\s*\(')
+# kSyncStack 是导航栈那条边的专用写法：它按原生真相整层 ownAll 一遍，
+# 所以调它就等于记了边
+OWN_MARKERS = re.compile(
+    r'\b(?:own|ownOne|ownAll|disown|nativeSetOwned|nativeSetObjectArray)\s*\('
+    r'|\[kSyncStack\]\(\)')
+
+def branch_body(text, start):
+    """从 selector 判断处往后找到那个 { ，按括号配对取出分支体。
+    不按「到下一个分支为止」切，是因为分支之间还定义着 ...Arg 的 lambda，
+    那些定义里就有 objectArg(，会把前一个分支误判成收对象。"""
+    i = text.find('{', start)
+    if i < 0: return None
+    depth, j = 0, i
+    while j < len(text):
+        if text[j] == '{': depth += 1
+        elif text[j] == '}':
+            depth -= 1
+            if depth == 0: return text[i:j]
+        j += 1
+    return None
+
+obj_arg_sels = set()
+_branches = 0
+for m in re.finditer(r'\[sel isEqualToString:@"([^"]+)"\]', mm):
+    _branches += 1
+    body = branch_body(mm, m.end())
+    if body is not None and OBJ_ARG_HELPERS.search(body):
+        obj_arg_sels.add(m.group(1))
+if _branches == 0:
+    complain('脚本', '分发表里的 selector 分支定位不到，check-api.sh 要更新')
+    obj_arg_sels = None
+elif not obj_arg_sels:
+    complain('脚本', '收对象参数的 selector 抽出来是空的，check-api.sh 要更新')
+    obj_arg_sels = None
+
+# nacre.js 侧：按 4 空格缩进切出每个方法体（这个文件的缩进是一致的）
+def js_methods(text):
+    out, lines = [], text.split('\n')
+    i = 0
+    while i < len(lines):
+        if re.match(r'^    (?:get |set |static )?[A-Za-z_$\[][^;]*\{\s*$', lines[i]):
+            body, i = [lines[i]], i + 1
+            while i < len(lines) and lines[i] != '    }':
+                body.append(lines[i]); i += 1
+            out.append('\n'.join(body))
+        i += 1
+    return out
+
+JS_METHODS = js_methods(js)
+if not JS_METHODS:
+    complain('脚本', 'nacre.js 的方法体切不出来，check-api.sh 要更新')
+    JS_METHODS = None
+
+# 收对象、但**不建立持有**的，登记在这里。每一条都要说得出为什么。
+OWNERSHIP_EXEMPT = {
+    # 只读，不持有
+    'convertPoint:toView:', 'convertPoint:fromView:',
+    'convertRect:toView:', 'convertRect:fromView:',
+    'isDescendantOfView:', 'customSpacingAfterView:',
+    # 参数本来就已经是自己的子视图，持有边在 addSubview 那一步就记过了
+    'bringSubviewToFront:', 'sendSubviewToBack:',
+    'setCustomSpacing:afterView:',
+    # 解除持有，不是建立持有
+    'removeArrangedSubview:',
+}
+
+if obj_arg_sels and JS_METHODS:
+    seen = set()
+    for body in JS_METHODS:
+        sels = set(re.findall(r"nativeCall(?:Void|Object|ObjectArray)?\(this, '([^']+)'", body))
+        hit = (sels & obj_arg_sels) - OWNERSHIP_EXEMPT
+        if not hit: continue
+        seen |= hit
+        if not OWN_MARKERS.search(body):
+            complain('所有权',
+                     f'{sorted(hit)} 把对象交给原生，但方法体里没有 own / ownOne / '
+                     f'ownAll / nativeSetOwned；真的不建立持有就登记进 OWNERSHIP_EXEMPT')
+    # 一个都没对上，说明 nacre.js 那一侧的正则失效了。不报的话这一节
+    # 会永远「通过」——正是 extract() 当初要防的那种静默失效
+    if not seen:
+        complain('脚本', 'nacre.js 里一个收对象的 selector 都没对上，check-api.sh 要更新')
+    stale = OWNERSHIP_EXEMPT - obj_arg_sels
+    if stale:
+        complain('所有权', f'OWNERSHIP_EXEMPT 里这些已经不收对象参数了，该删：{sorted(stale)}')
+
 # ------------------------------------------------------------------ 报告
 if problems:
     print('API 三边核对：发现 %d 处不一致\n' % len(problems))

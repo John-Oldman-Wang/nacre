@@ -565,6 +565,7 @@ Commit message 格式：
 | 6c | `Blob` + `AbortController` 和取消 | NSURLSessionTask.cancel、原生对象包装 | 已在模拟器验证通过：blob 零拷贝、取消、超时中止 |
 | — | 原生类一律 final：继承当场抛，删掉 `allowNativeConstruct` | `finalCheck`、包装工厂改 `Object.create` | 已在模拟器验证通过：508 条断言全过，三种「没有原生对象」分开报错 |
 | — | 补上 `UIButton` 按状态存的颜色/图的所有权边 | `stateKey`，读写两侧都记 | 已在模拟器验证通过：512 条断言全过，三条新回归在对照组被回收的前提下成立 |
+| — | `check-api.sh` 核对所有权边 | 原生层的取参助手当真相，JS 侧必须记边或登记白名单 | 已验证：四类弄坏法各报一条，白名单失配也报 |
 | 7 | 本地存储 | UserDefaults、文件读写 | 待讨论 |
 | 8 | 列表 | UICollectionView、DataSource（同步回调） | 待讨论 |
 | 9 | 输入框和键盘 | UITextField、keyboardLayoutGuide | 待讨论 |
@@ -749,7 +750,7 @@ Web 能双向字符串化是因为 CSSOM 自己留着声明串，我们没有这
 
 **没堵上的是那个静默失败**：对象参数没有句柄时应该抛，不该当成 nil。和下面「属性名拼错了不报错」是同一类错。
 
-**TODO：所有权边该有机械检查。** `UIButton` 的 `setTitleColor:forState:` 三兄弟漏过一次——按状态存的东西既不是父子边也不是属性，从 `ownOne` 和 `nativeSetOwned` 两张网中间掉下去了，实测确认 GC 之后读回来是个全新的包装。已修，但找出来的方式是人工逐条过所有「把对象交给原生」的方法。判据该固化进 `check-api.sh`：**把对象参数传给原生的方法，必须出现 `own` / `ownOne` / `ownAll` / `nativeSetOwned` 之一，否则登记进白名单**（白名单放 `convertPoint:toView:` 这类只读不持有的）。详见[包装机制](internals/wrapper.md#实际漏过一次按状态存的东西)。
+**已实现：所有权边有机械检查了。** `check-api.sh` 新增一节：**原生层说哪些 selector 收对象参数，JS 侧对应的方法就必须出现 `own` / `ownOne` / `ownAll` / `nativeSetOwned` 之一，否则登记进 `OWNERSHIP_EXEMPT`**。白名单今天 8 条，每条都写了为什么（只读不持有、参数本来就已经被别的边持有、或者是解除持有）。四类弄坏法都验过，见[包装机制](internals/wrapper.md#这条已经变成机械检查)。
 
 **TODO：参数类型不对但有句柄 → 静默忽略。** 和「参数没有原生对象」是同一家，上一步只堵了后者。
 
