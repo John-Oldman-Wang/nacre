@@ -398,13 +398,20 @@ nacre/
 ios/Runtime/
 ├─ NacreRuntime.h / .mm   启动壳、事件转发、host 接线、fetch、定时器唤醒
 ├─ Bridge/                能力暴露，一个能力域一个 .mm
-│  ├─ NacreBridge.h       内部头，只有声明
+│  ├─ NacreBridge.h       内部头：声明、枚举表的两个宏、方法参数包
 │  ├─ NacreConvert.mm     日志、JSON、结构体互转、环境快照
-│  ├─ NacreEnums.mm       字符串 ↔ 数值，锚点类名
 │  ├─ NacreProperties.mm  属性分发的顺序表，只有分发器
 │  ├─ NacreProps*.mm      属性实现，一个能力域一个文件（Scene / Control /
 │  │                      Layout / Layer / Scroll / View / Resource）
-│  ├─ NacreMethods.mm     方法分发和构造
+│  ├─ NacreEnums.mm       共享助手 + 文字、图片、字体
+│  ├─ NacreEnums*.mm      枚举实现，域名和 NacreProps* 对齐（Layout /
+│  │                      Control / Input / Scroll / Scene / Layer）
+│  ├─ NacreMethods.mm     方法分发，还没按域拆完的那些分支
+│  ├─ NacreMethodsNav.mm  导航域在**所有通道**上的分支
+│  ├─ NacreFactories.mm   造对象：类方法和构造
+│  ├─ NacreStorage.mm     UserDefaults
+│  ├─ NacreFileSystem.mm  文件读写
+│  ├─ NacreKeychain.mm    Keychain
 │  └─ NacreURL.mm         URL 解析
 └─ Engine/                纯 C++，只依赖 V8
 
@@ -428,6 +435,17 @@ types/
 | **怎么验** | `check-api.sh` 的四个数字一字不差（标量读写 108/66、对象读写 41/11），加上模拟器全部断言逐条对比 |
 
 `check-api.sh` 也要跟着改：它原来按单个签名找分发表的函数体，拆完改成**按签名正则收集一组函数**，匹配不到就报「脚本要更新」。
+
+**已经拆过的两次，结论记下来：**
+
+| | 怎么切的 | 验证 |
+| --- | --- | --- |
+| `NacreEnums.mm` 956 行 → 7 个文件 | 按能力域，域名和 `NacreProps*` 对齐。唯一的实质改动是把两个宏搬进头文件——它们原来是 `.mm` 里的 `#define`，所以枚举只能挤在一个文件里 | 脚本按括号深度切出 85 块，**断言分配表是 0..84 的完整划分**；`check-api.sh` 四个数字一字不差 |
+| `NacreMethods.mm` 854 行 → 532 + 246 + 118 | 两刀：造对象整体搬走（纯搬家）；导航域按通道全收（改了返回约定，加了 `NacreArgs`） | 三层——编译器抓到删多了、**selector 全集对比**、全部断言 |
+
+**第二刀教会的一条**：`check-api.sh` 盯的是属性和类，**方法分支删了它看不出来**。所以拆方法时要另外做一次 selector 全集对比：拆前的文件 vs 拆后几个文件的并集，一个不丢一个不多。
+
+**剩下的域还没拆**（UIView / UIButton / UIScrollView / UIStackView 还挤在 `NacreMethods.mm` 的 549 行里）。没有急迫性——它在线下了，而且下次谁碰到哪个域就顺手把那个域抽出去，比一次全拆安全。
 
 **两处暂时不拆，理由写下来免得反复讨论：**
 
@@ -836,8 +854,6 @@ Web 能双向字符串化是因为 CSSOM 自己留着声明串，我们没有这
 **已实现：所有权边有机械检查了。** `check-api.sh` 新增一节：**原生层说哪些 selector 收对象参数，JS 侧对应的方法就必须出现 `own` / `ownOne` / `ownAll` / `nativeSetOwned` 之一，否则登记进 `OWNERSHIP_EXEMPT`**。白名单今天 8 条，每条都写了为什么（只读不持有、参数本来就已经被别的边持有、或者是解除持有）。四类弄坏法都验过，见[包装机制](internals/wrapper.md#这条已经变成机械检查)。
 
 **TODO：颜色解析的性能还没实测。** 现在解析在 JS 侧，靠池化摊掉——同一个串只解析一次，之后是 `Map.get` + `WeakRef.deref`。而**过桥写属性那一次省不掉**，所以稳态成本里解析接近零；把解析挪到原生反而会让重复字符串每次都过桥。但**首次解析在 jitless 下到底多少微秒没量过**。先给验收用例加一条基准，有数再谈优化。WebAssembly 这条路不通——lite mode / jitless 下编译不了 wasm。
-
-**TODO：`NacreEnums.mm` 和 `NacreMethods.mm` 都过了 800 行线。** 做输入框时加了八个枚举表和 48 个 `textContentType`，`NacreEnums.mm` 从 792 涨到 956；`NacreMethods.mm` 早就 817 以上。两个一起拆成一步，而且[按已定的规矩](internals/bridge.md)：**拆之前先把每个类分支改成返回「认不认领」**，那样才是纯搬家。
 
 **TODO：`check-api.sh` 的标量核对是按名字的并集，不分类。** 做输入框时咬了一次：`textAlignment` 只在 `UILabel` 分支接了原生，`UITextField` 漏了，而名字在集合里所以脚本没报，运行时才抛，连带整个 `sceneconnect` 中断、黑屏。同一家的还有「标量接了不等于对象属性也接了」——那是另一条通道。要改成按类比对，得先让脚本知道每个分支属于哪个类。
 
