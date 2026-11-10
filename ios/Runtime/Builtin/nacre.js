@@ -744,6 +744,16 @@
   }
   // 按状态设置时的 { forState: [...] }。缺了就抛，不默默当成 normal——
   // 「给哪个状态设的」是这类方法的核心语义，猜错了界面就不对。
+  // 按状态存的东西（UIButton 的标题色 / 图 / 背景图）既不是父子边也不是
+  // 属性边，所以躲过了 ownOne 和 nativeSetOwned 两张网。用「名字:状态」
+  // 做所有权边的键：重设同一个状态时旧的会被顶掉，不留多余引用。
+  // 实测过漏这条的后果：丢掉 JS 引用、GC 之后 imageForState 读回来是个
+  // 全新的包装，挂在上面的东西全没了。Chrome 在同样的位置不丢（Attr 节点、
+  // adoptedStyleSheets、getAnimations 实测都保住），所以这里也不该丢。
+  function stateKey(what, state) {
+    return what + ':' + (Array.isArray(state) ? state.join('|') : state);
+  }
+
   function stateOption(options, what) {
     const o = options || {};
     if (!('forState' in o)) throw new TypeError(what + ' needs { forState }');
@@ -1420,26 +1430,35 @@
       nativeCall(this, 'setTitle:forState:', [title, stateOption(options, 'setTitle')]);
     }
     setTitleColor(color, options) {
-      nativeCall(this, 'setTitleColor:forState:',
-                 [color, stateOption(options, 'setTitleColor')]);
+      const state = stateOption(options, 'setTitleColor');
+      nativeCall(this, 'setTitleColor:forState:', [color, state]);
+      own(this, stateKey('titleColor', state), color);
     }
     setImage(image, options) {
-      nativeCall(this, 'setImage:forState:', [image, stateOption(options, 'setImage')]);
+      const state = stateOption(options, 'setImage');
+      nativeCall(this, 'setImage:forState:', [image, state]);
+      own(this, stateKey('image', state), image);
     }
     setBackgroundImage(image, options) {
-      nativeCall(this, 'setBackgroundImage:forState:',
-                 [image, stateOption(options, 'setBackgroundImage')]);
+      const state = stateOption(options, 'setBackgroundImage');
+      nativeCall(this, 'setBackgroundImage:forState:', [image, state]);
+      own(this, stateKey('backgroundImage', state), image);
     }
 
     // 取值这一侧**只认单个状态**，这是 UIKit 的规定（头文件原话
     // "these getters only take a single state value"）
     titleForState(state) { return nativeCall(this, 'titleForState:', [[state]]); }
     titleColorForState(state) {
-      return nativeCallObject(this, 'titleColorForState:', [[state]]);
+      return own(this, stateKey('titleColor', state),
+                 nativeCallObject(this, 'titleColorForState:', [[state]]));
     }
-    imageForState(state) { return nativeCallObject(this, 'imageForState:', [[state]]); }
+    imageForState(state) {
+      return own(this, stateKey('image', state),
+                 nativeCallObject(this, 'imageForState:', [[state]]));
+    }
     backgroundImageForState(state) {
-      return nativeCallObject(this, 'backgroundImageForState:', [[state]]);
+      return own(this, stateKey('backgroundImage', state),
+                 nativeCallObject(this, 'backgroundImageForState:', [[state]]));
     }
 
     // ---- 当前状态下实际用的那些 ----

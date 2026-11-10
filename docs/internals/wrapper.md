@@ -68,7 +68,7 @@ application  →  scenes              （sceneconnect 时 ownOne）
 
 | | 什么时候 | 今天 |
 | --- | --- | --- |
-| **JS 调 API 建了持有，但忘了记边** | `addSubview` / `pushViewController` 忘了 `ownOne` / `ownAll` | 每次加这类方法都要想到 |
+| **JS 调 API 建了持有，但忘了记边** | `addSubview` / `pushViewController` 忘了 `ownOne` / `ownAll` | 每次加这类方法都要想到。**实际发生过一次**，见下 |
 | **原生自建的对象，取值器用了普通版而链路又不通** | 加新的对象取值器时没问「根到它有路吗」 | 三处普通取值器都在链路里，安全 |
 | **派生对象天生不在任何链路里** | 锚点、`UILayoutGuide`、约束——它们不在谁的 `subviews` 里 | 已靠 `anchorOf` / `owningView` 补上。[第 3c 步那次 SIGSEGV](auto-layout.md) 就是这一类 |
 
@@ -194,7 +194,69 @@ function requireNative(obj, what) {
 我们还没有这一层。所以 expando 的保证只能说到「从 `application` 走得到就在」，这正是上面那张所有权镜像的表。真要做到 Chrome 57 那样，要么接 V8 的 embedder 根，要么像 Apple 的 JSC 桥那样用 `addManagedReference:withOwner:` 把原生边显式报告给 GC——和 M2 一起。
 
 > 两份讲 wrapper 强弱语义的 Chromium 文档（`TraceWrapperReference.md`、`V8GCController.md`）已经 404，所以「C++ 侧那个引用具体是强是弱」没能逐字核实。
+## 实际漏过一次：按状态存的东西
 
+`UIButton` 的 `setTitleColor:forState:` / `setImage:forState:` / `setBackgroundImage:forState:` 把一个 `UIColor` / `UIImage` 交给原生，原生 retain 它，但 JS 侧**没记所有权边**；读回来的 `imageForState` 也是普通的 `nativeCallObject`，不是 owned 版本。
+
+**它从两张网中间漏了下去**：按状态存的东西既不是父子边（躲过 `ownOne`），也不是属性（躲过 `nativeSetOwned`）。
+
+实测坐实（探针在 `ownership.js` 里留成了回归）：
+
+```
+✓ 基线：setImage 之后读回来就是同一个包装 = true
+✓ 对照组（无所有者）GC 后身份丢失 = true        ← GC 真跑过
+✓ 属性边 backgroundColor GC 后还在 = bg-note    ← 阳性对照，探针没坏
+  imageForState GC 后 note = undefined          ← 丢了
+  titleColorForState GC 后 note = undefined     ← 丢了
+```
+
+### 探针写两遍才对
+
+第一版的结论是「两个都没丢」，和读代码推的相反。**错在探针**：被测对象存在 `const` 里，对照组是个没存变量的表达式。`waitForRealGC` 第一次是在同一个函数里**同步**调的，那一轮栈帧还活着，被测的在寄存器里被标成可达，对照组从来不在。对照组一旦在第一轮就被回收，循环当场结束，而被测的还被钉着。
+
+> **只有在断言「应该死」的时候，位置对等才是必要条件。** `ownership.js` 原有的几条断言的是「应该活」，所以不受这个影响。
+
+改法是四个对象全部 `let` 存、显式置空。对照组丢掉就同时证明了两件事：GC 真跑过，**而且被测的也有资格被回收**——第二件是第一版缺的。
+
+### Chrome 在同样的位置不丢
+
+实测 Chrome（造垃圾 + `WeakRef` 判存活，对照组被回收才算数）：
+
+| 形状 | 包装还在 | expando 还在 |
+| --- | --- | --- |
+| 树边 `appendChild` | ✅ | ✅ |
+| **按键存** `setAttributeNode` → `getAttributeNode` | ✅ | ✅ |
+| 数组属性 `adoptedStyleSheets` | ✅ | ✅ |
+| **平台持有、之后取回** `el.animate()` → `getAnimations()` | ✅ | ✅ |
+| 对照：游离的 `div`，谁都不持有 | ❌ 被回收 | — |
+
+中间两行正是我们漏的那个形状。所以这不是「Web 也这样」，是我们缺了一条边。
+
+> 测 Chrome 时踩到一个 ECMAScript 语义：**`WeakRef.deref()` 会让目标在当前任务内保持强可达**。把 `refs.ctrl.deref() !== undefined` 写进循环条件，等于每轮都把对照组钉住一次，对照组永远回收不掉。要在循环外只 deref 一次。
+
+### 修法：按状态做所有权边的键
+
+```js
+setImage(image, options) {
+  const state = stateOption(options, 'setImage');
+  nativeCall(this, 'setImage:forState:', [image, state]);
+  own(this, stateKey('image', state), image);        // 重设同一状态会顶掉旧的
+}
+imageForState(state) {
+  return own(this, stateKey('image', state),          // 读回来也记一条
+             nativeCallObject(this, 'imageForState:', [[state]]));
+}
+```
+
+**读那一侧也要记**：`UIButton.buttonWithType('system')` 的默认图和颜色是 UIKit 自己放进去的，JS 从没调过 setter，只有读的时候才第一次见到它们。这和 `nativeGetOwned` 是同一个道理——取值器读到的对象就地记边。
+
+### 这条该变成机械检查
+
+三处是**人工逐条过所有「把对象交给原生」的方法**才找出来的。同样的形状以后还会有，所以判据要固化：
+
+> **把对象参数传给原生的方法，必须出现 `own` / `ownOne` / `ownAll` / `nativeSetOwned` 之一，否则名字要登记进白名单。**
+
+白名单放只读不持有的那些（`convertPoint:toView:`、`isDescendantOfView:`、`hitTest:withEvent:`），一眼能判。还没实现。
 
 ---
 
