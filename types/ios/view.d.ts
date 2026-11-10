@@ -29,7 +29,8 @@ declare class UIView extends UIResponder {
   readonly window: UIWindow | null;
 
   // 外观
-  backgroundColor: UIColor | null;
+  get backgroundColor(): string | null;
+  set backgroundColor(value: ColorValue | null);
   /** 写 0.6 读回来是 0.6000000238418579——背后是 CALayer.opacity，32 位 float。 */
   alpha: number;
   isHidden: boolean;
@@ -415,8 +416,8 @@ declare class UILabel extends UIView {
   // ObjC 里是 null_resettable：写 null 恢复系统默认，读出来永远非 null
   get font(): UIFont;
   set font(value: UIFont | null);
-  get textColor(): UIColor;
-  set textColor(value: UIColor | null);
+  get textColor(): string;
+  set textColor(value: ColorValue | null);
   textAlignment: NSTextAlignment;
   lineBreakMode: NSLineBreakMode;
   /** 0 表示不限行数。 */
@@ -425,9 +426,11 @@ declare class UILabel extends UIView {
   minimumScaleFactor: number;
   baselineAdjustment: UIBaselineAdjustment;
   isHighlighted: boolean;
-  highlightedTextColor: UIColor | null;
+  get highlightedTextColor(): string | null;
+  set highlightedTextColor(value: ColorValue | null);
   isEnabled: boolean;
-  shadowColor: UIColor | null;
+  get shadowColor(): string | null;
+  set shadowColor(value: ColorValue | null);
   get shadowOffset(): CGSize;
   set shadowOffset(value: CGSizeLike);
   /** 多行文字算固有高度时要先知道宽度，就靠这个。 */
@@ -452,8 +455,8 @@ declare class UIImageView extends UIView {
   highlightedImage: UIImage | null;
   isHighlighted: boolean;
   /** 模板图（`renderingMode` 为 `'alwaysTemplate'`）按这个颜色上色。 */
-  get tintColor(): UIColor;
-  set tintColor(value: UIColor | null);
+  get tintColor(): string;
+  set tintColor(value: ColorValue | null);
   /** 逐帧动画还没做（要先能把 GIF 拆成帧），但这个事实先给出来。 */
   readonly isAnimating: boolean;
 }

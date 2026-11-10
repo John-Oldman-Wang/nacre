@@ -279,6 +279,12 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
 nacre::NativeObjectRef ConstructNative(const std::string& className,
                                        const std::vector<void*>& args);
 
+// ---- 颜色 ----
+// 上层的颜色是字符串，解析在 JS 侧（纯文本运算），过桥的是规范化的 spec。
+UIColor* ColorFromSpec(id spec);
+NSDictionary* ColorToSpec(UIColor* color);
+bool ColorCallMethod(id object, const std::string& name, std::string* out);
+
 // ---- Keychain ----
 bool KeychainCallAsync(id object, const std::string& name, const std::string& argsJSON,
                        const std::vector<void*>& argPtrs, NacreAsyncDone done);

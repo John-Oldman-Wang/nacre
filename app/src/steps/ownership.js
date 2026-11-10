@@ -87,8 +87,8 @@ export function stepOwnership(ctx) {
     const kids = probeHost.subviews;
     assert('镜像持有的 view，GC 后挂在包装上的状态还在',
            /** @type {any} */ (kids[0]).probe, '挂在包装上的 JS 状态');
-    assert('属性边：GC 后读回的 UIColor 还是同一个包装',
-           /** @type {any} */ (probeHost.backgroundColor).probe, '挂在颜色包装上');
+    // 颜色属性读出来是字符串了，挂不上 .probe。属性边本身改成验值还在
+    assert('属性边：GC 后颜色属性还是那个值', probeHost.backgroundColor, 'systemGreen');
     // 这一条在补镜像之前是段错误，不是断言失败
     const late = orphanAnchor.constraintEqualToConstant(50);
     late.isActive = true;
@@ -101,8 +101,7 @@ export function stepOwnership(ctx) {
       assert('按状态：setImage 的图 GC 后还在',
              /** @type {any} */ (stateButton.imageForState('normal')).probe, '按状态存的图');
       assert('按状态：setTitleColor 的颜色 GC 后还在',
-             /** @type {any} */ (stateButton.titleColorForState('normal')).probe,
-             '按状态存的颜色');
+             stateButton.titleColorForState('normal'), 'systemMint');
       assert('按状态：setBackgroundImage 的图 GC 后还在',
              /** @type {any} */ (stateButton.backgroundImageForState('normal')).probe,
              '按状态存的背景图');

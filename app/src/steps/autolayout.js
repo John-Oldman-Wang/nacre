@@ -220,8 +220,7 @@ export function stepAutolayout(ctx) {
              layer.maskedCorners.join(','), 'minXMinY,maxXMinY,minXMaxY,maxXMaxY');
       assert('borderWidth 默认 0', layer.borderWidth, 0);
       // 默认是不透明黑，不是空。配上默认 0 的 borderWidth，所以看不见
-    assert('borderColor 默认是个颜色不是 null',
-           layer.borderColor instanceof UIColor, true);
+    assert('borderColor 默认是不透明黑，不是 null', layer.borderColor, '#000000');
       assert('shadowOpacity 默认 0——只设颜色看不见东西', layer.shadowOpacity, 0);
       assert('shadowRadius 默认 3', layer.shadowRadius, 3);
       assert('shadowOffset 默认 (0, -3)', '' + layer.shadowOffset, 'CGSize(0, -3)');
@@ -267,14 +266,16 @@ export function stepAutolayout(ctx) {
         console.log('  ✓ 不认识的 cornerCurve 被拒:', err.message.slice(0, 40) + '…');
       }
 
-      // CGColorRef 的代价：读出来是新建的 UIColor，不是写进去的那个
-      assert('颜色读回来不是同一个对象（经过了 CGColor）',
-             layer.borderColor === UIColor.systemBlueColor, false);
-      assert('但确实是个 UIColor', layer.borderColor instanceof UIColor, true);
-      // 更狠的一条：读两次也不是同一个对象。colorWithCGColor: 每次新建，
-      // 而包装的身份是按**原生指针**保证的，这里指针本来就不一样
-      assert('同一个属性读两次也不相等（CGColor 的代价）',
-             layer.borderColor === layer.borderColor, false);
+      // CGColorRef 的代价，现在看得更清楚了：写进去的是语义色 'systemBlue'，
+      // 读回来却是一个定死的 #rrggbb——colorWithCGColor: 新建的那个 UIColor
+      // 已经不是动态色了，所以反查不到名字，只能按当前外观合成
+      assert('实测：语义色经过 CGColor 之后读回来是定死的十六进制',
+             /^#[0-9a-f]{6}$/.test(String(layer.borderColor)), true);
+      assert('实测：已经不是 systemBlue 了', layer.borderColor === 'systemBlue', false);
+      // 读两次给同一个字符串——上层按值兜了一层，所以 CGColor 每次新建
+      // 对象这件事在上层看不见了。对象身份的那条实测记在 internals 里
+      assert('实测：上层按值兜了一层，所以读两次给同一个串',
+             layer.borderColor === layer.borderColor, true);
 
       // 每个 view 都有自己的 layer——给三个子块也来点圆角，
       // 免得直角戳出卡片的圆角

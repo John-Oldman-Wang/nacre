@@ -167,7 +167,7 @@ export function stepImage(ctx) {
     tintedView.contentMode = 'scaleAspectFit';
     tintedView.frame = new CGRect(20, 630, 60, 40);
     vc.view.addSubview(tintedView);
-    assert('tintColor 读回来', tintedView.tintColor === UIColor.systemPinkColor, true);
+    assert('tintColor 读回来是语义色的名字', tintedView.tintColor, 'systemPink');
 
     // 后台解码：解码默认在绘制时发生（主线程），这个把它挪到后台
     if (dotImage) {

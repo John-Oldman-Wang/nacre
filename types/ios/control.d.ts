@@ -96,7 +96,7 @@ declare class UIButton extends UIControl {
    */
   setTitle(title: string | null, options: { forState: readonly UIControlStateName[] }): void;
   setTitleColor(
-    color: UIColor | null,
+    color: ColorValue | null,
     options: { forState: readonly UIControlStateName[] },
   ): void;
   setImage(image: UIImage | null, options: { forState: readonly UIControlStateName[] }): void;
@@ -107,13 +107,13 @@ declare class UIButton extends UIControl {
 
   /** 取值这一侧**只认单个状态**，这是 UIKit 的规定。 */
   titleForState(state: UIControlStateName): string | null;
-  titleColorForState(state: UIControlStateName): UIColor | null;
+  titleColorForState(state: UIControlStateName): string | null;
   imageForState(state: UIControlStateName): UIImage | null;
   backgroundImageForState(state: UIControlStateName): UIImage | null;
 
   /** 当前状态下实际用的那些。 */
   readonly currentTitle: string | null;
-  readonly currentTitleColor: UIColor;
+  readonly currentTitleColor: string;
   readonly currentImage: UIImage | null;
   readonly currentBackgroundImage: UIImage | null;
 

@@ -30,12 +30,20 @@ def complain(section, msg):
 # 每个「从源码里抽一组名字」的地方，都要能说出「是我自己失效了」，而不是
 # 安静地返回一个空集合。拆 NacreProperties.mm 时被这个形态咬过一次：
 # mm_block 定位不到签名，给了空集，于是报出一屏看着像真 diff 的假阳性。
-def extract(what, outer, text, inner):
+def extract(what, outer, text, inner, limit=None):
     m = re.search(outer, text, re.S)
     if m is None:
         complain('脚本', f'{what} 定位不到，check-api.sh 要更新')
         return None
     names = set(re.findall(inner, m.group(1)))
+    # 抽太多和抽成空一样，都是提取点失效。被这个形态咬过一次：颜色常量表
+    # 的收尾锚点从 `]) {` 改成了 `];`，非贪婪匹配一路跑到文件下面另一个
+    # `]) {`，把整个文件吞了进去，于是报出一屏看着像真 diff 的东西
+    if limit is not None and len(names) > limit:
+        complain('脚本',
+                 f'{what} 抽出来有 {len(names)} 个，远超预期的 {limit}，'
+                 f'多半是收尾锚点失效了，check-api.sh 要更新')
+        return None
     if not names:
         complain('脚本', f'{what} 抽出来是空的，check-api.sh 要更新')
         return None
@@ -61,7 +69,8 @@ def braced_body(text, start):
 # UIColor 的颜色常量是循环 Object.defineProperty 加的，不在 class 体里。
 # 两处要用（类成员核对、第 3 节），抽一次
 JS_COLORS = extract('nacre.js 的 UIColor 颜色常量表',
-                    r"// UIColor\.h：基础色(.*?)\]\) \{", js, r"'(\w+)'")
+                    r"const COLOR_CONSTANTS = \[(.*?)\n  \];", js, r"'(\w+)'",
+                    limit=100)
 
 def js_classes():
     """nacre.js 里每个原生类的成员。"""

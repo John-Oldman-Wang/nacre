@@ -54,8 +54,7 @@ export function stepWindow(ctx) {
   catch (err) { console.log('  ✓ UIColor 不可直接构造:', err.message); }
 
   vc.view.backgroundColor = UIColor.systemBackgroundColor;
-  console.log('  写入后读回是同一个 =',
-              vc.view.backgroundColor === UIColor.systemBackgroundColor);
+  console.log('  写 UIColor 对象，读回语义色的名字 =', vc.view.backgroundColor);
   vc.view.backgroundColor = null;
   console.log('  置 null 后读回 =', vc.view.backgroundColor);
   vc.view.backgroundColor = UIColor.systemBackgroundColor;

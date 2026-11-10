@@ -23,6 +23,7 @@ import { stepSubclass } from './steps/subclass.js';
 import { stepStorage } from './steps/storage.js';
 import { stepFileSystem } from './steps/filesystem.js';
 import { stepKeychain } from './steps/keychain.js';
+import { stepColor } from './steps/color.js';
 import { stepWindow } from './steps/window.js';
 import { stepImage } from './steps/image.js';
 import { stepUrl } from './steps/url.js';
@@ -59,6 +60,7 @@ application.addEventListener('sceneconnect', (e) => {
   stepStorage();
   stepFileSystem();
   stepKeychain();
+  stepColor(ctx);
   stepWindow(ctx);
   stepImage(ctx);
   stepUrl(ctx);

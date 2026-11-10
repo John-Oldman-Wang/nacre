@@ -24,6 +24,16 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
     return false;
   };
 
+  // 按 spec 造一个颜色。spec 已经由 JS 侧的解析器规范化过
+  if (className == "UIColor" && [sel isEqualToString:@"nacreFromSpec"]) {
+    UIColor* color = ColorFromSpec(arg(0));
+    if (color == nil) {
+      *error = "cannot build a color from this specification";
+      return {};
+    }
+    return {(void*)CFAutorelease(CFBridgingRetain(color)), "UIColor"};
+  }
+
   // 批量激活/停用。约束按「每个参数一个对象」传过来（argPtrs 本来就是
   // 一维的句柄数组），所以不用为「数组参数」另开一条通道。
   // 批量比逐个 isActive = true 好的地方是中间态不会短暂地不可满足。
@@ -189,6 +199,9 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
   // 本地存储在 NacreStorage.mm，它自己说认不认领
   std::string storageResult;
   if (StorageCallMethod(object, name, argsJSON, &storageResult, error)) return storageResult;
+  // 颜色 → spec 在 NacrePropsResource.mm，同样的规矩
+  std::string colorResult;
+  if (ColorCallMethod(object, name, &colorResult)) return colorResult;
 
   NSString* sel = @(name.c_str());
   id decoded = DecodeJSON(argsJSON);

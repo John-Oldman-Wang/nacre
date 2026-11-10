@@ -566,6 +566,7 @@ Commit message 格式：
 | — | 原生类一律 final：继承当场抛，删掉 `allowNativeConstruct` | `finalCheck`、包装工厂改 `Object.create` | 已在模拟器验证通过：508 条断言全过，三种「没有原生对象」分开报错 |
 | — | 补上 `UIButton` 按状态存的颜色/图的所有权边 | `stateKey`，读写两侧都记 | 已在模拟器验证通过：512 条断言全过，三条新回归在对照组被回收的前提下成立 |
 | — | `check-api.sh` 核对所有权边 | 原生层的取参助手当真相，JS 侧必须记边或登记白名单 | 已验证：四类弄坏法各报一条，白名单失配也报 |
+| — | 颜色全面字符串化（缺口清单 A3） | 解析在 JS、spec 过桥、池化、声明表 | 已在模拟器验证通过：646 条断言全过 |
 | 7a | 本地存储：`application.storage` | NSUserDefaults、plist 值校验、change 通知 | 已在模拟器验证通过：557 条断言全过，启动计数器跨进程验到落盘 |
 | 7b | 文件读写：`application.fileSystem` | 后台队列、四种兑现、错误借 DOMException 的名字 | 已在模拟器验证通过：589 条断言全过，跨进程和「不卡主线程」都验到 |
 | 7c | Keychain：`application.keychain` | SecItem、五个访问级别、默认不迁移新设备 | 已在模拟器验证通过：588 条断言全过，三种持久化各自跨进程验到 |
@@ -721,7 +722,7 @@ view.convertPoint(p, { fromView: other })         // convertPoint:fromView:
 
 这样看 Apple 文档能直接写出调用，重载也自然消歧——只取第一段的方案在 `convertPoint:toView:` / `convertPoint:fromView:` 上就会撞，而且就撞在 `UIView` 里。和[原则 6](#原则)（options 对象，不是长参数列表）一致。
 
-不漂亮的地方是参数同质的构造类方法：`UIColor.colorWithRed(1, { green: 0, blue: 0, alpha: 1 })`。但这类方法上层已经用字符串绕开了（见 [`UIColor` 文档](internals/ui-color.md#上层怎么写颜色方向已定未实现)），JS 开发者基本不碰；要原样调用还有 `send(selector, ...args)` 兜底。
+不漂亮的地方是参数同质的构造类方法：`UIColor.colorWithRed(1, { green: 0, blue: 0, alpha: 1 })`。但这类方法上层已经用字符串绕开了（见 [`UIColor` 文档](internals/ui-color.md#上层怎么写颜色已实现而且结论改过一次)），JS 开发者基本不碰；要原样调用还有 `send(selector, ...args)` 兜底。
 
 **2. 结构体：JS 类 + 只读字段。** `CGRect` / `CGPoint` / `CGSize` 等做成 JS 类，实例上同时提供嵌套访问和扁平访问，字段**写入即抛**：
 
@@ -778,15 +779,17 @@ Phaser 的 Scene 还有一套明确的状态机（PENDING → INIT → START →
 
 参考：[Scenes 概念文档](https://docs.phaser.io/phaser/concepts/scenes)、[Scene Manager 的状态列表](https://rexrainbow.github.io/phaser3-rex-notes/docs/site/scenemanager)、[为什么用 init 而不是构造函数](https://phaser.discourse.group/t/why-does-phaser3-use-init-instead-of-the-constructor/6278)。
 
-**上层已经定下来的第一条：颜色怎么写。** 写入接受字符串（`'#5856D6'`、`'light-dark(#fff, #000)'`、`'systemBackground'`）或 `UIColor` 对象，读出永远是 `UIColor` 对象。
+**已实现：颜色读写都是字符串。** 写入接受字符串（`'#5856D6'`、`'light-dark(#fff, #000)'`、`'systemBackground'`、`'asset(BrandBlue)'`）或 `UIColor` 对象；**读出也是字符串**，合法写入的原样还回来。
 
 字符串是构造的简写，不是颜色的表示法。读出不跟着做成字符串，是因为**要么失败、要么静默丢东西**：图案色会失败（`getRed:green:blue:alpha:` 返回 `NO`，一个分量都拿不到）；动态色转得出来但会降精度——外观不止明暗一维，`accessibilityContrast`、`userInterfaceLevel` 也影响取值，两个样本盖不住，而且丢了不报错。这是取舍不是硬约束，我们选择不接受静默的错。
 
-Web 能双向字符串化是因为 CSSOM 自己留着声明串，我们没有这一层——`UIView` 只存一个 `UIColor`。推导过程见 [`UIColor` 文档](internals/ui-color.md#上层怎么写颜色方向已定未实现)。
+Web 能双向字符串化是因为 CSSOM 自己留着声明串，我们没有这一层——`UIView` 只存一个 `UIColor`。推导过程见 [`UIColor` 文档](internals/ui-color.md#上层怎么写颜色已实现而且结论改过一次)。
 
 顺带两个事实也记在那边：`UIColor` **不可变**（属性全 `readonly`、无 setter、派生方法返回新对象），所以读出的对象不用防御性复制；但不可变不等于定值——动态色持有的是 `UITraitCollection → UIColor` 的函数，明暗主题挂在**视图层级的 trait** 上，不在颜色上。
 
 连带结论：底层的 `colorWithRed:green:blue:alpha:` 不急——日常写颜色走字符串，它只作为「完整暴露」的承诺留着。
+
+**已实现一半：不可变原生值对象的相等性。** 颜色这一侧的候选 A（按构造参数池化）做掉了——同一个串永远拿到同一个 `UIColor`。剩下的缺口仍在：`UIColor.redColor` 和 `'#f00'` 是两个不同的原生对象。下面是当初的分析。
 
 **TODO：不可变原生值对象的相等性怎么给 JS。** 以颜色为起点，但这是通用问题——所有不可变的「值类对象」（将来的 `NSString`、`CGColor`、`NSNumber`）都会遇到。
 
@@ -824,6 +827,8 @@ Web 能双向字符串化是因为 CSSOM 自己留着声明串，我们没有这
 **没堵上的是那个静默失败**：对象参数没有句柄时应该抛，不该当成 nil。和下面「属性名拼错了不报错」是同一类错。
 
 **已实现：所有权边有机械检查了。** `check-api.sh` 新增一节：**原生层说哪些 selector 收对象参数，JS 侧对应的方法就必须出现 `own` / `ownOne` / `ownAll` / `nativeSetOwned` 之一，否则登记进 `OWNERSHIP_EXEMPT`**。白名单今天 8 条，每条都写了为什么（只读不持有、参数本来就已经被别的边持有、或者是解除持有）。四类弄坏法都验过，见[包装机制](internals/wrapper.md#这条已经变成机械检查)。
+
+**TODO：颜色解析的性能还没实测。** 现在解析在 JS 侧，靠池化摊掉——同一个串只解析一次，之后是 `Map.get` + `WeakRef.deref`。而**过桥写属性那一次省不掉**，所以稳态成本里解析接近零；把解析挪到原生反而会让重复字符串每次都过桥。但**首次解析在 jitless 下到底多少微秒没量过**。先给验收用例加一条基准，有数再谈优化。WebAssembly 这条路不通——lite mode / jitless 下编译不了 wasm。
 
 **TODO：参数类型不对但有句柄 → 静默忽略。** 和「参数没有原生对象」是同一家，上一步只堵了后者。
 

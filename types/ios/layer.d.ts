@@ -27,10 +27,12 @@ declare class CALayer extends NSObject {
    * （`UIColor.labelColor` 这类）在写入的那一刻就被定死，不会再跟着
    * 深浅色变。
    */
-  borderColor: UIColor | null;
+  get borderColor(): string | null;
+  set borderColor(value: ColorValue | null);
 
   /** 默认不透明黑。但 `shadowOpacity` 默认是 0，所以只设颜色看不见东西。 */
-  shadowColor: UIColor | null;
+  get shadowColor(): string | null;
+  set shadowColor(value: ColorValue | null);
   /** 默认 0——阴影默认是不显示的。 */
   shadowOpacity: number;
   /** 模糊半径，默认 3。 */

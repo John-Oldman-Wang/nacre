@@ -40,8 +40,9 @@ export function stepButton(ctx) {
     assert('currentTitle 用的是当前状态那个', button.currentTitle, '点我试试');
 
     button.setTitleColor(UIColor.systemRedColor, { forState: ['normal'] });
-    assert('颜色按状态取回来', button.titleColorForState('normal') instanceof UIColor, true);
-    assert('currentTitleColor 永远非空', button.currentTitleColor instanceof UIColor, true);
+    assert('颜色按状态取回来，是语义色的名字', button.titleColorForState('normal'),
+           'systemRed');   // 写的是 UIColor 对象，所以走反查名字那条路
+    assert('currentTitleColor 永远非空', typeof button.currentTitleColor, 'string');
 
     // 组合状态：选中且禁用
     button.setTitle('两个状态', { forState: ['selected', 'disabled'] });

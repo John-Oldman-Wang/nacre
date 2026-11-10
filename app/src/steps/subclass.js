@@ -101,8 +101,10 @@ export function stepSubclass() {
   // UIColor 常量、CALayer、锚点都是工厂建的，能读到属性就说明这条路没断
   const probe = new UIView();
   probe.backgroundColor = UIColor.systemRedColor;
+  // 包装身份这一条直接在 UIColor 上验——属性读出来已经是字符串了
   assert('工厂建的 UIColor 还是同一个包装',
-         probe.backgroundColor === UIColor.systemRedColor, true);
+         UIColor.systemRedColor === UIColor.systemRedColor, true);
+  assert('写 UIColor 对象，读回语义色的名字', probe.backgroundColor, 'systemRed');
   assert('工厂建的 CALayer 可用', typeof probe.layer.cornerRadius, 'number');
   assert('工厂建的锚点可用', probe.widthAnchor instanceof NSLayoutDimension, true);
 }

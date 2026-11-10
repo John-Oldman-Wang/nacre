@@ -15,6 +15,21 @@
  *
  * 同一个常量每次取到的是同一个 JS 对象（UIColor.labelColor === UIColor.labelColor）。
  */
+/**
+ * 颜色写进去的形式。读出来永远是 `string`。
+ *
+ * - `'#f00'` / `'#ff0000'` / `'#ff000080'` / `'#f00a'`
+ * - `'rgb(255, 0, 0)'` / `'rgb(255 0 0)'` / `'rgba(255,0,0,.5)'` / `'rgb(255 0 0 / 50%)'`
+ * - `'light-dark(#fff, #000)'` —— 跟随深浅色
+ * - `'systemBackground'` —— 语义色，就是 `UIColor` 上那 39 个常量去掉 `Color` 后缀
+ * - `'asset(BrandBlue)'` —— Asset Catalog 里配好的色（支持高对比度等多维）
+ * - `'native(7)'` —— 读出来时给的代号，表示这个颜色写不成通用语法。赋回去有效
+ * - `UIColor` 对象 —— 底层的逃生口
+ *
+ * **不合法不抛**，打一条警告并保留旧值。
+ */
+type ColorValue = string | UIColor;
+
 declare class UIColor extends NSObject {
   private constructor();
 

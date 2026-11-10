@@ -121,6 +121,117 @@ NSDictionary<NSString*, UIColor*>* NamedColors() {
   return colors;
 }
 
+
+// ---------------------------------------------------------------- 颜色 ↔ spec
+//
+// 上层的颜色是**字符串**，但字符串解析在 JS 侧做（纯文本运算），过桥的是一个
+// 规范化的 spec。原生这边只管两件事：按 spec 造色，和把一个色还原成 spec。
+//
+// spec 的几种形状：
+//   {"kind":"rgba","r":…,"g":…,"b":…,"a":…}
+//   {"kind":"lightDark","light":{…},"dark":{…}}
+//   {"kind":"name","name":"systemBlueColor"}     39 个常量之一
+//   {"kind":"asset","name":"BrandBlue"}          Asset Catalog
+//   {"kind":"opaque"}                            反查专用：表达不出来
+
+namespace {
+
+// 反查：指针 → 常量名。常量是原生单例，所以指针比对就够
+NSString* NameForColor(UIColor* color) {
+  static NSDictionary<NSValue*, NSString*>* reverse = nil;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    NSMutableDictionary<NSValue*, NSString*>* table = [NSMutableDictionary dictionary];
+    [NamedColors() enumerateKeysAndObjectsUsingBlock:^(NSString* name, UIColor* c, BOOL* stop) {
+      table[[NSValue valueWithPointer:(__bridge const void*)c]] = name;
+    }];
+    reverse = table;
+  });
+  return reverse[[NSValue valueWithPointer:(__bridge const void*)color]];
+}
+
+// 它是不是动态色——按任何一维解析出不同的值就是。
+//
+// 这一步**不能省**：动态色被问 RGBA 分量时不会失败，而是乖乖返回当前外观下的
+// 值。所以不检测的话，深色模式下的 systemBackground 会被还原成 "#000000"，
+// 换到浅色就全错了，而且**丢了不报错**。
+BOOL IsDynamicColor(UIColor* color) {
+  UITraitCollection* axes[][2] = {
+    {[UITraitCollection traitCollectionWithUserInterfaceStyle:UIUserInterfaceStyleLight],
+     [UITraitCollection traitCollectionWithUserInterfaceStyle:UIUserInterfaceStyleDark]},
+    {[UITraitCollection traitCollectionWithAccessibilityContrast:UIAccessibilityContrastNormal],
+     [UITraitCollection traitCollectionWithAccessibilityContrast:UIAccessibilityContrastHigh]},
+    {[UITraitCollection traitCollectionWithUserInterfaceLevel:UIUserInterfaceLevelBase],
+     [UITraitCollection traitCollectionWithUserInterfaceLevel:UIUserInterfaceLevelElevated]},
+  };
+  for (size_t i = 0; i < sizeof(axes) / sizeof(axes[0]); i++) {
+    UIColor* a = [color resolvedColorWithTraitCollection:axes[i][0]];
+    UIColor* b = [color resolvedColorWithTraitCollection:axes[i][1]];
+    if (![a isEqual:b]) return YES;
+  }
+  return NO;
+}
+
+NSDictionary* RGBASpec(UIColor* color) {
+  CGFloat r = 0, g = 0, b = 0, a = 0;
+  if (![color getRed:&r green:&g blue:&b alpha:&a]) return nil;   // 图案色走这里
+  return @{@"kind": @"rgba", @"r": @(r), @"g": @(g), @"b": @(b), @"a": @(a)};
+}
+
+}  // namespace
+
+UIColor* ColorFromSpec(id spec) {
+  if (![spec isKindOfClass:NSDictionary.class]) return nil;
+  NSString* kind = spec[@"kind"];
+  if ([kind isEqualToString:@"rgba"]) {
+    return [UIColor colorWithRed:[spec[@"r"] doubleValue]
+                           green:[spec[@"g"] doubleValue]
+                            blue:[spec[@"b"] doubleValue]
+                           alpha:[spec[@"a"] doubleValue]];
+  }
+  if ([kind isEqualToString:@"name"]) {
+    return NamedColors()[spec[@"name"] ?: @""];
+  }
+  if ([kind isEqualToString:@"asset"]) {
+    NSString* name = spec[@"name"];
+    return [name isKindOfClass:NSString.class] ? [UIColor colorNamed:name] : nil;
+  }
+  if ([kind isEqualToString:@"lightDark"]) {
+    UIColor* light = ColorFromSpec(spec[@"light"]);
+    UIColor* dark = ColorFromSpec(spec[@"dark"]);
+    if (light == nil || dark == nil) return nil;
+    // provider 的 block **由原生层实现，不回 JS**，闭包里只捕获两个已经算好的
+    // 颜色。所以这不需要「同步回调回 JS」那套机制（M1b）——和屏幕方向那条
+    // 「系统要同步拿答案，就转成 JS 预先声明的状态」是同一个模式。
+    return [UIColor colorWithDynamicProvider:^UIColor*(UITraitCollection* traits) {
+      return traits.userInterfaceStyle == UIUserInterfaceStyleDark ? dark : light;
+    }];
+  }
+  return nil;
+}
+
+NSDictionary* ColorToSpec(UIColor* color) {
+  if (color == nil) return nil;
+  NSString* name = NameForColor(color);
+  if (name) return @{@"kind": @"name", @"name": name};
+  if (!IsDynamicColor(color)) {
+    NSDictionary* rgba = RGBASpec(color);
+    if (rgba) return rgba;
+  }
+  // 没名字的动态色、图案色、HDR……表达不出来。**不编一个近似值**：
+  // 那是静默丢精度，正是这一整套设计在拒绝的东西。JS 侧会给它一个
+  // native(n) 的代号，保证往返，并且诚实地说「这个写不出来」。
+  return @{@"kind": @"opaque"};
+}
+
+// 颜色的方法分发。单独一支，按「认不认领」返回
+bool ColorCallMethod(id object, const std::string& name, std::string* out) {
+  if (![object isKindOfClass:UIColor.class]) return false;
+  if (name != "nacreSpec") return false;
+  *out = EncodeJSON(ColorToSpec((UIColor*)object));
+  return true;
+}
+
 nacre::NativeObjectRef ReadClassObjectProperty(const std::string& className,
                                                const std::string& name) {
   nacre::NativeObjectRef storage = StorageClassObject(className, name);
