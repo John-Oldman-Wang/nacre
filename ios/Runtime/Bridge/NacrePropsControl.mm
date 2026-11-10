@@ -8,6 +8,46 @@ namespace nacre_bridge {
 
 id ReadControlProperty(id object, NSString* key) {
   id value = nil;
+  if ([object isKindOfClass:UITextField.class]) {
+    UITextField* field = (UITextField*)object;
+    if ([key isEqualToString:@"text"]) return field.text ?: @"";
+    if ([key isEqualToString:@"placeholder"]) return field.placeholder;
+    if ([key isEqualToString:@"isEditing"]) return @(field.isEditing);
+    if ([key isEqualToString:@"isSecureTextEntry"]) return @(field.isSecureTextEntry);
+    if ([key isEqualToString:@"clearsOnBeginEditing"]) return @(field.clearsOnBeginEditing);
+    if ([key isEqualToString:@"adjustsFontSizeToFitWidth"]) {
+      return @(field.adjustsFontSizeToFitWidth);
+    }
+    if ([key isEqualToString:@"minimumFontSize"]) return @(field.minimumFontSize);
+    if ([key isEqualToString:@"textAlignment"]) {
+      return NameForTextAlignment(field.textAlignment);
+    }
+    if ([key isEqualToString:@"enablesReturnKeyAutomatically"]) {
+      return @(field.enablesReturnKeyAutomatically);
+    }
+    if ([key isEqualToString:@"keyboardType"]) return NameForKeyboardType(field.keyboardType);
+    if ([key isEqualToString:@"returnKeyType"]) return NameForReturnKeyType(field.returnKeyType);
+    if ([key isEqualToString:@"autocapitalizationType"]) {
+      return NameForTextAutocapitalizationType(field.autocapitalizationType);
+    }
+    if ([key isEqualToString:@"autocorrectionType"]) {
+      return NameForTextAutocorrectionType(field.autocorrectionType);
+    }
+    if ([key isEqualToString:@"spellCheckingType"]) {
+      return NameForTextSpellCheckingType(field.spellCheckingType);
+    }
+    if ([key isEqualToString:@"keyboardAppearance"]) {
+      return NameForKeyboardAppearance(field.keyboardAppearance);
+    }
+    if ([key isEqualToString:@"borderStyle"]) return NameForTextBorderStyle(field.borderStyle);
+    if ([key isEqualToString:@"clearButtonMode"]) {
+      return NameForTextFieldViewMode(field.clearButtonMode);
+    }
+    // 没配过是 nil，JS 侧读到 null
+    if ([key isEqualToString:@"textContentType"]) {
+      return NameForTextContentType(field.textContentType);
+    }
+  }
   if ([object isKindOfClass:UIBarButtonItem.class]) {
     UIBarButtonItem* item = (UIBarButtonItem*)object;
     if ([key isEqualToString:@"style"]) {
@@ -64,6 +104,134 @@ id ReadControlProperty(id object, NSString* key) {
 
 BOOL WriteControlProperty(id object, NSString* key, id value,
                       std::string* error) {
+  if ([object isKindOfClass:UITextField.class]) {
+    UITextField* field = (UITextField*)object;
+    if ([key isEqualToString:@"text"]) {
+      field.text = [value isKindOfClass:NSString.class] ? value : @"";
+      return YES;
+    }
+    if ([key isEqualToString:@"placeholder"]) {
+      field.placeholder = [value isKindOfClass:NSString.class] ? value : nil;
+      return YES;
+    }
+    if ([key isEqualToString:@"isSecureTextEntry"]) {
+      field.secureTextEntry = [value boolValue];
+      return YES;
+    }
+    if ([key isEqualToString:@"clearsOnBeginEditing"]) {
+      field.clearsOnBeginEditing = [value boolValue];
+      return YES;
+    }
+    if ([key isEqualToString:@"adjustsFontSizeToFitWidth"]) {
+      field.adjustsFontSizeToFitWidth = [value boolValue];
+      return YES;
+    }
+    if ([key isEqualToString:@"minimumFontSize"]) {
+      field.minimumFontSize = [value doubleValue];
+      return YES;
+    }
+    if ([key isEqualToString:@"textAlignment"]) {
+      NSTextAlignment out;
+      if (!TextAlignmentFromName(value, &out)) {
+        *error = EnumError(@"textAlignment", value, NamesForTextAlignment());
+        return YES;
+      }
+      field.textAlignment = out;
+      return YES;
+    }
+    if ([key isEqualToString:@"enablesReturnKeyAutomatically"]) {
+      field.enablesReturnKeyAutomatically = [value boolValue];
+      return YES;
+    }
+    // 这八个形状一样，但**不用宏铺开**：check-api.sh 按 isEqualToString
+    // 后面那个字符串字面量抽属性名，宏会把它藏成 @KEY，于是这八个属性在
+    // 三边核对里凭空消失。能被检查看见比少写几行重要。
+    if ([key isEqualToString:@"keyboardType"]) {
+      UIKeyboardType out;
+      if (!KeyboardTypeFromName(value, &out)) {
+        *error = EnumError(@"keyboardType", value, NamesForKeyboardType());
+        return YES;
+      }
+      field.keyboardType = out;
+      return YES;
+    }
+    if ([key isEqualToString:@"returnKeyType"]) {
+      UIReturnKeyType out;
+      if (!ReturnKeyTypeFromName(value, &out)) {
+        *error = EnumError(@"returnKeyType", value, NamesForReturnKeyType());
+        return YES;
+      }
+      field.returnKeyType = out;
+      return YES;
+    }
+    if ([key isEqualToString:@"autocapitalizationType"]) {
+      UITextAutocapitalizationType out;
+      if (!TextAutocapitalizationTypeFromName(value, &out)) {
+        *error = EnumError(@"autocapitalizationType", value, NamesForTextAutocapitalizationType());
+        return YES;
+      }
+      field.autocapitalizationType = out;
+      return YES;
+    }
+    if ([key isEqualToString:@"autocorrectionType"]) {
+      UITextAutocorrectionType out;
+      if (!TextAutocorrectionTypeFromName(value, &out)) {
+        *error = EnumError(@"autocorrectionType", value, NamesForTextAutocorrectionType());
+        return YES;
+      }
+      field.autocorrectionType = out;
+      return YES;
+    }
+    if ([key isEqualToString:@"spellCheckingType"]) {
+      UITextSpellCheckingType out;
+      if (!TextSpellCheckingTypeFromName(value, &out)) {
+        *error = EnumError(@"spellCheckingType", value, NamesForTextSpellCheckingType());
+        return YES;
+      }
+      field.spellCheckingType = out;
+      return YES;
+    }
+    if ([key isEqualToString:@"keyboardAppearance"]) {
+      UIKeyboardAppearance out;
+      if (!KeyboardAppearanceFromName(value, &out)) {
+        *error = EnumError(@"keyboardAppearance", value, NamesForKeyboardAppearance());
+        return YES;
+      }
+      field.keyboardAppearance = out;
+      return YES;
+    }
+    if ([key isEqualToString:@"borderStyle"]) {
+      UITextBorderStyle out;
+      if (!TextBorderStyleFromName(value, &out)) {
+        *error = EnumError(@"borderStyle", value, NamesForTextBorderStyle());
+        return YES;
+      }
+      field.borderStyle = out;
+      return YES;
+    }
+    if ([key isEqualToString:@"clearButtonMode"]) {
+      UITextFieldViewMode out;
+      if (!TextFieldViewModeFromName(value, &out)) {
+        *error = EnumError(@"clearButtonMode", value, NamesForTextFieldViewMode());
+        return YES;
+      }
+      field.clearButtonMode = out;
+      return YES;
+    }
+    if ([key isEqualToString:@"textContentType"]) {
+      if (value == nil || value == NSNull.null) {
+        field.textContentType = nil;
+        return YES;
+      }
+      UITextContentType out = nil;
+      if (!TextContentTypeFromName(value, &out)) {
+        *error = EnumError(@"textContentType", value, NamesForTextContentType());
+        return YES;
+      }
+      field.textContentType = out;
+      return YES;
+    }
+  }
   if ([object isKindOfClass:UIBarButtonItem.class]) {
     UIBarButtonItem* item = (UIBarButtonItem*)object;
     if ([key isEqualToString:@"style"]) {

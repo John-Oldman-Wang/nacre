@@ -631,6 +631,14 @@
   // UIResponder 在 ObjC 里的定义就是「能接收事件的对象」，和 EventTarget 语义吻合。
   const UIResponder = defineNativeClass('UIResponder', class UIResponder extends NSObject {
     constructor() { shellOnly(new.target, UIResponder, 'UIResponder'); super(); }
+
+    // ---- first responder ----
+    // 输入框弹不弹键盘就看它。返回值是「成没成」——系统可能拒绝，
+    // 比如视图还没上屏，所以别忽略它
+    becomeFirstResponder() { return nativeCall(this, 'becomeFirstResponder', []); }
+    resignFirstResponder() { return nativeCall(this, 'resignFirstResponder', []); }
+    get isFirstResponder() { return nativeGet(this, 'isFirstResponder'); }
+    get canBecomeFirstResponder() { return nativeGet(this, 'canBecomeFirstResponder'); }
   });
   const UIScene = defineNativeClass('UIScene', class UIScene extends UIResponder {
     constructor() { shellOnly(new.target, UIScene, 'UIScene'); super(); }
@@ -909,7 +917,7 @@
 
   // 不画东西的矩形。用来占位、分组、做间距，比塞一个透明 UIView 省一个图层。
   // 比 UIView 少两个锚点：没有基线，因为它没有文字。
-  defineNativeClass('UILayoutGuide', class UILayoutGuide extends NSObject {
+  const UILayoutGuide = defineNativeClass('UILayoutGuide', class UILayoutGuide extends NSObject {
     constructor() {
       super();
       constructNative(this, new.target, 'UILayoutGuide', []);
@@ -933,6 +941,33 @@
     get heightAnchor() { return anchorOf(this, 'heightAnchor'); }
     get centerXAnchor() { return anchorOf(this, 'centerXAnchor'); }
     get centerYAnchor() { return anchorOf(this, 'centerYAnchor'); }
+  });
+
+  // 键盘避让的那条 guide。ObjC 的继承链是
+  // UIKeyboardLayoutGuide : UITrackingLayoutGuide : UILayoutGuide，照着放。
+  // UITrackingLayoutGuide 那组「按边缘远近自动启停约束」的方法 v1 没做
+  const UITrackingLayoutGuide =
+    defineNativeClass('UITrackingLayoutGuide', class UITrackingLayoutGuide
+                      extends UILayoutGuide {
+      constructor() { nativeOnly(new.target); }
+    });
+
+  // **键盘收起时它贴安全区底边，弹出时贴键盘顶边**，所以一条约束管两种
+  // 状态——不用听键盘通知，也不用自己算动画曲线
+  defineNativeClass('UIKeyboardLayoutGuide', class UIKeyboardLayoutGuide
+                    extends UITrackingLayoutGuide {
+    constructor() { nativeOnly(new.target); }
+
+    /** iPad 的浮动/拆分键盘也跟。默认 false */
+    get followsUndockedKeyboard() { return nativeGet(this, 'followsUndockedKeyboard'); }
+    set followsUndockedKeyboard(value) {
+      nativeSet(this, 'followsUndockedKeyboard', value);
+    }
+    /** 下滑收键盘时提前多少开始。默认 0 */
+    get keyboardDismissPadding() { return nativeGet(this, 'keyboardDismissPadding'); }
+    set keyboardDismissPadding(value) {
+      nativeSet(this, 'keyboardDismissPadding', value);
+    }
   });
 
   const UIView = defineNativeClass('UIView', class UIView extends UIResponder {
@@ -1090,6 +1125,20 @@
     // 刘海、Home 指示条、状态栏让出来的那块
     get safeAreaLayoutGuide() { return nativeGetOwned(this, 'safeAreaLayoutGuide'); }
     get layoutMarginsGuide() { return nativeGetOwned(this, 'layoutMarginsGuide'); }
+    /**
+     * 键盘避让。**收起时它贴安全区底边，弹出时贴键盘顶边**，所以把内容的
+     * 底边约束到它的 topAnchor，一条约束管两种状态：
+     *
+     *     field.bottomAnchor
+     *       .constraintEqualToAnchor(view.keyboardLayoutGuide.topAnchor,
+     *                                { constant: -16 }).isActive = true;
+     */
+    get keyboardLayoutGuide() { return nativeGetOwned(this, 'keyboardLayoutGuide'); }
+    /**
+     * 让这棵子树里的 first responder 交出身份——收键盘最常用的那一个。
+     * force 为 true 时不管对方愿不愿意。
+     */
+    endEditing(force) { return nativeCall(this, 'endEditing:', [!!force]); }
     // 一行字的舒适宽度，长文本用它比用 safeArea 好读
     get readableContentGuide() { return nativeGetOwned(this, 'readableContentGuide'); }
 
@@ -1611,6 +1660,167 @@
     set preferredMaxLayoutWidth(value) {
       requireNative(this, 'preferredMaxLayoutWidth');
       nativeSet(this, 'preferredMaxLayoutWidth', value);
+    }
+  });
+
+  // 单行输入框。它**是 UIControl**，所以 4a 那 16 个控件事件直接可用：
+  //   editingDidBegin / editingChanged / editingDidEnd / editingDidEndOnExit
+  // 「文字变了」不需要新机制，听 editingChanged 就行。
+  //
+  // UITextFieldDelegate 里那几个要**同步返回 BOOL** 的（shouldChangeCharacters、
+  // shouldReturn…）要 M1b，v1 不做。常见的两个需求能绕：
+  //   输入过滤 → 听 editingChanged，事后截断
+  //   回车收键盘 → 听 editingDidEndOnExit，自己 resignFirstResponder()
+  defineNativeClass('UITextField', class UITextField extends UIControl {
+    constructor() {
+      super();
+      constructNative(this, new.target, 'UITextField', []);
+    }
+
+    get text() { requireNative(this, 'text'); return nativeGet(this, 'text'); }
+    set text(value) { requireNative(this, 'text'); nativeSet(this, 'text', value); }
+    get placeholder() { requireNative(this, 'placeholder'); return nativeGet(this, 'placeholder'); }
+    set placeholder(value) {
+      requireNative(this, 'placeholder');
+      nativeSet(this, 'placeholder', value);
+    }
+    /** 正在编辑（已经是 first responder 并且键盘起来了） */
+    get isEditing() { requireNative(this, 'isEditing'); return nativeGet(this, 'isEditing'); }
+
+    // ---- 键盘长什么样 ----
+    get keyboardType() { requireNative(this, 'keyboardType'); return nativeGet(this, 'keyboardType'); }
+    set keyboardType(value) {
+      requireNative(this, 'keyboardType');
+      nativeSet(this, 'keyboardType', value);
+    }
+    /** 回车键上印什么字 */
+    get returnKeyType() { requireNative(this, 'returnKeyType'); return nativeGet(this, 'returnKeyType'); }
+    set returnKeyType(value) {
+      requireNative(this, 'returnKeyType');
+      nativeSet(this, 'returnKeyType', value);
+    }
+    get keyboardAppearance() {
+      requireNative(this, 'keyboardAppearance');
+      return nativeGet(this, 'keyboardAppearance');
+    }
+    set keyboardAppearance(value) {
+      requireNative(this, 'keyboardAppearance');
+      nativeSet(this, 'keyboardAppearance', value);
+    }
+    /** 没有内容时回车键变灰 */
+    get enablesReturnKeyAutomatically() {
+      requireNative(this, 'enablesReturnKeyAutomatically');
+      return nativeGet(this, 'enablesReturnKeyAutomatically');
+    }
+    set enablesReturnKeyAutomatically(value) {
+      requireNative(this, 'enablesReturnKeyAutomatically');
+      nativeSet(this, 'enablesReturnKeyAutomatically', value);
+    }
+
+    // ---- 输入行为 ----
+    get isSecureTextEntry() {
+      requireNative(this, 'isSecureTextEntry');
+      return nativeGet(this, 'isSecureTextEntry');
+    }
+    set isSecureTextEntry(value) {
+      requireNative(this, 'isSecureTextEntry');
+      nativeSet(this, 'isSecureTextEntry', value);
+    }
+    get autocapitalizationType() {
+      requireNative(this, 'autocapitalizationType');
+      return nativeGet(this, 'autocapitalizationType');
+    }
+    set autocapitalizationType(value) {
+      requireNative(this, 'autocapitalizationType');
+      nativeSet(this, 'autocapitalizationType', value);
+    }
+    get autocorrectionType() {
+      requireNative(this, 'autocorrectionType');
+      return nativeGet(this, 'autocorrectionType');
+    }
+    set autocorrectionType(value) {
+      requireNative(this, 'autocorrectionType');
+      nativeSet(this, 'autocorrectionType', value);
+    }
+    get spellCheckingType() {
+      requireNative(this, 'spellCheckingType');
+      return nativeGet(this, 'spellCheckingType');
+    }
+    set spellCheckingType(value) {
+      requireNative(this, 'spellCheckingType');
+      nativeSet(this, 'spellCheckingType', value);
+    }
+    /**
+     * 这个框装的是什么。配上 'username' + 'password' 开启密码自动填充，
+     * 'oneTimeCode' 开启短信验证码自动填充。不配就全都没有。
+     */
+    get textContentType() {
+      requireNative(this, 'textContentType');
+      return nativeGet(this, 'textContentType');
+    }
+    set textContentType(value) {
+      requireNative(this, 'textContentType');
+      nativeSet(this, 'textContentType', value);
+    }
+    get clearsOnBeginEditing() {
+      requireNative(this, 'clearsOnBeginEditing');
+      return nativeGet(this, 'clearsOnBeginEditing');
+    }
+    set clearsOnBeginEditing(value) {
+      requireNative(this, 'clearsOnBeginEditing');
+      nativeSet(this, 'clearsOnBeginEditing', value);
+    }
+
+    // ---- 外观 ----
+    get borderStyle() { requireNative(this, 'borderStyle'); return nativeGet(this, 'borderStyle'); }
+    set borderStyle(value) {
+      requireNative(this, 'borderStyle');
+      nativeSet(this, 'borderStyle', value);
+    }
+    /** 右边那个清空按钮什么时候出现 */
+    get clearButtonMode() {
+      requireNative(this, 'clearButtonMode');
+      return nativeGet(this, 'clearButtonMode');
+    }
+    set clearButtonMode(value) {
+      requireNative(this, 'clearButtonMode');
+      nativeSet(this, 'clearButtonMode', value);
+    }
+    get textAlignment() {
+      requireNative(this, 'textAlignment');
+      return nativeGet(this, 'textAlignment');
+    }
+    set textAlignment(value) {
+      requireNative(this, 'textAlignment');
+      nativeSet(this, 'textAlignment', value);
+    }
+    get adjustsFontSizeToFitWidth() {
+      requireNative(this, 'adjustsFontSizeToFitWidth');
+      return nativeGet(this, 'adjustsFontSizeToFitWidth');
+    }
+    set adjustsFontSizeToFitWidth(value) {
+      requireNative(this, 'adjustsFontSizeToFitWidth');
+      nativeSet(this, 'adjustsFontSizeToFitWidth', value);
+    }
+    get minimumFontSize() {
+      requireNative(this, 'minimumFontSize');
+      return nativeGet(this, 'minimumFontSize');
+    }
+    set minimumFontSize(value) {
+      requireNative(this, 'minimumFontSize');
+      nativeSet(this, 'minimumFontSize', value);
+    }
+    get font() { requireNative(this, 'font'); return nativeGetOwned(this, 'font'); }
+    set font(value) { requireNative(this, 'font'); nativeSetOwned(this, 'font', value); }
+    get textColor() {
+      requireNative(this, 'textColor');
+      return colorString(nativeGetOwned(this, 'textColor'));
+    }
+    set textColor(value) {
+      requireNative(this, 'textColor');
+      const color = colorArg(value, 'textColor');
+      if (color === undefined) return;   // 不合法，警告过了，保留旧值
+      nativeSetOwned(this, 'textColor', color);
     }
   });
 

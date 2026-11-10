@@ -577,7 +577,8 @@ Commit message 格式：
 | 7b | 文件读写：`application.fileSystem` | 后台队列、四种兑现、错误借 DOMException 的名字 | 已在模拟器验证通过：589 条断言全过，跨进程和「不卡主线程」都验到 |
 | 7c | Keychain：`application.keychain` | SecItem、五个访问级别、默认不迁移新设备 | 已在模拟器验证通过：588 条断言全过，三种持久化各自跨进程验到 |
 | 8 | 列表 | UICollectionView、DataSource（同步回调） | 待讨论 |
-| 9 | 输入框和键盘 | UITextField、keyboardLayoutGuide | 待讨论 |
+| 9a | 输入框和键盘（含 4c first responder） | UITextField、48 个 textContentType、keyboardLayoutGuide | 已在模拟器验证通过：644 条断言全过，**不卡 M1b** |
+| 9b | `UITextView`（多行） | | 待讨论 |
 | 10 | 动画和手势 | Core Animation、手势识别器 | 待讨论 |
 | 11 | 系统能力 | 相机、相册、定位、权限请求 | 待讨论 |
 | 12 | App 生命周期 | 前后台切换、深链接 | 待讨论 |
@@ -835,6 +836,10 @@ Web 能双向字符串化是因为 CSSOM 自己留着声明串，我们没有这
 **已实现：所有权边有机械检查了。** `check-api.sh` 新增一节：**原生层说哪些 selector 收对象参数，JS 侧对应的方法就必须出现 `own` / `ownOne` / `ownAll` / `nativeSetOwned` 之一，否则登记进 `OWNERSHIP_EXEMPT`**。白名单今天 8 条，每条都写了为什么（只读不持有、参数本来就已经被别的边持有、或者是解除持有）。四类弄坏法都验过，见[包装机制](internals/wrapper.md#这条已经变成机械检查)。
 
 **TODO：颜色解析的性能还没实测。** 现在解析在 JS 侧，靠池化摊掉——同一个串只解析一次，之后是 `Map.get` + `WeakRef.deref`。而**过桥写属性那一次省不掉**，所以稳态成本里解析接近零；把解析挪到原生反而会让重复字符串每次都过桥。但**首次解析在 jitless 下到底多少微秒没量过**。先给验收用例加一条基准，有数再谈优化。WebAssembly 这条路不通——lite mode / jitless 下编译不了 wasm。
+
+**TODO：`NacreEnums.mm` 和 `NacreMethods.mm` 都过了 800 行线。** 做输入框时加了八个枚举表和 48 个 `textContentType`，`NacreEnums.mm` 从 792 涨到 956；`NacreMethods.mm` 早就 817 以上。两个一起拆成一步，而且[按已定的规矩](internals/bridge.md)：**拆之前先把每个类分支改成返回「认不认领」**，那样才是纯搬家。
+
+**TODO：`check-api.sh` 的标量核对是按名字的并集，不分类。** 做输入框时咬了一次：`textAlignment` 只在 `UILabel` 分支接了原生，`UITextField` 漏了，而名字在集合里所以脚本没报，运行时才抛，连带整个 `sceneconnect` 中断、黑屏。同一家的还有「标量接了不等于对象属性也接了」——那是另一条通道。要改成按类比对，得先让脚本知道每个分支属于哪个类。
 
 **TODO：参数类型不对但有句柄 → 静默忽略。** 和「参数没有原生对象」是同一家，上一步只堵了后者。
 

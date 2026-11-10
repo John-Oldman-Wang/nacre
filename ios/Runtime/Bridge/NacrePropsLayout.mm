@@ -8,6 +8,16 @@ namespace nacre_bridge {
 
 id ReadLayoutProperty(id object, NSString* key) {
   id value = nil;
+  // 键盘 guide 自己的三个开关
+  if ([object isKindOfClass:UIKeyboardLayoutGuide.class]) {
+    UIKeyboardLayoutGuide* guide = (UIKeyboardLayoutGuide*)object;
+    if ([key isEqualToString:@"followsUndockedKeyboard"]) {
+      return @(guide.followsUndockedKeyboard);
+    }
+    if ([key isEqualToString:@"keyboardDismissPadding"]) {
+      return @(guide.keyboardDismissPadding);
+    }
+  }
   if (value == nil && [object isKindOfClass:NSLayoutConstraint.class]) {
     NSLayoutConstraint* c = (NSLayoutConstraint*)object;
     if ([key isEqualToString:@"isActive"]) {
@@ -43,6 +53,17 @@ id ReadLayoutProperty(id object, NSString* key) {
 
 BOOL WriteLayoutProperty(id object, NSString* key, id value,
                       std::string* error) {
+  if ([object isKindOfClass:UIKeyboardLayoutGuide.class]) {
+    UIKeyboardLayoutGuide* guide = (UIKeyboardLayoutGuide*)object;
+    if ([key isEqualToString:@"followsUndockedKeyboard"]) {
+      guide.followsUndockedKeyboard = [value boolValue];
+      return YES;
+    }
+    if ([key isEqualToString:@"keyboardDismissPadding"]) {
+      guide.keyboardDismissPadding = [value doubleValue];
+      return YES;
+    }
+  }
   if ([object isKindOfClass:NSLayoutConstraint.class]) {
     NSLayoutConstraint* c = (NSLayoutConstraint*)object;
     if ([key isEqualToString:@"constant"]) { c.constant = [value doubleValue]; return YES; }

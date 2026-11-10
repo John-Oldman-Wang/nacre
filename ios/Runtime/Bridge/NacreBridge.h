@@ -138,6 +138,19 @@ NACRE_ENUM_DECL(ButtonRole, UIButtonRole)
 // Keychain 的访问级别。原生侧是 CFStringRef 常量，这里先映射成序号，
 // 再由 NacreKeychain.mm 换成常量——NACRE_ENUM_MAP 的值必须是数字
 NACRE_ENUM_DECL(KeychainAccessible, NacreKeychainAccessible)
+// ---- 输入框 ----
+NACRE_ENUM_DECL(KeyboardType, UIKeyboardType)
+NACRE_ENUM_DECL(ReturnKeyType, UIReturnKeyType)
+NACRE_ENUM_DECL(TextAutocapitalizationType, UITextAutocapitalizationType)
+NACRE_ENUM_DECL(TextAutocorrectionType, UITextAutocorrectionType)
+NACRE_ENUM_DECL(TextSpellCheckingType, UITextSpellCheckingType)
+NACRE_ENUM_DECL(KeyboardAppearance, UIKeyboardAppearance)
+NACRE_ENUM_DECL(TextBorderStyle, UITextBorderStyle)
+NACRE_ENUM_DECL(TextFieldViewMode, UITextFieldViewMode)
+// textContentType 是 NSString 常量不是 NS_ENUM，所以不走那个宏
+BOOL TextContentTypeFromName(NSString* name, UITextContentType* out);
+NSString* NameForTextContentType(UITextContentType value);
+NSString* NamesForTextContentType(void);
 NACRE_ENUM_DECL(StackDistribution, UIStackViewDistribution)
 NACRE_ENUM_DECL(ModalPresentationStyle, UIModalPresentationStyle)
 NACRE_ENUM_DECL(ModalTransitionStyle, UIModalTransitionStyle)

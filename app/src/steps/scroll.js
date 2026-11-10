@@ -164,7 +164,11 @@ export function stepScroll(ctx) {
           if (scrollLog.includes('scrollanimationend') || left <= 0) {
             assert('动画结束发了 scrollanimationend',
                    scrollLog.includes('scrollanimationend'), true);
-            assert('动画期间 scroll 也在发（不止一次）', scrollCount > 1, true);
+            // 只断言「发了」，不断言「不止一次」：运行时把同一轮里的 scroll
+            // 合并成一个，而这段动画只有 30pt——主线程一忙就整段落在两次 JS
+            // 轮次之间，合并成一次。次数打出来看趋势，但不拿它当通过条件
+            assert('动画期间 scroll 也在发', scrollCount >= 1, true);
+            console.log('  实测：这段动画里收到 ' + scrollCount + ' 个 scroll 事件');
 
             // 摘掉 scroll 监听器之后，原生侧应该连 delegate 都不挂了
             scroller.removeEventListener('scroll', onScroll);

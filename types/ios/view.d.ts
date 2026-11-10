@@ -98,6 +98,16 @@ declare class UIView extends UIResponder {
   /** 刘海、Home 指示条、状态栏让出来的那块。 */
   readonly safeAreaLayoutGuide: UILayoutGuide;
   readonly layoutMarginsGuide: UILayoutGuide;
+  /**
+   * 键盘避让。**收起时贴安全区底边，弹出时贴键盘顶边**，所以把内容的底边
+   * 约束到它的 `topAnchor`，一条约束管两种状态，而且和键盘动画同步。
+   */
+  readonly keyboardLayoutGuide: UIKeyboardLayoutGuide;
+  /**
+   * 让这棵子树里的 first responder 交出身份——收键盘最常用的那一个。
+   * `force` 为 `true` 时不管对方愿不愿意。
+   */
+  endEditing(force?: boolean): boolean;
   /** 一行字的舒适宽度，长文本用它比用 safeArea 好读。 */
   readonly readableContentGuide: UILayoutGuide;
 

@@ -233,6 +233,24 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
     return [g isKindOfClass:UILayoutGuide.class] ? (UILayoutGuide*)g : nil;
   };
 
+  // ---- first responder ----
+  // 输入框弹不弹键盘就看它。返回值是「成没成」——系统可能拒绝（视图还没
+  // 上屏、canBecomeFirstResponder 为假），所以 JS 侧别忽略返回值。
+  // endEditing: 是收键盘最常用的那一个：让整棵子树里的 first responder
+  // 交出身份，不用先找到是哪一个控件。
+  if ([object isKindOfClass:UIResponder.class]) {
+    UIResponder* responder = (UIResponder*)object;
+    if ([sel isEqualToString:@"becomeFirstResponder"]) {
+      return EncodeJSON(@([responder becomeFirstResponder]));
+    }
+    if ([sel isEqualToString:@"resignFirstResponder"]) {
+      return EncodeJSON(@([responder resignFirstResponder]));
+    }
+    if ([sel isEqualToString:@"endEditing:"] && [object isKindOfClass:UIView.class]) {
+      return EncodeJSON(@([(UIView*)object endEditing:[valueArg(0) boolValue]]));
+    }
+  }
+
   if ([object isKindOfClass:UIButton.class]) {
     UIButton* button = (UIButton*)object;
     auto colorArg = [&](size_t i) -> UIColor* {
@@ -783,6 +801,8 @@ nacre::NativeObjectRef ConstructNative(const std::string& className,
     object = [[UIViewController alloc] init];
   } else if (className == "UIView") {
     object = [[UIView alloc] init];
+  } else if (className == "UITextField") {
+    object = [[UITextField alloc] init];
   } else if (className == "UILabel") {
     object = [[UILabel alloc] init];
   } else if (className == "UIImageView") {

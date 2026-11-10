@@ -8,6 +8,16 @@ namespace nacre_bridge {
 
 id ReadViewProperty(id object, NSString* key) {
   id value = nil;
+  // first responder 的两个状态。挂在 UIResponder 上，所以 view 和
+  // viewController 都读得到
+  if ([object isKindOfClass:UIResponder.class]) {
+    if ([key isEqualToString:@"isFirstResponder"]) {
+      return @(((UIResponder*)object).isFirstResponder);
+    }
+    if ([key isEqualToString:@"canBecomeFirstResponder"]) {
+      return @(((UIResponder*)object).canBecomeFirstResponder);
+    }
+  }
   if (value == nil && [object isKindOfClass:UIView.class]) {
     UIView* view = (UIView*)object;
     if ([key isEqualToString:@"frame"]) {
@@ -203,6 +213,11 @@ nacre::NativeObjectRef ReadViewObjectProperty(id object,
     if (name == "layoutMarginsGuide") {
       return {(__bridge void*)view.layoutMarginsGuide, "UILayoutGuide"};
     }
+    // 键盘避让：收起时它贴安全区底边，弹出时贴键盘顶边，所以一条约束
+    // 管两种状态——不用听键盘通知，也不用自己算动画
+    if (name == "keyboardLayoutGuide") {
+      return {(__bridge void*)view.keyboardLayoutGuide, "UIKeyboardLayoutGuide"};
+    }
     if (name == "readableContentGuide") {
       return {(__bridge void*)view.readableContentGuide, "UILayoutGuide"};
     }
@@ -219,6 +234,14 @@ nacre::NativeObjectRef ReadViewObjectProperty(id object,
       return {(__bridge void*)iv.highlightedImage, "UIImage"};
     }
     if (name == "tintColor") return {(__bridge void*)iv.tintColor, "UIColor"};
+  }
+
+  // 输入框的字体和文字色。和 UILabel 的同名属性是两个类上的两件事，
+  // 所以分开写——UITextField 不是 UILabel 的子类
+  if ([object isKindOfClass:UITextField.class]) {
+    UITextField* field = (UITextField*)object;
+    if (name == "font") return {(__bridge void*)field.font, "UIFont"};
+    if (name == "textColor") return {(__bridge void*)field.textColor, "UIColor"};
   }
 
   if ([object isKindOfClass:UILabel.class]) {
@@ -269,6 +292,16 @@ void WriteViewObjectProperty(id object, const std::string& name, id value) {
     } else if (name == "tintColor") {
       // null_resettable：赋 nil 是合法的，表示退回继承来的那个
       iv.tintColor = [value isKindOfClass:UIColor.class] ? (UIColor*)value : nil;
+    }
+  }
+
+  // 这个通道返回 void：没有「认不认领」的约定，各写各的就行
+  if ([object isKindOfClass:UITextField.class]) {
+    UITextField* field = (UITextField*)object;
+    if (name == "font") {
+      field.font = [value isKindOfClass:UIFont.class] ? (UIFont*)value : nil;
+    } else if (name == "textColor") {
+      field.textColor = [value isKindOfClass:UIColor.class] ? (UIColor*)value : nil;
     }
   }
 

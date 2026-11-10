@@ -19,4 +19,14 @@ declare class NSObject extends EventTarget {
 
 declare class UIResponder extends NSObject {
   protected constructor();
+
+  /**
+   * 成为 first responder——输入框弹键盘就靠它。
+   *
+   * 返回「成没成」：系统可能拒绝（比如视图还没上屏），别忽略返回值。
+   */
+  becomeFirstResponder(): boolean;
+  resignFirstResponder(): boolean;
+  readonly isFirstResponder: boolean;
+  readonly canBecomeFirstResponder: boolean;
 }

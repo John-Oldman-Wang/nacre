@@ -24,6 +24,7 @@ import { stepStorage } from './steps/storage.js';
 import { stepFileSystem } from './steps/filesystem.js';
 import { stepKeychain } from './steps/keychain.js';
 import { stepColor } from './steps/color.js';
+import { stepTextField } from './steps/textfield.js';
 import { stepWindow } from './steps/window.js';
 import { stepImage } from './steps/image.js';
 import { stepUrl } from './steps/url.js';
@@ -71,6 +72,7 @@ application.addEventListener('sceneconnect', (e) => {
   stepButton(ctx);
   stepScroll(ctx);
   stepStack(ctx);
+  stepTextField(ctx);   // 要用 ctx.vc，必须排在 stepWindow 后面
   stepTransform(ctx);
   stepNavigation(ctx);
   stepModal(ctx);
