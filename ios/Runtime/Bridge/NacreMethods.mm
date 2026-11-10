@@ -186,6 +186,10 @@ void CallVoidMethod(id object, const std::string& name) {
 // 到 NSLayoutConstraint 和 UIControlEvents 就用得上了。
 std::string CallMethod(id object, const std::string& name, const std::string& argsJSON,
                        const std::vector<void*>& argPtrs, std::string* error) {
+  // 本地存储在 NacreStorage.mm，它自己说认不认领
+  std::string storageResult;
+  if (StorageCallMethod(object, name, argsJSON, &storageResult, error)) return storageResult;
+
   NSString* sel = @(name.c_str());
   id decoded = DecodeJSON(argsJSON);
   NSArray* args = [decoded isKindOfClass:NSArray.class] ? decoded : @[];

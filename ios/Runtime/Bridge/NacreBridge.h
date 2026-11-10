@@ -241,6 +241,13 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
 nacre::NativeObjectRef ConstructNative(const std::string& className,
                                        const std::vector<void*>& args);
 
+// ---- 本地存储 ----
+// 新写的分发链按已定的规矩返回「认不认领」，不靠在同一个函数里往下掉。
+bool StorageCallMethod(id object, const std::string& name, const std::string& argsJSON,
+                       std::string* out, std::string* error);
+nacre::NativeObjectRef StorageClassObject(const std::string& className,
+                                          const std::string& name);
+
 // ---- URL ----
 // 规范化全在原生层做完（NSURLComponents + standardizedURL），JS 侧只解码。
 std::string ParseURL(const std::string& text, const std::string& base);

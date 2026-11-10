@@ -30,6 +30,7 @@
 | [Auto Layout](auto-layout.md) | 约束的所有权、NSException 的接法 |
 | [滚动](scrolling.md) | delegate trampoline、scroll 事件的合并、实测 |
 | [导航](navigation.md) | 页面栈的持有边、事件带数据的判据、父类挡子类的闸 |
+| [本地存储](storage.md) | 为什么叫 get/set、验值为什么在 JS 侧、落盘怎么验 |
 | [图片](ui-image.md) | Asset Catalog 实测、解码线程 |
 | [定时器](timers.md) | 调度、时间预算、未处理拒绝的结算 |
 | [网络](network.md) | fetch 的线程分工、URL 和 WHATWG 的差异 |

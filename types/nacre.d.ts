@@ -467,6 +467,8 @@ declare class Application extends EventTarget {
   idleTimerDisabled: boolean;
   /** 当前连着的场景。系统的内部窗口不在里面。 */
   readonly scenes: readonly UIWindowScene[];
+  /** 本地存储。就是 NSUserDefaults 的 standard 实例。 */
+  readonly storage: NSUserDefaults;
   /**
    * 兑现为 false 表示没有 App 能处理这个 URL。不会抛。
    *

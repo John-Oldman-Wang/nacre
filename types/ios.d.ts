@@ -24,3 +24,4 @@
 /// <reference path="./ios/layout.d.ts" />
 /// <reference path="./ios/layer.d.ts" />
 /// <reference path="./ios/control.d.ts" />
+/// <reference path="./ios/storage.d.ts" />

@@ -33,6 +33,7 @@ Nacre 的 API 分两层：
 | [`CALayer`](ca-layer.md) | 圆角、边框、阴影 |
 | [`UIControl`](ui-control.md) | 控件事件。16 个事件名，`addEventListener` 直接用 |
 | [`UIButton`](ui-button.md) | 按钮。标题、颜色、图片按状态设 |
+| [本地存储](storage.md) | `application.storage`。存什么、什么时候落盘、变化通知的边界 |
 | [原生类](native-classes.md) | 哪些能 `new`、为什么不能继承、挂自定义属性的保证边界 |
 | [结构体](structs.md) | `CGPoint`、`CGSize`、`CGRect`、`UIEdgeInsets`，只读 |
 | [枚举](enums.md) | 一律用字符串 |

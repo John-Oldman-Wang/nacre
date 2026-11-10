@@ -86,6 +86,26 @@ using namespace nacre_bridge;
 }
 @end
 
+// 本地存储的变化通知。和上面两个一样只持有 handle 不持有 JS 函数。
+//
+// 用通知而不是按键 KVO，是因为第一版单进程、没有 App Group 和 iCloud，
+// 通知覆盖得住；而按键订阅要先解决「订阅按事件名分流」那条 TODO。
+// 边界要知道（头文件原话）：这条通知**只在本进程改**的时候发，外部进程和
+// iCloud 的改动收不到。和 Web 的 storage 事件正好相反——那个只在**别的
+// tab** 改时发，自己改不发。
+@interface NacreDefaultsObserver : NSObject
+@property(nonatomic, weak) NacreRuntime* runtime;
+@property(nonatomic, weak) NSUserDefaults* defaults;
+@end
+
+@implementation NacreDefaultsObserver
+- (void)defaultsChanged:(NSNotification*)note {
+  NSUserDefaults* d = self.defaults;
+  if (d == nil) return;
+  [self.runtime emitEvent:@"change" from:d className:"NSUserDefaults" then:nil];
+}
+@end
+
 // 滚动的 trampoline。和控件那个一样**只持有 handle 不持有 JS 函数**，
 // 区别在于 UIScrollView 的事件全在 delegate 上，而 delegate 是一个对象、
 // 不是一组可以分别注册的 action。所以订阅状态要自己记：types 里没有的
@@ -216,6 +236,8 @@ static const void* kNacreControlTargetsKey = &kNacreControlTargetsKey;
 // 关联对象的 key：UIScrollView → NacreScrollDelegate。
 // scrollView.delegate 是 weak，所以 trampoline 必须由关联对象来持有
 static const void* kNacreScrollDelegateKey = &kNacreScrollDelegateKey;
+// 本地存储变化通知的观察者
+static const void* kNacreDefaultsObserverKey = &kNacreDefaultsObserverKey;
 // 同理：navigationController.delegate 也是 weak
 static const void* kNacreNavDelegateKey = &kNacreNavDelegateKey;
 // 关联对象的 key：UIViewController → NacrePresentationDelegate。
@@ -1102,6 +1124,36 @@ nacre::NativeObjectRef CreateBlob(
                    type:(const std::string&)type
                      on:(BOOL)on
                   error:(std::string*)error {
+  if ([object isKindOfClass:NSUserDefaults.class]) {
+    NSUserDefaults* defaults = (NSUserDefaults*)object;
+    if (type != "change") {
+      *error = [NSString stringWithFormat:
+                    @"addEventListener: '%s' is not a storage event; expected: change",
+                    type.c_str()].UTF8String;
+      return;
+    }
+    NacreDefaultsObserver* observer =
+        objc_getAssociatedObject(defaults, kNacreDefaultsObserverKey);
+    if (on) {
+      if (observer != nil) return;
+      observer = [NacreDefaultsObserver new];
+      observer.runtime = self;
+      observer.defaults = defaults;
+      objc_setAssociatedObject(defaults, kNacreDefaultsObserverKey, observer,
+                               OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+      // object 传 nil 不按发送者过滤：头文件没承诺这条通知的 object 是哪个
+      // 实例，而进程里只有 standard 一个，过滤没有收益只有风险
+      [NSNotificationCenter.defaultCenter addObserver:observer
+                                             selector:@selector(defaultsChanged:)
+                                                 name:NSUserDefaultsDidChangeNotification
+                                               object:nil];
+    } else if (observer != nil) {
+      [NSNotificationCenter.defaultCenter removeObserver:observer];
+      objc_setAssociatedObject(defaults, kNacreDefaultsObserverKey, nil,
+                               OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    return;
+  }
   if ([object isKindOfClass:UIBarButtonItem.class]) {
     UIBarButtonItem* item = (UIBarButtonItem*)object;
     NSString* name = @(type.c_str());

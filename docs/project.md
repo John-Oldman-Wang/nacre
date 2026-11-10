@@ -566,7 +566,9 @@ Commit message 格式：
 | — | 原生类一律 final：继承当场抛，删掉 `allowNativeConstruct` | `finalCheck`、包装工厂改 `Object.create` | 已在模拟器验证通过：508 条断言全过，三种「没有原生对象」分开报错 |
 | — | 补上 `UIButton` 按状态存的颜色/图的所有权边 | `stateKey`，读写两侧都记 | 已在模拟器验证通过：512 条断言全过，三条新回归在对照组被回收的前提下成立 |
 | — | `check-api.sh` 核对所有权边 | 原生层的取参助手当真相，JS 侧必须记边或登记白名单 | 已验证：四类弄坏法各报一条，白名单失配也报 |
-| 7 | 本地存储 | UserDefaults、文件读写 | 待讨论 |
+| 7a | 本地存储：`application.storage` | NSUserDefaults、plist 值校验、change 通知 | 已在模拟器验证通过：557 条断言全过，启动计数器跨进程验到落盘 |
+| 7b | 文件读写 | NSFileManager、目录常量、Promise | 待讨论 |
+| 7c | Keychain | 令牌和密码的加密存放 | 待讨论 |
 | 8 | 列表 | UICollectionView、DataSource（同步回调） | 待讨论 |
 | 9 | 输入框和键盘 | UITextField、keyboardLayoutGuide | 待讨论 |
 | 10 | 动画和手势 | Core Animation、手势识别器 | 待讨论 |
