@@ -94,6 +94,68 @@ std::string InfoDictionaryJSON();
 // 名字 ↔ 数值的映射只能放在原生层：数值随 ABI 变（NSTextAlignment 在 iOS 上
 // Center 是 1，macOS 上是 2），在 JS 里按下标映射换个平台就全错。
 NSString* JoinEnumNames(NSDictionary<NSString*, NSNumber*>* table);
+
+// 枚举表的两个宏放在头文件里，这样每个能力域可以单独成一个 .mm——
+// 拆分发表的同一条规矩：按能力域分文件，共享的只放声明。
+#define NACRE_ENUM_MAP(FuncName, Type, ...)                                   \
+  static NSDictionary<NSString*, NSNumber*>* FuncName##Table(void) {          \
+    static NSDictionary<NSString*, NSNumber*>* table;                         \
+    static dispatch_once_t once;                                              \
+    dispatch_once(&once, ^{ table = @{__VA_ARGS__}; });                       \
+    return table;                                                             \
+  }                                                                           \
+  BOOL FuncName##FromName(NSString* name, Type* out) {                        \
+    if (![name isKindOfClass:NSString.class]) return NO;                      \
+    NSNumber* v = FuncName##Table()[name];                                    \
+    if (v == nil) return NO;                                                  \
+    *out = (Type)v.integerValue;                                              \
+    return YES;                                                               \
+  }                                                                           \
+  NSString* NameFor##FuncName(Type value) {                                   \
+    NSDictionary<NSString*, NSNumber*>* table = FuncName##Table();            \
+    for (NSString* key in table) {                                            \
+      if (table[key].integerValue == (NSInteger)value) return key;            \
+    }                                                                         \
+    return nil;                                                               \
+  }                                                                           \
+  NSString* NamesFor##FuncName(void) { return JoinEnumNames(FuncName##Table()); }
+// 位掩码。一个数值拆成一组名字，所以 JS 侧是字符串数组。
+// 单值枚举那套宏不够用：它一个名字对一个值，这里要双向拆合。
+#define NACRE_MASK_MAP(FuncName, Type, ...)                                   \
+  static NSDictionary<NSString*, NSNumber*>* FuncName##Table(void) {          \
+    static NSDictionary<NSString*, NSNumber*>* table;                         \
+    static dispatch_once_t once;                                              \
+    dispatch_once(&once, ^{ table = @{__VA_ARGS__}; });                       \
+    return table;                                                             \
+  }                                                                           \
+  BOOL FuncName##FromNames(id value, Type* out, id* bad) {                    \
+    *bad = nil;                                                               \
+    /* 「不是数组」和「名字不认识」是两种错，要分开报 */                        \
+    if (![value isKindOfClass:NSArray.class]) return NO;                      \
+    NSDictionary<NSString*, NSNumber*>* table = FuncName##Table();            \
+    Type mask = (Type)0;                                                      \
+    for (id name in (NSArray*)value) {                                        \
+      NSNumber* bit = [name isKindOfClass:NSString.class] ? table[name] : nil; \
+      if (bit == nil) { *bad = name; return NO; }                             \
+      mask = (Type)(mask | (Type)bit.unsignedIntegerValue);                   \
+    }                                                                         \
+    *out = mask;                                                              \
+    return YES;                                                               \
+  }                                                                           \
+  NSArray<NSString*>* NamesIn##FuncName(Type value) {                         \
+    NSDictionary<NSString*, NSNumber*>* table = FuncName##Table();            \
+    NSArray<NSString*>* keys = [table.allKeys                                 \
+        sortedArrayUsingComparator:^NSComparisonResult(NSString* a, NSString* b) { \
+          return [table[a] compare:table[b]];                                 \
+        }];                                                                   \
+    NSMutableArray<NSString*>* out = [NSMutableArray array];                  \
+    for (NSString* key in keys) {                                             \
+      if (value & (Type)table[key].unsignedIntegerValue) [out addObject:key]; \
+    }                                                                         \
+    return out;                                                               \
+  }                                                                           \
+  NSString* NamesFor##FuncName(void) { return JoinEnumNames(FuncName##Table()); }
+
 std::string EnumError(NSString* what, id given, NSString* choices);
 
 // Keychain 的访问级别。顺序就是 NACRE_ENUM_MAP 里的值，别重排
