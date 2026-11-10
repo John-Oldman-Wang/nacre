@@ -17,16 +17,11 @@ export function stepColor(ctx) {
     'rgb(255, 0, 0)', 'rgb(255 0 0)', 'rgba(255,0,0,.5)', 'rgb(255 0 0 / 50%)',
     'light-dark(#fff, #000)', 'light-dark(systemBackground, #000)',
     'systemBackground', 'label', 'black', 'systemBlue',
-    // 全名也认，但读回来给短名
-    'systemRedColor',
   ];
   for (const text of forms) {
     box.backgroundColor = text;
     const back = box.backgroundColor;
-    // 「保持原样」唯一的例外：语义色总是读回规范短名。它是共享单例，
-    // 记住某一个调用方的拼法会串到所有人
-    const expected = text === 'systemRedColor' ? 'systemRed' : text;
-    assert('原样读回：' + text, back, expected);
+    assert('原样读回：' + text, back, text);
   }
 
   // ---- 往返保证：吐出来的串赋回去必成功 ----
@@ -82,12 +77,14 @@ export function stepColor(ctx) {
   v1.backgroundColor = '#112233';
   v2.backgroundColor = 'rgb(17, 34, 51)';     // 同一个值，另一种拼法
   assert('实测：后写的拼法会盖掉先写的', v1.backgroundColor, 'rgb(17, 34, 51)');
+  // 语义色**只认短名**：带 Color 尾巴的是不合法的，和别的写错一样处理
   const v3 = new UIView();
-  v3.backgroundColor = 'systemPinkColor';          // 用全名写
-  assert('实测：语义色读回规范短名，不留别人的拼法', v3.backgroundColor, 'systemPink');
+  v3.backgroundColor = 'systemPink';
+  v3.backgroundColor = 'systemPinkColor';          // 全名，不合法
+  assert('全名不合法，保留旧值', v3.backgroundColor, 'systemPink');
   const v4 = new UIView();
-  v4.backgroundColor = UIColor.systemPinkColor;    // 另一处写对象
-  assert('写对象也给同一个短名', v4.backgroundColor, 'systemPink');
+  v4.backgroundColor = UIColor.systemPinkColor;    // 写对象，走反查
+  assert('写对象读回同一个短名', v4.backgroundColor, 'systemPink');
 
   // ---- light-dark 真的是动态色：两种外观解析出不同的值 ----
   // 不靠肉眼：用底层的对象路径取样

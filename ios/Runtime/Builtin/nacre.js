@@ -2064,13 +2064,16 @@
       : null;
 
   // 短名 ↔ 常量名：'systemBackground' ↔ 'systemBackgroundColor'。
-  // 和枚举「去前缀、首字母小写」同一个态度——字符串是写给人看的简写
+  // 和枚举「去前缀、首字母小写」同一个态度——字符串是写给人看的简写。
+  //
+  // **只认短名**。写全名 'systemPinkColor' 不合法，照不合法处理（警告 +
+  // 保留旧值）。认两种拼法的话「合法就原样还你」就得为语义色开一个例外，
+  // 而语义色是共享单例，记住某一个调用方的拼法会串到所有读它的人
   const colorShortToFull = new Map();
   const colorFullToShort = new Map();
   for (const full of COLOR_CONSTANTS) {
     const short = full.endsWith('Color') ? full.slice(0, -5) : full;
     colorShortToFull.set(short, full);
-    colorShortToFull.set(full, full);     // 全名也认
     colorFullToShort.set(full, short);
   }
 
@@ -2196,10 +2199,8 @@
     }
     const color = nativeClassCall('UIColor', 'nacreFromSpec', [spec]);
     if (color === null) return null;
-    // 语义色**不记声明**。它是原生单例，记了就是全局状态：谁先用全名
-    // 'systemPinkColor' 写过一次，之后所有人读到的都是那个拼法。
-    // 规范短名永远算得出来，所以语义色总是读回短名——这是「保持原样」
-    // 唯一的例外，理由是共享单例上不该留某一个调用方的拼法
+    // 语义色**不记声明**。它是原生单例，在它上面记状态就是全局状态。
+    // 而且不需要记：只认短名，所以合成出来的短名就是你写的那个
     if (spec.kind !== 'name') {
       colorDecls.set(color, text);
       const key = colorValueKey(spec);
