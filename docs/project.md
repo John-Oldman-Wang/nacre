@@ -567,7 +567,7 @@ Commit message 格式：
 | — | 补上 `UIButton` 按状态存的颜色/图的所有权边 | `stateKey`，读写两侧都记 | 已在模拟器验证通过：512 条断言全过，三条新回归在对照组被回收的前提下成立 |
 | — | `check-api.sh` 核对所有权边 | 原生层的取参助手当真相，JS 侧必须记边或登记白名单 | 已验证：四类弄坏法各报一条，白名单失配也报 |
 | 7a | 本地存储：`application.storage` | NSUserDefaults、plist 值校验、change 通知 | 已在模拟器验证通过：557 条断言全过，启动计数器跨进程验到落盘 |
-| 7b | 文件读写 | NSFileManager、目录常量、Promise | 待讨论 |
+| 7b | 文件读写：`application.fileSystem` | 后台队列、四种兑现、错误借 DOMException 的名字 | 已在模拟器验证通过：589 条断言全过，跨进程和「不卡主线程」都验到 |
 | 7c | Keychain | 令牌和密码的加密存放 | 待讨论 |
 | 8 | 列表 | UICollectionView、DataSource（同步回调） | 待讨论 |
 | 9 | 输入框和键盘 | UITextField、keyboardLayoutGuide | 待讨论 |

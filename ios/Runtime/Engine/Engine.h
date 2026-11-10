@@ -226,8 +226,11 @@ class Engine {
   void SettleBytes(int call_id, void* data, size_t byte_length,
                    void (*deleter)(void* data, size_t length, void* info),
                    void* deleter_info);
-  // 拒绝。name 是错误类型（'TypeError' / 'AbortError' …），JS 侧据此建对应的 Error
-  void RejectCall(int call_id, const std::string& name, const std::string& message);
+  // 拒绝。name 是错误类型（'TypeError' / 'AbortError' …），JS 侧据此建对应的 Error。
+  // detail_json 是一个对象，它的键会原样挂到 Error 上——留给映射盖不住的那部分
+  // 事实（文件错误的 code / domain 就是这么交出去的）。给空串表示没有。
+  void RejectCall(int call_id, const std::string& name, const std::string& message,
+                  const std::string& detail_json = "");
 
   // ---- 定时器 ----
   // 宿主被 schedule_wakeup 叫醒后调这个。执行到期的定时器，

@@ -27,6 +27,25 @@
 @property(nonatomic, copy) NSString* type;
 @end
 
+// 文件读写的异步结果。四种兑现方式对应 Engine 的四个 Settle*，只会给一次。
+// ObjC 的声明只能在全局作用域，所以和 NacreBlob 一样放在 namespace 外面。
+@interface NacreFileResult : NSObject
+@property(nonatomic) BOOL isError;
+@property(nonatomic, copy, nullable) NSString* errorName;
+@property(nonatomic, copy, nullable) NSString* errorMessage;
+/// NSError 的原值，留给名字映射盖不住的那部分事实
+@property(nonatomic) NSInteger errorCode;
+@property(nonatomic, copy, nullable) NSString* errorDomain;
+/// 非 nil → SettleJSON
+@property(nonatomic, strong, nullable) id json;
+/// 非 nil → SettleBytes（零拷贝）
+@property(nonatomic, strong, nullable) NSData* bytes;
+/// 其余 → SettleBool
+@property(nonatomic) BOOL boolValue;
+@end
+
+typedef void (^NacreFileDone)(NacreFileResult* result);
+
 namespace nacre_bridge {
 
 // application 的数据快照：主线程写，JS 线程读。
@@ -240,6 +259,15 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
                                              std::string* error);
 nacre::NativeObjectRef ConstructNative(const std::string& className,
                                        const std::vector<void*>& args);
+
+// ---- 文件读写 ----
+/// 认不认领。认领了就自己派到后台队列做，做完在**后台线程**调 done——
+/// 回主线程是调用方的事，这个文件不认识 NacreRuntime。
+bool FileSystemCallAsync(id object, const std::string& name, const std::string& argsJSON,
+                         const std::vector<void*>& argPtrs, NacreFileDone done);
+id ReadFileSystemProperty(id object, NSString* key);
+nacre::NativeObjectRef FileSystemClassObject(const std::string& className,
+                                             const std::string& name);
 
 // ---- 本地存储 ----
 // 新写的分发链按已定的规矩返回「认不认领」，不靠在同一个函数里往下掉。

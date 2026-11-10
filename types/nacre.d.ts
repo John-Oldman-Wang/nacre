@@ -469,6 +469,8 @@ declare class Application extends EventTarget {
   readonly scenes: readonly UIWindowScene[];
   /** 本地存储。就是 NSUserDefaults 的 standard 实例。 */
   readonly storage: NSUserDefaults;
+  /** 文件读写。全是 Promise——JS 在主线程，同步读会卡 UI。 */
+  readonly fileSystem: FileSystem;
   /**
    * 兑现为 false 表示没有 App 能处理这个 URL。不会抛。
    *

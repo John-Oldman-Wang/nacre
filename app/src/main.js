@@ -21,6 +21,7 @@ import './steps/wrapper-scene.js';
 import { assert } from './support.js';
 import { stepSubclass } from './steps/subclass.js';
 import { stepStorage } from './steps/storage.js';
+import { stepFileSystem } from './steps/filesystem.js';
 import { stepWindow } from './steps/window.js';
 import { stepImage } from './steps/image.js';
 import { stepUrl } from './steps/url.js';
@@ -55,6 +56,7 @@ application.addEventListener('sceneconnect', (e) => {
   // 顺序有意义：stepWindow 建出窗口和根页面，后面各步往它上面挂东西
   stepSubclass();
   stepStorage();
+  stepFileSystem();
   stepWindow(ctx);
   stepImage(ctx);
   stepUrl(ctx);

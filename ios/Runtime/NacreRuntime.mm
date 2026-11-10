@@ -759,6 +759,51 @@ nacre::NativeObjectRef CreateBlob(
       NacreRuntime* strongSelf = weakSelf;
       if (!strongSelf) return;
       id object = (__bridge id)ptr;
+      // 文件读写。NacreFileSystem.mm 自己派到后台队列做，做完在**后台线程**
+      // 调 done；回主线程兑现是这里的事——那个文件不认识 NacreRuntime。
+      {
+        auto engine = strongSelf->_engine;
+        if (FileSystemCallAsync(object, name, argsJSON, argPtrs,
+                                ^(NacreFileResult* r) {
+              if (r.isError) {
+                std::string errName = r.errorName.length ? r.errorName.UTF8String : "FileError";
+                std::string errMessage = r.errorMessage.length ? r.errorMessage.UTF8String : "";
+                // 名字映射盖不住的那部分事实原样交出去，当逃生口
+                std::string detail = EncodeJSON(@{@"code": @(r.errorCode),
+                                                  @"domain": r.errorDomain ?: @""});
+                [strongSelf postToJS:^{
+                  if (*engine) (*engine)->RejectCall(callId, errName, errMessage, detail);
+                }];
+              } else if (r.bytes != nil) {
+                // 零拷贝，和 fetch 的 arrayBuffer 同一条路
+                NSData* data = r.bytes;
+                const void* bytes = data.bytes;
+                const size_t length = data.length;
+                void* owned = (void*)CFBridgingRetain(data);
+                [strongSelf postToJS:^{
+                  if (!*engine) {
+                    CFRelease(owned);
+                    return;
+                  }
+                  (*engine)->SettleBytes(
+                      callId, (void*)bytes, length,
+                      [](void* d, size_t len, void* info) { CFRelease(info); }, owned);
+                }];
+              } else if (r.json != nil) {
+                std::string json = EncodeJSON(r.json);
+                [strongSelf postToJS:^{
+                  if (*engine) (*engine)->SettleJSON(callId, json);
+                }];
+              } else {
+                BOOL value = r.boolValue;
+                [strongSelf postToJS:^{
+                  if (*engine) (*engine)->SettleBool(callId, value);
+                }];
+              }
+            })) {
+          return;
+        }
+      }
       if ([object isKindOfClass:UIViewController.class] &&
           name == "presentViewController") {
         NSArray* args = DecodeJSON(argsJSON);

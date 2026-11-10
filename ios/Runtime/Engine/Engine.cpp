@@ -1292,7 +1292,7 @@ void Engine::SettleBytes(int call_id, void* data, size_t byte_length,
 }
 
 void Engine::RejectCall(int call_id, const std::string& name,
-                        const std::string& message) {
+                        const std::string& message, const std::string& detail_json) {
   NACRE_SETTLE_PROLOGUE(call_id);
   if (resolver.IsEmpty()) return;
   v8::TryCatch try_catch(isolate);
@@ -1307,6 +1307,26 @@ void Engine::RejectCall(int call_id, const std::string& name,
     error.As<v8::Object>()
         ->Set(ctx, Utf8(isolate, "name"), Utf8(isolate, name))
         .Check();
+  }
+  // 映射盖不住的那部分事实原样挂上去。上层给好用的分类（err.name），
+  // 底层不丢事实（err.code / err.domain）——两层 API 的分工落到错误上
+  if (error->IsObject() && !detail_json.empty()) {
+    v8::Local<v8::Value> detail;
+    if (v8::JSON::Parse(ctx, Utf8(isolate, detail_json)).ToLocal(&detail) &&
+        detail->IsObject()) {
+      v8::Local<v8::Object> from = detail.As<v8::Object>();
+      v8::Local<v8::Array> keys;
+      if (from->GetOwnPropertyNames(ctx).ToLocal(&keys)) {
+        for (uint32_t i = 0; i < keys->Length(); i++) {
+          v8::Local<v8::Value> k, v;
+          if (keys->Get(ctx, i).ToLocal(&k) && from->Get(ctx, k).ToLocal(&v)) {
+            error.As<v8::Object>()->Set(ctx, k, v).Check();
+          }
+        }
+      }
+    } else {
+      try_catch.Reset();
+    }
   }
   if (resolver->Reject(ctx, error).IsNothing()) try_catch.Reset();
   impl_->AfterSettle();

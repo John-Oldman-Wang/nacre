@@ -13,7 +13,8 @@ namespace nacre_bridge {
 
 std::string ReadNativeProperty(id object, const std::string& name) {
   NSString* key = @(name.c_str());
-  id value = ReadSceneProperty(object, key);
+  id value = ReadFileSystemProperty(object, key);
+  if (value == nil) value = ReadSceneProperty(object, key);
   if (value == nil) value = ReadControlProperty(object, key);
   if (value == nil) value = ReadLayoutProperty(object, key);
   if (value == nil) value = ReadLayerProperty(object, key);
