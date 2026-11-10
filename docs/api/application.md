@@ -149,7 +149,7 @@ App 启动时也会走一遍 `foreground` → `active`。
 
 ## 示例
 
-> 下面用到的 `openURL` 和 `runInBackground` 还没实现，是设计示意。其余都是当前可用的。
+> 下面用到的 `runInBackground` 还没实现，是设计示意。其余都是当前可用的。
 
 ```js
 // 读取应用信息

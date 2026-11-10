@@ -88,7 +88,7 @@ CGAffineTransform.translation(10, 20).concat(CGAffineTransform.scale(2)).tx;   /
 
 ## 还没做
 
-`CGAffineTransform`、`CATransform3D`、`CGVector`、`NSRange`、`UIOffset`、`NSDirectionalEdgeInsets`。做法和上面一样，用到了再加。
+`CATransform3D`、`CGVector`、`NSRange`、`UIOffset`、`NSDirectionalEdgeInsets`。做法和上面一样，用到了再加。
 
 C 里的 `CGRectMake` / `CGPointZero` 这类函数和常量还没有——它们属于「C 函数、枚举和常量怎么暴露」那个更大的问题，等 bindgen 一起定。眼下 `new CGRect(...)` 覆盖了 `CGRectMake`。
 

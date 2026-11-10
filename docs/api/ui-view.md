@@ -146,8 +146,8 @@ ObjC 里 `getter=isXxx` 的布尔属性，JS 侧用 getter 的名字（`isHidden
 
 | | |
 | --- | --- |
-| `transform` / `transform3D` | 要 `CGAffineTransform` / `CATransform3D` |
-| `maskView`、`tintColor`、`drawRect:` | |
+| `transform3D` | 要 `CATransform3D`。`transform` 已经做了，见上 |
+| `maskView`、`drawRect:` | `drawRect:` 是覆写点，要先能用 JS 子类化原生类 |
 | 动画、手势 | 第 10 步 |
 | 层级变化的覆写点（`didAddSubview:`、`willMoveToWindow:`） | 要先能用 JS 子类化原生类 |
 

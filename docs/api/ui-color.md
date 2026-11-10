@@ -49,7 +49,7 @@ view.backgroundColor = UIColor.systemBackgroundColor;  // 自动跟随深色模�
 
 ## 还没做
 
-- **带参数的类方法**：`colorWithRed:green:blue:alpha:`、`colorWithWhite:alpha:`、`colorWithHue:saturation:brightness:alpha:`。卡在「selector 怎么映射成 JS 方法名」这条[待定的设计问题](../project.md#待讨论的设计问题)上，定了再补
+- **带参数的类方法**：`colorWithRed:green:blue:alpha:`、`colorWithWhite:alpha:`、`colorWithHue:saturation:brightness:alpha:`。selector 的映射规则[已经定了](../project.md#待讨论的设计问题)（第一段 + options 对象），这几个没做是优先级问题——日常写颜色走字符串简写，它们只作为「完整暴露」的承诺留着
 - **读回颜色分量**：`getRed:green:blue:alpha:` 这类取值方法需要 `CGFloat *` 出参，要先有结构体和出参的支持
 - **变化通知**：按[原则 10](../project.md#原则)这一格要补，但它属于 trait 体系而不是颜色，见上面「明暗主题挂在哪」。等暴露 `UIView` 的 trait 相关能力时一起做
 

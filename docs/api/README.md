@@ -58,8 +58,7 @@ Nacre 的 API 分两层：
 
 | 缺什么 | 原因 |
 | --- | --- |
-| `setTimeout` / `setInterval` / `queueMicrotask` | 不是 ECMAScript 的一部分，由宿主提供；V8 只实现语言本身。JS 在主线程上，定时器可以直接建在 run loop 上 |
-| `fetch`、`URL`、`TextEncoder`、`crypto`、`performance`、`structuredClone`、`AbortController` | 同上，都是 Web 平台 API |
+| `TextEncoder` / `TextDecoder`、`crypto`、`performance`、`structuredClone` | 不是 ECMAScript 的一部分，由宿主提供；V8 只实现语言本身。这几个还没做 |
 | `process`、`require`、`module`、`Buffer` | Node 的宿主 API |
 | `Intl`，以及所有 `toLocale*` 的本地化能力 | 预编译包关掉了 i18n 支持，ICU 被排除。实测 `new Date(0).toLocaleString('zh-CN')` 完全忽略 locale |
 | `WebAssembly` | lite mode / jitless 下不能编译 wasm |

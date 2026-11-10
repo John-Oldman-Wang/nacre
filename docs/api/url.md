@@ -91,7 +91,6 @@ h.getSetCookie();          // ['x=1', 'y=2']
 
 ## 还没做
 
-- `fetch` / `Request` / `Response`（下一步）
 - IDN 转 punycode
 - URL 解析的交付方式优化（直接构造 JS 对象，省掉 JSON 往返）
 

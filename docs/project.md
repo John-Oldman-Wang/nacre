@@ -622,6 +622,77 @@ iOS 的触摸不是一套机制，是**四套并行**的（hit-testing、respond
 
 两个要分清的：**设备方向 ≠ 界面方向**（`UIDevice.orientation` 是物理朝向，含面朝上/朝下；`interfaceOrientation` 是界面实际显示的方向，App 锁竖屏时设备横过来界面不变）；以及实际开发中更常用的是**每个页面**的方向（`UIViewController.supportedInterfaceOrientations`），scene 这层管的是窗口整体。
 
+### 试用报告暴露的能力缺口（2026-11-10）
+
+有人以**客户**身份（只看 `docs/api/` 和 `@nacre/types`，不改运行时）用 Nacre 写了一个约 1500 行的金融 App，记录了哪里给不出能力。下面是对那份报告的复核结果。
+
+**筛选原则：JS 层封装得出来的一律不做。** 报告第 2 节（建视图啰嗦、Auto Layout 样板、确认框/分段选择/toast/数字键盘/tab 条等组件）全部属于客户自己的库，运行时不管；第 1.4 节「拼得出替代品」的控件（`UIAlertController`、`UISegmentedControl`、`UISwitch`、`UIPickerView`、`UIActivityIndicatorView`）同理，底层以后靠 bindgen 一并补齐，不单独排步骤。
+
+**报告有三处分类要改：**
+
+| 报告的说法 | 复核 |
+| --- | --- |
+| 「绘图」整块算一条，要 M2 | **要拆**。`CAShapeLayer` / `CAGradientLayer` / `UIBezierPath` / `CGPath` 是对象、属性和方法，**现在就能暴露**；只有 `drawRect:` 是覆写点才要 M2 |
+| 「动画」整块算一条 | **要拆**。Core Animation（`CABasicAnimation` 一组）是纯对象，不需要任何回调；`UIView.animateWithDuration:animations:` 的 animations 是**同步执行的 block**，那条路要 M1b |
+| 「事件对象不带数据」放在第 2 节（JS 层问题） | **分错了**。触点位置只能由原生在派发时填进事件对象，JS 拿不到。这是能力缺失 |
+
+#### 必须做，现在就能做（不依赖 M1b / M2）
+
+| | 缺什么 | 为什么绕不过去 |
+| --- | --- | --- |
+| A1 | **输入框和键盘**：`UITextField` / `UITextView`、first responder | 系统键盘、输入法、光标、粘贴、密码自动填充只能由原生输入控件唤起。没有它任何带表单的 App 起不了步。对应清单第 9 步和 4c |
+| A2 | **本地存储**：`NSUserDefaults`、文件读写、Keychain | JS 没有任何落盘的口子。对应清单第 7 步 |
+| A3 | **任意色值**：`colorWithRed:…`、`colorWithAlphaComponent:`、自定义动态色 | 今天只能取预置常量，品牌色、半透明遮罩、「浅色一个值深色一个值」全造不出来。[方案已定](#待讨论的设计问题)、未实现，改动小 |
+| A4 | **容器控制器**：`UITabBarController`、`addChildViewController:` 一组 | tab 条自绘得出来，但父子控制器关系、生命周期和安全区传递只能原生给。它决定 App 的骨架，越晚补客户迁移越痛 |
+| A5 | **绘图对象**：`CAShapeLayer`、`CAGradientLayer`、`UIBezierPath` / `CGPath` | 折线图、K 线、饼图、渐变。纯对象，不需要覆写 |
+| A6 | **Core Animation**：`CABasicAnimation` / `CAKeyframeAnimation` / `CADisplayLink` | `CADisplayLink` 是 target-action，M1a 已经够 |
+| A7 | **手势识别器**：长按、拖动、捏合 | target-action，M1a 够。抢占语义要单独设计（见清单第 10 步）。delegate 那部分要 M2 |
+| A8 | **事件对象带数据**：触点位置等 | 只能由原生在派发时填 |
+| A9 | **`UITraitCollection`** + `overrideUserInterfaceStyle` | 读不到深浅色、收不到外观变化、App 内做不了主题开关。顺带堵上 `layer` 的 `borderColor` / `shadowColor` 切换主题不变色 |
+| A10 | **`UIRefreshControl`** | 依附在滚动视图的原生机制上 |
+| A11 | **`UISheetPresentationController` 的 detents** | 模态的呈现高度由系统控制，下单卡片只能整页 |
+| A12 | **触感反馈**：`UIImpactFeedbackGenerator` 一组 | 系统能力 |
+| A13 | **`NSNumberFormatter` / `NSDateFormatter`** | 预编译的 V8 不带 ICU，`Intl` 缺失。千分位、货币符号、日期顺序按地区本地化手写不了 |
+| A14 | **`UIPasteboard`** | 复制地址、订单号 |
+| A15 | **`crypto.getRandomValues`** | 随机源必须来自系统。摘要/签名 JS 算得出来，但 jitless 下慢，该走 CommonCrypto |
+| A16 | **WebSocket**：`NSURLSessionWebSocketTask` | `fetch` 只有请求-响应，实时行情只能轮询 |
+| A17 | **`WKWebView`** | 协议、KYC、活动页 |
+| A18 | **生物识别**：LocalAuthentication | 系统能力 |
+| A19 | **`performance.now()`** | `Date.now()` 只有毫秒精度 |
+
+**零碎的小口子**（都在 A 组，单独列是因为改动极小）：
+
+- `UIStackView` 的 `layoutMargins` / `directionalLayoutMargins` / `isLayoutMarginsRelativeArrangement`：今天设不了内边距，每处要多套一层 view 加四条约束
+- 颜色常量表缺 `systemGray2`–`systemGray6`、`systemFill` 一组、`systemGroupedBackground` 一组
+- 被模态呈现的 `UINavigationController` 收不到 `diddismiss`——这就是[订阅按事件名分流那条 TODO](#待讨论的设计问题)
+
+#### 必须做，卡在 M1b（同步回调）
+
+| | 缺什么 |
+| --- | --- |
+| B1 | **可复用列表**：`UITableView` / `UICollectionView`。今天只能一次建出所有行，数据量一大就不可用 |
+| B2 | **`UIView` 动画**：`animateWithDuration:animations:` 的 animations block 是同步执行的。走 Core Animation（A6）能绕开，但两套写法差别不小 |
+
+#### 必须做，卡在 M2（JS 子类化原生类）
+
+| | 缺什么 |
+| --- | --- |
+| C1 | **页面生命周期**：`viewWillAppear:` 一组。页面不知道自己何时出现和消失，停不掉轮询、移不掉监听 |
+| C2 | **`drawRect:`** 自定义绘制 |
+| C3 | **手势识别器的 delegate**：同时识别、是否开始 |
+
+#### 性能，不是能力缺失
+
+| | 实测 | 状态 |
+| --- | --- | --- |
+| SF Symbol 首次加载慢 | 每个新名字冷加载约 11.7 ms，在主线程上；一次建很多图标时主线程阻塞 1.0–1.5 s，运行时自己打出了 `Timer callback blocked the main thread` 警告 | 要查，可能需要后台预热 |
+| 空闲后第一次渲染变慢 | 空闲 30 s 后重建列表 199–418 ms，紧接着再来一次只要 36–41 ms | **原因未查**。猜测是字节码被回收或 GC，未验证 |
+| 桥本身不是瓶颈 | `new UIView` 约 4 µs，写属性 2–7 µs，建约束约 10 µs，`addSubview` 约 12 µs | 好消息 |
+
+#### 开发体验（不排进能力清单，但记着）
+
+改一行 JS 要重新打包重装重启；报错行号指向 esbuild 产物，没有 source map；`console` 输出在非终端环境看不到。
+
 ### 待讨论的设计问题
 
 开始第 1 步前需要先确定能力暴露的方案和 JS 层结构。
