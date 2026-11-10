@@ -471,6 +471,8 @@ declare class Application extends EventTarget {
   readonly storage: NSUserDefaults;
   /** 文件读写。全是 Promise——JS 在主线程，同步读会卡 UI。 */
   readonly fileSystem: FileSystem;
+  /** 令牌和密码的安全存放。全是 Promise。 */
+  readonly keychain: Keychain;
   /**
    * 兑现为 false 表示没有 App 能处理这个 URL。不会抛。
    *

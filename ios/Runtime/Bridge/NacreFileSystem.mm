@@ -10,7 +10,7 @@
 
 #import <Foundation/Foundation.h>
 
-@implementation NacreFileResult
+@implementation NacreAsyncResult
 @end
 
 namespace nacre_bridge {
@@ -55,8 +55,8 @@ NSString* FileErrorName(NSError* error) {
   }
 }
 
-NacreFileResult* Failure(NSError* error, NSString* fallback) {
-  NacreFileResult* r = [NacreFileResult new];
+NacreAsyncResult* Failure(NSError* error, NSString* fallback) {
+  NacreAsyncResult* r = [NacreAsyncResult new];
   r.isError = YES;
   r.errorName = error ? FileErrorName(error) : @"FileError";
   r.errorMessage = error.localizedDescription ?: fallback;
@@ -65,14 +65,14 @@ NacreFileResult* Failure(NSError* error, NSString* fallback) {
   return r;
 }
 
-NacreFileResult* Done(BOOL value) {
-  NacreFileResult* r = [NacreFileResult new];
+NacreAsyncResult* Done(BOOL value) {
+  NacreAsyncResult* r = [NacreAsyncResult new];
   r.boolValue = value;
   return r;
 }
 
-NacreFileResult* DoneJSON(id value) {
-  NacreFileResult* r = [NacreFileResult new];
+NacreAsyncResult* DoneJSON(id value) {
+  NacreAsyncResult* r = [NacreAsyncResult new];
   r.json = value ?: NSNull.null;
   return r;
 }
@@ -115,7 +115,7 @@ nacre::NativeObjectRef FileSystemClassObject(const std::string& className,
 }
 
 bool FileSystemCallAsync(id object, const std::string& name, const std::string& argsJSON,
-                         const std::vector<void*>& argPtrs, NacreFileDone done) {
+                         const std::vector<void*>& argPtrs, NacreAsyncDone done) {
   if (![object isKindOfClass:NSFileManager.class]) return false;
   NSString* sel = @(name.c_str());
   id decoded = DecodeJSON(argsJSON);
@@ -128,14 +128,14 @@ bool FileSystemCallAsync(id object, const std::string& name, const std::string& 
   NSData* blobData = [blobArg isKindOfClass:NacreBlob.class] ? ((NacreBlob*)blobArg).data : nil;
 
   if (path == nil) {
-    done([NacreFileResult new]);   // 不会走到：JS 侧先验过
+    done([NacreAsyncResult new]);   // 不会走到：JS 侧先验过
     return true;
   }
 
   dispatch_async(FileQueue(), ^{
     NSFileManager* fm = NSFileManager.defaultManager;
     NSError* error = nil;
-    NacreFileResult* result = nil;
+    NacreAsyncResult* result = nil;
 
     if ([sel isEqualToString:@"readText"]) {
       NSString* text = [NSString stringWithContentsOfFile:path
@@ -147,7 +147,7 @@ bool FileSystemCallAsync(id object, const std::string& name, const std::string& 
                                             options:0
                                               error:&error];
       if (data) {
-        result = [NacreFileResult new];
+        result = [NacreAsyncResult new];
         result.bytes = data;
       } else {
         result = Failure(error, @"read failed");

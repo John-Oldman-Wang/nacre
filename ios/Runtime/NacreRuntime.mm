@@ -763,10 +763,10 @@ nacre::NativeObjectRef CreateBlob(
       // 调 done；回主线程兑现是这里的事——那个文件不认识 NacreRuntime。
       {
         auto engine = strongSelf->_engine;
-        if (FileSystemCallAsync(object, name, argsJSON, argPtrs,
-                                ^(NacreFileResult* r) {
+        // 文件和 Keychain 共用这一段兑现：两边都是「派到后台做完再回主线程」
+        NacreAsyncDone settle = ^(NacreAsyncResult* r) {
               if (r.isError) {
-                std::string errName = r.errorName.length ? r.errorName.UTF8String : "FileError";
+                std::string errName = r.errorName.length ? r.errorName.UTF8String : "Error";
                 std::string errMessage = r.errorMessage.length ? r.errorMessage.UTF8String : "";
                 // 名字映射盖不住的那部分事实原样交出去，当逃生口
                 std::string detail = EncodeJSON(@{@"code": @(r.errorCode),
@@ -800,9 +800,9 @@ nacre::NativeObjectRef CreateBlob(
                   if (*engine) (*engine)->SettleBool(callId, value);
                 }];
               }
-            })) {
-          return;
-        }
+        };
+        if (FileSystemCallAsync(object, name, argsJSON, argPtrs, settle)) return;
+        if (KeychainCallAsync(object, name, argsJSON, argPtrs, settle)) return;
       }
       if ([object isKindOfClass:UIViewController.class] &&
           name == "presentViewController") {

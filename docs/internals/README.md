@@ -32,6 +32,7 @@
 | [导航](navigation.md) | 页面栈的持有边、事件带数据的判据、父类挡子类的闸 |
 | [本地存储](storage.md) | 为什么叫 get/set、验值为什么在 JS 侧、落盘怎么验 |
 | [文件读写](filesystem.md) | 为什么有上层对象、名字为什么不叫 files、错误的两层分工 |
+| [Keychain](keychain.md) | 默认访问级别为什么比两家主流保守、枚举为什么绕一道序号 |
 | [图片](ui-image.md) | Asset Catalog 实测、解码线程 |
 | [定时器](timers.md) | 调度、时间预算、未处理拒绝的结算 |
 | [网络](network.md) | fetch 的线程分工、URL 和 WHATWG 的差异 |

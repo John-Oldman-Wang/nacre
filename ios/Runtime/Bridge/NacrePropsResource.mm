@@ -127,6 +127,8 @@ nacre::NativeObjectRef ReadClassObjectProperty(const std::string& className,
   if (!storage.class_name.empty()) return storage;
   nacre::NativeObjectRef files = FileSystemClassObject(className, name);
   if (!files.class_name.empty()) return files;
+  nacre::NativeObjectRef keychain = KeychainClassObject(className, name);
+  if (!keychain.class_name.empty()) return keychain;
   if (className == "UIColor") {
     UIColor* color = NamedColors()[@(name.c_str())];
     if (color != nil) return {(__bridge void*)color, "UIColor"};

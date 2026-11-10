@@ -27,9 +27,10 @@
 @property(nonatomic, copy) NSString* type;
 @end
 
-// 文件读写的异步结果。四种兑现方式对应 Engine 的四个 Settle*，只会给一次。
+// 异步调用的结果。四种兑现方式对应 Engine 的四个 Settle*，只会给一次。
+// 文件读写和 Keychain 共用——两边都是「派到后台做完再兑现」。
 // ObjC 的声明只能在全局作用域，所以和 NacreBlob 一样放在 namespace 外面。
-@interface NacreFileResult : NSObject
+@interface NacreAsyncResult : NSObject
 @property(nonatomic) BOOL isError;
 @property(nonatomic, copy, nullable) NSString* errorName;
 @property(nonatomic, copy, nullable) NSString* errorMessage;
@@ -44,7 +45,13 @@
 @property(nonatomic) BOOL boolValue;
 @end
 
-typedef void (^NacreFileDone)(NacreFileResult* result);
+typedef void (^NacreAsyncDone)(NacreAsyncResult* result);
+
+// Keychain 的载体。iOS 上没有「钥匙串对象」这种东西，SecItem* 是一组 C 函数，
+// 所以自己给一个单例当包装表里的那个原生指针。
+@interface NacreKeychain : NSObject
+@property(class, readonly) NacreKeychain* shared;
+@end
 
 namespace nacre_bridge {
 
@@ -89,6 +96,15 @@ std::string InfoDictionaryJSON();
 NSString* JoinEnumNames(NSDictionary<NSString*, NSNumber*>* table);
 std::string EnumError(NSString* what, id given, NSString* choices);
 
+// Keychain 的访问级别。顺序就是 NACRE_ENUM_MAP 里的值，别重排
+typedef NS_ENUM(NSInteger, NacreKeychainAccessible) {
+  NacreKeychainAccessibleWhenUnlocked = 0,
+  NacreKeychainAccessibleWhenUnlockedThisDeviceOnly,
+  NacreKeychainAccessibleAfterFirstUnlock,
+  NacreKeychainAccessibleAfterFirstUnlockThisDeviceOnly,
+  NacreKeychainAccessibleWhenPasscodeSetThisDeviceOnly,
+};
+
 #define NACRE_ENUM_DECL(FuncName, Type)                 \
   BOOL FuncName##FromName(NSString* name, Type* out);   \
   NSString* NameFor##FuncName(Type value);              \
@@ -119,6 +135,9 @@ NACRE_ENUM_DECL(ControlHorizontalAlignment, UIControlContentHorizontalAlignment)
 NACRE_ENUM_DECL(ControlVerticalAlignment, UIControlContentVerticalAlignment)
 NACRE_ENUM_DECL(ButtonType, UIButtonType)
 NACRE_ENUM_DECL(ButtonRole, UIButtonRole)
+// Keychain 的访问级别。原生侧是 CFStringRef 常量，这里先映射成序号，
+// 再由 NacreKeychain.mm 换成常量——NACRE_ENUM_MAP 的值必须是数字
+NACRE_ENUM_DECL(KeychainAccessible, NacreKeychainAccessible)
 NACRE_ENUM_DECL(StackDistribution, UIStackViewDistribution)
 NACRE_ENUM_DECL(ModalPresentationStyle, UIModalPresentationStyle)
 NACRE_ENUM_DECL(ModalTransitionStyle, UIModalTransitionStyle)
@@ -260,11 +279,17 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
 nacre::NativeObjectRef ConstructNative(const std::string& className,
                                        const std::vector<void*>& args);
 
+// ---- Keychain ----
+bool KeychainCallAsync(id object, const std::string& name, const std::string& argsJSON,
+                       const std::vector<void*>& argPtrs, NacreAsyncDone done);
+nacre::NativeObjectRef KeychainClassObject(const std::string& className,
+                                           const std::string& name);
+
 // ---- 文件读写 ----
 /// 认不认领。认领了就自己派到后台队列做，做完在**后台线程**调 done——
 /// 回主线程是调用方的事，这个文件不认识 NacreRuntime。
 bool FileSystemCallAsync(id object, const std::string& name, const std::string& argsJSON,
-                         const std::vector<void*>& argPtrs, NacreFileDone done);
+                         const std::vector<void*>& argPtrs, NacreAsyncDone done);
 id ReadFileSystemProperty(id object, NSString* key);
 nacre::NativeObjectRef FileSystemClassObject(const std::string& className,
                                              const std::string& name);

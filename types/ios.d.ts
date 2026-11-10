@@ -26,3 +26,4 @@
 /// <reference path="./ios/control.d.ts" />
 /// <reference path="./ios/storage.d.ts" />
 /// <reference path="./ios/filesystem.d.ts" />
+/// <reference path="./ios/keychain.d.ts" />

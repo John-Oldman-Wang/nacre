@@ -130,12 +130,17 @@ export function stepStorage() {
     assert('change 事件到了', changes[0], 'change');
     console.log('  实测：change 事件在第 ' + turns + ' 轮定时器回调时已到达');
     storage.removeEventListener('change', onChange);
+    // 记下摘牌那一刻的条数再比，不能写死 1：这条通知**不按发送者过滤**
+    // （过滤了一条都收不到，见 internals/storage.md），所以进程里任何一次
+    // UserDefaults 写入都会发一条，而且**每次写一条、不合并**。
+    // 真正要验的是「摘牌之后不再增长」，不是「总共几条」。
+    const atRemoval = changes.length;
     storage.set('watched', 2);
     let after = 0;
     const waitSilence = () => {
       after++;
       if (after < turns + 3) { setTimeout(waitSilence, 0); return; }
-      assert('移除监听之后不再收到', changes.length, 1);
+      assert('移除监听之后不再增长', changes.length, atRemoval);
       storage.remove('watched');
     };
     setTimeout(waitSilence, 0);

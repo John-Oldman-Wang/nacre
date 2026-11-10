@@ -202,7 +202,8 @@ for macro, tsname in [('TextAlignment', 'NSTextAlignment'),
                       ('BarButtonSystemItem', 'UIBarButtonSystemItem'),
                       ('IndicatorStyle', 'UIScrollViewIndicatorStyle'),
                       ('ContentInsetAdjustmentBehavior',
-                       'UIScrollViewContentInsetAdjustmentBehavior')]:
+                       'UIScrollViewContentInsetAdjustmentBehavior'),
+                      ('KeychainAccessible', 'KeychainAccessible')]:
     compare(tsname, mm_enum(macro), dts_union(tsname))
 
 # 位掩码走另一个宏：一个数值对一组名字

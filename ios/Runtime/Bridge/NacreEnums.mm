@@ -785,6 +785,22 @@ NSString* NamesForTextStyle(void) {
   return [names componentsJoinedByString:@" / "];
 }
 
+// Keychain 的访问级别。原生侧那五个是 CFStringRef 常量，NACRE_ENUM_MAP 的
+// 值必须是数字，所以这里映射成序号，NacreKeychain.mm 再按序号换成常量。
+//
+// kSecAttrAccessibleAlways 和 AlwaysThisDeviceOnly **不暴露**：iOS 12 起
+// API_DEPRECATED，头文件原话是 "Use an accessibility level that provides
+// some user protection"。
+NACRE_ENUM_MAP(KeychainAccessible, NacreKeychainAccessible,
+               @"whenUnlocked": @(NacreKeychainAccessibleWhenUnlocked),
+               @"whenUnlockedThisDeviceOnly":
+                   @(NacreKeychainAccessibleWhenUnlockedThisDeviceOnly),
+               @"afterFirstUnlock": @(NacreKeychainAccessibleAfterFirstUnlock),
+               @"afterFirstUnlockThisDeviceOnly":
+                   @(NacreKeychainAccessibleAfterFirstUnlockThisDeviceOnly),
+               @"whenPasscodeSetThisDeviceOnly":
+                   @(NacreKeychainAccessibleWhenPasscodeSetThisDeviceOnly))
+
 // 属性分发表。加一个属性只要在这里加一行，不用动 C++ 的桥。
 // 这是手写方案，撑得过 scene / window 这几个类；到 UIView 那一层
 // （成百上千个属性）就必须换成通用的能力暴露方案了。
