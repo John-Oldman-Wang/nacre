@@ -53,14 +53,22 @@
 
   // ---------- EventTarget ----------
 
+  // 包装对象的「出厂配置」。构造函数这条路和原生侧的包装工厂共用这一段，
+  // 免得两边漂——工厂不走构造函数（见 setWrapperFactory）。
+  function initWrapper(obj) {
+    Object.defineProperty(obj, kListeners, {
+      value: new Map(), writable: false, enumerable: false, configurable: false,
+    });
+    return obj;
+  }
+
   class EventTarget {
     constructor() {
-      Object.defineProperty(this, kListeners, {
-        value: new Map(), writable: false, enumerable: false, configurable: false,
-      });
+      initWrapper(this);
     }
 
     addEventListener(type, callback, options) {
+      if (this[kListeners] === undefined) throw new TypeError('Illegal invocation');
       if (arguments.length < 2) {
         throw new TypeError("Failed to execute 'addEventListener': 2 arguments required.");
       }
@@ -83,6 +91,7 @@
     }
 
     removeEventListener(type, callback) {
+      if (this[kListeners] === undefined) throw new TypeError('Illegal invocation');
       const t = String(type);
       const list = this[kListeners].get(t);
       if (list === undefined) return;
@@ -102,6 +111,7 @@
     [kSubscribe](type, on) {}
 
     dispatchEvent(event) {
+      if (this[kListeners] === undefined) throw new TypeError('Illegal invocation');
       if (!(event instanceof Event)) {
         throw new TypeError("Failed to execute 'dispatchEvent': parameter 1 is not of type 'Event'.");
       }
@@ -161,10 +171,12 @@
   const kHandle = Symbol('nativeHandle');
 
   const nativeClasses = Object.create(null);
-  let allowNativeConstruct = false;
+  // 反查：类 → 原生类名。构造时用它判断「被 new 的是不是运行时自己的类」
+  const nativeClassNames = new WeakMap();
 
   function defineNativeClass(name, cls) {
     nativeClasses[name] = cls;
+    nativeClassNames.set(cls, name);
     define(globalThis, name, cls);
     return cls;
   }
@@ -292,10 +304,9 @@
   // 带参数的方法。selector 是完整的 ObjC selector，JS 层的
   // 「第一段 + options」在各自的方法里还原成它。
   // 对象参数在 JSON 里留 null，句柄按同样的下标单独传。
-  // 看着像原生对象、却没有句柄 —— 原生对象还没创建。两种来头：
-  //   new UIWindow()          还没绑场景
-  //   class C extends UIView  子类的 super() 不建原生对象（见构造函数里的
-  //                           new.target 那道闸）
+  // 看着像原生对象、却没有句柄 —— 原生对象还没创建。继承那条路已经在
+  // 构造时就拦掉了（见 finalCheck），所以现在只剩一种来头：
+  //   new UIWindow()   还没绑场景
   // 不拦的话它会走「普通值」那条路，句柄填 0，原生收到 nil 然后**静默
   // 什么都不做**——实测 parent.addSubview(子类实例) 就是这个下场。
   // 和只读属性静默失败是同一类错，所以一样要抛。
@@ -366,7 +377,11 @@
   }
   // JS 构造原生对象：先有 this，再让原生造出对象并和 this 绑定。
   // 和包装工厂方向相反——那边是原生对象先有、JS 包装后建。
-  function constructNative(wrapper, className, args) {
+  function constructNative(wrapper, builtAs, className, args) {
+    // 构造链上每个类都调一次，只有「正在被 new 的那个类」真的去建。
+    // 新加一个类照抄这一行就行，不用判断「会不会被别的类继承」——
+    // 以前那条规则漏过一次（UINavigationController），也抄错过一次（UIButton）。
+    if (nativeClasses[className] !== builtAs) return;
     const handles = (args || []).map((a) => {
       if (a == null) return 0;
       if (a[kHandle] === undefined) rejectUnbacked(a, 'new ' + className);
@@ -384,22 +399,57 @@
   // 只有被原生侧创建时才允许构造。用于系统给的对象（场景、session）。
   // 原生对象还没创建时，除了 windowScene 之外的访问都没有事实可依据，
   // 与其返回一个编出来的值，不如直接报错
+  // 「没有原生对象」有两种，病因完全不同，所以分开报：
+  //   走过构造函数但还没绑   → 只剩 new UIWindow() 等场景这一种，是**合法**状态
+  //   没走过任何构造函数     → Object.create(X.prototype) 出来的，原型链对但
+  //                            一个内部状态都没有。Chrome 对这种报 Illegal
+  //                            invocation，我们跟它一致
+  // 判据是 kListeners：它由 EventTarget 的构造函数（和包装工厂）装上，
+  // 绕过构造的对象上没有。
   function requireNative(obj, what) {
-    if (obj[kHandle] === undefined) {
-      throw new TypeError(
-        what + ': this object is not connected to a scene yet, so no native object exists');
+    if (obj[kHandle] !== undefined) return;
+    if (obj[kListeners] === undefined) {
+      throw new TypeError(what + ': Illegal invocation');
     }
+    throw new TypeError(
+      what + ': this object is not connected to a scene yet, so no native object exists');
   }
 
-  function nativeOnly() {
-    if (!allowNativeConstruct) throw new TypeError('Illegal constructor');
+  // 原生类一律是 final。运行时还没有把覆写转发回 JS 的机制（M2），子类的
+  // super() 建不出原生对象——以前它静默给一个空壳，等到第一次读属性才在
+  // 三十行之外抛「还没连接到场景」，指向完全无关的地方。现在在构造那一刻说。
+  // 所有原生类的构造链都经过 NSObject，所以拦这一处就够。
+  //
+  // 拦不到 `class X extends UIView {}` 那一行本身：JS 没有「拒绝被继承」的
+  // 钩子，extends 只是读 prototype 再 setPrototypeOf，没有可以挂的陷阱。
+  // 所以错误信息里把两个类名都点出来，让它指得回去。
+  function finalCheck(newTarget) {
+    if (nativeClassNames.has(newTarget)) return;
+    let base = Object.getPrototypeOf(newTarget);
+    while (typeof base === 'function' && !nativeClassNames.has(base)) {
+      base = Object.getPrototypeOf(base);
+    }
+    const name = (newTarget && newTarget.name) || 'this class';
+    const baseName = nativeClassNames.get(base) || 'a native class';
+    throw new TypeError(
+      'Illegal constructor: ' + name + ' extends ' + baseName +
+      ', but subclassing native classes is not supported yet');
   }
 
-  // 继承链上的空壳：自己不可直接构造，但不能挡住可构造的子类。
-  // new.target 在子类的 super() 调用里是子类，据此区分。
-  function shellOnly(target, cls) {
-    if (target === cls && !allowNativeConstruct) {
-      throw new TypeError('Illegal constructor');
+  // 只能由运行时的包装工厂建的类（UIColor、CALayer、场景…）。
+  // 工厂不走构造函数，所以这里无条件抛。
+  function nativeOnly(newTarget) {
+    finalCheck(newTarget);   // 是子类化就先报子类化，那个错更接近原因
+    throw new TypeError(
+      'Illegal constructor: ' + (nativeClassNames.get(newTarget) || 'this class') +
+      ' is created by the runtime, not by new');
+  }
+
+  // 继承链上的空壳：ObjC 侧没有可用的 init，自己不可直接构造，
+  // 但不能挡住可构造的子类。new.target 在子类的 super() 里是子类。
+  function shellOnly(newTarget, cls, name) {
+    if (newTarget === cls) {
+      throw new TypeError('Illegal constructor: ' + name + ' cannot be constructed');
     }
   }
 
@@ -571,14 +621,19 @@
   // 让它继承 EventTarget：原生对象要发事件是常态，按原则 3 抽到基类，
   // 不让每个类各自发明一套回调。
   const NSObject = defineNativeClass('NSObject', class NSObject extends EventTarget {
-    constructor() { shellOnly(new.target, NSObject); super(); }
+    constructor() {
+      // 所有原生类的构造链都经过这里，所以「不许继承」拦这一处
+      finalCheck(new.target);
+      shellOnly(new.target, NSObject, 'NSObject');
+      super();
+    }
   });
   // UIResponder 在 ObjC 里的定义就是「能接收事件的对象」，和 EventTarget 语义吻合。
   const UIResponder = defineNativeClass('UIResponder', class UIResponder extends NSObject {
-    constructor() { shellOnly(new.target, UIResponder); super(); }
+    constructor() { shellOnly(new.target, UIResponder, 'UIResponder'); super(); }
   });
   const UIScene = defineNativeClass('UIScene', class UIScene extends UIResponder {
-    constructor() { shellOnly(new.target, UIScene); super(); }
+    constructor() { shellOnly(new.target, UIScene, 'UIScene'); super(); }
   });
   // 图层。每个 UIView 背后都有一个，真正把东西画出来的是它。
   //
@@ -586,7 +641,7 @@
   // （opacity / backgroundColor / masksToBounds / 几何）不开第二个写法——
   // 同一件事两种写法正是原则 1 要消灭的东西。能力没丢：它们在 UIView 上。
   defineNativeClass('CALayer', class CALayer extends NSObject {
-    constructor() { nativeOnly(); super(); }
+    constructor() { nativeOnly(new.target); }
 
     // ---- 圆角 ----
     get cornerRadius() {
@@ -708,7 +763,7 @@
 
   const NSLayoutAnchor = defineNativeClass('NSLayoutAnchor',
       class NSLayoutAnchor extends NSObject {
-    constructor() { nativeOnly(); super(); }
+    constructor() { nativeOnly(new.target); }
 
     constraintEqualToAnchor(other, options) {
       return anchorConstraint(this, 'constraintEqualToAnchor', other, options);
@@ -723,7 +778,7 @@
 
   // 横向：leading / trailing / left / right / centerX
   defineNativeClass('NSLayoutXAxisAnchor', class NSLayoutXAxisAnchor extends NSLayoutAnchor {
-    constructor() { nativeOnly(); super(); }
+    constructor() { nativeOnly(new.target); }
 
     constraintEqualToSystemSpacingAfterAnchor(other, options) {
       return systemSpacingConstraint(
@@ -748,7 +803,7 @@
 
   // 纵向：top / bottom / centerY / firstBaseline / lastBaseline
   defineNativeClass('NSLayoutYAxisAnchor', class NSLayoutYAxisAnchor extends NSLayoutAnchor {
-    constructor() { nativeOnly(); super(); }
+    constructor() { nativeOnly(new.target); }
 
     constraintEqualToSystemSpacingBelowAnchor(other, options) {
       return systemSpacingConstraint(
@@ -772,7 +827,7 @@
 
   // 尺寸：width / height。只有它能和常数比，也只有它能带 multiplier
   defineNativeClass('NSLayoutDimension', class NSLayoutDimension extends NSLayoutAnchor {
-    constructor() { nativeOnly(); super(); }
+    constructor() { nativeOnly(new.target); }
 
     constraintEqualToConstant(value) {
       return nativeCallObject(this, 'constraintEqualToConstant:', [value]);
@@ -786,7 +841,7 @@
   });
 
   defineNativeClass('NSLayoutConstraint', class NSLayoutConstraint extends NSObject {
-    constructor() { nativeOnly(); super(); }
+    constructor() { nativeOnly(new.target); }
 
     // 唯一的开关。激活时约束被装到两端的最近公共祖先上——所以**没有公共
     // 祖先就激活不了**，原生那边是抛异常，这里转成 TypeError。
@@ -839,8 +894,7 @@
   defineNativeClass('UILayoutGuide', class UILayoutGuide extends NSObject {
     constructor() {
       super();
-      if (allowNativeConstruct) return;
-      constructNative(this, 'UILayoutGuide', []);
+      constructNative(this, new.target, 'UILayoutGuide', []);
     }
     get owningView() { return nativeGetOwned(this, 'owningView'); }
     // 求解之后这个 guide 占的位置，在 owningView 的坐标系里
@@ -864,12 +918,9 @@
   });
 
   const UIView = defineNativeClass('UIView', class UIView extends UIResponder {
-    // 子类的 super() 不能在这里建出一个 UIView 来，所以只在
-    // new.target 正是 UIView 时才创建原生对象。
     constructor() {
       super();
-      if (allowNativeConstruct || new.target !== UIView) return;
-      constructNative(this, 'UIView', []);
+      constructNative(this, new.target, 'UIView', []);
     }
 
     // ---- 几何 ----
@@ -1154,7 +1205,7 @@
 
   // 字体。不能直接构造，走类方法。
   defineNativeClass('UIFont', class UIFont extends NSObject {
-    constructor() { nativeOnly(); super(); }
+    constructor() { nativeOnly(new.target); }
     static systemFontOfSize(size, options) {
       const o = options || {};
       if ('weight' in o) {
@@ -1204,7 +1255,7 @@
   //
   // UIImage 是**不可变**的：改渲染模式、做九宫格都返回一张新图。
   defineNativeClass('UIImage', class UIImage extends NSObject {
-    constructor() { nativeOnly(); super(); }
+    constructor() { nativeOnly(new.target); }
 
     // Asset Catalog 和 bundle 里的普通文件都能命中，认子目录路径
     // （'assets/logo' 可以，但不会递归搜）。@2x/@3x 由系统按屏幕自动选。
@@ -1279,8 +1330,7 @@
   defineNativeClass('UIControl', class UIControl extends UIView {
     constructor() {
       super();
-      if (allowNativeConstruct || new.target !== UIControl) return;
-      constructNative(this, 'UIControl', []);
+      constructNative(this, new.target, 'UIControl', []);
     }
 
     // ---- 状态 ----
@@ -1350,8 +1400,7 @@
   defineNativeClass('UIButton', class UIButton extends UIControl {
     constructor() {
       super();
-      if (allowNativeConstruct || new.target !== UIButton) return;
-      constructNative(this, 'UIButton', []);
+      constructNative(this, new.target, 'UIButton', []);
     }
 
     // 系统外观的按钮走这条；new UIButton() 得到的是 custom（什么都不画）
@@ -1408,8 +1457,7 @@
   defineNativeClass('UILabel', class UILabel extends UIView {
     constructor() {
       super();
-      if (allowNativeConstruct) return;
-      constructNative(this, 'UILabel', []);
+      constructNative(this, new.target, 'UILabel', []);
     }
     get text() { requireNative(this, 'text'); return nativeGet(this, 'text'); }
     set text(value) { requireNative(this, 'text'); nativeSet(this, 'text', value); }
@@ -1527,8 +1575,7 @@
   defineNativeClass('UIImageView', class UIImageView extends UIView {
     constructor() {
       super();
-      if (allowNativeConstruct) return;
-      constructNative(this, 'UIImageView', []);
+      constructNative(this, new.target, 'UIImageView', []);
     }
     get image() { requireNative(this, 'image'); return nativeGetOwned(this, 'image'); }
     set image(value) {
@@ -1580,8 +1627,7 @@
   defineNativeClass('UIScrollView', class UIScrollView extends UIView {
     constructor() {
       super();
-      if (allowNativeConstruct) return;
-      constructNative(this, 'UIScrollView', []);
+      constructNative(this, new.target, 'UIScrollView', []);
     }
 
     // 事件全在 UIScrollViewDelegate 上，而 delegate 是一个对象不是一组
@@ -1802,11 +1848,10 @@
     // 句柄」传给原生，和 NSLayoutConstraint.activateConstraints 一条路子。
     constructor(arrangedSubviews) {
       super();
-      if (allowNativeConstruct) return;
       const views = arrangedSubviews == null ? [] : Array.from(arrangedSubviews);
       // 旧的 superview 要在原生动手之前读，之后它们已经挂到 stack 上了
       const from = views.map(superviewOf);
-      constructNative(this, 'UIStackView', views);
+      constructNative(this, new.target, 'UIStackView', views);
       for (let i = 0; i < views.length; i++) {
         disown(from[i], 'subviews', views[i]);
         ownOne(this, 'subviews', views[i]);
@@ -1900,7 +1945,7 @@
   });
 
   const UIColor = defineNativeClass('UIColor', class UIColor extends NSObject {
-    constructor() { nativeOnly(); super(); }
+    constructor() { nativeOnly(new.target); }
   });
   for (const name of [
     // UIColor.h：基础色
@@ -1928,7 +1973,7 @@
   // 场景的持久身份。场景对象会被系统销毁重建，session 活得更久——
   // persistentIdentifier 用来认出「是不是之前那个窗口」。
   defineNativeClass('UISceneSession', class UISceneSession extends NSObject {
-    constructor() { nativeOnly(); super(); }
+    constructor() { nativeOnly(new.target); }
     // 'UIWindowSceneSessionRoleApplication' 等，决定这个场景该画什么界面
     get role() { return nativeGet(this, 'role'); }
     get persistentIdentifier() { return nativeGet(this, 'persistentIdentifier'); }
@@ -1939,7 +1984,7 @@
   // 系统创建并连接的场景。不可构造——SDK 自己就是 init NS_UNAVAILABLE，
   // 注释写着「由 UIKit 调用，不打算让 App 调用」。
   defineNativeClass('UIWindowScene', class UIWindowScene extends UIScene {
-    constructor() { nativeOnly(); super(); }
+    constructor() { nativeOnly(new.target); }
 
     // 这个场景自己的前后台状态，和 application.state（所有场景的聚合）不是一回事
     get activationState() { return nativeGet(this, 'activationState'); }
@@ -1961,12 +2006,7 @@
   defineNativeClass('UIViewController', class UIViewController extends UIResponder {
     constructor() {
       super();
-      // 有运行时子类（UINavigationController）继承它，所以要挡一道：否则
-      // super() 先建一个 UIViewController，子类再建一次，kHandle 重复定义
-      // 直接抛。和 UIView / UIControl 同一个套路，代价也一样——ES 子类拿不到
-      // 原生对象（见 project.md 的「JS 子类化原生类」）
-      if (allowNativeConstruct || new.target !== UIViewController) return;
-      constructNative(this, 'UIViewController', []);
+      constructNative(this, new.target, 'UIViewController', []);
     }
     get view() { return nativeGetOwned(this, 'view'); }
     // 导航条上的标题。返回按钮默认取上一页的 title，所以这一个属性就够走通「返回」
@@ -2056,9 +2096,11 @@
   const UIBarItem = defineNativeClass('UIBarItem', class UIBarItem extends NSObject {
     constructor() {
       super();
-      if (allowNativeConstruct || new.target !== UIBarItem) return;
       // UIBarItem 是抽象基类，ObjC 侧没有可用的 init，不给构造
-      throw new TypeError('UIBarItem is abstract; construct UIBarButtonItem instead');
+      if (new.target === UIBarItem) {
+        throw new TypeError(
+          'Illegal constructor: UIBarItem is abstract; construct UIBarButtonItem instead');
+      }
     }
     get title() { requireNative(this, 'title'); return nativeGet(this, 'title'); }
     set title(value) { requireNative(this, 'title'); nativeSet(this, 'title', value); }
@@ -2087,9 +2129,8 @@
   defineNativeClass('UIBarButtonItem', class UIBarButtonItem extends UIBarItem {
     constructor(options) {
       super();
-      if (allowNativeConstruct) return;
       const o = options || {};
-      constructNative(this, 'UIBarButtonItem',
+      constructNative(this, new.target, 'UIBarButtonItem',
                       o.customView == null ? [] : [o.customView]);
       if (o.title !== undefined) this.title = o.title;
       if (o.image !== undefined) this.image = o.image;
@@ -2130,9 +2171,7 @@
   // 导航条上「这一页」的那份配置。不可构造——每个 UIViewController 自带一个。
   defineNativeClass('UINavigationItem', class UINavigationItem extends NSObject {
     constructor() {
-      super();
-      if (allowNativeConstruct) return;
-      nativeOnly('UINavigationItem');
+      nativeOnly(new.target);
     }
     get title() { requireNative(this, 'title'); return nativeGet(this, 'title'); }
     set title(value) { requireNative(this, 'title'); nativeSet(this, 'title', value); }
@@ -2191,8 +2230,7 @@
                     class UINavigationController extends UIViewController {
     constructor(rootViewController) {
       super();
-      if (allowNativeConstruct) return;
-      constructNative(this, 'UINavigationController',
+      constructNative(this, new.target, 'UINavigationController',
                       rootViewController == null ? [] : [rootViewController]);
       this[kSyncStack]();
     }
@@ -2274,11 +2312,10 @@
   defineNativeClass('UIWindow', class UIWindow extends UIView {
     constructor(scene) {
       super();
-      if (allowNativeConstruct) return;
       // 所有权是「场景持有窗口」——UIWindow.windowScene 在头文件里是 weak，
       // 真正持有窗口的是 UIWindowScene.windows。所以镜像记在场景那一侧。
       if (scene != null) {
-        constructNative(this, 'UIWindow', [scene]);
+        constructNative(this, new.target, 'UIWindow', [scene]);
         ownOne(scene, 'windows', this);
       }
     }
@@ -2292,7 +2329,8 @@
     set windowScene(value) {
       if (this[kHandle] === undefined) {
         if (value != null) {
-          constructNative(this, 'UIWindow', [value]);
+          // 这里不在构造函数里，new.target 是 undefined，直接给类本身
+          constructNative(this, UIWindow, 'UIWindow', [value]);
           ownOne(value, 'windows', this);
         }
         return;
@@ -2361,18 +2399,17 @@
     wrapper.dispatchEvent(event);
   });
 
-  // C++ 要建包装对象时回调这里。走正常的 new，EventTarget 的构造函数才会跑。
-  // 同一个原生指针 C++ 那边会复用已有的包装，所以 === 成立。
+  // C++ 要建包装对象时回调这里。同一个原生指针 C++ 那边会复用已有的包装，
+  // 所以 === 成立。
+  //
+  // **不走构造函数。** 工厂要的只是「一个挂着事件表和句柄的包装」，而原生类
+  // 的构造函数在这条路上本来就什么都不做。走它就得留一个全局的「现在允许
+  // 构造」开关，而那个开关是个布尔量：不可重入，一旦卡在 true，之后每个
+  // new 都会静默返回空壳——全局、永久、无声。
   native.setWrapperFactory(function (className, handle) {
     const Cls = nativeClasses[className];
     if (Cls === undefined) return null;
-    allowNativeConstruct = true;
-    let wrapper;
-    try {
-      wrapper = new Cls();
-    } finally {
-      allowNativeConstruct = false;
-    }
+    const wrapper = initWrapper(Object.create(Cls.prototype));
     Object.defineProperty(wrapper, kHandle, { value: handle });
     return wrapper;
   });
@@ -2807,7 +2844,6 @@
   defineNativeClass('Blob', class Blob extends NSObject {
     constructor(parts, options) {
       super();
-      if (allowNativeConstruct) return;   // 原生侧造好的（response.blob()）
       const list = parts === undefined || parts === null ? [] : Array.from(parts);
       const o = options === undefined || options === null ? {} : options;
       const type = 'type' in o ? String(o.type) : '';

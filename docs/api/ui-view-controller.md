@@ -24,7 +24,7 @@ EventTarget → NSObject → UIResponder → UIViewController
 | `navigationController` | `UINavigationController` \| `null` 只读 | 它所在的页面栈 |
 | `parentViewController` | `UIViewController` \| `null` 只读 | 容器父控制器 |
 
-> **`class MyPage extends UIViewController {}` 现在建不出原生对象。** 这是已知的洞，见[项目说明](../project.md)的「JS 子类化原生类」。要自定义页面，先 `new UIViewController()` 再往它的 `view` 上挂东西。
+> **`class MyPage extends UIViewController {}` 会抛 `Illegal constructor`。** 原生类一律是 final，理由和替代写法见[原生类](native-classes.md)。要自定义页面，先 `new UIViewController()` 再往它的 `view` 上挂东西。
 
 ## 模态呈现
 

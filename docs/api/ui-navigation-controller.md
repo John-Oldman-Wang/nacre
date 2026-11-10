@@ -183,7 +183,7 @@ nav.pushViewController(page, { animated: false });
 | --- | --- |
 | 模态呈现 `present` / `dismiss` | 单独一步。`completion` 是 block，会做成 Promise |
 | **页面生命周期** | `viewDidLoad`、`viewWillAppear`、`viewDidAppear` 等**全是覆写点不是 delegate**，要能用 JS 子类化原生类才拿得到。`willshow` / `didshow` 是它在导航这一层的替代品 |
-| `ES class` 继承 `UIViewController` | 同上。现在 `class MyPage extends UIViewController {}` **建不出原生对象**，见[项目说明](../project.md)的 TODO |
+| `ES class` 继承 `UIViewController` | 同上。现在 `class MyPage extends UIViewController {}` 在 `new` 时抛 `Illegal constructor`，见[原生类](native-classes.md) |
 | `toolbar` 一组 | `isToolbarHidden`、`setToolbarHidden:animated:` |
 | `hidesBarsOnSwipe` / `hidesBarsOnTap` 一组 | 要和手势那一步一起看 |
 | 自定义转场 | `UIViewControllerAnimatedTransitioning`，要先有协议实现的能力 |

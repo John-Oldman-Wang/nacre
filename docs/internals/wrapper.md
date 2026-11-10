@@ -76,6 +76,125 @@ application  →  scenes              （sceneconnect 时 ownOne）
 
 `check-api.sh` **分不出**该用哪个——它只核对符号齐不齐，两种取值器算在一起。编译器更不知道。唯一的网是那条 GC 回归 + 对照组。
 
+## 原生类为什么定成 final
+
+### 先说实测：改之前有一半其实是能继承的
+
+写了一段探针在模拟器上跑，结论和读代码推出来的一致：
+
+| 继承谁 | 构造 | 读属性 | 自定义方法 | 进视图树 |
+| --- | --- | --- | --- | --- |
+| `UILabel` / `UIStackView` | ✅ | ✅ | ✅ | ✅ |
+| `UIView` / `UIControl` / `UIButton` / `UIViewController` | ⚠️ **静默成功** | ❌ 抛「还没连接到场景」 | — | ❌ 抛 |
+
+差别只在实现里：这四个类的构造函数带一道 `new.target !== 自己` 的闸。而加闸的理由和「要不要支持子类」毫无关系——`UILabel extends UIView` 的 `super()` 会先建一个 `UIView`，`UILabel` 再建一次，第二次定义 `kHandle` 直接抛 `Cannot redefine property`。**闸是为了防重复构造，挡住用户的 ES 子类只是副作用。**
+
+那条隐规则是「一个类被另一个运行时类继承，就得加闸」，它**没有任何东西检查**，而且已经漏过一次（5a 做 `UINavigationController` 时当场抛）、抄错过一次（`UIButton` 那道闸没有任何类继承它）。
+
+### 三件事叠起来才是真问题
+
+| | |
+| --- | --- |
+| **类型检查全绿** | 实测 `class MyPage extends UIViewController { … }` 的 `tsc --noEmit` **零报错** |
+| **构造静默成功** | 返回一个对象，`instanceof` 为真，什么都没说 |
+| **第一次碰属性才炸，指向错误的方向** | 「还没连接到场景」，而原因在几十行之外的 `extends` 那一行 |
+
+### 定成 final，理由不是「继承危险」
+
+技术上继承不比今天的 expando 更危险——**子类字段和 `view.myData` 是同一个机制**，包装被回收重建时一起丢，而所有权镜像对两者同样有效。
+
+真实的理由是**现在做它没有价值**：
+
+| 继承能干的 | 组合能不能干 |
+| --- | --- |
+| 加字段、加方法、`instanceof` 分派 | ✅ `app/src/pages.js` 的 `makePage()` 正在这么做 |
+| 覆写 `layoutSubviews` / `drawRect:` / `sizeThatFits:` | ❌ 这是 M2 |
+
+支持继承但不支持覆写，用户拿到的是组合已经能给的东西。而**响亮地拒绝**拿到的是：静默失败没了、不一致没了、错误信息准了。
+
+所以这一步只做后者，继承推到 M2 —— 那时候**必须**连包装生命周期一起解决：覆写了 `layoutSubviews` 的包装如果被重建成基类，覆写直接失效，比丢个字段严重得多。
+
+### 做法：闸吃进 `constructNative`，一行
+
+```js
+constructor() {
+  super();
+  constructNative(this, new.target, 'UILabel', []);   // 每个可构造的类都是这一行
+}
+```
+
+```js
+function constructNative(wrapper, builtAs, className, args) {
+  if (nativeClasses[className] !== builtAs) return;   // 我不是正在被 new 的那个
+  …
+}
+```
+
+比「每个类自己写 `if`」好在三点：没有要判断的东西（新加类照抄）、类名只出现一次（`UIButton` 那道多余的闸正是重复抄出来的）、抄错类名会在原生侧 `ConstructNative` 找不到分支，当场抛而不是静默。
+
+「不许继承」只拦一处——**所有原生类的构造链都经过 `NSObject`**：
+
+```js
+function finalCheck(newTarget) {
+  if (nativeClassNames.has(newTarget)) return;   // 是运行时自己的类
+  …顺原型链找到最近的原生基类，把两个类名都写进错误信息…
+}
+```
+
+**拦不到 `class X extends UIView {}` 那一行本身**：JS 没有「拒绝被继承」的钩子，`extends` 只是读 `prototype` 再 `setPrototypeOf`，没有可以挂的陷阱；`prototype` 在 class 上是 non-configurable，也换不成会抛的取值器。最早只能在 `new` 的时候。
+
+### 顺手删掉的那个全局开关
+
+包装工厂原来是这么建对象的：
+
+```js
+allowNativeConstruct = true;
+try { wrapper = new Cls(); } finally { allowNativeConstruct = false; }
+```
+
+`finally` 挡住了「抛异常卡住」，但**布尔量不可重入**：如果 `new Cls()` 期间又触发一次工厂，内层的 `finally` 会把它设成 `false`，外层还没跑完。今天构不成重入（构造函数在这条路上全是立刻 `return`），但那是**巧合**，没有任何东西保证。
+
+而卡住的后果没有上限：标志停在 `true` 之后**没有任何东西会复位**，之后每一个 `new` 都静默返回空壳——全局、永久、无声。
+
+查了一遍，工厂调 `new Cls()` 的**唯一作用**是让 `EventTarget` 的构造函数把 `kListeners` 挂上去。那就不用走构造函数：
+
+```js
+const wrapper = initWrapper(Object.create(Cls.prototype));
+Object.defineProperty(wrapper, kHandle, { value: handle });
+```
+
+`initWrapper` 是从 `EventTarget` 构造函数里抽出来的同一段，两条路共用，免得漂。这也正是 Web 的 upgrade 做法——已有对象不跑构造函数。`allowNativeConstruct` 的 19 处引用随之全删。
+
+### 三种病的判据是 `kListeners`
+
+它由 `EventTarget` 的构造函数和包装工厂装上，`Object.create(X.prototype)` 出来的对象上没有。所以：
+
+```js
+function requireNative(obj, what) {
+  if (obj[kHandle] !== undefined) return;
+  if (obj[kListeners] === undefined) throw new TypeError(what + ': Illegal invocation');
+  throw new TypeError(what + ': this object is not connected to a scene yet, …');
+}
+```
+
+`EventTarget` 的三个方法也补了同一句——以前 `Object.create(X.prototype).addEventListener(…)` 抛的是 V8 的内部错 `Cannot read properties of undefined (reading 'get')`。
+
+这套分法是照 Web 来的。Web IDL 的判据是 **internal slot**，不是原型链（www-dom 2015，Boris Zbarsky 原话：「the prototype chain has absolutely nothing to do with internal slots」）。我们闭包里的 `kHandle` / `kListeners` 就是 internal slot 的等价物——外面拿不到那个 Symbol，所以伪造不出来。实测 Chrome：`Object.create(HTMLButtonElement.prototype).disabled` 报 `TypeError: Illegal invocation`，`new HTMLButtonElement()` 报 `Illegal constructor`，两种分得很清楚。
+
+### 我们站在 Chrome 56 的位置
+
+「包装被回收重建、挂在上面的东西全丢」这件事 Chrome 遇到过，而且是同一个形状。V8 博客讲 Chrome 56 及以前的 object grouping（原文）：
+
+> led to various bugs where JavaScript wrapper objects would prematurely get collected, which resulted in them being replaced by empty JS wrappers that would lose all their properties.
+
+而 object grouping 的机制——「按文档包含关系分组，组里有一个活着整组就活着」——**就是我们的所有权镜像**。Chrome 2017 年 3 月（Chrome 57）把它换成 cross-component tracing：让 C++ 对象持有 wrapper 并参与 V8 的追踪，从此 wrapper 不再重建。他们的硬指标写在 `V8BindingDesign.md`（原文）：
+
+> For compatibility reasons, we need to make sure that the same DOM wrapper is returned to JavaScript as long as the underlying C++ DOM object is alive.
+
+我们还没有这一层。所以 expando 的保证只能说到「从 `application` 走得到就在」，这正是上面那张所有权镜像的表。真要做到 Chrome 57 那样，要么接 V8 的 embedder 根，要么像 Apple 的 JSC 桥那样用 `addManagedReference:withOwner:` 把原生边显式报告给 GC——和 M2 一起。
+
+> 两份讲 wrapper 强弱语义的 Chromium 文档（`TraceWrapperReference.md`、`V8GCController.md`）已经 404，所以「C++ 侧那个引用具体是强是弱」没能逐字核实。
+
 
 ---
 

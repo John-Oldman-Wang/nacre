@@ -12,6 +12,11 @@
  * 它继承 EventTarget：原生对象要发事件是常态，抽到基类，不让每个类各自
  * 发明一套回调。
  */
-declare class NSObject extends EventTarget {}
+declare class NSObject extends EventTarget {
+  /** protected 而不是 private：自己不可构造，但原生子类要能 super()。 */
+  protected constructor();
+}
 
-declare class UIResponder extends NSObject {}
+declare class UIResponder extends NSObject {
+  protected constructor();
+}

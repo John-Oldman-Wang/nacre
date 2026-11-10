@@ -107,17 +107,12 @@ export function stepAutolayout(ctx) {
 
     console.log('  --- 参数没有原生对象 ---');
     {
-      // ES 子类的 super() 不建原生对象（UIView 构造函数里 new.target 那道闸），
-      // 所以这个实例没有句柄。以前它会被当成普通值，原生收到 nil 静默忽略
-      class ProbeSubview extends UIView {}
+      // 没绑场景的窗口还没有句柄。以前它会被当成普通值，原生收到 nil
+      // 之后静默什么都不做——和只读属性写不进去是同一类错，所以要抛。
+      // （原来这里还用一个 ES 子类实例做同样的测试，现在继承在构造时
+      //   就被拒了，见 steps/subclass.js）
       try {
-        card.addSubview(new ProbeSubview());
-        console.log('  ✗ 没有原生对象的参数居然通过了');
-      } catch (err) {
-        console.log('  ✓ 没有原生对象的参数被拒:', err.message);
-      }
-      try {
-        card.addSubview(new UIWindow());   // 没绑场景，同样没有句柄
+        card.addSubview(new UIWindow());
         console.log('  ✗ 没绑场景的 UIWindow 居然通过了');
       } catch (err) {
         console.log('  ✓ 没绑场景的 UIWindow 被拒:', err.message);

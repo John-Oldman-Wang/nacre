@@ -563,6 +563,7 @@ Commit message 格式：
 | 6a | `URL` / `URLSearchParams` / `Headers` | NSURLComponents、WHATWG 语义 | 已在模拟器验证通过：37 条断言全过，和 Chrome 对撞过一批 URL |
 | 6b | `fetch` / `Request` / `Response` | NSURLSession、BackingStore 零拷贝 | 已在模拟器验证通过：当初对着本地服务器跑，20 个并发 36ms；验收用例在 3b 改成打公开的 `httpbin.org`，不用再起服务 |
 | 6c | `Blob` + `AbortController` 和取消 | NSURLSessionTask.cancel、原生对象包装 | 已在模拟器验证通过：blob 零拷贝、取消、超时中止 |
+| — | 原生类一律 final：继承当场抛，删掉 `allowNativeConstruct` | `finalCheck`、包装工厂改 `Object.create` | 已在模拟器验证通过：508 条断言全过，三种「没有原生对象」分开报错 |
 | 7 | 本地存储 | UserDefaults、文件读写 | 待讨论 |
 | 8 | 列表 | UICollectionView、DataSource（同步回调） | 待讨论 |
 | 9 | 输入框和键盘 | UITextField、keyboardLayoutGuide | 待讨论 |
@@ -729,19 +730,23 @@ Web 能双向字符串化是因为 CSSOM 自己留着声明串，我们没有这
 
 实测数据见 [`UIColor` 文档的「实测：相等性和 `description`」](internals/ui-color.md#实测相等性和-description)。真正动手要等视图层起来、看清真实代码里怎么写颜色。
 
-**TODO：JS 子类化原生类。** 这条原来写的是「`new MyLabel()` 建出来的原生对象是 `UILabel`」，**实测不对**：`UIView` 的构造函数有一道 `new.target !== UIView` 的闸，子类的 `super()` 走到这里直接返回，**一个原生对象都不建**。
+**已定并实现：原生类一律是 final。** `class X extends UIView {}` 在 `new X()` 时抛 `Illegal constructor`，错误信息里点名子类和基类。详见 [API 文档](api/native-classes.md) 和[实现原理](internals/wrapper.md#原生类为什么定成-final)。
 
-所以今天的实际行为是：`new MyLabel()` 得到的实例没有句柄，之后要么 `requireNative` 抛「还没连接到场景」，要么更糟——`parent.addSubview(子类实例)` 时 `splitArgs` 把它当成普通值，句柄填 0，原生收到 nil，**静默什么都不做**。（做所有权镜像时写验收用例撞上的。）
+定这条的理由**不是继承危险**——子类字段和 `view.myData` 是同一个机制，包装被回收重建时一起丢，而所有权镜像对两者同样有效。理由是**现在做它没有价值**：加字段、加方法、`instanceof` 分派组合全都能做（`app/src/pages.js` 的 `makePage()` 就是），继承真正多出来的只有「覆写原生方法」，而那是 M2。支持继承但不支持覆写，等于把组合已经能给的东西换个写法。
 
-这道闸本身是对的：原生类的构造函数写死了自己的类名，子类的 `super()` 在这里建出一个基类对象只会更错。要真正支持继承，得动态生成 ObjC 子类并把覆写的方法转发回 JS，那才是这条 TODO 的内容。
+**改之前有一半其实是能继承的**，这才是最坏的地方：`UILabel` / `UIStackView` 这些叶子类完全能用，`UIView` / `UIControl` / `UIButton` / `UIViewController` **构造静默成功**、读属性才抛「还没连接到场景」，而 `tsc` 实测**零报错**。编辑器全绿、构造成功、错误指向几十行外无关的地方。
 
-**做 5a 时数出了这道闸的分布规律**：一个类需要 `new.target` 闸，**当且仅当另一个运行时类继承它**。`UIView`（被 `UILabel` / `UIImageView` / `UIScrollView` / `UIControl` 继承）、`UIControl`（被 `UIButton` 继承）有；`UILabel` 这些叶子类没有；`UIViewController` 本来没有，`UINavigationController` 一继承它就非加不可——第一次跑直接抛 `Cannot redefine property: Symbol(nativeHandle)`。
+那四个类带闸的理由和「支不支持子类」无关：`UILabel extends UIView` 的 `super()` 会建一次 `UIView`，`UILabel` 再建一次，第二次定义 `kHandle` 直接抛 `Cannot redefine property`。**闸是为了防重复构造。** 那条隐规则是「被另一个运行时类继承就加闸」，没有任何东西检查，已经漏过一次（5a 的 `UINavigationController`）、抄错过一次（`UIButton` 那道闸没有任何类继承它）。
 
-加完的代价是那个洞从「理论缺陷」变成「实际挡路」：`class MyPage extends UIViewController {}` 建不出原生对象，而「用自己的页面类」恰恰是最可能的用法。
+现在闸吃进了 `constructNative(this, new.target, 'UILabel', [])`——每个可构造的类都是这一行，没有要判断的东西，类名只出现一次。「不许继承」只拦 `NSObject` 一处，因为所有原生类的构造链都经过它。
 
-**正经的修法不是继续加闸，是把构造挪出构造函数**——让最底下那个类按 `new.target` 的真实类名去建，而不是每个类各自硬编一个类名。那样一次 `constructNative` 都不会重复，`new.target` 闸整套可以撤掉，ES 子类也自然拿到对的原生对象。代价是每个类的构造参数不一样（`UIWindow` 收场景、`UIStackView` 收数组、`UINavigationController` 收根页面），要重新组织一次。和这条 TODO 一起做。
+**拦不到 `class` 那一行本身**：JS 没有「拒绝被继承」的钩子，`extends` 只是读 `prototype` 再 `setPrototypeOf`。TypeScript 也表达不了 `final`（「可以 `new`、不可以 `extends`」只能一起开或一起关），所以类型层仍然是绿的。
 
-**没堵上的是那个静默失败**：对象参数没有句柄时应该抛，不该当成 nil。和下面「属性名拼错了不报错」是同一类错。这条和设计点 1「创建与继承」是同一件事。
+**顺带删掉了 `allowNativeConstruct`。** 包装工厂原来靠这个全局布尔量让构造函数放行，而布尔量**不可重入**；一旦卡在 `true`，之后每个 `new` 都静默返回空壳，全局、永久、无声。查下来工厂调 `new Cls()` 的唯一作用是让 `EventTarget` 挂上 `kListeners`，所以工厂改成 `Object.create(Cls.prototype)` + 共用的 `initWrapper`，19 处引用全删。这也正是 Web 的 upgrade 做法。
+
+**真正支持继承推到 M2**，那时**必须**连包装生命周期一起解决：覆写了 `layoutSubviews` 的包装如果被重建成基类，覆写直接失效，比丢个字段严重得多。
+
+**没堵上的是那个静默失败**：对象参数没有句柄时应该抛，不该当成 nil。和下面「属性名拼错了不报错」是同一类错。
 
 **TODO：参数类型不对但有句柄 → 静默忽略。** 和「参数没有原生对象」是同一家，上一步只堵了后者。
 

@@ -117,6 +117,8 @@ TypeError: Cannot redefine property: Symbol(nativeHandle)
 
 **规律是：一个类需要 `new.target` 闸，当且仅当另一个运行时类继承它。**
 
+> **这一节记的是当时的状态，已经不是现在的实现了。** 那条隐规则没有任何东西检查，漏过一次也抄错过一次，后来整套换成了「闸吃进 `constructNative`、原生类一律 final」，见[包装机制](wrapper.md#原生类为什么定成-final)。
+
 代价是已知的那个洞：加了闸之后 `class MyPage extends UIViewController {}` **建不出原生对象**。而「用自己的页面类」恰恰是最可能的用法，所以这个洞从「理论缺陷」变成了「实际挡路」。
 
 > **正经的修法不是继续加闸，是把构造挪出构造函数**：让最底下那个类按 `new.target` 的真实类名去建，而不是每个类各自硬编一个类名。那样一次 `constructNative` 都不会重复，`new.target` 闸整套可以撤掉，ES 子类也自然拿到对的原生对象。代价是每个类的构造参数不一样（`UIWindow` 收场景、`UIStackView` 收数组、`UINavigationController` 收根页面），要重新组织一次。这件事和「JS 子类化原生类」是同一个 TODO，一起做。
