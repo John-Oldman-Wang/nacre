@@ -2078,8 +2078,16 @@
   }
 
   function colorWarn(what, text) {
+    let hint = '';
+    // 写的像个名字（没有 # 也没有括号）就把能用的名字列出来——和枚举
+    // 写错时列可选值是同一个态度。写的是 '#GGG' 就不列：那时用户问的
+    // 不是「有哪些名字」
+    if (typeof text === 'string' && /^[A-Za-z][A-Za-z0-9]*$/.test(text)) {
+      hint = '; expected a color name, one of: ' +
+             [...colorFullToShort.values()].join(' / ');
+    }
     console.warn('[Nacre] ' + what + ': ' + JSON.stringify(text) +
-                 ' is not a valid color, ignored');
+                 ' is not a valid color, ignored' + hint);
   }
 
   // 按括号深度切顶层逗号——light-dark(rgb(1,2,3), #000) 里面还有逗号
