@@ -354,6 +354,31 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
 nacre::NativeObjectRef ConstructNative(const std::string& className,
                                        const std::vector<void*>& args);
 
+// ---- 方法调用的参数包 ----
+// 原来这些取参的助手是 CallMethod 里的局部 lambda，分发链拆到多个文件之后
+// 拿不到了，所以收成一个小结构体。只放头文件里，没有实现文件。
+struct NacreArgs {
+  NSArray* values;                  // JSON 解出来的，对象位是 null
+  const std::vector<void*>* ptrs;   // 对象按同样的下标放在这里
+  id value(NSUInteger i) const {
+    return values != nil && i < values.count ? values[i] : nil;
+  }
+  id object(size_t i) const {
+    return ptrs != nullptr && i < ptrs->size() ? (__bridge id)(*ptrs)[i] : nil;
+  }
+};
+
+// ---- 导航 ----
+// 一个域一个文件、装它在所有通道上的分支，每个入口返回「认不认领」
+bool NavCallVoidMethod(id object, const std::string& name);
+bool NavCallMethod(id object, NSString* sel, const NacreArgs& args,
+                   std::string* out, std::string* error);
+bool NavCallObjectMethod(id object, const std::string& name, const NacreArgs& args,
+                         nacre::NativeObjectRef* out, std::string* error);
+bool NavCallObjectArrayMethod(id object, const std::string& name, const NacreArgs& args,
+                              std::vector<nacre::NativeObjectRef>* out,
+                              std::string* error);
+
 // ---- 颜色 ----
 // 上层的颜色是字符串，解析在 JS 侧（纯文本运算），过桥的是规范化的 spec。
 UIColor* ColorFromSpec(id spec);
