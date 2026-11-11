@@ -132,6 +132,40 @@ export function stepFileSystem() {
     assert('大文件的 size 对', (await fs.stat(base + '/big.bin')).size, big.length);
     await fs.remove(base + '/big.bin');
 
+    // ---- 实测：Blob 构造和写入各花多久 ----
+    // 上面那条只能说明「不在主线程」，说不出各段多贵。分三段量：
+    //   构造   new Blob([big])    主线程同步，是实打实的 4 MB memcpy
+    //                            （字节必须离开 V8 堆，GC 会搬 backing store）
+    //   发起   fs.writeBytes(...)  只是取指针 + dispatch_async，应该接近 0
+    //   端到端 await               含排队、后台 I/O、兑现排回主队列
+    // Date.now() 只有毫秒精度（performance.now() 还没暴露），所以重复取平均
+    const mb = big.length / (1024 * 1024);
+    const blobRounds = 5;
+    const blobStart = Date.now();
+    for (let i = 0; i < blobRounds; i++) new Blob([big]);
+    const blobMs = (Date.now() - blobStart) / blobRounds;
+    console.log('  ✓ new Blob([' + mb + ' MB]) 平均 ' + blobMs.toFixed(1) +
+                ' ms（' + (blobMs > 0 ? (mb / blobMs * 1000).toFixed(0) : '>' +
+                (mb * 1000).toFixed(0)) + ' MB/s）');
+
+    const benchPath = base + '/bench.bin';
+    const blob = new Blob([big]);
+    const writeRounds = 3;
+    let syncTotal = 0;
+    let endTotal = 0;
+    for (let i = 0; i < writeRounds; i++) {
+      const t0 = Date.now();
+      const writeBench = fs.writeBytes(benchPath, blob);
+      const t1 = Date.now();
+      await writeBench;
+      syncTotal += t1 - t0;
+      endTotal += Date.now() - t0;
+    }
+    console.log('  ✓ writeBytes 发起平均 ' + (syncTotal / writeRounds).toFixed(1) +
+                ' ms，端到端平均 ' + (endTotal / writeRounds).toFixed(1) +
+                ' ms（' + writeRounds + ' 次 ' + mb + ' MB 串行，端到端含排队）');
+    await fs.remove(benchPath);
+
     // ---- 递归删 ----
     await fs.remove(base);
     assert('目录连里面的东西一起删掉了', await fs.exists(base), false);
