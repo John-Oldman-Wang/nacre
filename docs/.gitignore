@@ -1,0 +1,3 @@
+# 建站的产物和缓存
+.vitepress/dist/
+.vitepress/cache/

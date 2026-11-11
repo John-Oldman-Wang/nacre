@@ -1,0 +1,14 @@
+{
+  "name": "nacre-docs",
+  "private": true,
+  "type": "module",
+  "description": "把 docs/ 下的 Markdown 建成网站。文档本身不依赖这个工程，在 GitHub 上照常能看。",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "vitepress": "1.6.4"
+  }
+}
