@@ -643,13 +643,136 @@
   const UIScene = defineNativeClass('UIScene', class UIScene extends UIResponder {
     constructor() { shellOnly(new.target, UIScene, 'UIScene'); super(); }
   });
-  // 图层。每个 UIView 背后都有一个，真正把东西画出来的是它。
+  // 图层。每个 UIView 背后都有一个（view.layer），真正把东西画出来的是它。
   //
-  // 这里**只暴露 UIView 上没有的**：圆角、边框、阴影。重叠的那些
-  // （opacity / backgroundColor / masksToBounds / 几何）不开第二个写法——
-  // 同一件事两种写法正是原则 1 要消灭的东西。能力没丢：它们在 UIView 上。
-  defineNativeClass('CALayer', class CALayer extends NSObject {
-    constructor() { nativeOnly(new.target); }
+  // 也可以自己建一个挂上去（new CALayer() + addSublayer），渐变、形状、
+  // 图表都是这么做的。**子图层不走 Auto Layout**：iOS 上 CALayer 的
+  // autoresizingMask 和 layoutManager 都标了 API_UNAVAILABLE(ios)，约束也
+  // 只作用于 view，所以子图层的 frame 得自己设——view 的大小变了也要自己
+  // 重设一次。见 docs/api/ca-layer.md。
+  //
+  // frame / bounds / opacity / isHidden 这些名字 UIView 上也有。view 自己
+  // 那一层用 view 的写法（它才是参与布局的那个）；独立建的子图层上 view
+  // 没有对应物，只能用这里的。
+  const CALayer = defineNativeClass('CALayer', class CALayer extends NSObject {
+    constructor() {
+      super();
+      constructNative(this, new.target, 'CALayer', []);
+    }
+
+    // ---- 几何 ----
+    // 自己建的图层默认是 0×0，不设 frame 什么都看不见
+    get frame() {
+      requireNative(this, 'frame');
+      return toRect(nativeGet(this, 'frame'));
+    }
+    set frame(value) {
+      requireNative(this, 'frame');
+      nativeSet(this, 'frame', structArg(value, RECT_FIELDS, 'frame'));
+    }
+    get bounds() {
+      requireNative(this, 'bounds');
+      return toRect(nativeGet(this, 'bounds'));
+    }
+    set bounds(value) {
+      requireNative(this, 'bounds');
+      nativeSet(this, 'bounds', structArg(value, RECT_FIELDS, 'bounds'));
+    }
+    // 图层在父图层里的位置。默认锚点在正中，所以这是中心点而不是左上角
+    get position() {
+      requireNative(this, 'position');
+      return toPoint(nativeGet(this, 'position'));
+    }
+    set position(value) {
+      requireNative(this, 'position');
+      nativeSet(this, 'position', structArg(value, POINT_FIELDS, 'position'));
+    }
+    // 不动 sublayers 的顺序就能改叠放次序。默认 0
+    get zPosition() {
+      requireNative(this, 'zPosition');
+      return nativeGet(this, 'zPosition');
+    }
+    set zPosition(value) {
+      requireNative(this, 'zPosition');
+      nativeSet(this, 'zPosition', value);
+    }
+
+    // ---- 层级 ----
+    get superlayer() { return nativeGetObject(this, 'superlayer'); }
+    // 读的同时按原生的真相重建这一层的持有列表（见「所有权镜像」）
+    get sublayers() {
+      return ownAll(this, 'sublayers', nativeGetObjectArray(this, 'sublayers'));
+    }
+    addSublayer(layer) {
+      const from = superlayerOf(layer);
+      nativeCall(this, 'addSublayer:', [layer]);
+      disown(from, 'sublayers', layer);
+      ownOne(this, 'sublayers', layer);
+    }
+    insertSublayer(layer, options) {
+      const o = options || {};
+      const from = superlayerOf(layer);
+      if ('atIndex' in o) {
+        nativeCall(this, 'insertSublayer:atIndex:', [layer, o.atIndex]);
+      } else if ('above' in o) {
+        nativeCall(this, 'insertSublayer:above:', [layer, o.above]);
+      } else if ('below' in o) {
+        nativeCall(this, 'insertSublayer:below:', [layer, o.below]);
+      } else {
+        throw new TypeError(
+          'insertSublayer needs one of { atIndex } / { above } / { below }');
+      }
+      disown(from, 'sublayers', layer);
+      ownOne(this, 'sublayers', layer);
+    }
+    removeFromSuperlayer() {
+      const from = superlayerOf(this);
+      nativeCall(this, 'removeFromSuperlayer', []);
+      disown(from, 'sublayers', this);
+    }
+
+    // ---- 外观 ----
+    get opacity() {
+      requireNative(this, 'opacity');
+      return nativeGet(this, 'opacity');
+    }
+    set opacity(value) {
+      requireNative(this, 'opacity');
+      nativeSet(this, 'opacity', value);
+    }
+    get isHidden() {
+      requireNative(this, 'isHidden');
+      return nativeGet(this, 'isHidden');
+    }
+    set isHidden(value) {
+      requireNative(this, 'isHidden');
+      nativeSet(this, 'isHidden', value);
+    }
+    // 子图层超出自己 bounds 的部分裁不裁掉。配 cornerRadius 用
+    get masksToBounds() {
+      requireNative(this, 'masksToBounds');
+      return nativeGet(this, 'masksToBounds');
+    }
+    set masksToBounds(value) {
+      requireNative(this, 'masksToBounds');
+      nativeSet(this, 'masksToBounds', value);
+    }
+    // **自己建的图层默认是 1，不是屏幕的 scale**，画出来会糊。
+    // view.layer 不用管，UIKit 已经设好了
+    get contentsScale() {
+      requireNative(this, 'contentsScale');
+      return nativeGet(this, 'contentsScale');
+    }
+    set contentsScale(value) {
+      requireNative(this, 'contentsScale');
+      nativeSet(this, 'contentsScale', value);
+    }
+    get backgroundColor() { return colorString(nativeGetOwned(this, 'backgroundColor')); }
+    set backgroundColor(value) { {
+      const color = colorArg(value, 'backgroundColor');
+      if (color === undefined) return;   // 不合法，警告过了，保留旧值
+      nativeSetOwned(this, 'backgroundColor', color);
+    }; }
 
     // ---- 圆角 ----
     get cornerRadius() {
@@ -730,6 +853,76 @@
     set shadowOffset(value) {
       requireNative(this, 'shadowOffset');
       nativeSet(this, 'shadowOffset', structArg(value, SIZE_FIELDS, 'shadowOffset'));
+    }
+  });
+
+  function superlayerOf(layer) {
+    if (layer == null || layer[kHandle] === undefined) return null;
+    return nativeGetObject(layer, 'superlayer');
+  }
+
+  // 渐变。一条直线（axial）、从中心往外（radial）、或者绕中心转一圈（conic）。
+  //
+  // 它是个图层，所以和别的图层一样要自己设 frame。颜色至少给两个，不然
+  // 什么都看不见。
+  defineNativeClass('CAGradientLayer', class CAGradientLayer extends CALayer {
+    constructor() {
+      super();
+      constructNative(this, new.target, 'CAGradientLayer', []);
+    }
+
+    // 渐变经过的颜色，按顺序。写进去的是字符串（或 UIColor），**读出来是
+    // 字符串，但不一定是写进去的那个串**：原生存的是 CGColor，动态色在
+    // 写入那一刻就被定死了，读回来只剩当时解析出的那个具体颜色
+    get colors() {
+      return nativeGetObjectArray(this, 'colors').map(colorString);
+    }
+    set colors(value) {
+      const list = [];
+      for (const v of Array.from(value || [])) {
+        const color = colorArg(v, 'colors');
+        if (color === undefined) return;   // 不合法，警告过了，整条都不写
+        list.push(color);
+      }
+      nativeSetObjectArray(this, 'colors', list);
+      ownAll(this, 'colors', list);
+    }
+    // 每个颜色落在 0…1 的哪一处。null 表示均匀分布（默认），
+    // 个数要和 colors 对得上
+    get locations() {
+      requireNative(this, 'locations');
+      return nativeGet(this, 'locations');
+    }
+    set locations(value) {
+      requireNative(this, 'locations');
+      nativeSet(this, 'locations', value);
+    }
+    // 单位坐标，不是点：(0,0) 是左上角，(1,1) 是右下角。默认从 (0.5,0) 到
+    // (0.5,1)，也就是从上到下。radial 时 startPoint 是圆心、endPoint 定半径；
+    // conic 时 startPoint 是圆心、endPoint 定起始角度
+    get startPoint() {
+      requireNative(this, 'startPoint');
+      return toPoint(nativeGet(this, 'startPoint'));
+    }
+    set startPoint(value) {
+      requireNative(this, 'startPoint');
+      nativeSet(this, 'startPoint', structArg(value, POINT_FIELDS, 'startPoint'));
+    }
+    get endPoint() {
+      requireNative(this, 'endPoint');
+      return toPoint(nativeGet(this, 'endPoint'));
+    }
+    set endPoint(value) {
+      requireNative(this, 'endPoint');
+      nativeSet(this, 'endPoint', structArg(value, POINT_FIELDS, 'endPoint'));
+    }
+    get type() {
+      requireNative(this, 'type');
+      return nativeGet(this, 'type');
+    }
+    set type(value) {
+      requireNative(this, 'type');
+      nativeSet(this, 'type', value);
     }
   });
 

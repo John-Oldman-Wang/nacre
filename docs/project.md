@@ -408,6 +408,7 @@ ios/Runtime/
 │  │                      Control / Input / Scroll / Scene / Layer）
 │  ├─ NacreMethods.mm     方法分发，还没按域拆完的那些分支
 │  ├─ NacreMethodsNav.mm  导航域在**所有通道**上的分支
+│  ├─ NacreMethodsLayer.mm 图层域的层级操作
 │  ├─ NacreFactories.mm   造对象：类方法和构造
 │  ├─ NacreStorage.mm     UserDefaults
 │  ├─ NacreFileSystem.mm  文件读写
@@ -571,6 +572,7 @@ Commit message 格式：
 | 3f | 滚动 | UIScrollView、delegate trampoline、事件合并 | 已在模拟器验证通过：真实滑动一次派发 100 个 scroll，事件顺序正确，三次直写合并成一个 |
 | 3g | 缩放 | zoomScale、viewForZooming、捏合手势 | 待讨论，和手势那一步绑一起 |
 | — | `app/`：JS 源码独立成工程，esbuild 打包 | package.json、@nacre/types 当依赖装 | 已在模拟器验证通过：358 条断言和打包前一字不差，含真实滑动和点击 |
+| — | A5-1 子图层和渐变 | CALayer 可构造、几何、层级、CAGradientLayer | 待验证 |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |
@@ -672,7 +674,7 @@ iOS 的触摸不是一套机制，是**四套并行**的（hit-testing、respond
 | A2 | **本地存储**：`NSUserDefaults`、文件读写、Keychain | JS 没有任何落盘的口子。对应清单第 7 步 |
 | A3 | **任意色值**：`colorWithRed:…`、`colorWithAlphaComponent:`、自定义动态色 | 今天只能取预置常量，品牌色、半透明遮罩、「浅色一个值深色一个值」全造不出来。[方案已定](#待讨论的设计问题)、未实现，改动小 |
 | A4 | **容器控制器**：`UITabBarController`、`addChildViewController:` 一组 | tab 条自绘得出来，但父子控制器关系、生命周期和安全区传递只能原生给。它决定 App 的骨架，越晚补客户迁移越痛 |
-| A5 | **绘图对象**：`CAShapeLayer`、`CAGradientLayer`、`UIBezierPath` / `CGPath` | 折线图、K 线、饼图、渐变。纯对象，不需要覆写 |
+| A5 | **绘图对象**：~~`CAGradientLayer`~~（A5-1 已做）、`CAShapeLayer`、`UIBezierPath` / `CGPath`（A5-2） | 折线图、K 线、饼图、渐变。纯对象，不需要覆写 |
 | A6 | **Core Animation**：`CABasicAnimation` / `CAKeyframeAnimation` / `CADisplayLink` | `CADisplayLink` 是 target-action，M1a 已经够 |
 | A7 | **手势识别器**：长按、拖动、捏合 | target-action，M1a 够。抢占语义要单独设计（见清单第 10 步）。delegate 那部分要 M2 |
 | A8 | **事件对象带数据**：触点位置等 | 只能由原生在派发时填 |
@@ -894,6 +896,16 @@ JS 侧的属性是一个个显式定义的取值器，名字不认识的赋值�
 **TODO：`layer.transform`（`CATransform3D`）还没暴露。** `UIView.transform`（`CGAffineTransform`）已经做了，见[结构体文档](api/structs.md#cgaffinetransform)。剩下 3D 的那一半：16 个字段，而且 `m34` 那种透视参数单靠结构体不好用，要和动画一起看。
 
 > 记这条 TODO 时担心的「C 函数怎么暴露」**在仿射变换这里没出现**：`CGAffineTransformMakeScale` 那几个全是纯算术，静态工厂在 JS 里算就行，过桥的只有六个数。判据记在[实现原理](internals/structs.md)里——**C 函数只在值类型上做算术就在 JS 侧实现，真要跨桥的是会碰系统状态的那些**。
+
+**已定并实现：`CALayer` 按它自己的面暴露。** 第 3d 步定的是「只暴露 `UIView` 上没有的」（圆角、边框、阴影），重叠的 `opacity` / `backgroundColor` / `masksToBounds` / 几何 / `isHidden` 一个都不开。**独立子图层一来这条就守不住了**——渐变层要 `masksToBounds` 配圆角，纯色块要 `backgroundColor`，所有子图层都必须有 `frame`，而 view 在这些图层上没有对应物。属性定义在类上，开了之后 `view.layer.opacity` 也跟着有。
+
+所以改成：`CALayer` 按自己的面暴露，文档里指明「view 自己那一层请用 view 的写法」。这里的「两种写法」不是真的二选一，它们服务的是两类不同的对象。
+
+**TODO：视图布局变化没有通知。** 子图层不走 Auto Layout 是 **iOS 的事实**，不是我们的缺口——`CALayer.autoresizingMask` 和 `layoutManager` 在 iOS 上都标着 `API_UNAVAILABLE(ios)`，`CAConstraintLayoutManager.h` 整个文件也是。原生 App 在 `layoutSubviews` 里手写子图层的 frame。
+
+于是 JS 侧现在只能在自己知道布局变了的时候重设一次，**系统驱动的重新布局（旋转、动态字体、键盘）跟不上**。三条路：覆写 `layoutSubviews`（M2）、`+layerClass`（M2）、**KVO 监听 `view.layer.bounds` 做成 `layoutchange` 事件（不需要 M2）**。第三条该单独走一遍 SOP——它是新发明一个事件，而且 KVO 在布局动画期间的时序没实测过。
+
+**TODO：JS 读不到屏幕的 scale。** 做 A5-1 时撞出来的：`CALayer.contentsScale` 默认是 1，**实测连 `view.layer` 在场景接入时也是 1**，所以它当不了屏幕 scale 的替代品。而 `UIScreen` 没暴露、`UITraitCollection.displayScale` 也没有，于是自己建的图层要高清光栅化只能把 3 写死在 JS 里。跟下面那条一起补。
 
 **TODO：`UITraitCollection` 还没暴露。** 这一条挡着三件事：
 

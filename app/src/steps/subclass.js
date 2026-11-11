@@ -62,8 +62,6 @@ export function stepSubclass() {
   // @ts-expect-error 工厂专造
   throws('new UIColor()', () => new UIColor(),
          'UIColor is created by the runtime, not by new');
-  // @ts-expect-error 同上
-  throws('new CALayer()', () => new CALayer(), 'CALayer is created by the runtime');
 
   // ---- 3. Object.create：原型链对，但一个构造函数都没走过 ----
   const ghostView = /** @type {UIView} */ (Object.create(UIView.prototype));

@@ -84,6 +84,7 @@ std::vector<nacre::NativeObjectRef> ReadNativeObjectArrayProperty(
     id object, const std::string& name) {
   std::vector<nacre::NativeObjectRef> refs;
   ReadSceneObjectArray(object, name, refs);
+  ReadLayerObjectArray(object, name, refs);
   ReadScrollObjectArray(object, name, refs);
   ReadViewObjectArray(object, name, refs);
   return refs;
@@ -105,6 +106,7 @@ void WriteNativeObjectArrayProperty(id object, const std::string& name,
                                     const std::vector<void*>& values,
                                     std::string* error) {
   if (WriteSceneObjectArray(object, name, values, error)) return;
+  if (WriteLayerObjectArray(object, name, values, error)) return;
   *error = [NSString stringWithFormat:@"%@ has no writable object array property %s",
                                       NSStringFromClass([object class]), name.c_str()]
                .UTF8String;

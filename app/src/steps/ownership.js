@@ -23,6 +23,10 @@ export function stepOwnership(ctx) {
     probeHost.backgroundColor = UIColor.systemGreenColor;
     // 对照组：类常量的包装，JS 侧谁都不持有它
     /** @type {any} */ (UIColor.systemBrownColor).probe = '对照';
+    // 子图层那条边：addSublayer 之后 JS 就丢掉引用了，包装必须还活着
+    const probeGradient = new CAGradientLayer();
+    /** @type {any} */ (probeGradient).probe = '挂在图层包装上';
+    probeHost.layer.addSublayer(probeGradient);
     // 局部引用随这个块结束而消失，之后只有镜像还持有它们
   }
 
@@ -89,6 +93,12 @@ export function stepOwnership(ctx) {
            /** @type {any} */ (kids[0]).probe, '挂在包装上的 JS 状态');
     // 颜色属性读出来是字符串了，挂不上 .probe。属性边本身改成验值还在
     assert('属性边：GC 后颜色属性还是那个值', probeHost.backgroundColor, 'systemGreen');
+    // 子图层：probeHost.layer 上还挂着几个 subview 的图层，所以按 probe 筛
+    const keptLayers = probeHost.layer.sublayers
+      .map((l) => /** @type {any} */ (l).probe)
+      .filter((probe) => probe !== undefined);
+    assert('子图层：GC 后包装还是原来那个', keptLayers.join(','), '挂在图层包装上');
+
     // 这一条在补镜像之前是段错误，不是断言失败
     const late = orphanAnchor.constraintEqualToConstant(50);
     late.isActive = true;

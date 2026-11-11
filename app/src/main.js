@@ -36,6 +36,7 @@ import { stepButton } from './steps/button.js';
 import { stepScroll } from './steps/scroll.js';
 import { stepStack } from './steps/stack.js';
 import { stepTransform } from './steps/transform.js';
+import { stepGradient } from './steps/gradient.js';
 import { stepNavigation } from './steps/navigation.js';
 import { stepModal } from './steps/modal.js';
 import { stepOwnership } from './steps/ownership.js';
@@ -74,11 +75,12 @@ application.addEventListener('sceneconnect', (e) => {
   stepStack(ctx);
   stepTextField(ctx);   // 要用 ctx.vc，必须排在 stepWindow 后面
   stepTransform(ctx);
+  stepGradient(ctx);
   stepNavigation(ctx);
   stepModal(ctx);
   stepOwnership(ctx);
 
-  console.log('✓ 屏幕上：三个色块 + 标题 + 两行说明 + 一行等宽数字');
+  console.log('✓ 屏幕上：三个色块 + 标题 + 两行说明 + 一行等宽数字 + 一张渐变卡片');
 });
 
 application.addEventListener('scenedisconnect', (e) => {

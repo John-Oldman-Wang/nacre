@@ -1,4 +1,4 @@
-// CALayer：圆角的掩码和曲线
+// CALayer：圆角的掩码和曲线、渐变的类型
 //
 // 字符串 ↔ 数值的映射。
 //
@@ -49,6 +49,46 @@ NSString* NameForCornerCurve(NSString* curve) {
 NSString* NamesForCornerCurve(void) {
   NSMutableArray<NSString*>* names = [NSMutableArray array];
   for (NSArray* pair in CornerCurvePairs()) [names addObject:pair[0]];
+  return [names componentsJoinedByString:@" / "];
+}
+
+// 渐变的类型。同样是 NSString 常量（kCAGradientLayerAxial…），所以和
+// cornerCurve 一样手写有序 pairs：NACRE_ENUM_MAP 的值必须是数字。
+//
+// axial 是一条直线上的渐变（最常见的那种），radial 从中心向外，
+// conic 绕中心转一圈。startPoint / endPoint 在三种里的含义不一样，
+// 见 docs/api/ca-layer.md。
+static NSArray<NSArray*>* GradientTypePairs(void) {
+  static NSArray<NSArray*>* pairs;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    pairs = @[
+      @[ @"axial", kCAGradientLayerAxial ],
+      @[ @"radial", kCAGradientLayerRadial ],
+      @[ @"conic", kCAGradientLayerConic ],
+    ];
+  });
+  return pairs;
+}
+
+NSString* GradientTypeFromName(NSString* name) {
+  if (![name isKindOfClass:NSString.class]) return nil;
+  for (NSArray* pair in GradientTypePairs()) {
+    if ([pair[0] isEqualToString:name]) return pair[1];
+  }
+  return nil;
+}
+
+NSString* NameForGradientType(NSString* type) {
+  for (NSArray* pair in GradientTypePairs()) {
+    if ([pair[1] isEqualToString:type]) return pair[0];
+  }
+  return nil;
+}
+
+NSString* NamesForGradientType(void) {
+  NSMutableArray<NSString*>* names = [NSMutableArray array];
+  for (NSArray* pair in GradientTypePairs()) [names addObject:pair[0]];
   return [names componentsJoinedByString:@" / "];
 }
 

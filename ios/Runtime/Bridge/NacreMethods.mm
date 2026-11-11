@@ -111,6 +111,13 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
   }
 
   {
+    std::string layerResult;
+    if (LayerCallMethod(object, sel, NacreArgs{args, &argPtrs}, &layerResult, error)) {
+      return layerResult;
+    }
+  }
+
+  {
     std::string navResult;
     if (NavCallMethod(object, sel, NacreArgs{args, &argPtrs}, &navResult, error)) {
       return navResult;

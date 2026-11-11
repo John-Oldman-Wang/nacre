@@ -263,6 +263,12 @@ NSString* CornerCurveFromName(NSString* name);
 NSString* NameForCornerCurve(NSString* curve);
 NSString* NamesForCornerCurve(void);
 
+// 渐变的类型。和 cornerCurve 一样是 NSString 常量（kCAGradientLayerAxial…），
+// 不是 NS_ENUM，所以同样手写有序 pairs 而不走 NACRE_ENUM_MAP。
+NSString* GradientTypeFromName(NSString* name);
+NSString* NameForGradientType(NSString* type);
+NSString* NamesForGradientType(void);
+
 // 字重和文本样式不是枚举（CGFloat / NSString 常量），但 JS 侧一样用字符串
 BOOL FontWeightFromName(NSString* name, UIFontWeight* out);
 NSString* NamesForFontWeight(void);
@@ -318,6 +324,13 @@ id ReadLayerProperty(id object, NSString* key);
 BOOL WriteLayerProperty(id object, NSString* key, id value, std::string* error);
 nacre::NativeObjectRef ReadLayerObjectProperty(id object, const std::string& name);
 void WriteLayerObjectProperty(id object, const std::string& name, id value);
+void ReadLayerObjectArray(id object, const std::string& name, std::vector<nacre::NativeObjectRef>& refs);
+BOOL WriteLayerObjectArray(id object, const std::string& name, const std::vector<void*>& values, std::string* error);
+
+// 一个 CALayer* 实际是哪个类。包装表按指针缓存，第一次包成什么类之后就
+// 一直是那个类，所以凡是把图层交给 JS 的地方都得问这里，不能一律写
+// "CALayer"——否则从 sublayers 里先读到的渐变层会永远是个 CALayer。
+const char* LayerClassName(CALayer* layer);
 
 id ReadScrollProperty(id object, NSString* key);
 BOOL WriteScrollProperty(id object, NSString* key, id value, std::string* error);
@@ -378,6 +391,11 @@ bool NavCallObjectMethod(id object, const std::string& name, const NacreArgs& ar
 bool NavCallObjectArrayMethod(id object, const std::string& name, const NacreArgs& args,
                               std::vector<nacre::NativeObjectRef>* out,
                               std::string* error);
+
+// ---- 图层 ----
+// 和导航同一个形状：一个域一个文件，每个入口返回「认不认领」
+bool LayerCallMethod(id object, NSString* sel, const NacreArgs& args,
+                     std::string* out, std::string* error);
 
 // ---- 颜色 ----
 // 上层的颜色是字符串，解析在 JS 侧（纯文本运算），过桥的是规范化的 spec。

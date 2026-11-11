@@ -238,6 +238,10 @@ nacre::NativeObjectRef ConstructNative(const std::string& className,
     object = [[UIStackView alloc] initWithArrangedSubviews:views];
   } else if (className == "UILayoutGuide") {
     object = [[UILayoutGuide alloc] init];
+  } else if (className == "CALayer") {
+    object = [CALayer layer];
+  } else if (className == "CAGradientLayer") {
+    object = [CAGradientLayer layer];
   }
   if (object == nil) return {};
   return {(void*)CFAutorelease(CFBridgingRetain(object)), className};

@@ -235,6 +235,8 @@ for tsname, outer, inner in [
      r'@\[\s*@"(\w+)"'),
     ('CALayerCornerCurve', r'CornerCurvePairs\(void\).*?pairs = @\[(.*?)\];',
      r'@\[\s*@"(\w+)"'),
+    ('CAGradientLayerType', r'GradientTypePairs\(void\).*?pairs = @\[(.*?)\];',
+     r'@\[\s*@"(\w+)"'),
     ('UILayoutPriorityName', r'LayoutPriorityTable\(void\).*?@\{(.*?)\};',
      r'@"(\w+)":'),
     # leading==top、trailing==bottom，一个值两个名字，所以实现用有序 pairs。
@@ -329,7 +331,7 @@ for label, a, b in pairs:
 # 固化在这里。
 #
 # 真相在原生层：一个 selector 的分支里用了取对象参数的助手，它就收对象。
-OBJ_ARG_HELPERS = re.compile(r'\b(?:objectArg|viewArg|guideArg|colorArg|imageArg|vcArg)\s*\(')
+OBJ_ARG_HELPERS = re.compile(r'\b(?:objectArg|viewArg|guideArg|colorArg|imageArg|vcArg|layerArg)\s*\(')
 # kSyncStack 是导航栈那条边的专用写法：它按原生真相整层 ownAll 一遍，
 # 所以调它就等于记了边
 OWN_MARKERS = re.compile(

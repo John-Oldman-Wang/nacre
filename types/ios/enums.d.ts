@@ -64,6 +64,12 @@ type CALayerCornerCurve = 'circular' | 'continuous';
  */
 type CACornerMask = 'minXMinY' | 'maxXMinY' | 'minXMaxY' | 'maxXMaxY';
 
+/**
+ * 渐变的走向。`axial` 是一条直线上的渐变，`radial` 从中心向外，
+ * `conic` 绕中心转一圈。`startPoint` / `endPoint` 在三种里的含义不一样。
+ */
+type CAGradientLayerType = 'axial' | 'radial' | 'conic';
+
 type NSLayoutRelation = 'lessThanOrEqual' | 'equal' | 'greaterThanOrEqual';
 
 type UILayoutConstraintAxis = 'horizontal' | 'vertical';
