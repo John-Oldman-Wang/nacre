@@ -7,8 +7,13 @@
 namespace nacre_bridge {
 
 const char* AnimationClassName(CAAnimation* anim) {
+  // 子类在前。顺序错了的后果是包装被定成基类，而包装表按指针缓存，
+  // 之后就一直是基类——和 LayerClassName 同一条坑
+  if ([anim isKindOfClass:CASpringAnimation.class]) return "CASpringAnimation";
   if ([anim isKindOfClass:CABasicAnimation.class]) return "CABasicAnimation";
+  if ([anim isKindOfClass:CAKeyframeAnimation.class]) return "CAKeyframeAnimation";
   if ([anim isKindOfClass:CAPropertyAnimation.class]) return "CAPropertyAnimation";
+  if ([anim isKindOfClass:CAAnimationGroup.class]) return "CAAnimationGroup";
   return "CAAnimation";
 }
 

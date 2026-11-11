@@ -121,7 +121,96 @@ static id AnimValueToJSON(id value) {
   return nil;
 }
 
+// 「一串数字，或者 null」。keyTimes 和那三个样条参数都是这个形状，
+// 和 locations / lineDashPattern 一样：nil 不是空数组
+static BOOL NumberArrayOrNull(id value, NSString* what, NSArray** out,
+                              std::string* error) {
+  if (value == nil || value == NSNull.null) {
+    *out = nil;
+    return YES;
+  }
+  if (![value isKindOfClass:NSArray.class]) {
+    *error = [NSString stringWithFormat:
+                  @"%@ needs an array of numbers, or null", what].UTF8String;
+    return NO;
+  }
+  for (id n in (NSArray*)value) {
+    if (![n isKindOfClass:NSNumber.class]) {
+      *error = [NSString stringWithFormat:
+                    @"%@ needs an array of numbers, or null", what].UTF8String;
+      return NO;
+    }
+  }
+  *out = value;
+  return YES;
+}
+
+// 一串关键帧值。每个按 keyPath 的类型包一次，错一个就整条不写——
+// 和 colors 一个规矩，不写进去一半
+static BOOL AnimValuesFromJSON(CAPropertyAnimation* anim, id value,
+                               NSArray** out, std::string* error) {
+  if (value == nil || value == NSNull.null) {
+    *out = nil;
+    return YES;
+  }
+  if (![value isKindOfClass:NSArray.class]) {
+    *error = "values needs an array, or null";
+    return NO;
+  }
+  NSMutableArray* list = [NSMutableArray array];
+  for (id item in (NSArray*)value) {
+    std::string local;
+    id boxed = AnimValueFromJSON(anim, @"values", item, &local);
+    if (!local.empty()) {
+      *error = local;
+      return NO;
+    }
+    [list addObject:boxed ?: NSNull.null];
+  }
+  *out = list;
+  return YES;
+}
+
 id ReadAnimationProperty(id object, NSString* key) {
+  // 子类在前
+  if ([object isKindOfClass:CASpringAnimation.class]) {
+    CASpringAnimation* spring = (CASpringAnimation*)object;
+    if ([key isEqualToString:@"mass"]) return @(spring.mass);
+    if ([key isEqualToString:@"stiffness"]) return @(spring.stiffness);
+    if ([key isEqualToString:@"damping"]) return @(spring.damping);
+    if ([key isEqualToString:@"initialVelocity"]) return @(spring.initialVelocity);
+    if ([key isEqualToString:@"allowsOverdamping"]) return @(spring.allowsOverdamping);
+    // 三个只读的：系统按当前参数算出来的
+    if ([key isEqualToString:@"settlingDuration"]) return @(spring.settlingDuration);
+    if ([key isEqualToString:@"perceptualDuration"]) return @(spring.perceptualDuration);
+    if ([key isEqualToString:@"bounce"]) return @(spring.bounce);
+  }
+  if ([object isKindOfClass:CAKeyframeAnimation.class]) {
+    CAKeyframeAnimation* frames = (CAKeyframeAnimation*)object;
+    if ([key isEqualToString:@"values"]) {
+      // 对象那几种（颜色、路径）这里给 nil，由对象数组通道接手
+      NacreAnimValueKind kind;
+      if (!AnimValueKindForKeyPath(frames.keyPath, &kind)) return nil;
+      if (kind == NacreAnimValueColor || kind == NacreAnimValuePath) return nil;
+      if (frames.values == nil) return NSNull.null;
+      NSMutableArray* out = [NSMutableArray array];
+      for (id item in frames.values) [out addObject:AnimValueToJSON(item) ?: NSNull.null];
+      return out;
+    }
+    if ([key isEqualToString:@"keyTimes"]) return frames.keyTimes ?: (id)NSNull.null;
+    if ([key isEqualToString:@"calculationMode"]) {
+      return NameForCalculationMode(frames.calculationMode);
+    }
+    if ([key isEqualToString:@"rotationMode"]) {
+      return frames.rotationMode == nil ? (id)NSNull.null
+                                        : NameForRotationMode(frames.rotationMode);
+    }
+    if ([key isEqualToString:@"tensionValues"]) return frames.tensionValues ?: (id)NSNull.null;
+    if ([key isEqualToString:@"continuityValues"]) {
+      return frames.continuityValues ?: (id)NSNull.null;
+    }
+    if ([key isEqualToString:@"biasValues"]) return frames.biasValues ?: (id)NSNull.null;
+  }
   if ([object isKindOfClass:CABasicAnimation.class]) {
     CABasicAnimation* basic = (CABasicAnimation*)object;
     if ([key isEqualToString:@"fromValue"]) return AnimValueToJSON(basic.fromValue);
@@ -154,6 +243,80 @@ id ReadAnimationProperty(id object, NSString* key) {
 }
 
 BOOL WriteAnimationProperty(id object, NSString* key, id value, std::string* error) {
+  // 子类在前
+  if ([object isKindOfClass:CASpringAnimation.class]) {
+    CASpringAnimation* spring = (CASpringAnimation*)object;
+    if ([key isEqualToString:@"mass"]) { spring.mass = [value doubleValue]; return YES; }
+    if ([key isEqualToString:@"stiffness"]) {
+      spring.stiffness = [value doubleValue];
+      return YES;
+    }
+    if ([key isEqualToString:@"damping"]) { spring.damping = [value doubleValue]; return YES; }
+    if ([key isEqualToString:@"initialVelocity"]) {
+      spring.initialVelocity = [value doubleValue];
+      return YES;
+    }
+    if ([key isEqualToString:@"allowsOverdamping"]) {
+      spring.allowsOverdamping = [value boolValue];
+      return YES;
+    }
+  }
+  if ([object isKindOfClass:CAKeyframeAnimation.class]) {
+    CAKeyframeAnimation* frames = (CAKeyframeAnimation*)object;
+    if ([key isEqualToString:@"values"]) {
+      NSArray* list = nil;
+      if (!AnimValuesFromJSON(frames, value, &list, error)) return YES;
+      frames.values = list;
+      return YES;
+    }
+    if ([key isEqualToString:@"keyTimes"]) {
+      NSArray* list = nil;
+      if (!NumberArrayOrNull(value, @"keyTimes", &list, error)) return YES;
+      frames.keyTimes = list;
+      return YES;
+    }
+    if ([key isEqualToString:@"tensionValues"]) {
+      NSArray* list = nil;
+      if (!NumberArrayOrNull(value, @"tensionValues", &list, error)) return YES;
+      frames.tensionValues = list;
+      return YES;
+    }
+    if ([key isEqualToString:@"continuityValues"]) {
+      NSArray* list = nil;
+      if (!NumberArrayOrNull(value, @"continuityValues", &list, error)) return YES;
+      frames.continuityValues = list;
+      return YES;
+    }
+    if ([key isEqualToString:@"biasValues"]) {
+      NSArray* list = nil;
+      if (!NumberArrayOrNull(value, @"biasValues", &list, error)) return YES;
+      frames.biasValues = list;
+      return YES;
+    }
+    if ([key isEqualToString:@"calculationMode"]) {
+      NSString* mode = CalculationModeFromName(value);
+      if (mode == nil) {
+        *error = EnumError(@"calculationMode", value, NamesForCalculationMode());
+        return YES;
+      }
+      frames.calculationMode = mode;
+      return YES;
+    }
+    if ([key isEqualToString:@"rotationMode"]) {
+      // null 是合法的，而且是默认值：不跟着路径转
+      if (value == nil || value == NSNull.null) {
+        frames.rotationMode = nil;
+        return YES;
+      }
+      NSString* mode = RotationModeFromName(value);
+      if (mode == nil) {
+        *error = EnumError(@"rotationMode", value, NamesForRotationMode());
+        return YES;
+      }
+      frames.rotationMode = mode;
+      return YES;
+    }
+  }
   if ([object isKindOfClass:CABasicAnimation.class]) {
     CABasicAnimation* basic = (CABasicAnimation*)object;
     // 三个分支写开不合并：check-api.sh 靠正则认 @"..." 这些名字，
@@ -251,6 +414,12 @@ nacre::NativeObjectRef ReadAnimationObjectProperty(id object, const std::string&
     return {(__bridge void*)[UIBezierPath bezierPathWithCGPath:(__bridge CGPathRef)value],
             "UIBezierPath"};
   }
+  if ([object isKindOfClass:CAKeyframeAnimation.class] && name == "path") {
+    CGPathRef cg = ((CAKeyframeAnimation*)object).path;
+    if (cg == NULL) return {nullptr, "UIBezierPath"};
+    // 和 CAShapeLayer.path 一样每次新建一个包装，所以 JS 侧也记了镜像
+    return {(__bridge void*)[UIBezierPath bezierPathWithCGPath:cg], "UIBezierPath"};
+  }
   if ([object isKindOfClass:CAAnimation.class] && name == "timingFunction") {
     CAMediaTimingFunction* fn = ((CAAnimation*)object).timingFunction;
     if (fn == nil) return {nullptr, "CAMediaTimingFunction"};
@@ -260,6 +429,12 @@ nacre::NativeObjectRef ReadAnimationObjectProperty(id object, const std::string&
 }
 
 void WriteAnimationObjectProperty(id object, const std::string& name, id value) {
+  if ([object isKindOfClass:CAKeyframeAnimation.class] && name == "path") {
+    // 取的是 CGPath。给了 path 之后 values 就不起作用了（头文件原话）
+    UIBezierPath* p = [value isKindOfClass:UIBezierPath.class] ? (UIBezierPath*)value : nil;
+    ((CAKeyframeAnimation*)object).path = p.CGPath;
+    return;
+  }
   if ([object isKindOfClass:CAAnimation.class] && name == "timingFunction") {
     ((CAAnimation*)object).timingFunction =
         [value isKindOfClass:CAMediaTimingFunction.class] ? value : nil;
@@ -276,6 +451,98 @@ void WriteAnimationObjectProperty(id object, const std::string& name, id value) 
   if (name == "fromValue") basic.fromValue = boxed;
   else if (name == "toValue") basic.toValue = boxed;
   else if (name == "byValue") basic.byValue = boxed;
+}
+
+void ReadAnimationObjectArray(id object, const std::string& name,
+                              std::vector<nacre::NativeObjectRef>& refs) {
+  if ([object isKindOfClass:CAKeyframeAnimation.class]) {
+    CAKeyframeAnimation* frames = (CAKeyframeAnimation*)object;
+    if (name == "values") {
+      NacreAnimValueKind kind;
+      if (!AnimValueKindForKeyPath(frames.keyPath, &kind)) return;
+      if (kind == NacreAnimValueColor) {
+        for (id item in frames.values) {
+          refs.push_back({(__bridge void*)[UIColor colorWithCGColor:(__bridge CGColorRef)item],
+                          "UIColor"});
+        }
+      } else if (kind == NacreAnimValuePath) {
+        for (id item in frames.values) {
+          refs.push_back({(__bridge void*)[UIBezierPath
+                              bezierPathWithCGPath:(__bridge CGPathRef)item],
+                          "UIBezierPath"});
+        }
+      }
+      return;
+    }
+    if (name == "timingFunctions") {
+      for (CAMediaTimingFunction* fn in frames.timingFunctions) {
+        refs.push_back({(__bridge void*)fn, "CAMediaTimingFunction"});
+      }
+      return;
+    }
+  }
+  if ([object isKindOfClass:CAAnimationGroup.class] && name == "animations") {
+    for (CAAnimation* a in ((CAAnimationGroup*)object).animations) {
+      refs.push_back({(__bridge void*)a, AnimationClassName(a)});
+    }
+  }
+}
+
+BOOL WriteAnimationObjectArray(id object, const std::string& name,
+                               const std::vector<void*>& values, std::string* error) {
+  if ([object isKindOfClass:CAKeyframeAnimation.class]) {
+    CAKeyframeAnimation* frames = (CAKeyframeAnimation*)object;
+    if (name == "values") {
+      NacreAnimValueKind kind;
+      if (!AnimValueKindForKeyPath(frames.keyPath, &kind)) {
+        *error = frames.keyPath == nil
+                     ? "set keyPath before values; the value's type depends on it"
+                     : "this keyPath cannot be animated";
+        return YES;
+      }
+      NSMutableArray* list = [NSMutableArray array];
+      for (void* ptr : values) {
+        id v = (__bridge id)ptr;
+        if (kind == NacreAnimValueColor && [v isKindOfClass:UIColor.class]) {
+          [list addObject:(__bridge id)((UIColor*)v).CGColor];
+        } else if (kind == NacreAnimValuePath && [v isKindOfClass:UIBezierPath.class]) {
+          [list addObject:(__bridge id)((UIBezierPath*)v).CGPath];
+        } else {
+          *error = "values does not fit this keyPath";
+          return YES;
+        }
+      }
+      frames.values = list;
+      return YES;
+    }
+    if (name == "timingFunctions") {
+      NSMutableArray* list = [NSMutableArray array];
+      for (void* ptr : values) {
+        id v = (__bridge id)ptr;
+        if (![v isKindOfClass:CAMediaTimingFunction.class]) {
+          *error = "timingFunctions needs an array of CAMediaTimingFunction";
+          return YES;
+        }
+        [list addObject:v];
+      }
+      frames.timingFunctions = list;
+      return YES;
+    }
+  }
+  if ([object isKindOfClass:CAAnimationGroup.class] && name == "animations") {
+    NSMutableArray* list = [NSMutableArray array];
+    for (void* ptr : values) {
+      id v = (__bridge id)ptr;
+      if (![v isKindOfClass:CAAnimation.class]) {
+        *error = "animations needs an array of CAAnimation";
+        return YES;
+      }
+      [list addObject:v];
+    }
+    ((CAAnimationGroup*)object).animations = list;
+    return YES;
+  }
+  return NO;
 }
 
 }  // namespace nacre_bridge

@@ -1352,7 +1352,7 @@
   // fromValue / toValue / byValue 该放什么类型**由 keyPath 决定**：
   // 'opacity' 要数字，'position' 要 CGPoint，'strokeColor' 要颜色，
   // 'path' 要 UIBezierPath。所以要**先设 keyPath**，否则赋值时抛。
-  defineNativeClass('CABasicAnimation', class CABasicAnimation extends CAPropertyAnimation {
+  const CABasicAnimation = defineNativeClass('CABasicAnimation', class CABasicAnimation extends CAPropertyAnimation {
     constructor() {
       super();
       constructNative(this, new.target, 'CABasicAnimation', []);
@@ -1414,6 +1414,187 @@
       if (object === null) return;
       if (object !== undefined) { nativeSetOwned(this, 'byValue', object); return; }
       nativeSet(this, 'byValue', animScalarIn(value, 'byValue'));
+    }
+  });
+
+  // 多个关键帧，或者沿一条路径走。
+  //
+  // values 和 CABasicAnimation 的 toValue 一样，类型由 keyPath 决定，
+  // 所以同样要**先设 keyPath**。给了 path 之后 values 就不起作用了。
+  defineNativeClass('CAKeyframeAnimation',
+                    class CAKeyframeAnimation extends CAPropertyAnimation {
+    constructor() {
+      super();
+      constructNative(this, new.target, 'CAKeyframeAnimation', []);
+    }
+    static animationWithKeyPath(keyPath) {
+      return nativeClassCall('CAKeyframeAnimation', 'animationWithKeyPath:', [keyPath]);
+    }
+
+    // 一串关键帧值。颜色和路径走对象数组通道，数字和结构体走标量通道——
+    // 和 toValue 一个分工：JS 看形状挑通道，原生按 keyPath 核类型
+    get values() {
+      const objects = nativeGetObjectArray(this, 'values');
+      if (objects.length > 0) return ownAll(this, 'values', objects).map(animObjectOut);
+      const list = nativeGet(this, 'values');
+      return list === null ? null : list.map(animScalarOut);
+    }
+    set values(value) {
+      if (value === null || value === undefined) {
+        nativeSet(this, 'values', null);
+        return;
+      }
+      const list = Array.from(value);
+      const first = list.length > 0 ? list[0] : undefined;
+      if (typeof first === 'string' || first instanceof UIColor ||
+          first instanceof UIBezierPath) {
+        const objects = [];
+        for (const item of list) {
+          const object = animObjectIn(item, 'values');
+          if (object === null || object === undefined) return;  // 不合法，警告过了
+          objects.push(object);
+        }
+        nativeSetObjectArray(this, 'values', objects);
+        ownAll(this, 'values', objects);
+        return;
+      }
+      nativeSet(this, 'values', list.map((item) => animScalarIn(item, 'values')));
+    }
+
+    // 沿着这条路径走。**给了它 values 就作废**（头文件原话）。
+    // 和 CAShapeLayer.path 一样：写进去的那个对象原样还回来
+    get path() {
+      const mine = ownedValue(this, 'path');
+      return mine === undefined ? nativeGetObject(this, 'path') : mine;
+    }
+    set path(value) { nativeSetOwned(this, 'path', value); }
+
+    // 每帧落在 0…1 的哪一处。null 是均匀分布
+    get keyTimes() { requireNative(this, 'keyTimes'); return nativeGet(this, 'keyTimes'); }
+    set keyTimes(value) { requireNative(this, 'keyTimes'); nativeSet(this, 'keyTimes', value); }
+    // 每**段**一条曲线，所以个数是 values.length - 1
+    get timingFunctions() {
+      return ownAll(this, 'timingFunctions', nativeGetObjectArray(this, 'timingFunctions'));
+    }
+    set timingFunctions(value) {
+      const list = Array.from(value || []);
+      nativeSetObjectArray(this, 'timingFunctions', list);
+      ownAll(this, 'timingFunctions', list);
+    }
+    // 'linear'（默认）/ 'discrete' / 'paced' / 'cubic' / 'cubicPaced'。
+    // paced 和 cubicPaced 会**忽略 keyTimes 和 timingFunctions**
+    get calculationMode() {
+      requireNative(this, 'calculationMode');
+      return nativeGet(this, 'calculationMode');
+    }
+    set calculationMode(value) {
+      requireNative(this, 'calculationMode');
+      nativeSet(this, 'calculationMode', value);
+    }
+    // 沿路径走时跟不跟着切线转。默认 null = 不转，**只在给了 path 时有意义**
+    get rotationMode() {
+      requireNative(this, 'rotationMode');
+      return nativeGet(this, 'rotationMode');
+    }
+    set rotationMode(value) {
+      requireNative(this, 'rotationMode');
+      nativeSet(this, 'rotationMode', value);
+    }
+    // 下面三个只有 cubic / cubicPaced 用得上（Kochanek-Bartels 样条），
+    // 每个值在 -1…1。没给的按 0 算，全不给就是 Catmull-Rom
+    get tensionValues() {
+      requireNative(this, 'tensionValues');
+      return nativeGet(this, 'tensionValues');
+    }
+    set tensionValues(value) {
+      requireNative(this, 'tensionValues');
+      nativeSet(this, 'tensionValues', value);
+    }
+    get continuityValues() {
+      requireNative(this, 'continuityValues');
+      return nativeGet(this, 'continuityValues');
+    }
+    set continuityValues(value) {
+      requireNative(this, 'continuityValues');
+      nativeSet(this, 'continuityValues', value);
+    }
+    get biasValues() { requireNative(this, 'biasValues'); return nativeGet(this, 'biasValues'); }
+    set biasValues(value) { requireNative(this, 'biasValues'); nativeSet(this, 'biasValues', value); }
+  });
+
+  // 弹簧。它是 CABasicAnimation 的子类，所以 fromValue / toValue 照用，
+  // 只是**走过去的方式**由四个物理参数决定，不由 duration 和曲线决定。
+  //
+  // iOS 17 的 initWithPerceptualDuration:bounce: 还没做：构造通道只传
+  // 对象句柄，传不了标量。perceptualDuration 和 bounce 读得出来，
+  // 是系统按当前参数反算的。
+  defineNativeClass('CASpringAnimation', class CASpringAnimation extends CABasicAnimation {
+    constructor() {
+      super();
+      constructNative(this, new.target, 'CASpringAnimation', []);
+    }
+    static animationWithKeyPath(keyPath) {
+      return nativeClassCall('CASpringAnimation', 'animationWithKeyPath:', [keyPath]);
+    }
+
+    // 挂在弹簧末端的质量，要大于 0。默认 1。越大越沉、晃得越久
+    get mass() { requireNative(this, 'mass'); return nativeGet(this, 'mass'); }
+    set mass(value) { requireNative(this, 'mass'); nativeSet(this, 'mass', value); }
+    // 劲度系数，要大于 0。默认 100。越大越快
+    get stiffness() { requireNative(this, 'stiffness'); return nativeGet(this, 'stiffness'); }
+    set stiffness(value) { requireNative(this, 'stiffness'); nativeSet(this, 'stiffness', value); }
+    // 阻尼，要 >= 0。默认 10。越大越不晃，够大就直接停住不回弹
+    get damping() { requireNative(this, 'damping'); return nativeGet(this, 'damping'); }
+    set damping(value) { requireNative(this, 'damping'); nativeSet(this, 'damping', value); }
+    // 初速度。默认 0 = 静止。正值朝着终点冲，负值反着来
+    get initialVelocity() {
+      requireNative(this, 'initialVelocity');
+      return nativeGet(this, 'initialVelocity');
+    }
+    set initialVelocity(value) {
+      requireNative(this, 'initialVelocity');
+      nativeSet(this, 'initialVelocity', value);
+    }
+    // 允不允许真正的过阻尼。默认 false，那时过阻尼被当成临界阻尼
+    get allowsOverdamping() {
+      requireNative(this, 'allowsOverdamping');
+      return nativeGet(this, 'allowsOverdamping');
+    }
+    set allowsOverdamping(value) {
+      requireNative(this, 'allowsOverdamping');
+      nativeSet(this, 'allowsOverdamping', value);
+    }
+
+    // 下面三个只读，系统按当前四个参数算出来的。
+    // **duration 对弹簧不起作用**，要知道多久停下来看 settlingDuration
+    get settlingDuration() {
+      requireNative(this, 'settlingDuration');
+      return nativeGet(this, 'settlingDuration');
+    }
+    get perceptualDuration() {
+      requireNative(this, 'perceptualDuration');
+      return nativeGet(this, 'perceptualDuration');
+    }
+    get bounce() { requireNative(this, 'bounce'); return nativeGet(this, 'bounce'); }
+  });
+
+  // 一组动画一起跑。组自己的 duration / repeatCount 管整组，
+  // 成员的时间都落在组的时间轴里。
+  defineNativeClass('CAAnimationGroup', class CAAnimationGroup extends CAAnimation {
+    constructor() {
+      super();
+      constructNative(this, new.target, 'CAAnimationGroup', []);
+    }
+
+    // 原生侧 group 持有这些动画，JS 侧也要有对应的一条边，
+    // 否则 JS 丢掉引用后包装会被 GC，再读回来挂的监听器就没了
+    get animations() {
+      return ownAll(this, 'animations', nativeGetObjectArray(this, 'animations'));
+    }
+    set animations(value) {
+      const list = Array.from(value || []);
+      nativeSetObjectArray(this, 'animations', list);
+      ownAll(this, 'animations', list);
     }
   });
 

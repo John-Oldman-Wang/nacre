@@ -314,6 +314,9 @@ NACRE_STRING_ENUM_DECL(LineJoin)
 // 但宏一并生成，少一个特例比省一个函数值
 NACRE_STRING_ENUM_DECL(FillMode)
 NACRE_STRING_ENUM_DECL(TimingFunctionName)
+// 关键帧：插值方式，以及沿路径走时转不转向
+NACRE_STRING_ENUM_DECL(CalculationMode)
+NACRE_STRING_ENUM_DECL(RotationMode)
 BOOL IsAnimationEventName(NSString* name);
 NSString* NamesForAnimationEvent(void);
 
@@ -410,6 +413,10 @@ id ReadAnimationProperty(id object, NSString* key);
 BOOL WriteAnimationProperty(id object, NSString* key, id value, std::string* error);
 nacre::NativeObjectRef ReadAnimationObjectProperty(id object, const std::string& name);
 void WriteAnimationObjectProperty(id object, const std::string& name, id value);
+void ReadAnimationObjectArray(id object, const std::string& name,
+                              std::vector<nacre::NativeObjectRef>& refs);
+BOOL WriteAnimationObjectArray(id object, const std::string& name,
+                               const std::vector<void*>& values, std::string* error);
 const char* AnimationClassName(CAAnimation* anim);
 
 id ReadScrollProperty(id object, NSString* key);

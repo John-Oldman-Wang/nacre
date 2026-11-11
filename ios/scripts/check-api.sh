@@ -242,7 +242,9 @@ for tsname, macro in [('CALayerCornerCurve', 'CornerCurve'),
                       ('CAShapeLayerLineCap', 'LineCap'),
                       ('CAShapeLayerLineJoin', 'LineJoin'),
                       ('CAMediaTimingFillMode', 'FillMode'),
-                      ('CAMediaTimingFunctionName', 'TimingFunctionName')]:
+                      ('CAMediaTimingFunctionName', 'TimingFunctionName'),
+                      ('CAAnimationCalculationMode', 'CalculationMode'),
+                      ('CAAnimationRotationMode', 'RotationMode')]:
     compare(tsname,
             extract(f'原生层的 {macro} 字符串枚举表',
                     rf'NACRE_STRING_ENUM_MAP\({macro},(.*?)\)\n\n', mm,

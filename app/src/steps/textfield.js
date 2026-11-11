@@ -141,16 +141,54 @@ export function stepTextField(ctx) {
   field.keyboardType = 'default';
   field.returnKeyType = 'done';
 
-  setTimeout(() => {
-    // 真实点击之前，程序性地 become 一次，验这条路通不通
+  // 真实点击之前，程序性地 become 一次，验这条路通不通。
+  //
+  // **这一段一个写死的延迟都没有**，全是「等一个能观察到的条件，到点没等到
+  // 就报未验证」。时机这件事在这里被咬过三次，三种写法的实测结果记下来：
+  //
+  //   setTimeout(900)  原来的写法，没写为什么要等。会落进 stepModal 的转场
+  //                    中间，那时 UIKit **拒绝**交出 first responder（返回
+  //                    false，是它的正常行为不是 bug）
+  //   同步调            become 成功、isEditing 为真，但 **editingDidBegin
+  //                    这个控件事件不发**。太早了
+  //   等模态散场 + 固定 400ms  前两条都躲开了，但主线程被别的段堵了 2.7 秒，
+  //                    endEditing 之后那条又没等到状态落定
+  //
+  // 共同的病根是一样的：**在一个忙碌的主线程上赌固定时长**。
+  // 真正该用的信号是「页面出现了」（viewDidAppear:），那是覆写点，要 M2。
+
+  // 等一个条件成立。每 100ms 看一次，到点没等到就报未验证——
+  // 不假装通过也不假装失败，和文件那条大写入一个规矩
+  /**
+   * @param {string} what
+   * @param {() => boolean} ready
+   * @param {() => void} then
+   */
+  function waitUntil(what, ready, then) {
+    const deadline = Date.now() + 6000;
+    const tick = () => {
+      if (ready()) { then(); return; }
+      if (Date.now() >= deadline) {
+        console.log('  ! 6 秒内没等到「' + what + '」，这一组未验证');
+        return;
+      }
+      setTimeout(tick, 100);
+    };
+    setTimeout(tick, 0);
+  }
+
+  // 转场中途 UIKit 会拒绝交出 first responder，所以先等模态散场
+  waitUntil('模态散场', () => vc.presentedViewController === null, () => {
     const became = field.becomeFirstResponder();
     assert('becomeFirstResponder 成功', became, true);
     assert('成了 first responder', field.isFirstResponder, true);
     assert('isEditing 跟着为真', field.isEditing, true);
-    setTimeout(() => {
+
+    // 控件事件延后一轮派发，而且主线程可能正忙，所以等它到达而不是等固定时长
+    waitUntil('editingDidBegin', () => log.includes('editingDidBegin'), () => {
+      assert('收到了 editingDidBegin', log.includes('editingDidBegin'), true);
       // 模拟器连着硬件键盘时**软键盘根本不弹**，guide 不会动。那不是 bug，
-      // 所以先确认键盘真的出现了，没出现就报未验证——和所有权镜像那条
-      // 对照组一个规矩：前提没成立时不假装通过，也不假装失败
+      // 所以先确认键盘真的出现了，没出现就报未验证
       const guideHeight = guide.layoutFrame.height;
       if (guideHeight > 40) {
         assert('键盘弹出之后 card 被顶上去了',
@@ -159,15 +197,15 @@ export function stepTextField(ctx) {
         console.log('  ! 软键盘没弹出来（guide 高 ' + guideHeight +
                     '），多半是模拟器连着硬件键盘，这一条未验证');
       }
-      assert('收到了 editingDidBegin', log.includes('editingDidBegin'), true);
+
       vc.view.endEditing(true);
-      setTimeout(() => {
+      waitUntil('交出 first responder', () => !field.isFirstResponder, () => {
         assert('endEditing 之后不再是 first responder', field.isFirstResponder, false);
         assert('收到了 editingDidEnd', log.includes('editingDidEnd'), true);
         console.log('  ✓ 屏幕底部有一个输入框：点它弹键盘、框会被顶上去、回车收起');
         console.log('  ✓ 配了 textContentType = username，键盘上方应出现钥匙串建议栏（肉眼看）');
         console.log('--- 输入框：以上异步断言跑完 ---');
-      }, 400);
-    }, 400);
-  }, 900);
+      });
+    });
+  });
 }

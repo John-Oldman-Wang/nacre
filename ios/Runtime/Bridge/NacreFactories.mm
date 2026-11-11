@@ -200,11 +200,21 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
   }
 
   // 动画。keyPath 在这里就查表，错了当场报，不用等到设 toValue
-  if (className == "CABasicAnimation" && [sel isEqualToString:@"animationWithKeyPath:"]) {
+  if ([sel isEqualToString:@"animationWithKeyPath:"] &&
+      (className == "CABasicAnimation" || className == "CAKeyframeAnimation" ||
+       className == "CASpringAnimation")) {
     NacreAnimValueKind kind;
     if (!AnimValueKindForKeyPath(arg(0), &kind)) {
       *error = EnumError(@"keyPath", arg(0), NamesForAnimationKeyPath());
       return {};
+    }
+    if (className == "CAKeyframeAnimation") {
+      return {(__bridge void*)[CAKeyframeAnimation animationWithKeyPath:arg(0)],
+              "CAKeyframeAnimation"};
+    }
+    if (className == "CASpringAnimation") {
+      return {(__bridge void*)[CASpringAnimation animationWithKeyPath:arg(0)],
+              "CASpringAnimation"};
     }
     return {(__bridge void*)[CABasicAnimation animationWithKeyPath:arg(0)],
             "CABasicAnimation"};
@@ -331,6 +341,12 @@ nacre::NativeObjectRef ConstructNative(const std::string& className,
     object = [UIBezierPath bezierPath];
   } else if (className == "CABasicAnimation") {
     object = [CABasicAnimation animation];
+  } else if (className == "CAKeyframeAnimation") {
+    object = [CAKeyframeAnimation animation];
+  } else if (className == "CASpringAnimation") {
+    object = [CASpringAnimation animation];
+  } else if (className == "CAAnimationGroup") {
+    object = [CAAnimationGroup animation];
   }
   if (object == nil) return {};
   return {(void*)CFAutorelease(CFBridgingRetain(object)), className};

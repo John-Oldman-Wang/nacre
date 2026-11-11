@@ -24,6 +24,24 @@ NACRE_STRING_ENUM_MAP(TimingFunctionName,
                       @[ @"easeInEaseOut", kCAMediaTimingFunctionEaseInEaseOut ],
                       @[ @"default", kCAMediaTimingFunctionDefault ])
 
+// 关键帧之间怎么插值。
+//
+// paced 和 cubicPaced 会**忽略 keyTimes 和 timingFunctions**，自己按
+// 路程均匀分配——沿路径走位要匀速就用它。discrete 是不插值，到点直接跳。
+NACRE_STRING_ENUM_MAP(CalculationMode,
+                      @[ @"linear", kCAAnimationLinear ],
+                      @[ @"discrete", kCAAnimationDiscrete ],
+                      @[ @"paced", kCAAnimationPaced ],
+                      @[ @"cubic", kCAAnimationCubic ],
+                      @[ @"cubicPaced", kCAAnimationCubicPaced ])
+
+// 沿路径走的时候要不要跟着路径的切线转。
+// **只在给了 path 时有意义**（头文件原话：没有 path 时设非 nil 的效果未定义）。
+// autoReverse 是切线方向再转 180°。
+NACRE_STRING_ENUM_MAP(RotationMode,
+                      @[ @"auto", kCAAnimationRotateAuto ],
+                      @[ @"autoReverse", kCAAnimationRotateAutoReverse ])
+
 // 动画自己的两个事件。来自 CAAnimationDelegate，走 trampoline，不需要 M2。
 static NSArray<NSString*>* AnimationEventNamesList(void) {
   static NSArray<NSString*>* names;

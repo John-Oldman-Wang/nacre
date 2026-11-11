@@ -156,3 +156,87 @@ declare class CATransaction {
   static animationTimingFunction(): CAMediaTimingFunction | null;
   static setAnimationTimingFunction(value: CAMediaTimingFunction | null): void;
 }
+
+/**
+ * 多个关键帧，或者沿一条路径走。
+ *
+ * ```js
+ * const walk = CAKeyframeAnimation.animationWithKeyPath('position');
+ * walk.path = trail;                 // 一条 UIBezierPath
+ * walk.rotationMode = 'auto';        // 跟着切线转
+ * walk.calculationMode = 'paced';    // 匀速
+ * walk.duration = 3;
+ * dot.addAnimation(walk, { forKey: 'walk' });
+ * ```
+ *
+ * `values` 和 `CABasicAnimation.toValue` 一样，类型由 `keyPath` 决定，
+ * 所以同样**要先设 `keyPath`**。
+ */
+declare class CAKeyframeAnimation extends CAPropertyAnimation {
+  constructor();
+  static animationWithKeyPath(keyPath: CAAnimationKeyPath): CAKeyframeAnimation;
+
+  /** 一串关键帧值。具体要哪一种由 `keyPath` 决定。 */
+  get values(): CAAnimationValue[] | null;
+  set values(value: CAAnimationValueInput[] | null);
+  /**
+   * 沿着这条路径走。**给了它 `values` 就作废**。
+   *
+   * 和 `CAShapeLayer.path` 一样：写进去的那个对象原样还回来，存的是副本。
+   */
+  get path(): UIBezierPath | null;
+  set path(value: UIBezierPath | null);
+  /** 每帧落在 0…1 的哪一处，个数要和 `values` 对上。`null` 是均匀分布。 */
+  keyTimes: number[] | null;
+  /** 每**段**一条曲线，所以个数是 `values.length - 1`。 */
+  timingFunctions: CAMediaTimingFunction[];
+  /** 默认 `'linear'`。 */
+  calculationMode: CAAnimationCalculationMode;
+  /** 默认 `null` = 不转。只在给了 `path` 时有意义。 */
+  rotationMode: CAAnimationRotationMode | null;
+  /** 只有 `cubic` / `cubicPaced` 用得上，每个值在 -1…1。全不给就是 Catmull-Rom。 */
+  tensionValues: number[] | null;
+  continuityValues: number[] | null;
+  biasValues: number[] | null;
+}
+
+/**
+ * 弹簧。`CABasicAnimation` 的子类，所以 `fromValue` / `toValue` 照用，
+ * 只是**走过去的方式**由四个物理参数决定。
+ *
+ * **`duration` 对它不起作用**——要知道多久停下来看 `settlingDuration`。
+ *
+ * iOS 17 的 `initWithPerceptualDuration:bounce:` 还没做：构造通道只传对象
+ * 句柄，传不了标量。`perceptualDuration` 和 `bounce` 读得出来，是系统按
+ * 当前参数反算的。
+ */
+declare class CASpringAnimation extends CABasicAnimation {
+  constructor();
+  static animationWithKeyPath(keyPath: CAAnimationKeyPath): CASpringAnimation;
+
+  /** 挂在弹簧末端的质量，要大于 0。默认 1。越大越沉、晃得越久。 */
+  mass: number;
+  /** 劲度系数，要大于 0。默认 100。越大越快。 */
+  stiffness: number;
+  /** 阻尼，要 >= 0。默认 10。越大越不晃，够大就不回弹。 */
+  damping: number;
+  /** 初速度。默认 0 = 静止。正值朝终点冲，负值反着来。 */
+  initialVelocity: number;
+  /** 允不允许真正的过阻尼。默认 `false`，那时过阻尼被当成临界阻尼。 */
+  allowsOverdamping: boolean;
+
+  /** 系统按当前参数估的「晃到停」要多久。 */
+  readonly settlingDuration: number;
+  readonly perceptualDuration: number;
+  /** 0 是不回弹（临界阻尼），正值越大越弹，负值是过阻尼。 */
+  readonly bounce: number;
+}
+
+/**
+ * 一组动画一起跑。组自己的 `duration` / `repeatCount` 管整组，成员的时间
+ * 都落在组的时间轴里。
+ */
+declare class CAAnimationGroup extends CAAnimation {
+  constructor();
+  animations: CAAnimation[];
+}

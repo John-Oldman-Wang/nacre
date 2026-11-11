@@ -102,6 +102,55 @@ TypeError: set keyPath before toValue; the value's type depends on it
 
 这和枚举、哨兵常量（`spacing = 'system'`）是同一个套路：**JSON 表达不了的东西用字符串过桥，两边各自还原**。区别是那两个的字符串是 API 的一部分，这个纯粹是桥的实现细节，JS 开发者看不见。
 
+## A6-2：关键帧、动画组、弹簧
+
+### `values` 复用了 `toValue` 的分工，没有新机制
+
+A6-1 把「值的类型由 keyPath 决定」这件事定在了原生层，`values` 直接套用：JS 按**第一个元素的形状**挑通道（颜色和路径走对象数组，数字和结构体走标量数组），原生**逐个**按 keyPath 核。
+
+按首元素挑是安全的，因为一条动画的所有关键帧必须配同一个 keyPath，混着放本来就没意义——而且真混了原生会在第二个元素上报错。
+
+**`locations` / `colors` 的动画仍然做不了**，那是另一件事：`toValue` 本身是个数组，需要再加一种「数组 of X」的取值类型。`CAKeyframeAnimation.values` 是「一串单值」，不是「一个数组值」。
+
+### `path` 又是一次 CGPath 往返
+
+和 `CAShapeLayer.path` 同一个形状：写进去取 `.CGPath`，读回来 `bezierPathWithCGPath:` 每次新建，所以 JS 侧记镜像。第二次用同一招，说明这不是特例而是模式——**凡是 `CGPathRef` / `CGColorRef` 这类非 ObjC 对象的属性，身份都得靠上层兜**。
+
+### `AnimationClassName` 的顺序
+
+加了三个类之后这个函数的顺序开始要紧了：`CASpringAnimation` 是 `CABasicAnimation` 的子类，必须排在前面。和 `LayerClassName` 同一条坑——包装表按指针缓存，第一次包成基类之后就一直是基类。
+
+### 弹簧不看 duration
+
+实测默认弹簧（mass 1、stiffness 100、damping 10）：
+
+| | |
+| --- | --- |
+| `settlingDuration` | 1.473 s |
+| `bounce` | 0.500 |
+| `perceptualDuration` | 0.628 s |
+| damping 10 → 40 之后 | `settlingDuration` 1.473 → 1.000 |
+
+`duration` 对它不起作用，改物理参数才改得动什么时候停。三个只读属性都是系统按当前参数现算的。
+
+`initWithPerceptualDuration:bounce:` **没做**：构造通道只传对象句柄，传不了标量。这是第二次撞上（第一次是 `CAMediaTimingFunction`），所以该给 `construct_native` 加一条 argsJSON——那是第三条通用的引擎通道，单独一步。
+
+### 顺带咬出来的：验收用例里最后一个写死的延迟
+
+A6-2 多出来的工作量把一条**早就存在的竞态**挤翻了面：`app/src/steps/textfield.js` 里那个 `setTimeout(900)` 之后的 `becomeFirstResponder()` 开始失败。
+
+三种写法都试过，实测结果值得记下来——它们是「在忙碌的主线程上赌固定时长」的三种不同死法：
+
+| 写法 | 结果 |
+| --- | --- |
+| `setTimeout(900)` | 落进 `stepModal` 的转场中间，UIKit **拒绝**交出 first responder（返回 `false`，正常行为不是 bug） |
+| 同步调 | become 成功、`isEditing` 为真，但 **`editingDidBegin` 这个控件事件不发**。太早了 |
+| 等模态散场 + 固定 400 ms | 前两条都躲开了，但主线程被别的段堵了 **2678 ms**，`endEditing` 之后那条没等到状态落定 |
+
+最后改成**一个写死的延迟都没有**：三处全是「等一个能观察到的条件，6 秒没等到报未验证」。
+
+根子不在验收用例：**运行时还没有「页面出现了」这个事件**（`viewDidAppear:` 是覆写点，要 M2），JS 表达不了那个时机，只能观察别的条件去逼近它。这条已经补进 `project.md` 的 C1。
+
 ## 实测
 
 （这一节的数字由验收用例打出来，见 `app/src/steps/animation.js`。）

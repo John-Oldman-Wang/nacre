@@ -576,6 +576,7 @@ Commit message 格式：
 | — | A5-1 子图层和渐变 | CALayer 可构造、几何、层级、CAGradientLayer | 已在模拟器验证通过：48 条断言全过，屏幕上一张渐变卡片；实测 view.layer 的 contentsScale 也是 1 |
 | — | A5-2 路径和形状图层 | UIBezierPath、CAShapeLayer、三个字符串枚举、UIRectCorner 位掩码 | 已在模拟器验证通过：788 条断言全过，屏幕上一条折线和一个扇形；path 的身份靠 JS 侧镜像，写进去的对象原样还回来 |
 | — | A6-1 动画核心（CABasicAnimation、时间曲线、CATransaction、动画事件） | keyPath 定取值类型、两条新引擎通道、动画 trampoline | 已在模拟器验证通过：850 条断言全过，折线画出来、圆点脉动；顺带把「隐式动画」那条未验证钉死了——是真的，但要等图层渲染过一轮 |
+| — | A6-2 关键帧、动画组、弹簧 | CAKeyframeAnimation、CAAnimationGroup、CASpringAnimation、values 的数组取值 | 已在模拟器验证通过：897 条断言全过，圆点沿路径走并转向、色块跳色、方块弹进来；顺带把验收用例里最后一个写死的延迟换成了等条件 |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |
@@ -895,6 +896,8 @@ JS 侧的属性是一个个显式定义的取值器，名字不认识的赋值�
 - **被模态呈现的 `UINavigationController` 收不到关闭事件**——它的分支只认导航事件，`willdismiss` 那三条过不去
 
 两个都是同一个根因。改法是先按事件名查一张总表，再决定交给哪个 trampoline。做 5c 时撞出来的。
+
+**TODO：`check-api.sh` 不核对「对象数组」那条通道。** 它只比标量读写和对象读写两栏，所以 `colors`、`sublayers`、`viewControllers`、`values`、`timingFunctions`、`animations` 这些**三边都没人盯着**——原生层删一个、JS 侧漏一个，脚本一声不吭。这是早就存在的缺口（`sublayers` 那会儿就有了），做 A6-2 时又宽了三条。补法和已有的两栏一样：从 `ReadXxxObjectArray` / `WriteXxxObjectArray` 里按正则收名字，和 `nativeGetObjectArray` / `nativeSetObjectArray` 的调用点以及 d.ts 对。
 
 **TODO：内存警告没转给 V8。** `UIApplicationDidReceiveMemoryWarningNotification` 现在只转成 JS 的 `memorywarning` 事件（`NacreRuntime.mm`），而 `Isolate::MemoryPressureNotification(MemoryPressureLevel)` **全仓库零调用**。也就是说系统喊内存不够时 V8 完全不知情，不会因此收一次内存——我们现在只有 `kCFRunLoopBeforeWaiting` 那条空闲增量 GC。Chrome 在这个信号上是会通知 V8 的。改动很小（一行转发），但 `kModerate` / `kCritical` 怎么映射要定一下，所以算新增能力，要走一遍 SOP。不要紧，排在后面。
 

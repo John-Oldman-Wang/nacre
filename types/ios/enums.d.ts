@@ -114,6 +114,22 @@ type CAMediaTimingFunctionName =
 type CAAnimationEventType = 'start' | 'stop';
 
 /**
+ * 关键帧之间怎么插值。
+ *
+ * `paced` 和 `cubicPaced` 会**忽略 `keyTimes` 和 `timingFunctions`**，
+ * 自己按路程均匀分配——沿路径匀速走位用它。`discrete` 是不插值，到点直接跳。
+ */
+type CAAnimationCalculationMode =
+  | 'linear' | 'discrete' | 'paced' | 'cubic' | 'cubicPaced';
+
+/**
+ * 沿路径走的时候要不要跟着切线转。`autoReverse` 是切线方向再转 180°。
+ *
+ * **只在给了 `path` 时有意义**——头文件原话：没有 `path` 时设非 `null` 的效果未定义。
+ */
+type CAAnimationRotationMode = 'auto' | 'autoReverse';
+
+/**
  * 能动画的属性。写别的名字会当场抛。
  *
  * **没有 `frame`**：它在 Core Animation 里是从 `position` / `bounds` 推

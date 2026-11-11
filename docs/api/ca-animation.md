@@ -138,6 +138,90 @@ layer.removeAllAnimations();
 
 同一个 `forKey` 只能有一个动画，再加会顶掉前一个。
 
+## `CAKeyframeAnimation`：多个关键帧
+
+```js
+const flash = CAKeyframeAnimation.animationWithKeyPath('fillColor');
+flash.values = ['systemRed', '#FFCC00', 'systemGreen'];
+flash.keyTimes = [0, 0.4, 1];
+flash.calculationMode = 'discrete';    // 到点直接换，不渐变
+flash.duration = 1.8;
+chip.addAnimation(flash, { forKey: 'flash' });
+```
+
+`values` 的类型和 `toValue` 一样**由 `keyPath` 决定**，所以同样要先设 `keyPath`。
+
+| 属性 | 说明 |
+| --- | --- |
+| `values` | 一串关键帧值 |
+| `keyTimes` | 每帧落在 0…1 的哪一处，个数要和 `values` 对上。`null` 是均匀分布 |
+| `timingFunctions` | 每**段**一条曲线，所以个数是 `values.length - 1` |
+| `calculationMode` | 见下 |
+| `tensionValues` / `continuityValues` / `biasValues` | 只有 `cubic` 那两档用得上 |
+
+### `calculationMode`
+
+| | |
+| --- | --- |
+| `'linear'`（默认） | 线性插值 |
+| `'discrete'` | **不插值**，到点直接跳。做「闪三下」「换三个颜色」用它 |
+| `'paced'` | 按路程均匀分配，**忽略 `keyTimes` 和 `timingFunctions`** |
+| `'cubic'` | 三次样条，可以用那三个 tension / continuity / bias 调 |
+| `'cubicPaced'` | 三次 + 匀速，同样忽略 `keyTimes` |
+
+### 沿路径走
+
+```js
+const walk = CAKeyframeAnimation.animationWithKeyPath('position');
+walk.path = trail;                 // 一条 UIBezierPath
+walk.rotationMode = 'auto';        // 跟着切线转
+walk.calculationMode = 'paced';    // 匀速
+walk.duration = 2.4;
+dot.addAnimation(walk, { forKey: 'walk' });
+```
+
+**给了 `path`，`values` 就作废**（Apple 的头文件原话）。路径上除 `moveToPoint` 之外的每个点算一个关键帧。
+
+`rotationMode` 默认 `null` = 不转；`'auto'` 跟着切线，`'autoReverse'` 是切线再转 180°。**只在给了 `path` 时有意义**——没有 `path` 时设非 `null` 的效果头文件写明是未定义的。
+
+`path` 和 `CAShapeLayer.path` 一样：写进去的那个对象原样还回来，但原生存的是副本。
+
+## `CASpringAnimation`：弹簧
+
+```js
+const bounceIn = CASpringAnimation.animationWithKeyPath('position');
+bounceIn.fromValue = new CGPoint(x, -40);
+bounceIn.toValue = box.layer.position;
+bounceIn.stiffness = 120;
+bounceIn.damping = 8;
+box.layer.addAnimation(bounceIn, { forKey: 'bounce' });
+```
+
+它是 `CABasicAnimation` 的子类，所以 `fromValue` / `toValue` 照用。区别是**走过去的方式由四个物理参数决定**：
+
+| 属性 | 默认 | 说明 |
+| --- | --- | --- |
+| `mass` | `1` | 质量，要大于 0。越大越沉、晃得越久 |
+| `stiffness` | `100` | 劲度，要大于 0。越大越快 |
+| `damping` | `10` | 阻尼，要 ≥ 0。越大越不晃，够大就不回弹 |
+| `initialVelocity` | `0` | 初速度。正值朝终点冲，负值反着来 |
+| `allowsOverdamping` | `false` | 不开的话，过阻尼被当成临界阻尼 |
+
+**`duration` 对弹簧不起作用。** 要知道多久停下来，读 `settlingDuration`（只读，系统按当前参数估的）。另外两个只读的 `perceptualDuration` 和 `bounce` 同理。
+
+> iOS 17 的 `initWithPerceptualDuration:bounce:` **还没做**：构造通道只传对象句柄，传不了标量。那两个属性照样读得出来，是系统反算的。
+
+## `CAAnimationGroup`：一组一起跑
+
+```js
+const together = new CAAnimationGroup();
+together.animations = [radius, dim];
+together.duration = 1.2;
+box.layer.addAnimation(together, { forKey: 'together' });
+```
+
+组自己的 `duration` / `repeatCount` 管整组，成员的时间都落在组的时间轴里。
+
 ## 隐式动画和 `CATransaction`
 
 **独立子图层改属性，默认就在动画。** 不是只有显式动画才动——Core Animation 给每个可动画属性准备了一个默认 action，在 UIKit 的动画块外面改就会生成一个 0.25 秒的过渡。
@@ -222,13 +306,11 @@ CATransaction.commit();
 
 | | |
 | --- | --- |
-| `CAKeyframeAnimation` | 多个关键帧、沿路径走 |
-| `CAAnimationGroup` | 一组动画一起跑 |
-| `CASpringAnimation` | 弹簧 |
 | `CATransition` | 转场 |
 | `CADisplayLink` | 和屏幕刷新同步的回调。它不是动画对象，是另一套机制 |
 | `UIView.animateWithDuration:` | animations 是**同步执行的 block**，要 M1b |
-| `locations` / `colors` 的动画 | 要再加一种「数组 of X」的取值 |
+| `locations` / `colors` 的动画 | 要再加一种「数组 of X」的取值。注意这和 `CAKeyframeAnimation.values` 是两件事 |
+| `CASpringAnimation` 的感知时长初始化器 | `initWithPerceptualDuration:bounce:`，构造通道传不了标量 |
 | `additive` / `cumulative` / `valueFunction` | |
 | `preferredFrameRateRange` | 要新结构体 `CAFrameRateRange` |
 | `CATransaction.completionBlock` | 它该不该做成 Promise 要单独定 |
