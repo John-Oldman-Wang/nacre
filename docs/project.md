@@ -594,7 +594,7 @@ Commit message 格式：
 | — | `check-api.sh` 核对所有权边 | 原生层的取参助手当真相，JS 侧必须记边或登记白名单 | 已验证：四类弄坏法各报一条，白名单失配也报 |
 | — | 颜色全面字符串化（缺口清单 A3） | 解析在 JS、spec 过桥、池化、声明表 | 已在模拟器验证通过：646 条断言全过 |
 | 7a | 本地存储：`application.storage` | NSUserDefaults、plist 值校验、change 通知 | 已在模拟器验证通过：557 条断言全过，启动计数器跨进程验到落盘 |
-| 7b | 文件读写：`application.fileSystem` | 后台队列、四种兑现、错误借 DOMException 的名字 | 已在模拟器验证通过：589 条断言全过，跨进程和「不卡主线程」都验到 |
+| 7b | 文件读写：`application.fileSystem` | 后台队列、四种兑现、错误借 DOMException 的名字 | 已在模拟器验证通过：589 条断言全过，跨进程验到；「不卡主线程」那条只单边有效，赌不赢时报未验证 |
 | 7c | Keychain：`application.keychain` | SecItem、五个访问级别、默认不迁移新设备 | 已在模拟器验证通过：588 条断言全过，三种持久化各自跨进程验到 |
 | 8 | 列表 | UICollectionView、DataSource（同步回调） | 待讨论 |
 | 9a | 输入框和键盘（含 4c first responder） | UITextField、48 个 textContentType、keyboardLayoutGuide | 已在模拟器验证通过：644 条断言全过，**不卡 M1b** |

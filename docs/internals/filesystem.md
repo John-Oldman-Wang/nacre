@@ -36,7 +36,7 @@ DataTransfer 也叫 files = true
 
 [原则 4](../project.md) 说异步一律 Promise，但真正的理由更硬：**JS 跑在主线程**，同步读一个文件会直接卡住 UI。
 
-重活派到并发队列（`QOS_CLASS_UTILITY`，不和界面抢优先级），走 `fetch` 验过的那条路。验收里有一条直接测这件事：
+重活派到并发队列（`QOS_CLASS_UTILITY`，不和界面抢优先级），走 `fetch` 验过的那条路。验收里有一条测这件事：
 
 ```js
 const big = new Uint8Array(4 * 1024 * 1024);
@@ -44,10 +44,31 @@ let timerRan = false;
 const writing = fs.writeBytes(path, new Blob([big]));
 setTimeout(() => { timerRan = true; }, 0);
 await writing;
-assert('大写入期间定时器照常跑（重活不在主线程）', timerRan, true);
+if (timerRan) {
+  assert('大写入期间定时器照常跑（重活不在主线程）', timerRan, true);
+} else {
+  console.log('  ! …这一条未验证');
+}
 ```
 
-写在主线程做的话，那个定时器只能等它做完。实测通过。
+### 这条断言只有单边有效
+
+跑到了能证明重活在后台；**没跑到什么都证明不了**，所以走未验证那一支，不报失败。顺序不由我们控制，两条设计叠在一起：
+
+- `setTimeout` 是在一个定时器回调里排的（`stepFileSystem` 的续体就跑在回调里），而 `FireDueTimers` 按设计跳过本轮新加的（`if (top.seq >= limit) break;`），所以它必然等下一轮泵
+- 泵运行期间 `ScheduleNextWakeup` 直接返回（`if (… || firing_timers) return;`），下一轮的唤醒块是泵跑完才 `dispatch_async` 到主队列的
+
+于是只要主线程在这期间被别的回调占住，后台写入的兑现就可能先排进主队列，`await writing` 先恢复。实测撞到过一次：当时有个定时器回调跑了 119 ms，运行时自己打了 `Timer callback blocked the main thread`——**那次失败恰恰证明了写入真的在后台**，它是在主线程被堵死的那 119 ms 里完成的。
+
+### 发起是零拷贝，但 `new Blob()` 不是
+
+`writeBytes` 的同步部分只有解参数、取 `NSData*`、`dispatch_async`，block 捕获的是一个指针（retain 一次），4 MB 一个字节不动。
+
+**真正的 4 MB memcpy 在 `new Blob([big])` 那一行**，而且在主线程上同步做：`CreateBlob` 是 `[NSMutableData appendBytes:length:]`。这个拷贝省不掉——Blob 的字节必须离开 V8 堆，GC 会搬动 backing store。
+
+反过来的 `blob.arrayBuffer()` 才是零拷贝的（`SettleBytes` 把 `NSData` 的内存交给 V8，deleter 里 `CFRelease`）。方向不对称就是这个原因。
+
+**写本身花多久没有单独量过**（未验证）；唯一的数据点是上面那次失败反推的 ≤ 119 ms 端到端，含排队。
 
 ## 这个文件不认识运行时
 

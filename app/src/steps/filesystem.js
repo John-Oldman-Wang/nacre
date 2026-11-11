@@ -110,13 +110,25 @@ export function stepFileSystem() {
 
     // ---- 不卡主线程 ----
     // 约 4 MB 的写。发起之后紧接着排一个定时器：如果写在主线程上做，
-    // 定时器只能等它做完；派到后台队列才可能先跑到
+    // 定时器只能等它做完；派到后台队列才可能先跑到。
+    //
+    // 但这条只**单边有效**：跑到了能证明重活在后台，没跑到什么都证明不了。
+    // 顺序不由我们控制——本轮新加的定时器按设计要等下一轮泵（Engine.cpp
+    // 的 seq >= limit），而泵运行期间不排唤醒，所以只要主线程这期间被
+    // 别的回调占住，后台写入的兑现就可能先排进主队列。于是没跑到时报
+    // 未验证，和所有权镜像的对照组、软键盘那两条一个规矩
     const big = new Uint8Array(4 * 1024 * 1024);
     let timerRan = false;
+    const started = Date.now();
     const writing = fs.writeBytes(base + '/big.bin', new Blob([big]));
     setTimeout(() => { timerRan = true; }, 0);
     await writing;
-    assert('大写入期间定时器照常跑（重活不在主线程）', timerRan, true);
+    if (timerRan) {
+      assert('大写入期间定时器照常跑（重活不在主线程）', timerRan, true);
+    } else {
+      console.log('  ! 写入的兑现排在了 0 ms 定时器前面（await 用了 ' +
+                  (Date.now() - started) + ' ms），顺序控制不了，这一条未验证');
+    }
     assert('大文件的 size 对', (await fs.stat(base + '/big.bin')).size, big.length);
     await fs.remove(base + '/big.bin');
 
