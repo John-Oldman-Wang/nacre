@@ -74,13 +74,15 @@ application.addEventListener('sceneconnect', (e) => {
 - 滚动时右侧出现一条细的指示条，停下后消失。
 - 左右拖不动。
 
+这段代码没有作为一个整体在模拟器运行过。其中用到的每个 API 都在验收用例里运行过。
+
 四步分别是：创建滚动视图、创建放内容的容器、放内容、用约束说明大小。第 4 步里的「内容区」和「可视区」见[三个基本概念](#三个基本概念)。
 
 > **注意**：第 2 步里 `column.translatesAutoresizingMaskIntoConstraints = false` 这一行不能少。原因见[内容不显示的常见原因](#内容不显示的常见原因)。
 
 ## 常见用法
 
-以下例子都沿用上面的 `scroller`、`column` 和 `page`。
+以下例子都沿用上面的 `scroller`、`column`、`page`、`content` 和 `frame`。
 
 ### 知道现在滚到了哪里
 
@@ -115,7 +117,7 @@ const top = -scroller.adjustedContentInset.top;
 scroller.setContentOffset(new CGPoint(0, top), { animated: true });
 ```
 
-**效果**：平滑滚回最顶部。
+**效果**：平滑滚回最顶部。**未在模拟器验证。**
 
 顶部的位置不一定是 `0`。有安全区时系统会在上方留白，顶部对应的是一个负数，所以要减去 `adjustedContentInset.top`。
 
@@ -131,16 +133,23 @@ scroller.scrollRectToVisible(target.frame, { animated: true });
 
 ### 改成横向滚动
 
-把[完整例子](#完整例子)第 2 步的方向和第 4 步的最后一条约束换掉：
+把[完整例子](#完整例子)第 2 步的方向改成横向，第 4 步里容器的那五条约束换成下面这组：
 
 ```js
 column.axis = 'horizontal';
 
-// 原来是宽度等于可视区的宽度，现在改成高度
-column.heightAnchor.constraintEqualToAnchor(frame.heightAnchor),
+NSLayoutConstraint.activateConstraints([
+  // 这四条和原来一样
+  column.topAnchor.constraintEqualToAnchor(content.topAnchor),
+  column.bottomAnchor.constraintEqualToAnchor(content.bottomAnchor),
+  column.leadingAnchor.constraintEqualToAnchor(content.leadingAnchor),
+  column.trailingAnchor.constraintEqualToAnchor(content.trailingAnchor),
+  // 原来是宽度等于可视区的宽度，现在改成高度
+  column.heightAnchor.constraintEqualToAnchor(frame.heightAnchor),
+]);
 ```
 
-**效果**：内容从左到右排开，可以左右拖动，上下拖不动。
+**效果**：内容从左到右排开，可以左右拖动，上下拖不动。**未在模拟器验证。**
 
 规则是：哪个方向的尺寸和可视区相等，哪个方向就不能滚。
 
@@ -248,7 +257,7 @@ box.backgroundColor = 'systemRed';
 scroller.addSubview(box);
 ```
 
-**效果**：一个 400 × 800 pt 的滚动区域，可以向下滚 2200 pt（3000 减 800）。滚到接近底部时看到一个红色方块。
+**效果**：一个 400 × 800 pt 的滚动区域，可以向下滚 2200 pt（3000 减 800）。滚到接近底部时看到一个红色方块。**未在模拟器验证。**
 
 ## 三个基本概念
 
@@ -421,7 +430,7 @@ scroller.contentOffset = new CGPoint(0, 30);
 
 | 属性 | 类型 | 可读 | 可写 | 默认值 | 含义 |
 | --- | --- | --- | --- | --- | --- |
-| `decelerationRate` | `'normal'` 或 `'fast'` | 是 | 是 | `'normal'` | 松手后滑多远才停 |
+| `decelerationRate` | `'normal'`、`'fast'` 或数字 | 是 | 是 | `'normal'` | 松手后滑多远才停 |
 
 | 值 | 效果 |
 | --- | --- |

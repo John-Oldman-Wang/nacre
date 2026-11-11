@@ -56,6 +56,8 @@ application.addEventListener('sceneconnect', (e) => {
 - 手指在按钮上松开，控制台输出 `按钮被点了`。
 - 手指按下后滑到按钮外面再松开，不输出。
 
+这段代码没有作为一个整体在模拟器运行过。其中用到的每个 API 都在验收用例里运行过。
+
 四步分别是：创建、设文字、监听点击、放到页面上。后面的每种用法都是在这四步上改。
 
 ## 常见用法
@@ -110,10 +112,15 @@ NSLayoutConstraint.activateConstraints([
 按钮自己没有字体属性。文字是由按钮里面的一个 [`UILabel`](ui-label.md) 画的，通过 `titleLabel` 拿到它再设。
 
 ```js
-button.titleLabel.font = UIFont.systemFontOfSize(20, { weight: 'semibold' });
+const label = button.titleLabel;
+if (label) {
+  label.font = UIFont.systemFontOfSize(20, { weight: 'semibold' });
+}
 ```
 
 **效果**：文字变成 20 pt、半粗体。
+
+`titleLabel` 的类型声明是「可能为 `null`」，所以要先判断。实际运行时它一直有值。
 
 > **注意**：文字内容和颜色不要通过 `titleLabel` 改，要用 `setTitle()` 和 `setTitleColor()`。直接改 `titleLabel.text`，按钮下次切换状态时会把它覆盖掉。
 
@@ -137,7 +144,7 @@ button.setTitleColor('#FF3B30', { forState: ['highlighted'] });
 button.isEnabled = false;
 ```
 
-**效果**：文字变灰，点了没有反应，不再派发任何事件。设回 `true` 恢复。
+**效果**：文字变灰，点了没有反应，不再派发任何事件。设回 `true` 恢复。**「文字变灰」未在模拟器验证。**
 
 想让禁用时显示不同的文字，给 `disabled` 状态设：
 
@@ -153,7 +160,7 @@ const icon = UIImage.systemImageNamed('heart.fill');
 button.setImage(icon, { forState: ['normal'] });
 ```
 
-**效果**：文字左边出现一个心形图标，颜色和文字一样是蓝色。只设图标不设文字，按钮就只有图标。
+**效果**：文字左边出现一个心形图标，颜色和文字一样是蓝色。只设图标不设文字，按钮就只有图标。**图标的位置和颜色未在模拟器验证。**
 
 `'heart.fill'` 是系统自带图标库 SF Symbols 里的名字。用自己的图片见 [`UIImage`](ui-image.md)。
 
@@ -173,7 +180,7 @@ follow.addEventListener('primaryActionTriggered', () => {
 });
 ```
 
-**效果**：初始显示蓝色的「关注」。点一下变成灰色的「已关注」，再点一下变回来。
+**效果**：初始显示蓝色的「关注」。点一下变成灰色的「已关注」，再点一下变回来。**这个例子未在模拟器验证。**
 
 ### 危险操作的按钮
 
@@ -249,6 +256,7 @@ const button = UIButton.buttonWithType('system');
 | `'detailDisclosure'`、`'infoLight'`、`'infoDark'` | 一个圆圈里带 i 的信息图标 |
 
 - **返回**：新建的 `UIButton`。
+- 上表里 `'close'`、`'contactAdd'`、`'detailDisclosure'`、`'infoLight'`、`'infoDark'` 画出来的样子**未在模拟器验证**。
 - **出错**：`type` 不在上表里时抛 `TypeError`，报错信息里列出所有可用的值。
 
 #### `new UIButton()`
@@ -271,7 +279,7 @@ button.setTitle('提交', { forState: ['normal'] });
 ```
 
 - **`forState`**：状态名的数组，必填。可用的状态名见[状态](#状态)。
-- **值传 `null`**：清除这个状态的设置，退回使用 `normal` 的。
+- **值传 `null`**：清除这个状态的设置，退回使用 `normal` 的。**未在模拟器验证。**
 - **返回**：无。
 - **出错**：
   - 没传 `forState`：`TypeError: setTitle needs { forState }`
@@ -323,8 +331,8 @@ button.currentTitle;        // '请先填写表单'
 | --- | --- | --- | --- | --- | --- |
 | `buttonType` | 字符串 | 是 | 否 | 创建时定 | 按钮类型，取值见 [`buttonWithType()`](#uibuttonbuttonwithtype) |
 | `role` | `'normal'` \| `'primary'` \| `'cancel'` \| `'destructive'` | 是 | 是 | `'normal'` | 按钮的用途。系统据此调整外观，`'destructive'` 显示为红色 |
-| `titleLabel` | [`UILabel`](ui-label.md) | 是 | 否 | — | 按钮里负责画文字的视图。用来设字体、行数 |
-| `imageView` | [`UIImageView`](ui-image.md) | 是 | 否 | — | 按钮里负责画图标的视图 |
+| `titleLabel` | [`UILabel`](ui-label.md) 或 `null` | 是 | 否 | — | 按钮里负责画文字的视图。用来设字体、行数 |
+| `imageView` | [`UIImageView`](ui-image.md) 或 `null` | 是 | 否 | — | 按钮里负责画图标的视图 |
 
 以下属性继承自 [`UIControl`](ui-control.md)，按钮最常用：
 
