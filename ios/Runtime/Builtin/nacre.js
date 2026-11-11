@@ -1752,6 +1752,38 @@
     static get mainRunLoop() { return nativeClassObject('NSRunLoop', 'mainRunLoop'); }
   });
 
+  // 这台设备。只有类级的单例 currentDevice，全部只读。
+  //
+  // 现在只有不会变的那几项。电量、设备朝向、距离感应带变化通知，另起一步
+  defineNativeClass('UIDevice', class UIDevice extends NSObject {
+    constructor() { nativeOnly(new.target); }
+    static get currentDevice() { return nativeClassObject('UIDevice', 'currentDevice'); }
+
+    // 拿不到用户给设备起的名字（iOS 16 起）。头文件说它是 model 的同义词，
+    // 但模拟器上实测是模拟器的名字（iPhone Air），不等于 model
+    get name() { requireNative(this, 'name'); return nativeGet(this, 'name'); }
+    get model() { requireNative(this, 'model'); return nativeGet(this, 'model'); }
+    get localizedModel() {
+      requireNative(this, 'localizedModel');
+      return nativeGet(this, 'localizedModel');
+    }
+    get systemName() { requireNative(this, 'systemName'); return nativeGet(this, 'systemName'); }
+    // 字符串，形如 '26.1'。要比大小先拆开转成数，别直接比字符串
+    get systemVersion() {
+      requireNative(this, 'systemVersion');
+      return nativeGet(this, 'systemVersion');
+    }
+    get userInterfaceIdiom() {
+      requireNative(this, 'userInterfaceIdiom');
+      return nativeGet(this, 'userInterfaceIdiom');
+    }
+    // 同一个开发者的 App 在这台设备上共用的 UUID。App 全卸掉再装会变
+    get identifierForVendor() {
+      requireNative(this, 'identifierForVendor');
+      return nativeGet(this, 'identifierForVendor');
+    }
+  });
+
   // 和屏幕刷新同步的回调。
   //
   // ```js

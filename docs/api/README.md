@@ -11,7 +11,7 @@ Nacre 的 API 分两层：
 
 ## 先读这一条：现在有哪些类
 
-**只有下面这张「参考」表里列出来的类。** 没列出来的 iOS 类（`NSString`、`UIDevice`、`CLLocationManager`、`WKWebView`…）**JS 拿不到**，也没有通用的调用方式去够到它们。
+**只有下面这张「参考」表里列出来的类。** 没列出来的 iOS 类（`NSString`、`UITableView`、`CLLocationManager`、`WKWebView`…）**JS 拿不到**，也没有通用的调用方式去够到它们。
 
 「上层没覆盖的、底层一定能补上」是**做完 bindgen 之后**的目标（[项目说明](../project.md)里的 M3），**现在还不成立**。这份文档以前把那个目标写成了现状，给人造成过误导。
 
@@ -50,6 +50,7 @@ Nacre 的 API 分两层：
 | [`UIButton`](ui-button.md) | 按钮。标题、颜色、图片按状态设 |
 | [手势识别器](ui-gesture-recognizer.md) | 点按和长按。加在任意视图上，事件名是手势的阶段 |
 | [输入框和键盘](ui-text-field.md) | `UITextField`、first responder、键盘避让只要一条约束 |
+| [`UIDevice`](ui-device.md) | 设备和系统的信息。系统版本是字符串，比较前先转成数 |
 | [本地存储](storage.md) | `application.storage`。存什么、什么时候落盘、变化通知的边界 |
 | [文件读写](filesystem.md) | `application.fileSystem`。全是 Promise，四个目录，错误怎么分类 |
 | [Keychain](keychain.md) | `application.keychain`。令牌和密码，accessible 决定能不能跟着换手机 |

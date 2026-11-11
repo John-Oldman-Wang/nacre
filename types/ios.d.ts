@@ -27,6 +27,7 @@
 /// <reference path="./ios/animation.d.ts" />
 /// <reference path="./ios/control.d.ts" />
 /// <reference path="./ios/gesture.d.ts" />
+/// <reference path="./ios/device.d.ts" />
 /// <reference path="./ios/storage.d.ts" />
 /// <reference path="./ios/filesystem.d.ts" />
 /// <reference path="./ios/keychain.d.ts" />

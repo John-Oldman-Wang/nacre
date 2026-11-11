@@ -23,6 +23,7 @@ std::string ReadNativeProperty(id object, const std::string& name) {
   if (value == nil) value = ReadDisplayLinkProperty(object, key);
   if (value == nil) value = ReadWebSocketProperty(object, key);
   if (value == nil) value = ReadGestureProperty(object, key);
+  if (value == nil) value = ReadDeviceProperty(object, key);
   if (value == nil) value = ReadScrollProperty(object, key);
   if (value == nil) value = ReadViewProperty(object, key);
   if (value == nil) value = ReadResourceProperty(object, key);

@@ -250,6 +250,8 @@ nacre::NativeObjectRef ReadClassObjectProperty(const std::string& className,
     nacre::NativeObjectRef loop = RunLoopClassObject(className, name);
     if (!loop.class_name.empty()) return loop;
   }
+  nacre::NativeObjectRef device = DeviceClassObject(className, name);
+  if (!device.class_name.empty()) return device;
   nacre::NativeObjectRef storage = StorageClassObject(className, name);
   if (!storage.class_name.empty()) return storage;
   nacre::NativeObjectRef files = FileSystemClassObject(className, name);

@@ -33,6 +33,7 @@ import { stepWebSocket } from './steps/websocket.js';
 import { stepTimers } from './steps/timers.js';
 import { stepPerformance } from './steps/performance.js';
 import { stepCrypto } from './steps/crypto.js';
+import { stepDevice } from './steps/device.js';
 import { stepAutolayout } from './steps/autolayout.js';  // 含 CALayer
 import { stepControl } from './steps/control.js';
 import { stepButton } from './steps/button.js';
@@ -79,6 +80,7 @@ application.addEventListener('sceneconnect', (e) => {
   stepTimers(ctx);
   stepPerformance(ctx);
   stepCrypto(ctx);
+  stepDevice(ctx);
   stepAutolayout(ctx);
   stepControl(ctx);
   stepButton(ctx);

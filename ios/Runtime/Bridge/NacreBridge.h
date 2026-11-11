@@ -449,6 +449,12 @@ BOOL WriteLayerObjectArray(id object, const std::string& name, const std::vector
 // "CALayer"——否则从 sublayers 里先读到的渐变层会永远是个 CALayer。
 const char* LayerClassName(CALayer* layer);
 
+// ---- 设备 ----
+NACRE_ENUM_DECL(UserInterfaceIdiom, UIUserInterfaceIdiom)
+nacre::NativeObjectRef DeviceClassObject(const std::string& className,
+                                         const std::string& name);
+id ReadDeviceProperty(id object, NSString* key);
+
 // ---- 密码学 ----
 bool FillRandom(void* bytes, size_t length);
 
