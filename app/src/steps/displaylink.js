@@ -149,7 +149,12 @@ export function stepDisplayLink(ctx) {
                   ' fps，duration = ' + (frames[0].duration * 1000).toFixed(2) + ' ms');
 
       // ---- 暂停：对照组还在走，它不走 ----
+      //
+      // **先让在途的那一帧落地再取基准。** 事件延后一轮派发，所以暂停
+      // 之前已经发出去的 tick 会在暂停之后才到 JS——「停」从 JS 看不是
+      // 瞬时的。不等这一下，基准会少算一帧（实测挂过一次：期望 10 实到 11）
       link.isPaused = true;
+      setTimeout(() => {
       const atPause = frames.length;
       const controlAtPause = controlFrames;
       waitUntil('对照组又走了 5 帧', () => controlFrames >= controlAtPause + 5, () => {
@@ -159,9 +164,11 @@ export function stepDisplayLink(ctx) {
         link.isPaused = false;
         waitUntil('取消暂停后继续', () => frames.length > atPause, () => {
           // ---- 摘掉：同样用对照组证明这段时间有帧 ----
+          // invalidate 同理，也要等在途的那一帧
+          link.invalidate();
+          setTimeout(() => {
           const atInvalidate = frames.length;
           const controlAtInvalidate = controlFrames;
-          link.invalidate();
           waitUntil('对照组又走了 5 帧', () => controlFrames >= controlAtInvalidate + 5, () => {
             assert('invalidate 期间对照组照常收到', controlFrames > controlAtInvalidate, true);
             assert('invalidate 之后不再收到', frames.length, atInvalidate);
@@ -169,8 +176,10 @@ export function stepDisplayLink(ctx) {
             console.log('  ✓ 卡片里有一个青色小圆点在左右来回走（display link 驱动）');
             console.log('--- display link：以上异步断言跑完 ---');
           });
+          }, 200);
         });
       });
+      }, 200);
     });
   });
 }
