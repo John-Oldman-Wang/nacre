@@ -783,7 +783,7 @@ console.log(notPrevented);   // true
 | 想做的事 | 对应的原生能力 | 状态 |
 | --- | --- | --- |
 | 在回调里得到事件发生那一刻的状态 | 事件对象带状态 | 未实现 |
-| 响应长按、拖动、捏合、轻扫 | `UIGestureRecognizer` 及其子类 | 未实现 |
+| 响应拖动、捏合、轻扫 | `UIPanGestureRecognizer` 等 | 未实现。点按和长按见[手势识别器](ui-gesture-recognizer.md) |
 | 自己处理原始触摸，决定控件怎么跟踪手指 | 覆写 `touchesBegan:withEvent:`、`beginTrackingWithTouch:withEvent:` 等方法 | 未实现 |
 | 用开关、滑块、分段选择、步进器、日期选择 | `UISwitch`、`UISlider`、`UISegmentedControl`、`UIStepper`、`UIDatePicker` | 未实现 |
 | 一次监听所有触摸事件 | `UIControlEventAllTouchEvents` 等聚合掩码 | 未实现。逐个事件名调用 `addEventListener()` |
@@ -796,6 +796,7 @@ console.log(notPrevented);   // true
 - [`UIButton`](ui-button.md)：最常用的控件，文字和图标按状态设置
 - [`UITextField`](ui-text-field.md)：输入框，使用 `editing` 开头的四个事件
 - [`UIView`](ui-view.md)：父类，位置、大小、底色、`isUserInteractionEnabled`
+- [手势识别器](ui-gesture-recognizer.md)：让不是控件的视图响应点按和长按
 - [`UILabel`](ui-label.md)：例子里显示文字用的视图
 - [Auto Layout](auto-layout.md)：例子里定位用的约束
 - [颜色](ui-color.md)：`'systemGreen'` 这类颜色字符串的写法

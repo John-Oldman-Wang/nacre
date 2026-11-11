@@ -79,6 +79,18 @@ extern const void* kNacreDisplayLinkTargetKey;
 @property(class, readonly) NacreKeychain* shared;
 @end
 
+// 手势的事件出口。NacreGesture.mm 不认识 NacreRuntime，订阅时由它塞进来
+typedef void (^NacreGestureEmit)(UIGestureRecognizer* recognizer, NSString* type,
+                                 NSString* json);
+
+// 手势的 trampoline：运行时自己当 target，只记订阅了哪几个事件名。
+// 识别器通过关联对象持有它，它对识别器没有引用，不成环
+@interface NacreGestureTarget : NSObject
+@property(nonatomic, copy) NacreGestureEmit emit;
+@property(nonatomic, strong) NSMutableSet<NSString*>* types;
+- (void)fire:(UIGestureRecognizer*)sender;
+@end
+
 namespace nacre_bridge {
 
 // application 的数据快照：主线程写，JS 线程读。
@@ -437,6 +449,19 @@ BOOL WriteLayerObjectArray(id object, const std::string& name, const std::vector
 // "CALayer"——否则从 sublayers 里先读到的渐变层会永远是个 CALayer。
 const char* LayerClassName(CALayer* layer);
 
+// ---- 手势 ----
+// 一个域一个文件（NacreGesture.mm），每个入口返回「认不认领」
+NACRE_ENUM_DECL(GestureState, UIGestureRecognizerState)
+const char* GestureClassName(UIGestureRecognizer* recognizer);
+nacre::NativeObjectRef GestureConstruct(const std::string& className);
+bool GestureSetSubscription(id object, NSString* type, BOOL on, NacreGestureEmit emit,
+                            std::string* error);
+id ReadGestureProperty(id object, NSString* key);
+BOOL WriteGestureProperty(id object, NSString* key, id value, std::string* error);
+nacre::NativeObjectRef ReadGestureObjectProperty(id object, const std::string& name);
+void ReadGestureObjectArray(id object, const std::string& name,
+                            std::vector<nacre::NativeObjectRef>& refs);
+
 // ---- WebSocket ----
 void WebSocketSetEmitter(NacreWebSocketEmit emit);
 nacre::NativeObjectRef WebSocketConstruct(id urlValue, id options);
@@ -542,6 +567,8 @@ bool PathCallObjectMethod(id object, const std::string& name, const NacreArgs& a
                           nacre::NativeObjectRef* out, std::string* error);
 
 // ---- WebSocket ----
+bool GestureCallMethod(id object, NSString* sel, const NacreArgs& args,
+                       std::string* out, std::string* error);
 bool WebSocketCallMethod(id object, NSString* sel, const NacreArgs& args,
                          std::string* out, std::string* error);
 

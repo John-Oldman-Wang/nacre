@@ -27,6 +27,10 @@ export function stepOwnership(ctx) {
     const probeGradient = new CAGradientLayer();
     /** @type {any} */ (probeGradient).probe = '挂在图层包装上';
     probeHost.layer.addSublayer(probeGradient);
+    // 手势识别器那条边：addGestureRecognizer 之后 JS 也丢掉了引用
+    const probeTap = new UITapGestureRecognizer();
+    /** @type {any} */ (probeTap).probe = '挂在识别器包装上';
+    probeHost.addGestureRecognizer(probeTap);
     // 局部引用随这个块结束而消失，之后只有镜像还持有它们
   }
 
@@ -98,6 +102,11 @@ export function stepOwnership(ctx) {
       .map((l) => /** @type {any} */ (l).probe)
       .filter((probe) => probe !== undefined);
     assert('子图层：GC 后包装还是原来那个', keptLayers.join(','), '挂在图层包装上');
+
+    const keptGestures = probeHost.gestureRecognizers
+      .map((g) => /** @type {any} */ (g).probe)
+      .filter((probe) => probe !== undefined);
+    assert('手势识别器：GC 后包装还是原来那个', keptGestures.join(','), '挂在识别器包装上');
 
     // 这一条在补镜像之前是段错误，不是断言失败
     const late = orphanAnchor.constraintEqualToConstant(50);

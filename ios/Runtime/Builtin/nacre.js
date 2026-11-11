@@ -309,6 +309,11 @@
     if (view == null || view[kHandle] === undefined) return null;
     return nativeGetObject(view, 'superview');
   }
+  // 同一件事，手势识别器那一侧：它现在挂在哪个视图上
+  function gestureViewOf(recognizer) {
+    if (recognizer == null || recognizer[kHandle] === undefined) return null;
+    return nativeGetObject(recognizer, 'view');
+  }
   // 带参数的方法。selector 是完整的 ObjC selector，JS 层的
   // 「第一段 + options」在各自的方法里还原成它。
   // 对象参数在 JSON 里留 null，句柄按同样的下标单独传。
@@ -2225,6 +2230,23 @@
       nativeCall(this, 'removeFromSuperview', []);
       disown(from, 'subviews', this);
     }
+    // 手势识别器。视图强持有它们，和子视图是同一种边。
+    // 一个识别器同一时刻只能挂在一个视图上：挂到新的视图，UIKit 会把它
+    // 从旧的那个上摘下来，所以这里也跟着断旧边
+    get gestureRecognizers() {
+      return ownAll(this, 'gestureRecognizers',
+                    nativeGetObjectArray(this, 'gestureRecognizers'));
+    }
+    addGestureRecognizer(recognizer) {
+      const from = gestureViewOf(recognizer);
+      nativeCall(this, 'addGestureRecognizer:', [recognizer]);
+      disown(from, 'gestureRecognizers', recognizer);
+      ownOne(this, 'gestureRecognizers', recognizer);
+    }
+    removeGestureRecognizer(recognizer) {
+      nativeCall(this, 'removeGestureRecognizer:', [recognizer]);
+      disown(this, 'gestureRecognizers', recognizer);
+    }
     bringSubviewToFront(view) { nativeCall(this, 'bringSubviewToFront:', [view]); }
     sendSubviewToBack(view) { nativeCall(this, 'sendSubviewToBack:', [view]); }
     isDescendantOfView(view) {
@@ -3361,6 +3383,151 @@
     }
   });
 
+  // ---- 手势识别器 ----
+  //
+  // iOS 四套事件机制里「平行、抢占」的那一套。它不是视图，是**挂在视图上**的
+  // 一个对象：收视图和它所有子视图上的触摸，认出某种手势时通知出来。
+  //
+  // ObjC 那边是 target-action，一个 action 里自己读 state。这里把状态当
+  // 事件名（began / changed / ended / cancelled）——不是为了像 Web，是因为
+  // 延后一轮之后 state 可能已经往前走了（手势结束的话已经重置成
+  // possible），JS 回头读不到事件发生那一刻的状态。
+  //
+  // 点按是**离散**手势：只发 ended（ObjC 里叫 recognized，是 ended 的别名）。
+  // 长按是**连续**手势：began → changed* → ended / cancelled。
+  const UIGestureRecognizer = defineNativeClass('UIGestureRecognizer',
+                                                class UIGestureRecognizer extends NSObject {
+    constructor() {
+      super();
+      // 基类自己什么手势都不认，ObjC 里也只是拿来继承的
+      if (new.target === UIGestureRecognizer) {
+        throw new TypeError(
+          'Illegal constructor: UIGestureRecognizer is abstract; construct ' +
+          'UITapGestureRecognizer or UILongPressGestureRecognizer instead');
+      }
+    }
+
+    [kSubscribe](type, on) {
+      requireNative(this, 'addEventListener');
+      native.subscribe(this[kHandle], type, on);
+      if (on) {
+        subscribed.add(this);
+      } else if (this[kListeners].size === 0) {
+        subscribed.delete(this);
+      }
+    }
+
+    // 回调里读它，读到的是**回调执行那一刻**的状态，不是事件发生那一刻的。
+    // 实测：点按的 ended 回调里是 possible（识别器已经重置），长按的 began
+    // 回调里手指还按着时是 began。要知道是哪个阶段，看事件名
+    get state() { requireNative(this, 'state'); return nativeGet(this, 'state'); }
+    // 挂在哪个视图上。回边，不是持有
+    get view() {
+      requireNative(this, 'view');
+      return nativeGetObject(this, 'view');
+    }
+    get isEnabled() { requireNative(this, 'isEnabled'); return nativeGet(this, 'isEnabled'); }
+    set isEnabled(value) { requireNative(this, 'isEnabled'); nativeSet(this, 'isEnabled', value); }
+    // 认出手势之后，要不要给视图发 touchesCancelled。默认 true
+    get cancelsTouchesInView() {
+      requireNative(this, 'cancelsTouchesInView');
+      return nativeGet(this, 'cancelsTouchesInView');
+    }
+    set cancelsTouchesInView(value) {
+      requireNative(this, 'cancelsTouchesInView');
+      nativeSet(this, 'cancelsTouchesInView', value);
+    }
+    get delaysTouchesBegan() {
+      requireNative(this, 'delaysTouchesBegan');
+      return nativeGet(this, 'delaysTouchesBegan');
+    }
+    set delaysTouchesBegan(value) {
+      requireNative(this, 'delaysTouchesBegan');
+      nativeSet(this, 'delaysTouchesBegan', value);
+    }
+    get delaysTouchesEnded() {
+      requireNative(this, 'delaysTouchesEnded');
+      return nativeGet(this, 'delaysTouchesEnded');
+    }
+    set delaysTouchesEnded(value) {
+      requireNative(this, 'delaysTouchesEnded');
+      nativeSet(this, 'delaysTouchesEnded', value);
+    }
+    get numberOfTouches() {
+      requireNative(this, 'numberOfTouches');
+      return nativeGet(this, 'numberOfTouches');
+    }
+  });
+
+  defineNativeClass('UITapGestureRecognizer',
+                    class UITapGestureRecognizer extends UIGestureRecognizer {
+    constructor() {
+      super();
+      constructNative(this, new.target, 'UITapGestureRecognizer', []);
+    }
+    // 要点几下才算。默认 1；2 就是双击
+    get numberOfTapsRequired() {
+      requireNative(this, 'numberOfTapsRequired');
+      return nativeGet(this, 'numberOfTapsRequired');
+    }
+    set numberOfTapsRequired(value) {
+      requireNative(this, 'numberOfTapsRequired');
+      nativeSet(this, 'numberOfTapsRequired', value);
+    }
+    // 要几根手指。默认 1
+    get numberOfTouchesRequired() {
+      requireNative(this, 'numberOfTouchesRequired');
+      return nativeGet(this, 'numberOfTouchesRequired');
+    }
+    set numberOfTouchesRequired(value) {
+      requireNative(this, 'numberOfTouchesRequired');
+      nativeSet(this, 'numberOfTouchesRequired', value);
+    }
+  });
+
+  defineNativeClass('UILongPressGestureRecognizer',
+                    class UILongPressGestureRecognizer extends UIGestureRecognizer {
+    constructor() {
+      super();
+      constructNative(this, new.target, 'UILongPressGestureRecognizer', []);
+    }
+    // 按住多久才算，**秒**。默认 0.5
+    get minimumPressDuration() {
+      requireNative(this, 'minimumPressDuration');
+      return nativeGet(this, 'minimumPressDuration');
+    }
+    set minimumPressDuration(value) {
+      requireNative(this, 'minimumPressDuration');
+      nativeSet(this, 'minimumPressDuration', value);
+    }
+    // 认出来之前手指最多能挪多远，点。默认 10。认出来之后不限
+    get allowableMovement() {
+      requireNative(this, 'allowableMovement');
+      return nativeGet(this, 'allowableMovement');
+    }
+    set allowableMovement(value) {
+      requireNative(this, 'allowableMovement');
+      nativeSet(this, 'allowableMovement', value);
+    }
+    // 按住之前要先完整点几下。默认 0
+    get numberOfTapsRequired() {
+      requireNative(this, 'numberOfTapsRequired');
+      return nativeGet(this, 'numberOfTapsRequired');
+    }
+    set numberOfTapsRequired(value) {
+      requireNative(this, 'numberOfTapsRequired');
+      nativeSet(this, 'numberOfTapsRequired', value);
+    }
+    get numberOfTouchesRequired() {
+      requireNative(this, 'numberOfTouchesRequired');
+      return nativeGet(this, 'numberOfTouchesRequired');
+    }
+    set numberOfTouchesRequired(value) {
+      requireNative(this, 'numberOfTouchesRequired');
+      nativeSet(this, 'numberOfTouchesRequired', value);
+    }
+  });
+
   const UIColor = defineNativeClass('UIColor', class UIColor extends NSObject {
     constructor() { nativeOnly(new.target); }
   });
@@ -4081,6 +4248,12 @@
       defineField(event, 'location',
                   payload.location === null ? null : toPoint(payload.location));
       defineField(event, 'tapCount', payload.tapCount);
+    } else if (payload !== undefined && payload !== null &&
+               typeof payload === 'object' && 'numberOfTouches' in payload) {
+      // 手势事件。同样按负载的形状认：began / ended 这些名字太泛
+      defineField(event, 'location',
+                  payload.location === null ? null : toPoint(payload.location));
+      defineField(event, 'numberOfTouches', payload.numberOfTouches);
     }
     wrapper.dispatchEvent(event);
   });

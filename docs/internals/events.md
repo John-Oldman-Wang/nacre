@@ -215,3 +215,83 @@ Web 的做法是：`clientX` 在 `MouseEvent` 接口上，`KeyboardEvent` **根�
 ### 没有真实触点时给 `null` 不给 `(0, 0)`
 
 `sendActionsForControlEvents()` 那条路上压根没有 `UIEvent`。Web 在这种情况下给 0（`el.click()` 之后 `clientX` 是 0），我们给 `null`——**`(0, 0)` 是个合法坐标，和「没有触点」分不开**，这正是仓库一路在消灭的那类分不开。
+
+## A7 的第一片：点按和长按
+
+试用者做 React 渲染器时报的第一条缺口是「任意视图可点」。四套机制里这是第三套，之前一直挂在「抢占语义没有 Web 参照，要单独设计」上没动。这次只切了最小的一片——点按和长按——抢占那部分**原样暴露 iOS 的属性**（`cancelsTouchesInView`、`delaysTouchesBegan`、`delaysTouchesEnded`），不发明任何语义。
+
+### 不需要新机制
+
+手势识别器是 target-action，和 `UIControl`、`CADisplayLink` 是同一条路（M1a）。`delegate` 那一半才要 M2，这一片不碰。
+
+订阅是惰性的：第一个事件名有监听器时才 `addTarget:action:`，最后一个移走时 `removeTarget:`。trampoline 通过关联对象挂在识别器上（`addTarget:` 不持有 target），它对识别器没有引用，不成环。
+
+所以它对**系统自带的识别器**同样成立——`scrollView.gestureRecognizers` 读出来的那几个，按基类 `UIGestureRecognizer` 包装，订阅时照样能挂上我们的 target。这条未验证。
+
+### 事件名就是状态名
+
+iOS 的原貌是一个 action，自己读 `state`。照搬成一个 `'action'` 事件行不通，原因写在头文件里：
+
+> the action method will be called **at the next turn of the run loop** and the recognizer will be **reset to UIGestureRecognizerStatePossible**
+
+action 本身就晚一轮，我们的事件再延后一轮，JS 回调执行时 `state` 已经不是事件发生那一刻的值了。状态必须跟着事件走，而把它当事件名正好是控件事件的做法（`UIControlEvents` 的位 → 事件名）。
+
+**这条的实测比预想的细。** 动手前以为「回调里一律读到 `possible`」，真实触摸点出来是两种：
+
+| 回调 | 读到的 `state` |
+| --- | --- |
+| 点按的 `ended` | `possible`——离散手势结束即重置 |
+| 长按的 `began`（手指还按着） | `began`——连续手势还在进行，没有重置这回事 |
+
+结论不变（事件名才是可靠的），但文档里「一律是 `possible`」那句是错的，已按实测改掉。
+
+只有四个：`began` / `changed` / `ended` / `cancelled`。`failed` 那条头文件写着 "the action method will not be called"，`possible` 是初态，都没有事件。
+
+**点按监听的是 `'ended'`，不是 `'tap'` 也不是 `'recognized'`。** `Recognized = Ended` 在头文件里是别名，按已定的规则主名取被赋值的那一侧。没有给事件名加别名：同一个事件两个名字，`removeEventListener` 和 `once` 都说不清该算几个监听器。
+
+### 位置跟着事件走，不暴露 `locationInView:`
+
+和 A8 是同一个判据。`locationInView:` 回头读不到当时的值，所以在 `fire:` 里快照成 JSON：`location`（识别器所在视图的坐标系）和 `numberOfTouches`。要别的坐标系用已有的 `convertPoint`。
+
+sink 仍然按**负载的形状**认（`'numberOfTouches' in payload`），不按事件名——`ended`、`began` 这些名字太泛。
+
+### 冒泡留给 JS
+
+头文件原话：*a UIGestureRecognizer receives touches hit-tested to its view and any of that view's subviews*。所以在父视图上挂一个识别器，事件里的 `location` 交给早就暴露的 `hitTest()`，就得到了命中的那个子视图；往上怎么走是 JS 那棵树自己的事。运行时没有为「冒泡」加任何东西。
+
+### 所有权和取参
+
+视图强持有识别器，JS 侧镜像成一条多值边（`addGestureRecognizer` 记、`removeGestureRecognizer` 断，换视图时断旧边）。`check-api.sh` 的所有权检查认识了新的取参助手 `gestureArg`，在沙盒副本里去掉记边验过：会报。
+
+`gestureArg` **带错误出口**——给的不是识别器就抛，不像 `viewArg` 那样当 nil 吞掉。那 11 处旧写法还是 TODO，新代码不再往里添。
+
+### 实测
+
+| | 结果 |
+| --- | --- |
+| 默认值 | 和头文件一致：`isEnabled` true、`cancelsTouchesInView` true、`delaysTouchesBegan` false、`delaysTouchesEnded` true、点按 1 下 1 指、长按 0.5 秒 / 10 pt / 0 下 / 1 指 |
+| 没有识别器的视图读 `gestureRecognizers` | 空数组（ObjC 那边是 nil） |
+| 同一个识别器加两次 | 还是一个 |
+| 加到另一个视图 | `view` 换过去，原来那个视图上没有了——UIKit 自己摘的 |
+| GC 之后 | 只被视图持有的识别器，包装和上面挂的状态都还在 |
+
+真实触摸（手势没有 `sendActionsForControlEvents` 那样的程序触发方式，下面这些是在模拟器里点出来的；验收用例在屏幕右下放了一块靛蓝色的容器，里面一个普通子块、一个 `UIButton`）：
+
+| 操作 | 结果 |
+| --- | --- |
+| 点子块 | 容器的点按派发 `ended`，`location` 是容器坐标系里的 (28, 28)，`hitTest` 返回子块 |
+| 点容器的空白处 | `ended`，`hitTest` 返回容器自己 |
+| 点 `UIButton` | **只有**按钮的 `touchUpInside`，容器的点按不触发——UIKit 文档说的那条属实 |
+| 按住不动 1.2 秒再抬手 | `began`，然后 `ended`，中间 0 次 `changed` |
+| 按住之后分四步移动再抬手 | `began`，4 次 `changed`，`ended` 的 `location` 是抬手的位置 |
+| `ended` 里的 `numberOfTouches` | **1**，点按和长按都是。不是 0 |
+
+同一套操作在真机（iPhone 14）上又点了一遍，结论一致，另外多验到两条：
+
+| | 结果 |
+| --- | --- |
+| 长按进行中 App 退到后台 | 派发 **`cancelled`**，紧接着才是场景的 `inactive` / `background`。模拟器上没法制造这个场景 |
+| `location` 的精度 | 真机上是三分之一点（`23.333333`、`25.666667`），因为屏幕是 @3x。模拟器里用工具点出来的是整数 |
+
+没验的：双击、`isEnabled = false`、`cancelsTouchesInView = false`、系统自带识别器的订阅。
+

@@ -48,6 +48,7 @@ Nacre 的 API 分两层：
 | [动画](ca-animation.md) | `CABasicAnimation`、时间曲线、`CATransaction` |
 | [`UIControl`](ui-control.md) | 控件事件。16 个事件名，`addEventListener` 直接用 |
 | [`UIButton`](ui-button.md) | 按钮。标题、颜色、图片按状态设 |
+| [手势识别器](ui-gesture-recognizer.md) | 点按和长按。加在任意视图上，事件名是手势的阶段 |
 | [输入框和键盘](ui-text-field.md) | `UITextField`、first responder、键盘避让只要一条约束 |
 | [本地存储](storage.md) | `application.storage`。存什么、什么时候落盘、变化通知的边界 |
 | [文件读写](filesystem.md) | `application.fileSystem`。全是 Promise，四个目录，错误怎么分类 |

@@ -612,6 +612,28 @@ page.view.insertSubview(card, { atIndex: 0 });
 
 > **注意**：参数是别的类型的原生对象时（比如把一个 `CALayer` 传给 `addSubview()`），调用不报错，也不做任何事。类型检查能发现这种错误，运行时不能。
 
+### 手势识别器
+
+手势识别器是加在视图上的对象，让普通视图也能响应点按和长按。完整说明见[手势识别器](ui-gesture-recognizer.md)。
+
+| 成员 | 说明 |
+| --- | --- |
+| `addGestureRecognizer(recognizer)` | 把识别器加到视图上。没有返回值。识别器原来在别的视图上时，先从那个视图上移除 |
+| `removeGestureRecognizer(recognizer)` | 把识别器从视图上拿掉。没有返回值 |
+| `gestureRecognizers` | 只读。视图上全部识别器的数组，没有时是空数组。每次读得到一个新数组 |
+
+```js
+const tap = new UITapGestureRecognizer();
+tap.addEventListener('ended', () => {
+  console.log('点了');
+});
+card.addGestureRecognizer(tap);
+```
+
+**效果**：点矩形时输出 `点了`。
+
+- **出错**：参数不是识别器：`TypeError: addGestureRecognizer needs a UIGestureRecognizer`
+
 ### 外观
 
 | 属性 | 类型 | 可读 | 可写 | 默认值 | 含义 |
@@ -803,6 +825,7 @@ label.contentHuggingPriorityForAxis('horizontal');   // 250
 | `[view sizeThatFits:CGSizeMake(300, 999)]` | `view.sizeThatFits(new CGSize(300, 999))` |
 | `[view hitTest:p withEvent:nil]` | `view.hitTest(p)` |
 | `[view endEditing:YES]` | `view.endEditing(true)` |
+| `[view addGestureRecognizer:tap]` | `view.addGestureRecognizer(tap)` |
 | `view.hidden = YES` | `view.isHidden = true` |
 | `view.opaque = NO` | `view.isOpaque = false` |
 | `view.userInteractionEnabled = NO` | `view.isUserInteractionEnabled = false` |
@@ -822,7 +845,7 @@ label.contentHuggingPriorityForAxis('horizontal');   // 250
 | 视图被加入、移除时收到通知 | `didAddSubview:`、`willMoveToWindow:` 等 | 未实现。需要先支持用 JS 继承原生类 |
 | 自己绘制视图的内容 | `drawRect:` | 未实现。需要先支持用 JS 继承原生类。画线和形状可以用 [`CAShapeLayer`](ca-layer.md#cashapelayer) |
 | 直接接收触摸 | `touchesBegan:withEvent:` 等 | 未实现。需要先支持用 JS 继承原生类 |
-| 识别长按、拖动、捏合 | `UIGestureRecognizer` | 未实现 |
+| 识别拖动、捏合、轻扫 | `UIPanGestureRecognizer` 等 | 未实现。点按和长按见[手势识别器](ui-gesture-recognizer.md) |
 | 用一段代码块做属性动画 | `+[UIView animateWithDuration:animations:]` | 未实现。动画可以用 [Core Animation](ca-animation.md) |
 | 三维变换 | `transform3D`、`CATransform3D` | 未实现 |
 | 用一个视图的形状遮住另一个视图 | `maskView` | 未实现 |
@@ -837,6 +860,7 @@ label.contentHuggingPriorityForAxis('horizontal');   // 250
 - [Auto Layout](auto-layout.md)：用约束定位的全部写法
 - [结构体](structs.md)：`CGRect`、`CGPoint`、`CGSize`、`UIEdgeInsets`、`CGAffineTransform`
 - [`UIStackView`](ui-stack-view.md)：按内边距缩进排列项的容器
+- [手势识别器](ui-gesture-recognizer.md)：让普通视图响应点按和长按
 - [`CALayer`](ca-layer.md)：圆角、边框、阴影、渐变
 - [颜色](ui-color.md)：`backgroundColor` 能写哪些值
 - [单位](units.md)：pt 是什么

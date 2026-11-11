@@ -215,6 +215,7 @@ for macro, tsname in [('TextAlignment', 'NSTextAlignment'),
                       ('IndicatorStyle', 'UIScrollViewIndicatorStyle'),
                       ('ContentInsetAdjustmentBehavior',
                        'UIScrollViewContentInsetAdjustmentBehavior'),
+                      ('GestureState', 'UIGestureRecognizerState'),
                       ('KeychainAccessible', 'KeychainAccessible')]:
     compare(tsname, mm_enum(macro), dts_union(tsname))
 
@@ -359,7 +360,7 @@ for label, a, b in pairs:
 # 固化在这里。
 #
 # 真相在原生层：一个 selector 的分支里用了取对象参数的助手，它就收对象。
-OBJ_ARG_HELPERS = re.compile(r'\b(?:objectArg|viewArg|guideArg|colorArg|imageArg|vcArg|layerArg)\s*\(')
+OBJ_ARG_HELPERS = re.compile(r'\b(?:objectArg|viewArg|guideArg|colorArg|imageArg|vcArg|layerArg|gestureArg)\s*\(')
 # kSyncStack 是导航栈那条边的专用写法：它按原生真相整层 ownAll 一遍，
 # 所以调它就等于记了边
 OWN_MARKERS = re.compile(

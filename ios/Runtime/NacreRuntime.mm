@@ -1316,6 +1316,18 @@ nacre::NativeObjectRef CreateBlob(
                    type:(const std::string&)type
                      on:(BOOL)on
                   error:(std::string*)error {
+  // 手势。域自己管 trampoline 和事件名表，这里只把事件出口塞给它
+  {
+    __weak NacreRuntime* weakSelf = self;
+    NacreGestureEmit emit = ^(UIGestureRecognizer* recognizer, NSString* name,
+                              NSString* json) {
+      [weakSelf emitEvent:name
+                     from:recognizer
+                className:GestureClassName(recognizer)
+                     json:json.UTF8String];
+    };
+    if (GestureSetSubscription(object, @(type.c_str()), on, emit, error)) return;
+  }
   if ([object isKindOfClass:NSUserDefaults.class]) {
     NSUserDefaults* defaults = (NSUserDefaults*)object;
     if (type != "change") {

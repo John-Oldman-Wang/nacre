@@ -82,6 +82,13 @@ declare class UIView extends UIResponder {
   isDescendantOfView(view: UIView): boolean;
   viewWithTag(tag: number): UIView | null;
 
+  // 手势识别器。视图持有它们；一个识别器同一时刻只能挂在一个视图上
+  /** 每次读是新数组，里面的对象是同一个。系统自带的识别器也在里面。 */
+  readonly gestureRecognizers: readonly UIGestureRecognizer[];
+  /** 识别器原来挂在别的视图上时，会先从那个视图上摘下来。 */
+  addGestureRecognizer(recognizer: UIGestureRecognizer): void;
+  removeGestureRecognizer(recognizer: UIGestureRecognizer): void;
+
   setNeedsLayout(): void;
   layoutIfNeeded(): void;
   setNeedsDisplay(): void;

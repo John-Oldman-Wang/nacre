@@ -356,6 +356,9 @@ nacre::NativeObjectRef ConstructNative(const std::string& className,
     object = [CASpringAnimation animation];
   } else if (className == "CAAnimationGroup") {
     object = [CAAnimationGroup animation];
+  } else if (className == "UITapGestureRecognizer" ||
+             className == "UILongPressGestureRecognizer") {
+    return GestureConstruct(className);
   } else if (className == "WebSocket") {
     // 第一个用上 argsJSON 的类：url 是字符串，options 是字典
     return WebSocketConstruct(scalar(0), scalar(1));

@@ -582,6 +582,7 @@ Commit message 格式：
 | — | 构造通道带上标量参数 | construct_native 加 argsJSON | 已在模拟器验证通过：纯重构，933 条断言和改之前一字不差 |
 | — | A16 WebSocket | NSURLSessionWebSocketTask、拉改推、headers、协议级 ping | 已在模拟器验证通过：958 条断言全过，文本/二进制往返、ping/pong、干净关闭（1000 + wasClean）都验到；子协议协商和首部到达未验证 |
 | — | 内边距 | UIView 的四个边距属性、NSDirectionalEdgeInsets | 已在模拟器验证通过：996 条断言全过，栈视图的排列项按边距缩进；实测安全区是加上去的（写 16 读回 84） |
+| — | A7 点按和长按 | UIGestureRecognizer 三个类、UIView 的挂和摘、事件名即状态名 | 已在模拟器验证通过：1042 条断言全过，含 GC 回归；真实触摸也点过——点按、长按、移动都到了 JS，父视图的单击不抢 `UIButton`。实测纠正一条：长按的 began 回调里 state 是 `began` 不是 `possible`。真机（iPhone 14）上也点过，结论一致，并验到了 `cancelled`（长按中 App 退后台） |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |
@@ -720,7 +721,7 @@ bindgen 做完也解决不了同盾（风控）、mtpush（推送）、Sentry �
 | A4 | **容器控制器**：`UITabBarController`、`addChildViewController:` 一组 | tab 条自绘得出来，但父子控制器关系、生命周期和安全区传递只能原生给。它决定 App 的骨架，越晚补客户迁移越痛 |
 | A5 | ~~**绘图对象**~~ **已做**：`CAGradientLayer`（A5-1）、`CAShapeLayer` + `UIBezierPath`（A5-2）。剩 `CGPath` 和 `mask` / `shadowPath` | 折线图、K 线、饼图、渐变。纯对象，不需要覆写 |
 | A6 | ~~**Core Animation**~~ **已做**：A6-1 核心、A6-2 关键帧/动画组/弹簧、A6-3 CADisplayLink。剩 CATransition、CASpringAnimation 的感知时长初始化器 | `CADisplayLink` 是 target-action，M1a 已经够 |
-| A7 | **手势识别器**：长按、拖动、捏合 | target-action，M1a 够。抢占语义要单独设计（见清单第 10 步）。delegate 那部分要 M2 |
+| A7 | **手势识别器**：~~点按、长按~~ **已做**（见[事件模型](internals/events.md#a7-的第一片点按和长按)）。剩拖动、捏合、轻扫 | target-action，M1a 够。抢占语义原样暴露 iOS 的三个属性，没有另外设计。delegate 那部分要 M2 |
 | A8 | ~~**事件对象带数据**~~ **已做**：九个 `touch*` 事件带 `location` / `tapCount`。其余事件按 Web 的做法**根本没有这两个字段** | 只能由原生在派发时填 |
 | A9 | **`UITraitCollection`** + `overrideUserInterfaceStyle` | 读不到深浅色、收不到外观变化、App 内做不了主题开关。顺带堵上 `layer` 的 `borderColor` / `shadowColor` 切换主题不变色 |
 | A10 | **`UIRefreshControl`** | 依附在滚动视图的原生机制上 |
