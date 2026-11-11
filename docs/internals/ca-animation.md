@@ -151,6 +151,67 @@ A6-2 多出来的工作量把一条**早就存在的竞态**挤翻了面：`app/
 
 根子不在验收用例：**运行时还没有「页面出现了」这个事件**（`viewDidAppear:` 是覆写点，要 M2），JS 表达不了那个时机，只能观察别的条件去逼近它。这条已经补进 `project.md` 的 C1。
 
+## A6-3：CADisplayLink
+
+按[「性能：能用就先用着」](../project.md#性能能用就先用着)收窄过一次范围。讨论里冒出来过四条机制——优先任务队列、tick 同步派发、JSON 快路、批量提交——**一条都没做**。tick 就是个普通事件，和别的事件一样延后一轮派发。
+
+结果是：够用。验收里那个圆点走得挺顺。
+
+### target / selector 在 JS 里没有对应物
+
+ObjC 只有 `+displayLinkWithTarget:selector:`，没有公开的 `init`。而 target 和 selector 是**运行时的内部接线**，JS 给不出也不该给——和控件事件一模一样（那边是 `addTarget:action:forControlEvents:`，JS 侧只看到 `addEventListener`）。
+
+所以 `new CADisplayLink()` 在原生侧是：
+
+```objc
+NacreDisplayLinkTarget* hop = [NacreDisplayLinkTarget new];
+CADisplayLink* link = [CADisplayLink displayLinkWithTarget:hop selector:@selector(tick:)];
+```
+
+**持有方向和动画的 trampoline 一样**：link 强持有 target（头文件写着 `invalidate` 会 release 掉 target），所以 trampoline 反过来只能弱引用。
+
+多一道麻烦：**`CADisplayLink` 没有公开的 `target` 属性**，订阅时找不回 trampoline。所以造对象时顺手挂一个关联对象（`kNacreDisplayLinkTargetKey`），只为了能找回来——持有是 link 自己在做。
+
+### 三个时间带在事件上
+
+`timestamp` / `duration` / `targetTimestamp` 是事件负载，不让 JS 回头读 `link.timestamp`：**下一轮读到的已经是下一帧的值了**。
+
+判据没变，还是那句：「事件带不带数据，看那个信息回头读不读得到」。滚动事件不带位置，因为 `contentOffset` 读得到；这三个读不到。
+
+**单位是秒**，和 ObjC 一致——底层跟原生走。上层将来的 `requestAnimationFrame` 再换毫秒。基准是设备启动（mach 绝对时间换算的），**不是 `Date.now()`**，只能求差值。
+
+### 又栽在「等固定时长」上
+
+第一轮验收报「1 秒内一帧都没收到」。当时的怀疑是 iOS 27 把 `UIScreen.displayLinkWithTarget:` 废弃、换成了 `UIWindowScene` 上的版本，所以不绑场景的 link 可能根本不发。
+
+**先打诊断，没改代码**（上一次在动画 trampoline 上猜错改了一轮，这次记住了）。打出来是：
+
+```
+22:13:32.354  displaylink subscribe on=1
+22:13:32.354  addToRunLoop mode=kCFRunLoopCommonModes paused=0
+22:13:34.420  tick 1 subscribed=1 ts=346473.458656     ← 隔了 2.07 秒
+```
+
+**link 一直好好的，是验收只等了 1 秒。** 那 2 秒里主线程正忙着跑后面的验收段。
+
+这已经是第三次同一个毛病（动画事件、输入框、这里），所以验收那段改成**全部等条件**，而且**否定断言加了对照组**——「暂停之后不再收到」只靠「等一会儿没动静」会在主线程被堵住时假通过，所以另起一个永不暂停的 link，等它又走了 5 帧，再断言被暂停的那个没动。和所有权镜像那条 GC 对照组是同一个形状。
+
+### 顺带修的：check-api.sh 看不见 `static get`
+
+`mainRunLoop` 在 ObjC 里是 `@property(class, readonly)`，JS 侧写成静态取值器是对的。但脚本的正则只认 `static foo(`，所以报「d.ts 多了一个静态成员」。
+
+补上 `static get (\w+)\(` 之后，`UIColor` 那 39 个颜色常量的特例以后也可以退休——它当初就是为这个开的。
+
+### 一个真实的类型漏洞
+
+`NSRunLoop` 在 d.ts 里**没有任何实例成员**，而 TypeScript 是结构化类型，于是任何 `NSObject` 都「符合」它：
+
+```js
+link.addToRunLoop(someViewController, { forMode: 'common' });   // tsc 不报错
+```
+
+运行时拦得住（原生侧 `isKindOfClass:` 之后抛 `TypeError`），`tsc` 拦不住。这对**所有空壳类**都成立。验收用例里本来写了 `@ts-expect-error`，被 `tsc` 反过来告知「这条指令没用上」——双向检查又一次生效。
+
 ## 实测
 
 （这一节的数字由验收用例打出来，见 `app/src/steps/animation.js`。）

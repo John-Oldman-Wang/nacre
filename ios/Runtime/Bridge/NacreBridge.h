@@ -49,6 +49,25 @@ typedef void (^NacreAsyncDone)(NacreAsyncResult* result);
 
 // Keychain 的载体。iOS 上没有「钥匙串对象」这种东西，SecItem* 是一组 C 函数，
 // 所以自己给一个单例当包装表里的那个原生指针。
+// CADisplayLink 的 trampoline。
+//
+// ObjC 那边是 target-action，而 target 和 selector 在 JS 里没有对应物
+// （和控件事件一样），所以运行时自己当 target，JS 侧只看到事件。
+//
+// **link 对 target 是强持有**（头文件写着 invalidate 会 release 掉 target），
+// 所以这里反过来只能弱引用，否则成环。runtime 要等 JS 订阅时才填。
+@interface NacreDisplayLinkTarget : NSObject
+@property(nonatomic, weak) id runtime;
+@property(nonatomic, weak) CADisplayLink* link;
+@property(nonatomic, assign) BOOL subscribed;
+- (void)tick:(CADisplayLink*)sender;
+@end
+
+// 关联对象的 key：CADisplayLink → NacreDisplayLinkTarget。
+// link 本来就强持有 target，但 CADisplayLink **没有公开的 target 属性**，
+// 所以订阅时要靠这个关联把 trampoline 找回来
+extern const void* kNacreDisplayLinkTargetKey;
+
 @interface NacreKeychain : NSObject
 @property(class, readonly) NacreKeychain* shared;
 @end
@@ -76,6 +95,8 @@ NSDictionary* PointToJSON(CGPoint p);
 NSDictionary* SizeToJSON(CGSize z);
 NSDictionary* InsetsToJSON(UIEdgeInsets i);
 NSDictionary* RectToJSON(CGRect r);
+NSDictionary* FrameRateRangeToJSON(CAFrameRateRange r);
+CAFrameRateRange JSONToFrameRateRange(id v);
 CGPoint JSONToPoint(id v);
 CGSize JSONToSize(id v);
 CGRect JSONToRect(id v);
@@ -317,8 +338,12 @@ NACRE_STRING_ENUM_DECL(TimingFunctionName)
 // 关键帧：插值方式，以及沿路径走时转不转向
 NACRE_STRING_ENUM_DECL(CalculationMode)
 NACRE_STRING_ENUM_DECL(RotationMode)
+// run loop 的模式。CADisplayLink 挂到哪个模式上
+NACRE_STRING_ENUM_DECL(RunLoopMode)
 BOOL IsAnimationEventName(NSString* name);
 NSString* NamesForAnimationEvent(void);
+BOOL IsDisplayLinkEventName(NSString* name);
+NSString* NamesForDisplayLinkEvent(void);
 
 // CABasicAnimation 的 fromValue / toValue / byValue 在 ObjC 里是 id，
 // 该放什么类型**由 keyPath 决定**。这张表只能放原生层。
@@ -409,6 +434,8 @@ BOOL WritePathProperty(id object, NSString* key, id value, std::string* error);
 
 // ---- 动画 ----
 // 方法通道的入口要用 NacreArgs，所以声明在它定义之后，和图层域一起。
+id ReadDisplayLinkProperty(id object, NSString* key);
+BOOL WriteDisplayLinkProperty(id object, NSString* key, id value, std::string* error);
 id ReadAnimationProperty(id object, NSString* key);
 BOOL WriteAnimationProperty(id object, NSString* key, id value, std::string* error);
 nacre::NativeObjectRef ReadAnimationObjectProperty(id object, const std::string& name);

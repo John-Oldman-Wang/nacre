@@ -240,3 +240,84 @@ declare class CAAnimationGroup extends CAAnimation {
   constructor();
   animations: CAAnimation[];
 }
+
+/**
+ * run loop。只有 `mainRunLoop` 一个——JS 跑在主线程，`currentRunLoop`
+ * 永远等于它。暴露它是因为 `CADisplayLink.addToRunLoop` 躲不开这个参数。
+ */
+declare class NSRunLoop extends NSObject {
+  private constructor();
+  static readonly mainRunLoop: NSRunLoop;
+}
+
+/**
+ * `CADisplayLink` 的 `tick` 事件。每帧一次。
+ *
+ * 和导航那几个带负载的事件一样，回调参数的类型没有窄化（`EventTarget`
+ * 的基类签名不允许），要拿 `frame` 就转一下型：
+ *
+ * ```js
+ * link.addEventListener('tick', (e) => {
+ *   const frame = /** @type {CADisplayLinkEvent} *\/ (e).frame;
+ * });
+ * ```
+ */
+declare interface CADisplayLinkEvent extends Event {
+  /**
+   * 这一帧的时间，**单位是秒**（和 ObjC 一致）。
+   *
+   * 基准是设备启动，**不是 `Date.now()`**，只能拿来算差值。
+   */
+  readonly frame: {
+    readonly timestamp: number;
+    readonly duration: number;
+    /** 该为哪一帧渲染。做预测用这个，不是 `timestamp`。 */
+    readonly targetTimestamp: number;
+  };
+}
+
+/**
+ * 和屏幕刷新同步的回调。
+ *
+ * ```js
+ * const link = new CADisplayLink();
+ * link.addEventListener('tick', (e) => {
+ *   box.layer.position = next(e.frame);
+ * });
+ * link.addToRunLoop(NSRunLoop.mainRunLoop, { forMode: 'common' });
+ * // 不用了
+ * link.invalidate();
+ * ```
+ *
+ * **两道闸都要开**：挂了监听器，还要 `addToRunLoop`，少一个都不发。
+ *
+ * 日常动画**优先用 `CAAnimation`**：那些跑在 render server 里，主线程卡住
+ * 照样走；display link 驱动的每帧都要 JS，主线程一忙就掉帧。它是 Core
+ * Animation 表达不了时的逃生口——跟手、依赖实时数据、自定义物理。
+ */
+declare class CADisplayLink extends NSObject {
+  constructor();
+  addEventListener(
+    type: 'tick',
+    callback: EventListener | null,
+    options?: AddEventListenerOptions,
+  ): void;
+  removeEventListener(type: 'tick', callback: EventListener | null): void;
+
+  /** `forMode` 不给时是 `'default'`，那个在滚动时会停。 */
+  addToRunLoop(runLoop: NSRunLoop, options?: { forMode?: NSRunLoopMode }): void;
+  removeFromRunLoop(runLoop: NSRunLoop, options?: { forMode?: NSRunLoopMode }): void;
+  /** 从所有模式里摘掉。摘完就再也启动不了，要新的就再 `new` 一个。 */
+  invalidate(): void;
+
+  /** 秒。基准是设备启动，不是 `Date.now()`。 */
+  readonly timestamp: number;
+  readonly duration: number;
+  /** 该为哪一帧渲染。做预测用这个。 */
+  readonly targetTimestamp: number;
+  /** 暂停不等于摘掉：还挂在 run loop 上，设回 `false` 就继续。 */
+  isPaused: boolean;
+  /** 默认三个 0 = 跟硬件走。 */
+  get preferredFrameRateRange(): CAFrameRateRange;
+  set preferredFrameRateRange(value: CAFrameRateRangeLike);
+}

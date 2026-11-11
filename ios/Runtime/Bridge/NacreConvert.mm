@@ -153,6 +153,11 @@ id DecodeJSON(const std::string& json) {
 // 线上格式是内部约定，以后换编码不影响 JS。
 NSDictionary* PointToJSON(CGPoint p) { return @{@"x": @(p.x), @"y": @(p.y)}; }
 NSDictionary* SizeToJSON(CGSize z) { return @{@"width": @(z.width), @"height": @(z.height)}; }
+// 帧率区间。三个 float，最后一个说「最想要多少」，0 表示跟硬件走
+NSDictionary* FrameRateRangeToJSON(CAFrameRateRange r) {
+  return @{@"minimum": @(r.minimum), @"maximum": @(r.maximum),
+           @"preferred": @(r.preferred)};
+}
 NSDictionary* InsetsToJSON(UIEdgeInsets i) {
   return @{@"top": @(i.top), @"left": @(i.left),
            @"bottom": @(i.bottom), @"right": @(i.right)};
@@ -168,6 +173,11 @@ CGPoint JSONToPoint(id v) {
 CGSize JSONToSize(id v) {
   NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
   return CGSizeMake([d[@"width"] doubleValue], [d[@"height"] doubleValue]);
+}
+CAFrameRateRange JSONToFrameRateRange(id v) {
+  NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
+  return CAFrameRateRangeMake([d[@"minimum"] floatValue], [d[@"maximum"] floatValue],
+                              [d[@"preferred"] floatValue]);
 }
 CGRect JSONToRect(id v) {
   NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};

@@ -42,6 +42,15 @@ NACRE_STRING_ENUM_MAP(RotationMode,
                       @[ @"auto", kCAAnimationRotateAuto ],
                       @[ @"autoReverse", kCAAnimationRotateAutoReverse ])
 
+// run loop 的模式。CADisplayLink 要挂到某个模式上才会开始发。
+//
+// **default 和 common 的区别是滚动时还跑不跑**——这是 display link 最常见
+// 的坑。滚动期间主 run loop 切到 tracking 模式，只挂 default 的源就停了。
+NACRE_STRING_ENUM_MAP(RunLoopMode,
+                      @[ @"default", NSDefaultRunLoopMode ],
+                      @[ @"common", NSRunLoopCommonModes ],
+                      @[ @"tracking", UITrackingRunLoopMode ])
+
 // 动画自己的两个事件。来自 CAAnimationDelegate，走 trampoline，不需要 M2。
 static NSArray<NSString*>* AnimationEventNamesList(void) {
   static NSArray<NSString*>* names;
@@ -58,5 +67,12 @@ BOOL IsAnimationEventName(NSString* name) {
 NSString* NamesForAnimationEvent(void) {
   return [AnimationEventNamesList() componentsJoinedByString:@" / "];
 }
+
+// CADisplayLink 只有一个事件。单独一张表，因为订阅通道按类分流
+BOOL IsDisplayLinkEventName(NSString* name) {
+  return [name isKindOfClass:NSString.class] && [name isEqualToString:@"tick"];
+}
+
+NSString* NamesForDisplayLinkEvent(void) { return @"tick"; }
 
 }  // namespace nacre_bridge

@@ -82,7 +82,10 @@ def js_classes():
         sets = set(re.findall(r'^\s{4}set (\w+)\(', b, re.M))
         meths = {n for s, n, a in re.findall(r'^\s{4}(static )?(\w+)\(([^)]*)\)\s*\{', b, re.M)
                  if n != 'constructor'} - gets - sets
-        statics = set(re.findall(r'^\s{4}static (\w+)\(', b, re.M))
+        # static get X() 也算静态成员。原来只认 static X(，所以 ObjC 的
+        # @property(class, readonly) 这类在 JS 侧写成静态取值器时看不见
+        statics = (set(re.findall(r'^\s{4}static (\w+)\(', b, re.M)) |
+                   set(re.findall(r'^\s{4}static get (\w+)\(', b, re.M)))
         out[name] = dict(base=base, read=gets, write=sets, methods=meths, statics=statics)
     if JS_COLORS and 'UIColor' in out:
         out['UIColor']['statics'] |= JS_COLORS

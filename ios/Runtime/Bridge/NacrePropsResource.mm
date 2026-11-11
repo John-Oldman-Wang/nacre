@@ -232,8 +232,24 @@ bool ColorCallMethod(id object, const std::string& name, std::string* out) {
   return true;
 }
 
+// JS 跑在主线程，所以 currentRunLoop 永远等于 mainRunLoop，只给一个。
+// 和 Keychain / FileSystem 那几个一样单独成函数——类级对象属性这条通道
+// check-api.sh 还没覆盖（见 project.md 的 TODO），放进 ReadClassObjectProperty
+// 里反而会被当成实例属性误报
+static nacre::NativeObjectRef RunLoopClassObject(const std::string& className,
+                                                 const std::string& name) {
+  if (className == "NSRunLoop" && name == "mainRunLoop") {
+    return {(__bridge void*)NSRunLoop.mainRunLoop, "NSRunLoop"};
+  }
+  return {};
+}
+
 nacre::NativeObjectRef ReadClassObjectProperty(const std::string& className,
                                                const std::string& name) {
+  {
+    nacre::NativeObjectRef loop = RunLoopClassObject(className, name);
+    if (!loop.class_name.empty()) return loop;
+  }
   nacre::NativeObjectRef storage = StorageClassObject(className, name);
   if (!storage.class_name.empty()) return storage;
   nacre::NativeObjectRef files = FileSystemClassObject(className, name);

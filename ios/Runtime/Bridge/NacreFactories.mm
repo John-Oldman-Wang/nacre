@@ -3,6 +3,9 @@
 // 和 NacreMethods.mm 分开，是因为这是两个能力域——「造一个东西」和「对已有
 // 的东西做事」。改动单元也不一样：加一个新类要动这里，给已有的类加方法不用。
 #import "NacreBridge.h"
+#import <objc/runtime.h>
+
+const void* kNacreDisplayLinkTargetKey = &kNacreDisplayLinkTargetKey;
 
 namespace nacre_bridge {
 
@@ -347,6 +350,17 @@ nacre::NativeObjectRef ConstructNative(const std::string& className,
     object = [CASpringAnimation animation];
   } else if (className == "CAAnimationGroup") {
     object = [CAAnimationGroup animation];
+  } else if (className == "CADisplayLink") {
+    // ObjC 只有 +displayLinkWithTarget:selector:，而 target / selector 在 JS
+    // 里没有对应物，所以运行时自己当 target——和控件事件一个做法。
+    // link 强持有 target，trampoline 反过来只弱引用，不成环
+    NacreDisplayLinkTarget* hop = [NacreDisplayLinkTarget new];
+    CADisplayLink* link = [CADisplayLink displayLinkWithTarget:hop
+                                                      selector:@selector(tick:)];
+    hop.link = link;
+    objc_setAssociatedObject(link, kNacreDisplayLinkTargetKey, hop,
+                             OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    object = link;
   }
   if (object == nil) return {};
   return {(void*)CFAutorelease(CFBridgingRetain(object)), className};

@@ -53,6 +53,37 @@ bool AnimationCallMethod(id object, NSString* sel, const NacreArgs& args,
       return true;
     }
   }
+  if ([object isKindOfClass:CADisplayLink.class]) {
+    CADisplayLink* link = (CADisplayLink*)object;
+    if ([sel isEqualToString:@"invalidate"]) {
+      // 从所有模式里摘掉，并放掉 target（也就是我们的 trampoline）
+      [link invalidate];
+      *out = "null";
+      return true;
+    }
+    if ([sel isEqualToString:@"addToRunLoop:forMode:"] ||
+        [sel isEqualToString:@"removeFromRunLoop:forMode:"]) {
+      id loop = args.object(0);
+      if (![loop isKindOfClass:NSRunLoop.class]) {
+        *error = "addToRunLoop expects an NSRunLoop";
+        *out = "null";
+        return true;
+      }
+      NSString* mode = RunLoopModeFromName(args.value(1));
+      if (mode == nil) {
+        *error = EnumError(@"forMode", args.value(1), NamesForRunLoopMode());
+        *out = "null";
+        return true;
+      }
+      if ([sel isEqualToString:@"addToRunLoop:forMode:"]) {
+        [link addToRunLoop:(NSRunLoop*)loop forMode:mode];
+      } else {
+        [link removeFromRunLoop:(NSRunLoop*)loop forMode:mode];
+      }
+      *out = "null";
+      return true;
+    }
+  }
   if ([object isKindOfClass:CAMediaTimingFunction.class]) {
     if ([sel isEqualToString:@"controlPointAtIndex:"]) {
       // ObjC 是出参（float[2]），这里改成返回一个 CGPoint——

@@ -250,6 +250,73 @@ CATransaction.commit();
 
 > `view.layer` 那一层**不走这套**：UIKit 自己把 view-backed 图层的默认 action 关掉了，只有在 `UIView` 的动画块里才动。所以这条只对你自己 `new` 出来的子图层成立。
 
+## `CADisplayLink`：每帧回调
+
+和屏幕刷新同步的回调。**这是逃生口，不是日常工具。**
+
+```js
+const link = new CADisplayLink();
+link.addEventListener('tick', (e) => {
+  const frame = /** @type {CADisplayLinkEvent} */ (e).frame;
+  dot.frame = new CGRect(positionAt(frame.timestamp), 22, 16, 16);
+});
+link.addToRunLoop(NSRunLoop.mainRunLoop, { forMode: 'common' });
+
+// 不用了
+link.invalidate();
+```
+
+### 先读这三条
+
+**① 日常动画别用它。** `CAAnimation` 跑在 render server（另一个进程）里，主线程卡住照样走；display link 驱动的每帧都要 JS，主线程一忙就掉帧。它适合的是 Core Animation 表达不了的：跟手、依赖实时数据、自定义物理、掉帧统计。
+
+**② 两道闸都要开。** 挂了 `tick` 监听器**还要** `addToRunLoop`，少一个都不发。这是 ObjC 的事实，不是我们加的。
+
+**③ `'default'` 在滚动时会停。** 滚动期间主 run loop 切到 tracking 模式，只挂 `'default'` 的源就不跑了。要全程跑用 `'common'`——这是 display link 最常见的坑。
+
+| 模式 | 什么时候跑 |
+| --- | --- |
+| `'default'`（不给 `forMode` 时的默认） | 平时跑，**滚动时停** |
+| `'common'` | 一直跑 |
+| `'tracking'` | **只在**滚动时跑 |
+
+### 事件带的三个时间
+
+```js
+frame.timestamp         // 这一帧的时刻
+frame.duration          // 一帧多长
+frame.targetTimestamp   // 该为哪一帧渲染，做预测用这个
+```
+
+**单位是秒**，和 ObjC 一致（底层跟原生走）。
+
+**基准是设备启动，不是 `Date.now()`**——两者不是一个坐标系，别混算，只能拿来求差值。
+
+这三个值**带在事件上**而不是让你回头读 `link.timestamp`，因为下一轮读到的已经是下一帧的值了。
+
+### 暂停、摘掉
+
+```js
+link.isPaused = true;    // 还挂在 run loop 上，设回 false 就继续
+link.invalidate();       // 从所有模式摘掉，**再也启动不了**，要新的就再 new 一个
+```
+
+### 帧率
+
+```js
+link.preferredFrameRateRange = new CAFrameRateRange(30, 60, 30);
+```
+
+默认三个 0 = 跟硬件走。`preferred` 是「最想要多少」。
+
+> `preferredFramesPerSecond` 和 `frameInterval` **不暴露**，头文件里都标着废弃。
+
+### `NSRunLoop`
+
+只给 `mainRunLoop` 一个——JS 跑在主线程，`currentRunLoop` 永远等于它。暴露它纯粹是因为 `addToRunLoop` 躲不开这个参数。
+
+> **类型检查挡不住传错。** `NSRunLoop` 没有任何实例成员，而 TypeScript 是结构化类型，所以任何 `NSObject` 都「符合」它。运行时会抛，但 `tsc` 不会报。
+
 ## 属性一览
 
 ### `CAAnimation`
@@ -307,7 +374,6 @@ CATransaction.commit();
 | | |
 | --- | --- |
 | `CATransition` | 转场 |
-| `CADisplayLink` | 和屏幕刷新同步的回调。它不是动画对象，是另一套机制 |
 | `UIView.animateWithDuration:` | animations 是**同步执行的 block**，要 M1b |
 | `locations` / `colors` 的动画 | 要再加一种「数组 of X」的取值。注意这和 `CAKeyframeAnimation.values` 是两件事 |
 | `CASpringAnimation` 的感知时长初始化器 | `initWithPerceptualDuration:bounce:`，构造通道传不了标量 |

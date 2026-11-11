@@ -577,6 +577,7 @@ Commit message 格式：
 | — | A5-2 路径和形状图层 | UIBezierPath、CAShapeLayer、三个字符串枚举、UIRectCorner 位掩码 | 已在模拟器验证通过：788 条断言全过，屏幕上一条折线和一个扇形；path 的身份靠 JS 侧镜像，写进去的对象原样还回来 |
 | — | A6-1 动画核心（CABasicAnimation、时间曲线、CATransaction、动画事件） | keyPath 定取值类型、两条新引擎通道、动画 trampoline | 已在模拟器验证通过：850 条断言全过，折线画出来、圆点脉动；顺带把「隐式动画」那条未验证钉死了——是真的，但要等图层渲染过一轮 |
 | — | A6-2 关键帧、动画组、弹簧 | CAKeyframeAnimation、CAAnimationGroup、CASpringAnimation、values 的数组取值 | 已在模拟器验证通过：897 条断言全过，圆点沿路径走并转向、色块跳色、方块弹进来；顺带把验收用例里最后一个写死的延迟换成了等条件 |
+| — | A6-3 CADisplayLink | 每帧回调、NSRunLoop、run loop 模式、CAFrameRateRange | 已在模拟器验证通过：925 条断言全过，圆点跟着帧左右走；按「能用就先用着」收窄，讨论里冒出的四条机制一条都没做 |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |
@@ -679,7 +680,7 @@ iOS 的触摸不是一套机制，是**四套并行**的（hit-testing、respond
 | A3 | **任意色值**：`colorWithRed:…`、`colorWithAlphaComponent:`、自定义动态色 | 今天只能取预置常量，品牌色、半透明遮罩、「浅色一个值深色一个值」全造不出来。[方案已定](#待讨论的设计问题)、未实现，改动小 |
 | A4 | **容器控制器**：`UITabBarController`、`addChildViewController:` 一组 | tab 条自绘得出来，但父子控制器关系、生命周期和安全区传递只能原生给。它决定 App 的骨架，越晚补客户迁移越痛 |
 | A5 | ~~**绘图对象**~~ **已做**：`CAGradientLayer`（A5-1）、`CAShapeLayer` + `UIBezierPath`（A5-2）。剩 `CGPath` 和 `mask` / `shadowPath` | 折线图、K 线、饼图、渐变。纯对象，不需要覆写 |
-| A6 | **Core Animation**：`CABasicAnimation` / `CAKeyframeAnimation` / `CADisplayLink` | `CADisplayLink` 是 target-action，M1a 已经够 |
+| A6 | ~~**Core Animation**~~ **已做**：A6-1 核心、A6-2 关键帧/动画组/弹簧、A6-3 CADisplayLink。剩 CATransition、CASpringAnimation 的感知时长初始化器 | `CADisplayLink` 是 target-action，M1a 已经够 |
 | A7 | **手势识别器**：长按、拖动、捏合 | target-action，M1a 够。抢占语义要单独设计（见清单第 10 步）。delegate 那部分要 M2 |
 | A8 | **事件对象带数据**：触点位置等 | 只能由原生在派发时填 |
 | A9 | **`UITraitCollection`** + `overrideUserInterfaceStyle` | 读不到深浅色、收不到外观变化、App 内做不了主题开关。顺带堵上 `layer` 的 `borderColor` / `shadowColor` 切换主题不变色 |

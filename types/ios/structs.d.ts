@@ -49,6 +49,22 @@ type CGSizeLike = CGSize | { width: number; height: number };
 type CGRectLike =
   | CGRect
   | { x: number; y: number; width: number; height: number };
+/**
+ * 想要的帧率区间，给 `CADisplayLink.preferredFrameRateRange`。
+ *
+ * 三个都给 0（默认）表示跟硬件走。`preferred` 是「最想要多少」。
+ */
+declare class CAFrameRateRange {
+  constructor(minimum: number, maximum: number, preferred?: number);
+  readonly minimum: number;
+  readonly maximum: number;
+  readonly preferred: number;
+}
+
+type CAFrameRateRangeLike =
+  | CAFrameRateRange
+  | { minimum: number; maximum: number; preferred: number };
+
 type UIEdgeInsetsLike =
   | UIEdgeInsets
   | { top: number; left: number; bottom: number; right: number };

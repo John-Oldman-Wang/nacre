@@ -130,6 +130,14 @@ type CAAnimationCalculationMode =
 type CAAnimationRotationMode = 'auto' | 'autoReverse';
 
 /**
+ * run loop 的模式，给 `CADisplayLink.addToRunLoop`。
+ *
+ * **`'default'` 在滚动时会停**，`'common'` 不会——这是 display link 最常
+ * 见的坑。`'tracking'` 是只在滚动时跑。
+ */
+type NSRunLoopMode = 'default' | 'common' | 'tracking';
+
+/**
  * 能动画的属性。写别的名字会当场抛。
  *
  * **没有 `frame`**：它在 Core Animation 里是从 `position` / `bounds` 推

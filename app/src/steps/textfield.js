@@ -153,6 +153,8 @@ export function stepTextField(ctx) {
   //                    这个控件事件不发**。太早了
   //   等模态散场 + 固定 400ms  前两条都躲开了，但主线程被别的段堵了 2.7 秒，
   //                    endEditing 之后那条又没等到状态落定
+  //   只等模态散场      presentedViewController 清了，但转场还没完全落定，
+  //                    照样被拒
   //
   // 共同的病根是一样的：**在一个忙碌的主线程上赌固定时长**。
   // 真正该用的信号是「页面出现了」（viewDidAppear:），那是覆写点，要 M2。
@@ -177,10 +179,10 @@ export function stepTextField(ctx) {
     setTimeout(tick, 0);
   }
 
-  // 转场中途 UIKit 会拒绝交出 first responder，所以先等模态散场
-  waitUntil('模态散场', () => vc.presentedViewController === null, () => {
-    const became = field.becomeFirstResponder();
-    assert('becomeFirstResponder 成功', became, true);
+  // **直接拿「这次成没成」当条件。** becomeFirstResponder 本身就返回成没成，
+  // 比猜前提准——试过「等模态散场」，但转场刚结束、还没完全落定时它照样拒。
+  // 反复调是无害的：已经是 first responder 时直接返回 true。
+  waitUntil('拿到 first responder', () => field.becomeFirstResponder(), () => {
     assert('成了 first responder', field.isFirstResponder, true);
     assert('isEditing 跟着为真', field.isEditing, true);
 

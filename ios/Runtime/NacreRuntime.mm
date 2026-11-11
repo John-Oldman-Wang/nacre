@@ -211,6 +211,30 @@ using namespace nacre_bridge;
 
 @end
 
+// CADisplayLink 的 trampoline（类声明在 NacreBridge.h，因为造对象的工厂
+// 也要用）。每帧一次，所以这里尽量短：没订阅就直接返回，连 emit 都不进。
+//
+// 事件**带三个时间**，因为它们在下一轮读 link 上的属性已经是下一帧的值了
+// ——「事件带不带数据」的判据就是「那个信息回头读不读得到」。
+@implementation NacreDisplayLinkTarget
+- (void)tick:(CADisplayLink*)sender {
+  if (!self.subscribed) return;
+  NacreRuntime* runtime = self.runtime;
+  CADisplayLink* link = self.link;
+  if (runtime == nil || link == nil) return;
+  // 秒，和 ObjC 一致。底层跟原生走，上层的 rAF 将来再换毫秒
+  NSString* json =
+      [NSString stringWithFormat:@"{\"timestamp\":%.9f,\"duration\":%.9f,"
+                                 @"\"targetTimestamp\":%.9f}",
+                                 sender.timestamp, sender.duration,
+                                 sender.targetTimestamp];
+  [runtime emitEvent:@"tick"
+                from:link
+           className:"CADisplayLink"
+                json:json.UTF8String];
+}
+@end
+
 // 导航的 trampoline。和滚动那个同构，区别是这两条事件**带一个 viewController**：
 // 「哪个页面」在 willShow 那一刻从 nav 上读不到（topViewController 还没换），
 // 所以原生送什么就带什么——事件带不带数据的判据是「那个信息在对象上读不读
@@ -1301,6 +1325,23 @@ nacre::NativeObjectRef CreateBlob(
       item.target = nil;
       item.action = nil;
       [table removeObjectForKey:name];
+    }
+    return;
+  }
+  if ([object isKindOfClass:CADisplayLink.class]) {
+    CADisplayLink* link = (CADisplayLink*)object;
+    NSString* name = @(type.c_str());
+    if (!IsDisplayLinkEventName(name)) {
+      *error = EnumError(@"addEventListener", name, NamesForDisplayLinkEvent());
+      return;
+    }
+    // trampoline 是造对象时就挂上的，靠关联对象找回来
+    // （CADisplayLink 没有公开的 target 属性）
+    NacreDisplayLinkTarget* hop =
+        objc_getAssociatedObject(link, kNacreDisplayLinkTargetKey);
+    if (hop != nil) {
+      hop.runtime = self;
+      hop.subscribed = on;
     }
     return;
   }

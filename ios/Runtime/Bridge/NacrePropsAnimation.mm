@@ -171,6 +171,35 @@ static BOOL AnimValuesFromJSON(CAPropertyAnimation* anim, id value,
   return YES;
 }
 
+// CADisplayLink。时间单位**是秒**，和 ObjC 一致——底层跟原生走，
+// 将来上层的 requestAnimationFrame 再换成毫秒。
+id ReadDisplayLinkProperty(id object, NSString* key) {
+  if (![object isKindOfClass:CADisplayLink.class]) return nil;
+  CADisplayLink* link = (CADisplayLink*)object;
+  if ([key isEqualToString:@"timestamp"]) return @(link.timestamp);
+  if ([key isEqualToString:@"duration"]) return @(link.duration);
+  if ([key isEqualToString:@"targetTimestamp"]) return @(link.targetTimestamp);
+  if ([key isEqualToString:@"isPaused"]) return @(link.isPaused);
+  if ([key isEqualToString:@"preferredFrameRateRange"]) {
+    return FrameRateRangeToJSON(link.preferredFrameRateRange);
+  }
+  return nil;
+}
+
+BOOL WriteDisplayLinkProperty(id object, NSString* key, id value, std::string* error) {
+  if (![object isKindOfClass:CADisplayLink.class]) return NO;
+  CADisplayLink* link = (CADisplayLink*)object;
+  if ([key isEqualToString:@"isPaused"]) {
+    link.paused = [value boolValue];
+    return YES;
+  }
+  if ([key isEqualToString:@"preferredFrameRateRange"]) {
+    link.preferredFrameRateRange = JSONToFrameRateRange(value);
+    return YES;
+  }
+  return NO;
+}
+
 id ReadAnimationProperty(id object, NSString* key) {
   // 子类在前
   if ([object isKindOfClass:CASpringAnimation.class]) {

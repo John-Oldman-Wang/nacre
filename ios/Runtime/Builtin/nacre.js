@@ -504,6 +504,18 @@
     toString() { return 'CGSize(' + this.width + ', ' + this.height + ')'; }
   });
 
+  // 帧率区间。preferred 给 0 表示跟硬件走（默认就是三个 0）
+  const CAFrameRateRange = define(globalThis, 'CAFrameRateRange', class CAFrameRateRange {
+    constructor(minimum, maximum, preferred) {
+      defineStructFields(this, [['minimum', num(minimum)], ['maximum', num(maximum)],
+                                ['preferred', num(preferred === undefined ? 0 : preferred)]]);
+    }
+    toString() {
+      return 'CAFrameRateRange(' + this.minimum + ', ' + this.maximum + ', ' +
+             this.preferred + ')';
+    }
+  });
+
   // 线上格式是扁平的四个数，和 ObjC 的 {origin, size} 嵌套结构对应关系
   // 由 origin / size 两个取值器给出——它们在原型上，所以不参与
   // JSON.stringify，线上只走扁平的四个字段。
@@ -619,11 +631,14 @@
   const RECT_FIELDS = ['x', 'y', 'width', 'height'];
   const POINT_FIELDS = ['x', 'y'];
   const SIZE_FIELDS = ['width', 'height'];
+  const FRAME_RATE_FIELDS = ['minimum', 'maximum', 'preferred'];
   const INSETS_FIELDS = ['top', 'left', 'bottom', 'right'];
   const TRANSFORM_FIELDS = ['a', 'b', 'c', 'd', 'tx', 'ty'];
   const toRect = (o) => (o == null ? null : new CGRect(o.x, o.y, o.width, o.height));
   const toPoint = (o) => (o == null ? null : new CGPoint(o.x, o.y));
   const toSize = (o) => (o == null ? null : new CGSize(o.width, o.height));
+  const toFrameRateRange = (o) =>
+    (o == null ? null : new CAFrameRateRange(o.minimum, o.maximum, o.preferred));
   const toTransform = (o) =>
     (o == null ? null : new CGAffineTransform(o.a, o.b, o.c, o.d, o.tx, o.ty));
   const toInsets = (o) =>
@@ -1636,6 +1651,84 @@
     throw new TypeError(
       what + ' needs a number, a CGPoint / CGSize / CGRect, a color, or a UIBezierPath');
   }
+
+  // run loop。只给 mainRunLoop 一个：JS 跑在主线程，currentRunLoop 永远
+  // 等于它。暴露它是因为 CADisplayLink.addToRunLoop 躲不开这个参数。
+  defineNativeClass('NSRunLoop', class NSRunLoop extends NSObject {
+    constructor() { nativeOnly(new.target); }
+    static get mainRunLoop() { return nativeClassObject('NSRunLoop', 'mainRunLoop'); }
+  });
+
+  // 和屏幕刷新同步的回调。
+  //
+  // ```js
+  // const link = new CADisplayLink();
+  // link.addEventListener('tick', (e) => { box.layer.position = next(e.frame); });
+  // link.addToRunLoop(NSRunLoop.mainRunLoop, { forMode: 'common' });
+  // …
+  // link.invalidate();
+  // ```
+  //
+  // **两道闸都要开**：挂了监听器，还要 addToRunLoop，少一个都不发。
+  //
+  // ObjC 那边是 +displayLinkWithTarget:selector:，而 target / selector 在 JS
+  // 里没有对应物，所以运行时自己当 target，JS 侧只看到事件——和控件事件
+  // 一个做法。
+  //
+  // 日常动画**优先用 animate / CAAnimation**：那些跑在 render server 里，
+  // 主线程卡住照样走；display link 驱动的每帧都要 JS，主线程一忙就掉帧。
+  defineNativeClass('CADisplayLink', class CADisplayLink extends NSObject {
+    constructor() {
+      super();
+      constructNative(this, new.target, 'CADisplayLink', []);
+    }
+
+    [kSubscribe](type, on) {
+      requireNative(this, 'addEventListener');
+      native.subscribe(this[kHandle], type, on);
+      if (on) subscribed.add(this);
+      else if (this[kListeners].size === 0) subscribed.delete(this);
+    }
+
+    // 'default' 只在平时跑，**滚动时会停**；'common' 滚动时也跑。
+    // 这是 display link 最常见的坑
+    addToRunLoop(runLoop, options) {
+      const o = options || {};
+      nativeCall(this, 'addToRunLoop:forMode:',
+                 [runLoop, 'forMode' in o ? o.forMode : 'default']);
+      ownOne(this, 'runLoops', runLoop);
+    }
+    removeFromRunLoop(runLoop, options) {
+      const o = options || {};
+      nativeCall(this, 'removeFromRunLoop:forMode:',
+                 [runLoop, 'forMode' in o ? o.forMode : 'default']);
+    }
+    // 从所有模式里摘掉。摘完就再也启动不了，要新的就再 new 一个
+    invalidate() { nativeCall(this, 'invalidate', []); }
+
+    // 下面三个都是**秒**，和 ObjC 一致。基准是设备启动，不是 Date.now()，
+    // 只能拿来算差值
+    get timestamp() { requireNative(this, 'timestamp'); return nativeGet(this, 'timestamp'); }
+    get duration() { requireNative(this, 'duration'); return nativeGet(this, 'duration'); }
+    // 该为哪一帧渲染。做预测用这个，不是 timestamp
+    get targetTimestamp() {
+      requireNative(this, 'targetTimestamp');
+      return nativeGet(this, 'targetTimestamp');
+    }
+    // 暂停不等于摘掉：还挂在 run loop 上，设回 false 就继续
+    get isPaused() { requireNative(this, 'isPaused'); return nativeGet(this, 'isPaused'); }
+    set isPaused(value) { requireNative(this, 'isPaused'); nativeSet(this, 'isPaused', value); }
+    // 想要多少帧率。默认三个 0 = 跟硬件走
+    get preferredFrameRateRange() {
+      requireNative(this, 'preferredFrameRateRange');
+      return toFrameRateRange(nativeGet(this, 'preferredFrameRateRange'));
+    }
+    set preferredFrameRateRange(value) {
+      requireNative(this, 'preferredFrameRateRange');
+      nativeSet(this, 'preferredFrameRateRange',
+                structArg(value, FRAME_RATE_FIELDS, 'preferredFrameRateRange'));
+    }
+  });
 
   // 事务。它管的是**隐式动画**：在 UIKit 的动画块外面改独立子图层的属性，
   // Core Animation 默认给一个 0.25 秒的动画。setDisableActions 是关掉它的
@@ -3839,6 +3932,7 @@
   // 也可以是普通 JSON 值（动画的 stop 带一个布尔）——sink 一视同仁
   const objectEventField = {
     willshow: 'viewController', didshow: 'viewController', stop: 'finished',
+    tick: 'frame',
   };
 
   // 原生要给某个对象自己派发事件时回调这里（场景的生命周期事件走这条路）
