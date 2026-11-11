@@ -119,6 +119,40 @@ NSString* JoinEnumNames(NSDictionary<NSString*, NSNumber*>* table);
     return nil;                                                               \
   }                                                                           \
   NSString* NamesFor##FuncName(void) { return JoinEnumNames(FuncName##Table()); }
+// 值是 NSString 常量的枚举（kCAFillRuleNonZero、kCACornerCurveCircular…）。
+// 和 NACRE_ENUM_MAP 的区别只有一处：那个宏的值必须是数字（NS_ENUM）。
+//
+// 用**有序 pairs** 不用字典，和 StackAlignment 同一个理由：一个值挂两个
+// 名字时反查必须有确定答案，无序字典给不了。抽宏之前这是七份一模一样的
+// 拷贝，而抄串了（NamesForLineJoin 里遍历 LineCapPairs）三边核对**看不见**
+// ——它从 LineJoinPairs 的源码文本抽名字，不看函数体里用的是谁。
+// 名字只出现一次，那类错就不可能了。
+#define NACRE_STRING_ENUM_MAP(FuncName, ...)                                  \
+  static NSArray<NSArray*>* FuncName##Pairs(void) {                           \
+    static NSArray<NSArray*>* pairs;                                          \
+    static dispatch_once_t once;                                              \
+    dispatch_once(&once, ^{ pairs = @[__VA_ARGS__]; });                       \
+    return pairs;                                                             \
+  }                                                                           \
+  NSString* FuncName##FromName(NSString* name) {                              \
+    if (![name isKindOfClass:NSString.class]) return nil;                     \
+    for (NSArray* pair in FuncName##Pairs()) {                                \
+      if ([pair[0] isEqualToString:name]) return pair[1];                     \
+    }                                                                         \
+    return nil;                                                               \
+  }                                                                           \
+  NSString* NameFor##FuncName(NSString* value) {                              \
+    for (NSArray* pair in FuncName##Pairs()) {                                \
+      if ([pair[1] isEqualToString:value]) return pair[0];                    \
+    }                                                                         \
+    return nil;                                                               \
+  }                                                                           \
+  NSString* NamesFor##FuncName(void) {                                        \
+    NSMutableArray<NSString*>* names = [NSMutableArray array];                \
+    for (NSArray* pair in FuncName##Pairs()) [names addObject:pair[0]];       \
+    return [names componentsJoinedByString:@" / "];                           \
+  }
+
 // 位掩码。一个数值拆成一组名字，所以 JS 侧是字符串数组。
 // 单值枚举那套宏不够用：它一个名字对一个值，这里要双向拆合。
 #define NACRE_MASK_MAP(FuncName, Type, ...)                                   \
@@ -166,6 +200,12 @@ typedef NS_ENUM(NSInteger, NacreKeychainAccessible) {
   NacreKeychainAccessibleAfterFirstUnlockThisDeviceOnly,
   NacreKeychainAccessibleWhenPasscodeSetThisDeviceOnly,
 };
+
+// 字符串枚举的声明，和 NACRE_STRING_ENUM_MAP 配对
+#define NACRE_STRING_ENUM_DECL(FuncName)                \
+  NSString* FuncName##FromName(NSString* name);         \
+  NSString* NameFor##FuncName(NSString* value);         \
+  NSString* NamesFor##FuncName(void);
 
 #define NACRE_ENUM_DECL(FuncName, Type)                 \
   BOOL FuncName##FromName(NSString* name, Type* out);   \
@@ -259,36 +299,21 @@ BOOL IsScrollEventName(NSString* name);
 NSString* NamesForScrollEvent(void);
 
 // cornerCurve 的值是 NSString 常量，不是枚举，和文本样式一样
-NSString* CornerCurveFromName(NSString* name);
-NSString* NameForCornerCurve(NSString* curve);
-NSString* NamesForCornerCurve(void);
+NACRE_STRING_ENUM_DECL(CornerCurve)
 
-// 渐变的类型。和 cornerCurve 一样是 NSString 常量（kCAGradientLayerAxial…），
-// 不是 NS_ENUM，所以同样手写有序 pairs 而不走 NACRE_ENUM_MAP。
-NSString* GradientTypeFromName(NSString* name);
-NSString* NameForGradientType(NSString* type);
-NSString* NamesForGradientType(void);
+// 渐变的类型。和 cornerCurve 一样是 NSString 常量（kCAGradientLayerAxial…）
+NACRE_STRING_ENUM_DECL(GradientType)
 
-// CAShapeLayer 的三个枚举。又是 NSString 常量（kCAFillRuleNonZero…），
-// 所以和 cornerCurve、渐变类型一样手写有序 pairs。
-// 到这里已经是第五套同形状的代码了，值得抽个宏——但抽之前要先让
-// check-api.sh 的正则认得出新形状，那是另一步。
-NSString* FillRuleFromName(NSString* name);
-NSString* NameForFillRule(NSString* rule);
-NSString* NamesForFillRule(void);
-NSString* LineCapFromName(NSString* name);
-NSString* NameForLineCap(NSString* cap);
-NSString* NamesForLineCap(void);
-NSString* LineJoinFromName(NSString* name);
-NSString* NameForLineJoin(NSString* join);
-NSString* NamesForLineJoin(void);
+// CAShapeLayer 的三个枚举。又是 NSString 常量（kCAFillRuleNonZero…）
+NACRE_STRING_ENUM_DECL(FillRule)
+NACRE_STRING_ENUM_DECL(LineCap)
+NACRE_STRING_ENUM_DECL(LineJoin)
 
-// 动画的填充模式和时间曲线名。又是 NSString 常量，所以还是手写有序 pairs。
-NSString* FillModeFromName(NSString* name);
-NSString* NameForFillMode(NSString* mode);
-NSString* NamesForFillMode(void);
-NSString* TimingFunctionNameFromName(NSString* name);
-NSString* NamesForTimingFunctionName(void);
+// 动画的填充模式和时间曲线名。又是 NSString 常量。
+// NameForTimingFunctionName 用不上（曲线是对象，不按名字读回来），
+// 但宏一并生成，少一个特例比省一个函数值
+NACRE_STRING_ENUM_DECL(FillMode)
+NACRE_STRING_ENUM_DECL(TimingFunctionName)
 BOOL IsAnimationEventName(NSString* name);
 NSString* NamesForAnimationEvent(void);
 

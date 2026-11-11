@@ -234,26 +234,27 @@ state = extract('原生层的 ControlState 掩码表',
 compare('UIControlStateName', (state | {'normal'}) if state else None,
         dts_union('UIControlStateName'))
 
+# 值是 NSString 常量的枚举，走 NACRE_STRING_ENUM_MAP。原来这七条各有各的
+# 正则（按 XxxPairs(void) 那个形状找），抽宏之后并成一个表驱动的循环
+for tsname, macro in [('CALayerCornerCurve', 'CornerCurve'),
+                      ('CAGradientLayerType', 'GradientType'),
+                      ('CAShapeLayerFillRule', 'FillRule'),
+                      ('CAShapeLayerLineCap', 'LineCap'),
+                      ('CAShapeLayerLineJoin', 'LineJoin'),
+                      ('CAMediaTimingFillMode', 'FillMode'),
+                      ('CAMediaTimingFunctionName', 'TimingFunctionName')]:
+    compare(tsname,
+            extract(f'原生层的 {macro} 字符串枚举表',
+                    rf'NACRE_STRING_ENUM_MAP\({macro},(.*?)\)\n\n', mm,
+                    r'@\[\s*@"(\w+)"'),
+            dts_union(tsname))
+
 # 这几张表不走宏。pairs 是**有序数组**（反查要有确定答案），table 是字典
 # （只按名字查，不反查），所以内层正则不是同一个。
 for tsname, outer, inner in [
     ('UIFontWeight', r'FontWeightTable\(void\).*?@\{(.*?)\};', r'@"(\w+)":'),
     ('UIFontTextStyle', r'TextStylePairs\(void\).*?pairs = @\[(.*?)\];',
      r'@\[\s*@"(\w+)"'),
-    ('CALayerCornerCurve', r'CornerCurvePairs\(void\).*?pairs = @\[(.*?)\];',
-     r'@\[\s*@"(\w+)"'),
-    ('CAGradientLayerType', r'GradientTypePairs\(void\).*?pairs = @\[(.*?)\];',
-     r'@\[\s*@"(\w+)"'),
-    ('CAShapeLayerFillRule', r'FillRulePairs\(void\).*?pairs = @\[(.*?)\];',
-     r'@\[\s*@"(\w+)"'),
-    ('CAShapeLayerLineCap', r'LineCapPairs\(void\).*?pairs = @\[(.*?)\];',
-     r'@\[\s*@"(\w+)"'),
-    ('CAShapeLayerLineJoin', r'LineJoinPairs\(void\).*?pairs = @\[(.*?)\];',
-     r'@\[\s*@"(\w+)"'),
-    ('CAMediaTimingFillMode', r'FillModePairs\(void\).*?pairs = @\[(.*?)\];',
-     r'@\[\s*@"(\w+)"'),
-    ('CAMediaTimingFunctionName',
-     r'TimingFunctionNamePairs\(void\).*?pairs = @\[(.*?)\];', r'@\[\s*@"(\w+)"'),
     ('CAAnimationEventType',
      r'AnimationEventNamesList\(void\).*?names = @\[(.*?)\];', r'@"(\w+)"'),
     # 能动画的属性。原生是字典（只按名字查、不反查），所以内层正则和 pairs 不同
