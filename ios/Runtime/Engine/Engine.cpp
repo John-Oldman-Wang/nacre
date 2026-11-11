@@ -694,6 +694,25 @@ struct Engine::Impl {
     self->host.fetch_release(info[0]->Int32Value(ctx).FromMaybe(0));
   }
 
+  // crypto.getRandomValues 的底座。参数检查（是不是整数类型数组、有没有
+  // 超过 65536 字节）在 JS 侧做完了，这里只负责把视图覆盖的那段字节填满。
+  // 注意是**视图的范围**：byteOffset 和 byteLength 都要算，不是整个 buffer
+  static void NativeRandomFill(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    info.GetReturnValue().Set(false);
+    if (!self->host.fill_random || info.Length() < 1 || !info[0]->IsArrayBufferView()) return;
+    v8::Local<v8::ArrayBufferView> view = info[0].As<v8::ArrayBufferView>();
+    const size_t length = view->ByteLength();
+    if (length == 0) {
+      info.GetReturnValue().Set(true);
+      return;
+    }
+    std::shared_ptr<v8::BackingStore> store = view->Buffer()->GetBackingStore();
+    uint8_t* bytes = static_cast<uint8_t*>(store->Data()) + view->ByteOffset();
+    info.GetReturnValue().Set(self->host.fill_random(bytes, length));
+  }
+
   // URL 解析。字符串进，各部分的 JSON 出；解析不了返回 null。
   static void NativeParseURL(const v8::FunctionCallbackInfo<v8::Value>& info) {
     v8::Isolate* isolate = info.GetIsolate();
@@ -931,6 +950,7 @@ struct Engine::Impl {
         {"addTimer", NativeAddTimer},
         {"removeTimer", NativeRemoveTimer},
         {"now", NativeNow},
+        {"randomFill", NativeRandomFill},
         {"timeOrigin", NativeTimeOrigin},
         {"call", NativeCall},
         {"callObj", NativeCallObject},

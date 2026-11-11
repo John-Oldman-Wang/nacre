@@ -837,6 +837,7 @@ nacre::NativeObjectRef CreateBlob(
     host.parse_url = [](const std::string& url, const std::string& base) {
       return ParseURL(url, base);
     };
+    host.fill_random = [](void* bytes, size_t length) { return FillRandom(bytes, length); };
     // 「delay_ms 之后叫我」。每次覆盖上一次的约定，负数表示撤销。
     host.schedule_wakeup = [weakSelf](double delayMs) {
       NacreRuntime* strongSelf = weakSelf;

@@ -331,6 +331,38 @@ declare class Performance {
 declare const performance: Performance;
 
 // ---------------------------------------------------------------------------
+// 随机数
+// ---------------------------------------------------------------------------
+
+/** `crypto.getRandomValues()` 接受的数组：九种整数类型数组。 */
+type IntegerTypedArray =
+  | Int8Array | Uint8Array | Uint8ClampedArray
+  | Int16Array | Uint16Array
+  | Int32Array | Uint32Array
+  | BigInt64Array | BigUint64Array;
+
+/**
+ * 密码学强度的随机数。只有一个实例，就是全局的 `crypto`。
+ *
+ * 和 Web、Node 的同名对象一致，但只有这两个方法，没有 `crypto.subtle`。
+ */
+declare class Crypto {
+  private constructor();
+  /**
+   * 用随机值填满 `array`，再把它原样返回。随机源是系统提供的，可以用来
+   * 生成密钥和令牌——`Math.random()` 不行。
+   *
+   * 一次最多 65536 字节，超过抛 `QuotaExceededError`；传浮点数组或
+   * `DataView` 抛 `TypeMismatchError`。
+   */
+  getRandomValues<T extends IntegerTypedArray>(array: T): T;
+  /** 一个随机生成的第 4 版 UUID，小写，形如 `3f2b8c1e-…`。 */
+  randomUUID(): string;
+}
+
+declare const crypto: Crypto;
+
+// ---------------------------------------------------------------------------
 // 事件模型
 // ---------------------------------------------------------------------------
 //

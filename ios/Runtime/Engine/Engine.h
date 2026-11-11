@@ -166,6 +166,10 @@ struct EngineHost {
   std::function<std::string(const std::string& url, const std::string& base)>
       parse_url;
 
+  // 往一段内存里填密码学强度的随机字节。失败返回 false。
+  // 随机源是系统能力，所以归宿主；引擎只管把类型数组的那段字节指给它
+  std::function<bool(void* bytes, size_t length)> fill_random;
+
   // ---- 任务调度 ----
   // 这两条是定时器要用的。调度逻辑（到期堆、排序、预算）全在 Engine 里，
   // 平台层只负责「怎么把自己叫醒」和「怎么排一个任务」——前者各平台的

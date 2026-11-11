@@ -32,7 +32,7 @@ application.addEventListener('sceneconnect', (e) => {
 | --- | --- |
 | 完整的 JS 标准库：`Promise`、`Map`、`JSON`、类型化数组、迭代器等 | DOM：`window`、`document`、`location`、HTML 元素、CSS |
 | `console`、定时器（`setTimeout` 等）、`performance`、`fetch`、`URL` | `Intl` 和所有按地区格式化的能力 |
-| 事件：`EventTarget`、`addEventListener()` | `TextEncoder`、`crypto`、`structuredClone` |
+| 事件：`EventTarget`、`addEventListener()`；随机数：`crypto.getRandomValues()` | `TextEncoder`、`crypto.subtle`、`structuredClone` |
 | iOS 的原生类：`UIView`、`UIButton`、`UILabel` 等，直接用原名 | `WebAssembly` |
 | | Node 的 `require`、`process`、`Buffer` |
 

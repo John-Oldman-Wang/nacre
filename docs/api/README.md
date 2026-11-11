@@ -59,6 +59,7 @@ Nacre 的 API 分两层：
 | [单位](units.md) | 长度是点不是像素；点值会不会跟着缩放 |
 | [定时器](timers.md) | `setTimeout` 系列。调度参考 Chromium |
 | [`performance`](performance.md) | 高精度时钟。量一段代码花了多久 |
+| [`crypto`](crypto.md) | 密码学强度的随机数和 UUID。没有 `crypto.subtle` |
 | [`URL` / `Headers`](url.md) | WHATWG 三件套。和浏览器有五处已知差异 |
 | [`fetch`](fetch.md) | 网络请求。线程分工是实测定下来的 |
 | [`WebSocket`](websocket.md) | 长连接。比 Web 多两样：可以带首部、有协议级 `ping()` |
@@ -81,7 +82,7 @@ Nacre 的 API 分两层：
 
 | 缺什么 | 原因 |
 | --- | --- |
-| `TextEncoder` / `TextDecoder`、`crypto`、`structuredClone` | 不是 ECMAScript 的一部分，由宿主提供；V8 只实现语言本身。这几个还没做 |
+| `TextEncoder` / `TextDecoder`、`crypto.subtle`、`structuredClone` | 不是 ECMAScript 的一部分，由宿主提供；V8 只实现语言本身。这几个还没做 |
 | `process`、`require`、`module`、`Buffer` | Node 的宿主 API |
 | `Intl`，以及所有 `toLocale*` 的本地化能力 | 预编译包关掉了 i18n 支持，ICU 被排除。实测 `new Date(0).toLocaleString('zh-CN')` 完全忽略 locale |
 | `WebAssembly` | lite mode / jitless 下不能编译 wasm |

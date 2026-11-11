@@ -449,6 +449,9 @@ BOOL WriteLayerObjectArray(id object, const std::string& name, const std::vector
 // "CALayer"——否则从 sublayers 里先读到的渐变层会永远是个 CALayer。
 const char* LayerClassName(CALayer* layer);
 
+// ---- 密码学 ----
+bool FillRandom(void* bytes, size_t length);
+
 // ---- 手势 ----
 // 一个域一个文件（NacreGesture.mm），每个入口返回「认不认领」
 NACRE_ENUM_DECL(GestureState, UIGestureRecognizerState)
