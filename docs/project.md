@@ -893,6 +893,10 @@ JS 侧的属性是一个个显式定义的取值器，名字不认识的赋值�
 
 两个都是同一个根因。改法是先按事件名查一张总表，再决定交给哪个 trampoline。做 5c 时撞出来的。
 
+**TODO：内存警告没转给 V8。** `UIApplicationDidReceiveMemoryWarningNotification` 现在只转成 JS 的 `memorywarning` 事件（`NacreRuntime.mm`），而 `Isolate::MemoryPressureNotification(MemoryPressureLevel)` **全仓库零调用**。也就是说系统喊内存不够时 V8 完全不知情，不会因此收一次内存——我们现在只有 `kCFRunLoopBeforeWaiting` 那条空闲增量 GC。Chrome 在这个信号上是会通知 V8 的。改动很小（一行转发），但 `kModerate` / `kCritical` 怎么映射要定一下，所以算新增能力，要走一遍 SOP。不要紧，排在后面。
+
+连带的一条事实：**V8 的内存我们一个字节都没限。** `Isolate::CreateParams` 只设了 `array_buffer_allocator`，`constraints` 是默认构造的（`max_old_generation_size_` 等全是 0，`stack_limit_` 是 nullptr），也没有任何地方调 `SetFlagsFromString`。传 0 的含义是让 V8 按设备物理内存自己算，**算出来多少没量过**——要知道得调 `GetHeapStatistics().heap_size_limit`，那个没暴露。
+
 **TODO：`layer.transform`（`CATransform3D`）还没暴露。** `UIView.transform`（`CGAffineTransform`）已经做了，见[结构体文档](api/structs.md#cgaffinetransform)。剩下 3D 的那一半：16 个字段，而且 `m34` 那种透视参数单靠结构体不好用，要和动画一起看。
 
 > 记这条 TODO 时担心的「C 函数怎么暴露」**在仿射变换这里没出现**：`CGAffineTransformMakeScale` 那几个全是纯算术，静态工厂在 JS 里算就行，过桥的只有六个数。判据记在[实现原理](internals/structs.md)里——**C 函数只在值类型上做算术就在 JS 侧实现，真要跨桥的是会碰系统状态的那些**。
