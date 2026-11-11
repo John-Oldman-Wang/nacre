@@ -279,7 +279,14 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
 // 中间这一瞬对象就没了。CFAutorelease 把它交给当前 run loop 轮次的
 // 自动释放池，撑到调用方 retain 为止。
 nacre::NativeObjectRef ConstructNative(const std::string& className,
+                                       const std::string& argsJSON,
                                        const std::vector<void*>& args) {
+  // 标量参数在 argsJSON 里，对象按同样的下标在 args 里——和方法通道一个规则。
+  // 现在只有少数类用得上（见下面取 scalar 的那几处），其余忽略它
+  id decodedArgs = DecodeJSON(argsJSON);
+  NSArray* values = [decodedArgs isKindOfClass:NSArray.class] ? decodedArgs : @[];
+  auto scalar = [&](NSUInteger i) -> id { return i < values.count ? values[i] : nil; };
+  (void)scalar;
   id object = nil;
   if (className == "UIWindow") {
     id scene = args.empty() ? nil : (__bridge id)args[0];

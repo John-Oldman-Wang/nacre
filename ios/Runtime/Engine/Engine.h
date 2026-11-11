@@ -54,9 +54,16 @@ struct EngineHost {
   std::function<NativeObjectRef(void* ptr, const std::string& name)> read_object_property;
   std::function<void(void* ptr, const std::string& name, void* value)> write_object_property;
 
-  // 由 JS 发起的构造。args 是其他原生对象的指针，按位置传。
+  // 由 JS 发起的构造。
+  //
+  // 两串参数，规则和 call_method 一样：标量在 args_json 里（对象位留 null），
+  // 对象按同样的下标放在 args 里。**一开始只有 args**，于是 new 一个要传
+  // 数字或字符串的类就做不了——CAMediaTimingFunction、CASpringAnimation 的
+  // 感知时长初始化器、WebSocket 的 url 都撞过这堵墙，第三次才补。
+  //
   // 宿主必须保证返回的对象活到调用方 retain 为止（ARC 下要 CFAutorelease）。
   std::function<NativeObjectRef(const std::string& class_name,
+                                const std::string& args_json,
                                 const std::vector<void*>& args)>
       construct_native;
   // 无参无返回值的方法，比如 makeKeyAndVisible

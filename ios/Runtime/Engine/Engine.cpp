@@ -532,13 +532,15 @@ struct Engine::Impl {
     v8::Isolate* isolate = info.GetIsolate();
     Impl* self = From(isolate);
     v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
-    if (info.Length() < 3 || !info[2]->IsObject() || !self->host.construct_native) return;
+    // (className, argsJSON, handles, wrapper)
+    if (info.Length() < 4 || !info[3]->IsObject() || !self->host.construct_native) return;
 
-    std::vector<void*> args = self->HandlesToPtrs(ctx, info[1]);
+    std::vector<void*> args = self->HandlesToPtrs(ctx, info[2]);
 
-    NativeObjectRef ref = self->host.construct_native(SafeToString(isolate, info[0]), args);
+    NativeObjectRef ref = self->host.construct_native(
+        SafeToString(isolate, info[0]), SafeToString(isolate, info[1]), args);
     if (ref.ptr == nullptr) return;
-    info.GetReturnValue().Set(self->BindWrapper(info[2].As<v8::Object>(), ref.ptr));
+    info.GetReturnValue().Set(self->BindWrapper(info[3].As<v8::Object>(), ref.ptr));
   }
 
   // 写一个值为原生对象的属性：(handle, name, valueHandle)。valueHandle 为 0 表示 null

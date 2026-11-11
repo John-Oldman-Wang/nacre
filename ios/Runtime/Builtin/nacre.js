@@ -396,12 +396,12 @@
     // 新加一个类照抄这一行就行，不用判断「会不会被别的类继承」——
     // 以前那条规则漏过一次（UINavigationController），也抄错过一次（UIButton）。
     if (nativeClasses[className] !== builtAs) return;
-    const handles = (args || []).map((a) => {
-      if (a == null) return 0;
-      if (a[kHandle] === undefined) rejectUnbacked(a, 'new ' + className);
-      return a[kHandle] || 0;
-    });
-    const handle = native.construct(className, handles, wrapper);
+    // 和方法通道同一个拆法：标量进 values，对象进 handles，对象位在
+    // values 里留 null。**原来只传 handles**，所以 new 一个要字符串或
+    // 数字的类做不了——CAMediaTimingFunction、弹簧的感知时长初始化器、
+    // WebSocket 的 url 都撞过这堵墙
+    const { values, handles } = splitArgs(args, 'new ' + className);
+    const handle = native.construct(className, JSON.stringify(values), handles, wrapper);
     // 建不出来就抛，别留一个没句柄的空壳——那种对象之后每碰一下都报
     // 「还没连接到场景」，根本看不出真正的原因在构造这一步
     if (!handle) {

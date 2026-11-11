@@ -485,6 +485,7 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
                                              const std::vector<void*>& argPtrs,
                                              std::string* error);
 nacre::NativeObjectRef ConstructNative(const std::string& className,
+                                       const std::string& argsJSON,
                                        const std::vector<void*>& args);
 
 // ---- 方法调用的参数包 ----

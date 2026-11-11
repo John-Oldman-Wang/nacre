@@ -738,8 +738,9 @@ nacre::NativeObjectRef CreateBlob(
       WriteNativeObjectProperty((__bridge id)ptr, name, value);
     };
     host.construct_native = [](const std::string& className,
-                               const std::vector<void*>& args) {
-      return ConstructNative(className, args);
+                              const std::string& argsJSON,
+                              const std::vector<void*>& args) {
+      return ConstructNative(className, argsJSON, args);
     };
     host.call_method = [](void* ptr, const std::string& name,
                           const std::string& argsJSON,
