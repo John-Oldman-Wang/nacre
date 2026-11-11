@@ -19,6 +19,7 @@ std::string ReadNativeProperty(id object, const std::string& name) {
   if (value == nil) value = ReadLayoutProperty(object, key);
   if (value == nil) value = ReadLayerProperty(object, key);
   if (value == nil) value = ReadPathProperty(object, key);
+  if (value == nil) value = ReadAnimationProperty(object, key);
   if (value == nil) value = ReadScrollProperty(object, key);
   if (value == nil) value = ReadViewProperty(object, key);
   if (value == nil) value = ReadResourceProperty(object, key);
@@ -41,6 +42,7 @@ void WriteNativeProperty(id object, const std::string& name, const std::string& 
   if (WriteLayoutProperty(object, key, value, error)) return;
   if (WriteLayerProperty(object, key, value, error)) return;
   if (WritePathProperty(object, key, value, error)) return;
+  if (WriteAnimationProperty(object, key, value, error)) return;
   if (WriteScrollProperty(object, key, value, error)) return;
   if (WriteViewProperty(object, key, value, error)) return;
   // 注意：走正常的 JS 路径到不了这里。JS 侧的属性是一个个显式定义的
@@ -67,6 +69,10 @@ nacre::NativeObjectRef ReadNativeObjectProperty(id object, const std::string& na
   }
   {
     nacre::NativeObjectRef ref = ReadLayerObjectProperty(object, name);
+    if (!ref.class_name.empty()) return ref;
+  }
+  {
+    nacre::NativeObjectRef ref = ReadAnimationObjectProperty(object, name);
     if (!ref.class_name.empty()) return ref;
   }
   {
@@ -99,6 +105,7 @@ void WriteNativeObjectProperty(id object, const std::string& name, void* valuePt
   WriteSceneObjectProperty(object, name, value);
   WriteControlObjectProperty(object, name, value);
   WriteLayerObjectProperty(object, name, value);
+  WriteAnimationObjectProperty(object, name, value);
   WriteViewObjectProperty(object, name, value);
 }
 

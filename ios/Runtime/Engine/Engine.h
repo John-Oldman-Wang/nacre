@@ -113,6 +113,13 @@ struct EngineHost {
                                 const std::string& args_json,
                                 const std::vector<void*>& arg_ptrs, std::string* error)>
       call_class_object_method;
+  // 返回值不是原生对象的类方法，比如 CATransaction.begin()。返回 JSON，
+  // 规则和 call_method 一样。和上面那条分开是因为「返回一个对象」和
+  // 「返回一个值或什么都不返回」在桥上是两条不同的编码
+  std::function<std::string(const std::string& class_name, const std::string& name,
+                            const std::string& args_json,
+                            const std::vector<void*>& arg_ptrs, std::string* error)>
+      call_class_method;
   // 异步方法，完成后调 Engine::SettleBool。对象参数和 call_method 一样：
   // args_json 里留 null，真正的指针按同样的下标在 arg_ptrs 里
   std::function<void(void* ptr, const std::string& name, const std::string& args_json,
@@ -208,6 +215,10 @@ class Engine {
   // 同上，外加一个原生对象作为负载（导航的 willshow / didshow 要带「哪个页面」）
   void EmitObjectEventWith(const NativeObjectRef& target, const std::string& type,
                            const NativeObjectRef& payload);
+  // 同上，但负载是一个 JSON 值而不是原生对象（动画的 stop 要带 finished）。
+  // JS 侧的 sink 一视同仁：拿到什么就往事件上挂什么
+  void EmitObjectEventWithJSON(const NativeObjectRef& target, const std::string& type,
+                               const std::string& json);
 
   // 结束一个由 JS 发起的异步调用，用布尔值兑现它的 Promise。
   // 只能在 JS 线程上调用；call_id 不存在时静默忽略。

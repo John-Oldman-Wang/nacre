@@ -378,6 +378,12 @@
       native.classCall(className, selector, JSON.stringify(values), handles);
     return result === undefined ? null : result;
   }
+  // 返回值不是原生对象的类方法，比如 CATransaction.begin()
+  function nativeClassCallValue(className, selector, args) {
+    const { values, handles } = splitArgs(args, className + '.' + selector);
+    return JSON.parse(
+      native.classCallValue(className, selector, JSON.stringify(values), handles));
+  }
   // 类级属性（ObjC 的 @property(class, readonly)）。没有实例，用类名定位。
   function nativeClassObject(className, name) {
     const result = native.classObjProp(className, name);
@@ -884,6 +890,33 @@
       disown(from, 'sublayers', this);
     }
 
+    // ---- 动画 ----
+    //
+    // **addAnimation 会拷贝一份动画。** 加完再改原来那个对象不会有任何
+    // 效果，animationForKey 读回来的也是那份拷贝，不是你给的对象。
+    //
+    // JS 侧记一条持有边，让图层的包装拖住动画的包装：原生那边拖住的是
+    // 拷贝，而事件要派发给**原来那个**——包装没了就没人收了。
+    addAnimation(animation, options) {
+      const o = options || {};
+      nativeCall(this, 'addAnimation:forKey:',
+                 [animation, 'forKey' in o ? o.forKey : null]);
+      ownOne(this, 'animations', animation);
+    }
+    removeAllAnimations() {
+      nativeCall(this, 'removeAllAnimations', []);
+      ownAll(this, 'animations', []);
+    }
+    // 持有边不在这里拆：读回来的是拷贝，认不出原来是哪个对象。
+    // 多留一份引用是无害的（所有权镜像一路的取舍），少留才会出错
+    removeAnimationForKey(key) {
+      nativeCall(this, 'removeAnimationForKey:', [key]);
+    }
+    // 没有动画时给 []，不是 null
+    animationKeys() { return nativeCall(this, 'animationKeys', []); }
+    // 给的是**图层持有的那份拷贝**。头文件原话：改它的任何属性都是未定义行为
+    animationForKey(key) { return nativeCallObject(this, 'animationForKey:', [key]); }
+
     // ---- 外观 ----
     get opacity() {
       requireNative(this, 'opacity');
@@ -1207,6 +1240,255 @@
       nativeSet(this, 'lineDashPhase', value);
     }
   });
+
+  // ---------- 动画 ----------
+  //
+  // 时间曲线。两种来源：五个内置名字，或者四个控制点的三次贝塞尔。
+  // 不给 new——ObjC 的 initWithControlPoints 要四个浮点数，而构造通道
+  // 只传对象句柄，传不了标量。
+  defineNativeClass('CAMediaTimingFunction', class CAMediaTimingFunction extends NSObject {
+    constructor() { nativeOnly(new.target); }
+
+    static functionWithName(name) {
+      return nativeClassCall('CAMediaTimingFunction', 'functionWithName:', [name]);
+    }
+    static functionWithControlPoints(c1x, c1y, c2x, c2y) {
+      return nativeClassCall('CAMediaTimingFunction', 'functionWithControlPoints:',
+                             [c1x, c1y, c2x, c2y]);
+    }
+    // ObjC 那边是出参（float[2]），这里改成返回一个点。0 和 3 是端点
+    // （永远是 (0,0) 和 (1,1)），1 和 2 才是控制点
+    controlPointAtIndex(index) {
+      return toPoint(nativeCall(this, 'controlPointAtIndex:', [index]));
+    }
+  });
+
+  // 动画的基类。不可直接构造——ObjC 的 +animation 能建，但一个没有
+  // keyPath 的动画什么都做不了，没有理由给出来。
+  //
+  // 它是 EventTarget：'start' 和 'stop' 两个事件来自 CAAnimationDelegate。
+  // stop 事件带一个 finished——**那个事实在动画对象上读不出来**，所以
+  // 必须带在事件上（事件带不带数据的判据就是这个）。
+  const CAAnimation = defineNativeClass('CAAnimation', class CAAnimation extends NSObject {
+    constructor() { shellOnly(new.target, CAAnimation, 'CAAnimation'); super(); }
+
+    [kSubscribe](type, on) {
+      requireNative(this, 'addEventListener');
+      native.subscribe(this[kHandle], type, on);
+      if (on) subscribed.add(this);
+      else if (this[kListeners].size === 0) subscribed.delete(this);
+    }
+
+    // ---- 时间（来自 CAMediaTiming） ----
+    // 秒。**0 不是「不动画」**：加到图层上时 0 会被换成当前事务的
+    // animationDuration，没有的话是 0.25 秒
+    get duration() { requireNative(this, 'duration'); return nativeGet(this, 'duration'); }
+    set duration(value) { requireNative(this, 'duration'); nativeSet(this, 'duration', value); }
+    // 相对于父级时间轴的开始时刻。默认 0 = 立刻
+    get beginTime() { requireNative(this, 'beginTime'); return nativeGet(this, 'beginTime'); }
+    set beginTime(value) { requireNative(this, 'beginTime'); nativeSet(this, 'beginTime', value); }
+    // 时间流速。2 是两倍快，0 是停住。默认 1
+    get speed() { requireNative(this, 'speed'); return nativeGet(this, 'speed'); }
+    set speed(value) { requireNative(this, 'speed'); nativeSet(this, 'speed', value); }
+    get timeOffset() { requireNative(this, 'timeOffset'); return nativeGet(this, 'timeOffset'); }
+    set timeOffset(value) { requireNative(this, 'timeOffset'); nativeSet(this, 'timeOffset', value); }
+    // 重复几次。可以是小数（1.5 = 跑一遍半）。要无限循环用 Infinity。
+    //
+    // **JSON 没有 Infinity**（JSON.stringify 给的是 null），所以它在桥上
+    // 是字符串 'infinity'，两头各换一次。JS 看到的类型还是 number
+    get repeatCount() {
+      requireNative(this, 'repeatCount');
+      return infinityIn(nativeGet(this, 'repeatCount'));
+    }
+    set repeatCount(value) {
+      requireNative(this, 'repeatCount');
+      nativeSet(this, 'repeatCount', infinityOut(value));
+    }
+    get repeatDuration() {
+      requireNative(this, 'repeatDuration');
+      return infinityIn(nativeGet(this, 'repeatDuration'));
+    }
+    set repeatDuration(value) {
+      requireNative(this, 'repeatDuration');
+      nativeSet(this, 'repeatDuration', infinityOut(value));
+    }
+    // 跑完再倒着跑回来。配 repeatCount 做脉动
+    get autoreverses() { requireNative(this, 'autoreverses'); return nativeGet(this, 'autoreverses'); }
+    set autoreverses(value) { requireNative(this, 'autoreverses'); nativeSet(this, 'autoreverses', value); }
+    // 动画的活动区间之外，属性显示成什么。默认 'removed'
+    get fillMode() { requireNative(this, 'fillMode'); return nativeGet(this, 'fillMode'); }
+    set fillMode(value) { requireNative(this, 'fillMode'); nativeSet(this, 'fillMode', value); }
+
+    // ---- 曲线和收尾 ----
+    get timingFunction() { return nativeGetOwned(this, 'timingFunction'); }
+    set timingFunction(value) { nativeSetOwned(this, 'timingFunction', value); }
+    // 默认 true：跑完就把动画摘掉，属性**弹回模型值**。这是最常被当成
+    // bug 的行为——正确的做法是在加动画的同时把模型值也设成终点值
+    get removedOnCompletion() {
+      requireNative(this, 'removedOnCompletion');
+      return nativeGet(this, 'removedOnCompletion');
+    }
+    set removedOnCompletion(value) {
+      requireNative(this, 'removedOnCompletion');
+      nativeSet(this, 'removedOnCompletion', value);
+    }
+  });
+
+  // 动画某一个属性。自己不可构造，用 CABasicAnimation。
+  const CAPropertyAnimation = defineNativeClass('CAPropertyAnimation',
+                                                class CAPropertyAnimation extends CAAnimation {
+    constructor() {
+      shellOnly(new.target, CAPropertyAnimation, 'CAPropertyAnimation');
+      super();
+    }
+
+    // 动哪个属性。只认运行时认得动画的那些名字，写别的当场抛并列出全表
+    get keyPath() { requireNative(this, 'keyPath'); return nativeGet(this, 'keyPath'); }
+    set keyPath(value) { requireNative(this, 'keyPath'); nativeSet(this, 'keyPath', value); }
+  });
+
+  // 从一个值走到另一个值。
+  //
+  // fromValue / toValue / byValue 该放什么类型**由 keyPath 决定**：
+  // 'opacity' 要数字，'position' 要 CGPoint，'strokeColor' 要颜色，
+  // 'path' 要 UIBezierPath。所以要**先设 keyPath**，否则赋值时抛。
+  defineNativeClass('CABasicAnimation', class CABasicAnimation extends CAPropertyAnimation {
+    constructor() {
+      super();
+      constructNative(this, new.target, 'CABasicAnimation', []);
+    }
+
+    // 常用写法：一步建好并带上 keyPath
+    static animationWithKeyPath(keyPath) {
+      return nativeClassCall('CABasicAnimation', 'animationWithKeyPath:', [keyPath]);
+    }
+
+    // 三个取值器都把 nativeGet / nativeSet 的名字**写成字面量**，不抽进
+    // 助手里——check-api.sh 靠正则认这些名字，抽进去它就看不见了。
+    // 和枚举表不抽宏是同一条取舍：能被检查看见比少写几行重要
+    get fromValue() {
+      const object = nativeGetObject(this, 'fromValue');
+      return object === null ? animScalarOut(nativeGet(this, 'fromValue'))
+                             : animObjectOut(object);
+    }
+    set fromValue(value) {
+      if (value === null || value === undefined) {
+        nativeSetOwned(this, 'fromValue', null);
+        nativeSet(this, 'fromValue', null);
+        return;
+      }
+      const object = animObjectIn(value, 'fromValue');
+      if (object === null) return;             // 颜色写错了，警告过了
+      if (object !== undefined) { nativeSetOwned(this, 'fromValue', object); return; }
+      nativeSet(this, 'fromValue', animScalarIn(value, 'fromValue'));
+    }
+    get toValue() {
+      const object = nativeGetObject(this, 'toValue');
+      return object === null ? animScalarOut(nativeGet(this, 'toValue'))
+                             : animObjectOut(object);
+    }
+    set toValue(value) {
+      if (value === null || value === undefined) {
+        nativeSetOwned(this, 'toValue', null);
+        nativeSet(this, 'toValue', null);
+        return;
+      }
+      const object = animObjectIn(value, 'toValue');
+      if (object === null) return;
+      if (object !== undefined) { nativeSetOwned(this, 'toValue', object); return; }
+      nativeSet(this, 'toValue', animScalarIn(value, 'toValue'));
+    }
+    // 相对量：toValue = fromValue + byValue
+    get byValue() {
+      const object = nativeGetObject(this, 'byValue');
+      return object === null ? animScalarOut(nativeGet(this, 'byValue'))
+                             : animObjectOut(object);
+    }
+    set byValue(value) {
+      if (value === null || value === undefined) {
+        nativeSetOwned(this, 'byValue', null);
+        nativeSet(this, 'byValue', null);
+        return;
+      }
+      const object = animObjectIn(value, 'byValue');
+      if (object === null) return;
+      if (object !== undefined) { nativeSetOwned(this, 'byValue', object); return; }
+      nativeSet(this, 'byValue', animScalarIn(value, 'byValue'));
+    }
+  });
+
+  // JSON 带不动 Infinity，所以过桥时换成一个字符串。负无穷不处理：
+  // 这两个属性都是「次数」和「时长」，负的没有意义
+  const infinityIn = (value) => (value === 'infinity' ? Infinity : value);
+  const infinityOut = (value) => (value === Infinity ? 'infinity' : value);
+
+  // 值走哪条通道，由**值的形状**决定（这件事 JS 自己知道）；
+  // 值配不配得上 keyPath，由**原生层**判断（只有它知道那张表）。
+
+  // 对象通道读回来的：颜色给字符串，路径原样给
+  function animObjectOut(object) {
+    return object instanceof UIColor ? colorString(object) : object;
+  }
+  // 标量通道读回来的：数字原样，结构体按字段认是哪一种
+  function animScalarOut(value) {
+    if (value === null || typeof value === 'number') return value;
+    if ('width' in value) return 'x' in value ? toRect(value) : toSize(value);
+    return toPoint(value);
+  }
+  // 写进去的值该不该走对象通道。undefined = 不该，null = 不合法（已警告）
+  function animObjectIn(value, what) {
+    if (value instanceof UIBezierPath) return value;
+    if (typeof value !== 'string' && !(value instanceof UIColor)) return undefined;
+    const color = colorArg(value, what);
+    return color === undefined ? null : color;
+  }
+  // 结构体参数：按字段认，不用调用方说是哪种。原生那边还会再按 keyPath 核一遍
+  function animScalarIn(value, what) {
+    if (typeof value === 'number') return value;
+    if (value != null && typeof value === 'object') {
+      if ('width' in value) {
+        return 'x' in value ? structArg(value, RECT_FIELDS, what)
+                            : structArg(value, SIZE_FIELDS, what);
+      }
+      if ('x' in value) return structArg(value, POINT_FIELDS, what);
+    }
+    throw new TypeError(
+      what + ' needs a number, a CGPoint / CGSize / CGRect, a color, or a UIBezierPath');
+  }
+
+  // 事务。它管的是**隐式动画**：在 UIKit 的动画块外面改独立子图层的属性，
+  // Core Animation 默认给一个 0.25 秒的动画。setDisableActions 是关掉它的
+  // 唯一办法，begin / commit 成对出现。
+  //
+  // 全是类方法，没有实例，所以不给构造。
+  class CATransaction {
+    constructor() {
+      throw new TypeError(
+        'Illegal constructor: CATransaction is a set of class methods, not an object');
+    }
+    static begin() { nativeClassCallValue('CATransaction', 'begin', []); }
+    static commit() { nativeClassCallValue('CATransaction', 'commit', []); }
+    static flush() { nativeClassCallValue('CATransaction', 'flush', []); }
+    static disableActions() {
+      return nativeClassCallValue('CATransaction', 'disableActions', []);
+    }
+    static setDisableActions(value) {
+      nativeClassCallValue('CATransaction', 'setDisableActions:', [value]);
+    }
+    static animationDuration() {
+      return nativeClassCallValue('CATransaction', 'animationDuration', []);
+    }
+    static setAnimationDuration(value) {
+      nativeClassCallValue('CATransaction', 'setAnimationDuration:', [value]);
+    }
+    static animationTimingFunction() {
+      return nativeClassCall('CATransaction', 'animationTimingFunction', []);
+    }
+    static setAnimationTimingFunction(value) {
+      nativeClassCallValue('CATransaction', 'setAnimationTimingFunction:', [value]);
+    }
+  }
+  define(globalThis, 'CATransaction', CATransaction);
 
   // ---------- Auto Layout ----------
   //
@@ -3372,7 +3654,11 @@
   // contentOffset 上读得到，所以 scroll 不带（不带才能无损合并）；导航的
   // 「哪个页面」在 willshow 那一刻从 nav 上读不到（topViewController 还没
   // 换过去），所以带上。
-  const objectEventField = { willshow: 'viewController', didshow: 'viewController' };
+  // 事件负载挂在哪个字段上。值可以是原生对象（willshow 带 viewController）
+  // 也可以是普通 JSON 值（动画的 stop 带一个布尔）——sink 一视同仁
+  const objectEventField = {
+    willshow: 'viewController', didshow: 'viewController', stop: 'finished',
+  };
 
   // 原生要给某个对象自己派发事件时回调这里（场景的生命周期事件走这条路）
   native.setObjectEventSink(function (wrapper, type, payload) {

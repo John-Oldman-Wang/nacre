@@ -418,7 +418,7 @@ shape.lineDashPattern = null;     // 实线（默认）
 | `anchorPoint` / `transform` | 要 `CATransform3D`，和动画一起做 |
 | `contents` | 直接给图层塞一张图 |
 | 其余 `CALayer` 子类 | `CATextLayer`、`CAReplicatorLayer`… |
-| 隐式动画 | 改图层属性在 UIKit 外面本来自带动画，现在的行为**未验证** |
+| 隐式动画 | ~~未验证~~ **已实测**：是真的，但要等图层渲染过一轮。关它用 [`CATransaction.setDisableActions`](ca-animation.md#隐式动画和-catransaction) |
 
 ---
 

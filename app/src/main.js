@@ -38,6 +38,7 @@ import { stepStack } from './steps/stack.js';
 import { stepTransform } from './steps/transform.js';
 import { stepGradient } from './steps/gradient.js';
 import { stepShapes } from './steps/shapes.js';
+import { stepAnimation } from './steps/animation.js';
 import { stepNavigation } from './steps/navigation.js';
 import { stepModal } from './steps/modal.js';
 import { stepOwnership } from './steps/ownership.js';
@@ -78,11 +79,12 @@ application.addEventListener('sceneconnect', (e) => {
   stepTransform(ctx);
   stepGradient(ctx);
   stepShapes(ctx);
+  stepAnimation(ctx);
   stepNavigation(ctx);
   stepModal(ctx);
   stepOwnership(ctx);
 
-  console.log('✓ 屏幕上：三个色块 + 标题 + 两行说明 + 一行等宽数字 + 一张渐变卡片 + 一条折线和一个扇形');
+  console.log('✓ 屏幕上：三个色块 + 标题 + 两行说明 + 一行等宽数字 + 一张渐变卡片 + 一条折线和一个扇形 + 一张画出来的折线卡片');
 });
 
 application.addEventListener('scenedisconnect', (e) => {

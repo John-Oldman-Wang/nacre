@@ -56,6 +56,10 @@ using namespace nacre_bridge;
         className:(const char*)className
              with:(id)payload
     payloadClass:(const char*)payloadClass;
+- (void)emitEvent:(NSString*)type
+             from:(id)object
+        className:(const char*)className
+             json:(const std::string&)json;
 - (void)setSubscription:(id)object
                    type:(const std::string&)type
                      on:(BOOL)on
@@ -163,6 +167,50 @@ using namespace nacre_bridge;
 
 @end
 
+// 动画的 trampoline。和别的一样只持有 handle 不持有 JS 函数，但多一条
+// 别处没有的麻烦：**addAnimation: 会拷贝动画**，delegate 跟着被拷过去，
+// 所以回调里的 anim 是那份拷贝，指针和 JS 当初建的那个对不上。于是
+// trampoline 自己记着原来那个对象，派发时派给它——JS 监听的本来就是它。
+//
+// origin 是 weak：动画 strong 持有 delegate，反过来再强持有就成环了。
+// JS 那边只要还拿着包装，原对象就活着；包装没了也就没人听了。
+@interface NacreAnimationDelegate : NSObject <CAAnimationDelegate>
+@property(nonatomic, weak) NacreRuntime* runtime;
+// **weak，不能 strong**：动画 strong 持有 delegate（和 UIScrollView.delegate
+// 的 weak 正好相反），反过来再强持有就成环。
+//
+// 另外还有一层保险：只有 types 非空时才碰 origin，而 types 非空就意味着
+// JS 侧的 subscribed 还攥着那个包装，包装攥着句柄，原生对象活着。
+@property(nonatomic, weak) CAAnimation* origin;
+@property(nonatomic, strong) NSMutableSet<NSString*>* types;
+@end
+
+@implementation NacreAnimationDelegate
+
+// 先看 types 再看 origin，顺序不能换（见上面那条注释）
+- (void)animationDidStart:(CAAnimation*)anim {
+  if (![self.types containsObject:@"start"]) return;
+  CAAnimation* origin = self.origin;
+  if (origin == nil) return;
+  [self.runtime emitEvent:@"start"
+                     from:origin
+                className:AnimationClassName(origin)
+                     then:nil];
+}
+
+// finished 在动画对象上**读不出来**，所以必须带在事件上
+- (void)animationDidStop:(CAAnimation*)anim finished:(BOOL)flag {
+  if (![self.types containsObject:@"stop"]) return;
+  CAAnimation* origin = self.origin;
+  if (origin == nil) return;
+  [self.runtime emitEvent:@"stop"
+                     from:origin
+                className:AnimationClassName(origin)
+                     json:flag ? "true" : "false"];
+}
+
+@end
+
 // 导航的 trampoline。和滚动那个同构，区别是这两条事件**带一个 viewController**：
 // 「哪个页面」在 willShow 那一刻从 nav 上读不到（topViewController 还没换），
 // 所以原生送什么就带什么——事件带不带数据的判据是「那个信息在对象上读不读
@@ -240,6 +288,10 @@ static const void* kNacreScrollDelegateKey = &kNacreScrollDelegateKey;
 static const void* kNacreDefaultsObserverKey = &kNacreDefaultsObserverKey;
 // 同理：navigationController.delegate 也是 weak
 static const void* kNacreNavDelegateKey = &kNacreNavDelegateKey;
+// 关联对象的 key：CAAnimation → NacreAnimationDelegate。
+// anim.delegate 是 **strong**（和别的几个相反），所以这个关联对象只是
+// 为了取消订阅时找得回来，不是为了持有
+static const void* kNacreAnimationDelegateKey = &kNacreAnimationDelegateKey;
 // 关联对象的 key：UIViewController → NacrePresentationDelegate。
 // 记在 VC 上而不是 presentationController 上，因为后者要等呈现时才存在
 static const void* kNacrePresentationDelegateKey = &kNacrePresentationDelegateKey;
@@ -700,6 +752,12 @@ nacre::NativeObjectRef CreateBlob(
                                        std::string* error) {
       return CallClassObjectMethod(className, name, argsJSON, argPtrs, error);
     };
+    host.call_class_method = [](const std::string& className, const std::string& name,
+                                const std::string& argsJSON,
+                                const std::vector<void*>& argPtrs,
+                                std::string* error) {
+      return CallClassMethod(className, name, argsJSON, argPtrs, error);
+    };
     host.read_class_object_property = [](const std::string& className,
                                          const std::string& name) {
       return ReadClassObjectProperty(className, name);
@@ -1154,6 +1212,23 @@ nacre::NativeObjectRef CreateBlob(
   }];
 }
 
+// 带一个 JSON 值作为负载的事件。动画的 stop 要带 finished，而那个事实
+// 在动画对象上**读不出来**——事件带不带数据的判据就是这个。
+- (void)emitEvent:(NSString*)type
+             from:(id)object
+        className:(const char*)className
+             json:(const std::string&)json {
+  auto engine = _engine;
+  std::string t = type.UTF8String;
+  std::string cls = className;
+  std::string payload = json;
+  [self postToJS:^{
+    if (*engine) {
+      (*engine)->EmitObjectEventWithJSON({(__bridge void*)object, cls}, t, payload);
+    }
+  }];
+}
+
 // presentationController 要等呈现开始才存在，所以这个方法在两处调用：
 // JS 订阅的时候（可能还没呈现，那就先记着），以及 present 的时候。
 - (void)installPresentationDelegate:(UIViewController*)vc {
@@ -1226,6 +1301,31 @@ nacre::NativeObjectRef CreateBlob(
       item.target = nil;
       item.action = nil;
       [table removeObjectForKey:name];
+    }
+    return;
+  }
+  if ([object isKindOfClass:CAAnimation.class]) {
+    CAAnimation* anim = (CAAnimation*)object;
+    NSString* name = @(type.c_str());
+    if (!IsAnimationEventName(name)) {
+      *error = EnumError(@"addEventListener", name, NamesForAnimationEvent());
+      return;
+    }
+    NacreAnimationDelegate* d =
+        objc_getAssociatedObject(anim, kNacreAnimationDelegateKey);
+    if (on) {
+      if (d == nil) {
+        d = [NacreAnimationDelegate new];
+        d.runtime = self;
+        d.origin = anim;
+        d.types = [NSMutableSet set];
+        objc_setAssociatedObject(anim, kNacreAnimationDelegateKey, d,
+                                 OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        anim.delegate = d;
+      }
+      [d.types addObject:name];
+    } else if (d != nil) {
+      [d.types removeObject:name];
     }
     return;
   }

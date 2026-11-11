@@ -125,6 +125,13 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
   }
 
   {
+    std::string animResult;
+    if (AnimationCallMethod(object, sel, NacreArgs{args, &argPtrs}, &animResult, error)) {
+      return animResult;
+    }
+  }
+
+  {
     std::string navResult;
     if (NavCallMethod(object, sel, NacreArgs{args, &argPtrs}, &navResult, error)) {
       return navResult;
@@ -342,6 +349,15 @@ nacre::NativeObjectRef CallObjectMethod(id object, const std::string& name,
     if (PathCallObjectMethod(object, name, NacreArgs{pathArgs, &argPtrs},
                              &pathResult, error)) {
       return pathResult;
+    }
+  }
+  {
+    id animDecoded = DecodeJSON(argsJSON);
+    NSArray* animArgs = [animDecoded isKindOfClass:NSArray.class] ? animDecoded : @[];
+    nacre::NativeObjectRef animResult;
+    if (AnimationCallObjectMethod(object, name, NacreArgs{animArgs, &argPtrs},
+                                  &animResult, error)) {
+      return animResult;
     }
   }
   NSString* sel = @(name.c_str());
@@ -568,5 +584,22 @@ std::vector<nacre::NativeObjectRef> CallObjectArrayMethod(
   return refs;
 }
 
+
+// 返回值不是原生对象的类方法。现在只有 CATransaction 走这条，
+// 但通道是通用的：「返回一个对象」和「返回一个值」在桥上是两种编码
+std::string CallClassMethod(const std::string& className, const std::string& name,
+                            const std::string& argsJSON,
+                            const std::vector<void*>& argPtrs, std::string* error) {
+  NSString* sel = @(name.c_str());
+  id decoded = DecodeJSON(argsJSON);
+  NSArray* args = [decoded isKindOfClass:NSArray.class] ? decoded : @[];
+  std::string out;
+  if (TransactionCallClassMethod(className, sel, NacreArgs{args, &argPtrs}, &out, error)) {
+    return out;
+  }
+  *error = [NSString stringWithFormat:@"%s has no class method %@",
+                                      className.c_str(), sel].UTF8String;
+  return "null";
+}
 
 }  // namespace nacre_bridge

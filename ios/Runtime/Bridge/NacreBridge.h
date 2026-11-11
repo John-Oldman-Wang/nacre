@@ -283,6 +283,28 @@ NSString* LineJoinFromName(NSString* name);
 NSString* NameForLineJoin(NSString* join);
 NSString* NamesForLineJoin(void);
 
+// 动画的填充模式和时间曲线名。又是 NSString 常量，所以还是手写有序 pairs。
+NSString* FillModeFromName(NSString* name);
+NSString* NameForFillMode(NSString* mode);
+NSString* NamesForFillMode(void);
+NSString* TimingFunctionNameFromName(NSString* name);
+NSString* NamesForTimingFunctionName(void);
+BOOL IsAnimationEventName(NSString* name);
+NSString* NamesForAnimationEvent(void);
+
+// CABasicAnimation 的 fromValue / toValue / byValue 在 ObjC 里是 id，
+// 该放什么类型**由 keyPath 决定**。这张表只能放原生层。
+typedef NS_ENUM(NSInteger, NacreAnimValueKind) {
+  NacreAnimValueNumber = 0,
+  NacreAnimValuePoint,
+  NacreAnimValueSize,
+  NacreAnimValueRect,
+  NacreAnimValueColor,
+  NacreAnimValuePath,
+};
+BOOL AnimValueKindForKeyPath(NSString* keyPath, NacreAnimValueKind* out);
+NSString* NamesForAnimationKeyPath(void);
+
 // 圆角矩形要圆哪几个角。位掩码，所以 JS 侧是字符串数组。
 // **不收 allCorners**：它的值是 ~0，和「四个都选」不是同一个数，往返不回来。
 // 四个全写就是全圆。
@@ -357,6 +379,14 @@ const char* LayerClassName(CALayer* layer);
 id ReadPathProperty(id object, NSString* key);
 BOOL WritePathProperty(id object, NSString* key, id value, std::string* error);
 
+// ---- 动画 ----
+// 方法通道的入口要用 NacreArgs，所以声明在它定义之后，和图层域一起。
+id ReadAnimationProperty(id object, NSString* key);
+BOOL WriteAnimationProperty(id object, NSString* key, id value, std::string* error);
+nacre::NativeObjectRef ReadAnimationObjectProperty(id object, const std::string& name);
+void WriteAnimationObjectProperty(id object, const std::string& name, id value);
+const char* AnimationClassName(CAAnimation* anim);
+
 id ReadScrollProperty(id object, NSString* key);
 BOOL WriteScrollProperty(id object, NSString* key, id value, std::string* error);
 nacre::NativeObjectRef ReadScrollObjectProperty(id object, const std::string& name);
@@ -384,6 +414,10 @@ nacre::NativeObjectRef CallObjectMethod(id object, const std::string& name,
 std::vector<nacre::NativeObjectRef> CallObjectArrayMethod(
     id object, const std::string& name, const std::string& argsJSON,
     const std::vector<void*>& argPtrs, std::string* error);
+// 返回值不是原生对象的类方法。规则同 CallMethod
+std::string CallClassMethod(const std::string& className, const std::string& name,
+                            const std::string& argsJSON,
+                            const std::vector<void*>& argPtrs, std::string* error);
 nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
                                              const std::string& name,
                                              const std::string& argsJSON,
@@ -427,6 +461,16 @@ bool PathCallMethod(id object, NSString* sel, const NacreArgs& args,
                     std::string* out, std::string* error);
 bool PathCallObjectMethod(id object, const std::string& name, const NacreArgs& args,
                           nacre::NativeObjectRef* out, std::string* error);
+
+// ---- 动画 ----
+bool AnimationCallMethod(id object, NSString* sel, const NacreArgs& args,
+                         std::string* out, std::string* error);
+bool AnimationCallObjectMethod(id object, const std::string& name, const NacreArgs& args,
+                               nacre::NativeObjectRef* out, std::string* error);
+// CATransaction 全是类方法，走「返回值不是原生对象的类方法」那条新通道
+bool TransactionCallClassMethod(const std::string& className, NSString* sel,
+                                const NacreArgs& args, std::string* out,
+                                std::string* error);
 
 // ---- 颜色 ----
 // 上层的颜色是字符串，解析在 JS 侧（纯文本运算），过桥的是规范化的 spec。

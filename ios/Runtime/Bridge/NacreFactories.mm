@@ -176,6 +176,46 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
     return {(__bridge void*)image, "UIImage"};
   }
 
+  // 时间曲线。两种来源：五个内置名字，或者四个控制点。
+  // 不给 new：ObjC 的 initWithControlPoints 要四个浮点数，而构造通道
+  // 只传对象句柄，传不了标量
+  if (className == "CAMediaTimingFunction") {
+    if ([sel isEqualToString:@"functionWithName:"]) {
+      NSString* name = TimingFunctionNameFromName(arg(0));
+      if (name == nil) {
+        *error = EnumError(@"functionWithName", arg(0), NamesForTimingFunctionName());
+        return {};
+      }
+      return {(__bridge void*)[CAMediaTimingFunction functionWithName:name],
+              "CAMediaTimingFunction"};
+    }
+    if ([sel isEqualToString:@"functionWithControlPoints:"]) {
+      return {(__bridge void*)[CAMediaTimingFunction
+                  functionWithControlPoints:[arg(0) floatValue]
+                                           :[arg(1) floatValue]
+                                           :[arg(2) floatValue]
+                                           :[arg(3) floatValue]],
+              "CAMediaTimingFunction"};
+    }
+  }
+
+  // 动画。keyPath 在这里就查表，错了当场报，不用等到设 toValue
+  if (className == "CABasicAnimation" && [sel isEqualToString:@"animationWithKeyPath:"]) {
+    NacreAnimValueKind kind;
+    if (!AnimValueKindForKeyPath(arg(0), &kind)) {
+      *error = EnumError(@"keyPath", arg(0), NamesForAnimationKeyPath());
+      return {};
+    }
+    return {(__bridge void*)[CABasicAnimation animationWithKeyPath:arg(0)],
+            "CABasicAnimation"};
+  }
+
+  if (className == "CATransaction" && [sel isEqualToString:@"animationTimingFunction"]) {
+    CAMediaTimingFunction* fn = [CATransaction animationTimingFunction];
+    if (fn == nil) return {nullptr, "CAMediaTimingFunction"};
+    return {(__bridge void*)fn, "CAMediaTimingFunction"};
+  }
+
   // 路径的类工厂。角度是弧度，UIKit y 轴朝下所以 0 在正右方、增大是顺时针。
   // bezierPathWithCGPath: 不收——CGPathRef 还没有包装，和 CGColorRef 一样
   // 要单独定。
@@ -289,6 +329,8 @@ nacre::NativeObjectRef ConstructNative(const std::string& className,
     object = [CAShapeLayer layer];
   } else if (className == "UIBezierPath") {
     object = [UIBezierPath bezierPath];
+  } else if (className == "CABasicAnimation") {
+    object = [CABasicAnimation animation];
   }
   if (object == nil) return {};
   return {(void*)CFAutorelease(CFBridgingRetain(object)), className};

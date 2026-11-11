@@ -250,6 +250,15 @@ for tsname, outer, inner in [
      r'@\[\s*@"(\w+)"'),
     ('CAShapeLayerLineJoin', r'LineJoinPairs\(void\).*?pairs = @\[(.*?)\];',
      r'@\[\s*@"(\w+)"'),
+    ('CAMediaTimingFillMode', r'FillModePairs\(void\).*?pairs = @\[(.*?)\];',
+     r'@\[\s*@"(\w+)"'),
+    ('CAMediaTimingFunctionName',
+     r'TimingFunctionNamePairs\(void\).*?pairs = @\[(.*?)\];', r'@\[\s*@"(\w+)"'),
+    ('CAAnimationEventType',
+     r'AnimationEventNamesList\(void\).*?names = @\[(.*?)\];', r'@"(\w+)"'),
+    # 能动画的属性。原生是字典（只按名字查、不反查），所以内层正则和 pairs 不同
+    ('CAAnimationKeyPath', r'AnimKeyPathTable\(void\).*?table = @\{(.*?)\};',
+     r'@"(\w+)":'),
     ('UILayoutPriorityName', r'LayoutPriorityTable\(void\).*?@\{(.*?)\};',
      r'@"(\w+)":'),
     # leading==top、trailing==bottom，一个值两个名字，所以实现用有序 pairs。

@@ -726,6 +726,21 @@ struct Engine::Impl {
     if (!wrapper.IsEmpty()) info.GetReturnValue().Set(wrapper);
   }
 
+  // 返回值不是原生对象的类方法，比如 CATransaction.begin()
+  static void NativeClassCallValue(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    v8::Isolate* isolate = info.GetIsolate();
+    Impl* self = From(isolate);
+    v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
+    if (!self->host.call_class_method || info.Length() < 4) return;
+    std::string error;
+    std::string result = self->host.call_class_method(
+        SafeToString(isolate, info[0]), SafeToString(isolate, info[1]),
+        SafeToString(isolate, info[2]), self->HandlesToPtrs(ctx, info[3]), &error);
+    if (Rejected(isolate, error)) return;
+    info.GetReturnValue().Set(
+        v8::String::NewFromUtf8(isolate, result.c_str()).ToLocalChecked());
+  }
+
   // 带参数的方法，返回值用 JSON 编码
   static void NativeCall(const v8::FunctionCallbackInfo<v8::Value>& info) {
     v8::Isolate* isolate = info.GetIsolate();
@@ -878,6 +893,7 @@ struct Engine::Impl {
         {"callVoid", NativeCallVoid},
         {"classObjProp", NativeClassObjectProperty},
         {"classCall", NativeClassCall},
+        {"classCallValue", NativeClassCallValue},
         {"parseURL", NativeParseURL},
         {"readObjectAsync", NativeReadObjectAsync},
         {"createBlob", NativeCreateBlob},
@@ -1203,6 +1219,37 @@ void Engine::EmitObjectEventWith(const NativeObjectRef& target,
         wrapper, Utf8(isolate, type),
         extra.IsEmpty() ? v8::Local<v8::Value>(v8::Undefined(isolate))
                         : v8::Local<v8::Value>(extra)};
+    if (impl_->object_event_sink.Get(isolate)
+            ->Call(ctx, ctx->Global(), 3, argv)
+            .IsEmpty()) {
+      impl_->ReportException(ctx, try_catch);
+    }
+  }
+  impl_->ScheduleRejectionFlush();
+}
+
+void Engine::EmitObjectEventWithJSON(const NativeObjectRef& target,
+                                     const std::string& type,
+                                     const std::string& json) {
+  v8::Isolate* isolate = impl_->isolate;
+  v8::Isolate::Scope isolate_scope(isolate);
+  v8::HandleScope handle_scope(isolate);
+  if (impl_->object_event_sink.IsEmpty()) return;
+
+  v8::Local<v8::Context> ctx = impl_->context.Get(isolate);
+  v8::Context::Scope context_scope(ctx);
+  v8::Local<v8::Object> wrapper = impl_->WrapNative(ctx, target);
+  if (wrapper.IsEmpty()) return;
+  {
+    v8::TryCatch try_catch(isolate);
+    // 解不出来就当没有负载。和 SettleJSON 一个处理：宁可少一个字段，
+    // 也不要让一次事件派发整个失败
+    v8::Local<v8::Value> extra;
+    if (!v8::JSON::Parse(ctx, Utf8(isolate, json)).ToLocal(&extra)) {
+      try_catch.Reset();
+      extra = v8::Undefined(isolate);
+    }
+    v8::Local<v8::Value> argv[] = {wrapper, Utf8(isolate, type), extra};
     if (impl_->object_event_sink.Get(isolate)
             ->Call(ctx, ctx->Global(), 3, argv)
             .IsEmpty()) {

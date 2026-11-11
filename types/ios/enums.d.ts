@@ -93,6 +93,41 @@ type CAShapeLayerLineJoin = 'miter' | 'round' | 'bevel';
  */
 type UIRectCorner = 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';
 
+/**
+ * 动画的活动区间之外，被动画的属性显示成什么。
+ *
+ * `removed`（默认）动画一结束就摘掉，属性弹回模型值；`forwards` 停在
+ * 终点；`backwards` 开始前就顶着起点；`both` 两头都顶着。
+ */
+type CAMediaTimingFillMode = 'removed' | 'forwards' | 'backwards' | 'both';
+
+/**
+ * 五个内置的时间曲线。
+ *
+ * `default` 和 `easeInEaseOut` **不是一回事**：`default` 的控制点是
+ * (0.25, 0.1) (0.25, 1)，`easeInEaseOut` 是 (0.42, 0) (0.58, 1)。
+ */
+type CAMediaTimingFunctionName =
+  | 'linear' | 'easeIn' | 'easeOut' | 'easeInEaseOut' | 'default';
+
+/** 动画自己的两个事件，来自 `CAAnimationDelegate`。 */
+type CAAnimationEventType = 'start' | 'stop';
+
+/**
+ * 能动画的属性。写别的名字会当场抛。
+ *
+ * **没有 `frame`**：它在 Core Animation 里是从 `position` / `bounds` 推
+ * 出来的，Apple 明说别动画它——动 `position` 或 `bounds`。
+ * **没有 `isHidden`**：布尔值动画没有意义。
+ * `locations` / `colors` 这两个数组还没做。
+ */
+type CAAnimationKeyPath =
+  | 'backgroundColor' | 'borderColor' | 'borderWidth' | 'bounds' | 'cornerRadius'
+  | 'endPoint' | 'fillColor' | 'lineDashPhase' | 'lineWidth' | 'miterLimit'
+  | 'opacity' | 'path' | 'position' | 'shadowColor' | 'shadowOffset'
+  | 'shadowOpacity' | 'shadowRadius' | 'startPoint' | 'strokeColor'
+  | 'strokeEnd' | 'strokeStart' | 'zPosition';
+
 type NSLayoutRelation = 'lessThanOrEqual' | 'equal' | 'greaterThanOrEqual';
 
 type UILayoutConstraintAxis = 'horizontal' | 'vertical';

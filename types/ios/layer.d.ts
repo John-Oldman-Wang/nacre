@@ -50,6 +50,21 @@ declare class CALayer extends NSObject {
   ): void;
   removeFromSuperlayer(): void;
 
+  // ---- 动画 ----
+  /**
+   * 把动画挂上去。**这里会拷贝一份**——加完再改原来那个对象不会有任何
+   * 效果，`animationForKey` 读回来的也是那份拷贝。
+   *
+   * 同一个 `forKey` 只能有一个动画，再加会顶掉前一个。
+   */
+  addAnimation(animation: CAAnimation, options?: { forKey?: string | null }): void;
+  removeAllAnimations(): void;
+  removeAnimationForKey(key: string): void;
+  /** 当前挂着的动画的 key。没有时给 `[]`，不是 `null`。 */
+  animationKeys(): string[];
+  /** 给的是**图层持有的那份拷贝**。头文件原话：改它的任何属性都是未定义行为。 */
+  animationForKey(key: string): CAAnimation | null;
+
   // ---- 外观 ----
   /** 0…1。`UIView` 上对应的是 `alpha`。 */
   opacity: number;

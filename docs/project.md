@@ -402,14 +402,17 @@ ios/Runtime/
 │  ├─ NacreConvert.mm     日志、JSON、结构体互转、环境快照
 │  ├─ NacreProperties.mm  属性分发的顺序表，只有分发器
 │  ├─ NacreProps*.mm      属性实现，一个能力域一个文件（Scene / Control /
-│  │                      Layout / Layer / Path / Scroll / View / Resource）
+│  │                      Layout / Layer / Path / Animation / Scroll / View /
+│  │                      Resource）
 │  ├─ NacreEnums.mm       共享助手 + 文字、图片、字体
 │  ├─ NacreEnums*.mm      枚举实现，域名和 NacreProps* 对齐（Layout /
-│  │                      Control / Input / Scroll / Scene / Layer / Path）
+│  │                      Control / Input / Scroll / Scene / Layer / Path /
+│  │                      Animation）
 │  ├─ NacreMethods.mm     方法分发，还没按域拆完的那些分支
 │  ├─ NacreMethodsNav.mm  导航域在**所有通道**上的分支
 │  ├─ NacreMethodsLayer.mm 图层域的层级操作
 │  ├─ NacreMethodsPath.mm 路径域：画线、拼接、变换
+│  ├─ NacreMethodsAnimation.mm 动画域：挂动画、曲线、CATransaction
 │  ├─ NacreFactories.mm   造对象：类方法和构造
 │  ├─ NacreStorage.mm     UserDefaults
 │  ├─ NacreFileSystem.mm  文件读写
@@ -575,6 +578,7 @@ Commit message 格式：
 | — | `app/`：JS 源码独立成工程，esbuild 打包 | package.json、@nacre/types 当依赖装 | 已在模拟器验证通过：358 条断言和打包前一字不差，含真实滑动和点击 |
 | — | A5-1 子图层和渐变 | CALayer 可构造、几何、层级、CAGradientLayer | 已在模拟器验证通过：48 条断言全过，屏幕上一张渐变卡片；实测 view.layer 的 contentsScale 也是 1 |
 | — | A5-2 路径和形状图层 | UIBezierPath、CAShapeLayer、三个字符串枚举、UIRectCorner 位掩码 | 已在模拟器验证通过：788 条断言全过，屏幕上一条折线和一个扇形；path 的身份靠 JS 侧镜像，写进去的对象原样还回来 |
+| — | A6-1 动画核心（CABasicAnimation、时间曲线、CATransaction、动画事件） | keyPath 定取值类型、两条新引擎通道、动画 trampoline | 已在模拟器验证通过：850 条断言全过，折线画出来、圆点脉动；顺带把「隐式动画」那条未验证钉死了——是真的，但要等图层渲染过一轮 |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |
