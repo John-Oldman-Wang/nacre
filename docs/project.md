@@ -89,7 +89,7 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 
 | 方面 | 选型 |
 | --- | --- |
-| 系统与设备 | iOS 26+，只支持 iPhone，只支持 arm64（真机和 Apple Silicon 模拟器），Xcode 26+ |
+| 系统与设备 | iOS 26+，只支持 iPhone，只支持 arm64（真机和 Apple Silicon 模拟器），Xcode 26+。**用到 iOS 27 才有的符号时，`#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 270000` 和 `@available` 两层都要写**——前者管编译用的 SDK 认不认识，后者管跑的机器有没有。只写后者在 Xcode 26 上编译不过 |
 | JS 引擎 | V8 14.9.207.39，使用 [NativeScript/v8-buildscripts](https://github.com/NativeScript/v8-buildscripts) 发布的预编译静态库；lite mode 构建，即 jitless。**不要传 `--jitless`**（只读标志，设置会崩溃） |
 | V8 获取方式 | `ios/scripts/fetch-v8.sh` 下载并校验 SHA256，放到 `ios/Vendor/v8`，不提交 |
 | 线程模型 | **JS 运行在主线程**，和 UIKit 同线程，所以同步读布局和同步回调天然成立。主线程栈用链接器参数 `-Wl,-stack_size,0x800000` 设为 8MB（真机默认 1MB，不够 V8 用）。V8 的空闲任务在 run loop 即将等待时执行，做增量 GC。理由和代价见下 |
@@ -656,6 +656,41 @@ iOS 的触摸不是一套机制，是**四套并行**的（hit-testing、respond
 用**属性**而不是方法（`scene.supportedOrientations = [...]`），因为它表达的是状态而非动作——原则 2。
 
 两个要分清的：**设备方向 ≠ 界面方向**（`UIDevice.orientation` 是物理朝向，含面朝上/朝下；`interfaceOrientation` 是界面实际显示的方向，App 锁竖屏时设备横过来界面不变）；以及实际开发中更常用的是**每个页面**的方向（`UIViewController.supportedInterfaceOrientations`），scene 这层管的是窗口整体。
+
+### 第二份试用报告（2026-11-11）：三条「文档和实际不一致」
+
+有人把一个 Expo / React Native 的真实 App（登录注册、首页、底部 tab，约 2600 行 JS）用 Nacre 重写。他们只看 `docs/api/` 和 `@nacre/types`。报告里有三条**说我们和自己写的不一致**，核下来全部属实。
+
+**1. `textContentType` 在 iOS 26.x 上必崩。** `NacreEnumsInput.mm` 的表里有三个 `API_AVAILABLE(ios(27.0))` 的常量（`cellularIMEI1` / `cellularIMEI2` / `cellularNAL`），低版本上弱链接成 nil，往字典字面量里插 nil 当场抛——而且发生在 `dispatch_once` 里，JS 既捕获不到也看不到输出。
+
+**我们自己的验收永远碰不到它**：全跑在 iOS 27 的模拟器上。「支持 iOS 26+」这句话从来没被验证过。这是**验证方法的缺口**，不只是代码的。
+
+**2. Xcode 26.5 编译不过。** 两处用了 iOS 27 才有的符号（`systemPrefersReducedResourceUsage` 和它的通知），只写了 `@available`。那是运行时检查，**编译时符号还得在 SDK 里**。
+
+**3. 「底层裸暴露」那句承诺是假的。** `docs/api/README.md` 原来写着「iOS 原生符号按 ObjC 类名裸暴露在全局（`UIWindow`、`NSString`、`CLLocationManager`）……上层没覆盖的，底层一定能补上」。实际全局只有手写的那几十个类，`NSString` 和 `CLLocationManager` 都没有。那句描述的是 **M3 做完之后**的目标，被当成现状写给用户了。已改。
+
+#### 最大的结构性发现：宿主扩展点
+
+**宿主 App 没有办法把自己的原生代码暴露给 JS。** 运行时对外只有 `NacreRuntime` 的 `startWithScriptsDirectory:`，没有注册自定义原生能力的口子。
+
+这条**我们的缺口表里完全没有**，而且和 M3 不是一回事：
+
+| | 解决什么 |
+| --- | --- |
+| M3 bindgen | 把**系统 SDK** 的类自动暴露给 JS |
+| **宿主扩展点** | 让**宿主 App / 第三方 SDK** 的原生代码暴露给 JS |
+
+bindgen 做完也解决不了同盾（风控）、mtpush（推送）、Sentry 原生部分、Geetest（人机验证）。报告的结论是对的：凡是只提供原生 SDK、没有纯 JS 形态的能力，现在都用不了。
+
+#### 其余新增的缺口
+
+`UIDevice`（读不到系统版本，所以连「只在 iOS 27+ 上开 textContentType」这种降级都做不了，和第 1 条直接咬在一起）、`NSAttributedString`、`UIVisualEffectView`、`UIView` 级的 `tintColor`、Lottie / 动图、**「怎么在 Nacre 仓库之外建一个自己的 App」的文档**（他们靠读我们的工程文件拼出来的）。
+
+另外 `UIActivityIndicatorView` 要**改判**：之前归在「JS 层拼得出来，不单独排」，这次他们用文字 `•••` 代替了，说明拼不出来。
+
+#### 要注意：这份报告的基线比现在旧
+
+报告里标「未提及」的 `CAShapeLayer` / `UIBezierPath` 和 Core Animation **已经做了**（A5-2、A6-1/2/3）。它说的 35 个类现在是 47 个。排优先级时别照着它的清单来。
 
 ### 试用报告暴露的能力缺口（2026-11-10）
 

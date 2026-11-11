@@ -1179,7 +1179,12 @@ nacre::NativeObjectRef CreateBlob(
     [self->_observers addObject:token];
   }];
 
-  // 这个通知 iOS 27 才有，但对应的属性已经暴露了，不接上就不完备
+  // 这个通知 iOS 27 才有，但对应的属性已经暴露了，不接上就不完备。
+  //
+  // #if 管编译期（Xcode 26 的 SDK 里没有这个符号，只写 @available 会
+  // 编译不过），@available 管运行期。用低 SDK 编出来的包里这条事件
+  // 永远不发，属性恒为 false——见 NacreConvert.mm 里的同一处处理。
+#if defined(__IPHONE_OS_VERSION_MAX_ALLOWED) && __IPHONE_OS_VERSION_MAX_ALLOWED >= 270000
   if (@available(iOS 27.0, *)) {
     id token = [NSNotificationCenter.defaultCenter
         addObserverForName:UIApplicationSystemPrefersReducedResourceUsageDidChangeNotification
@@ -1195,6 +1200,7 @@ nacre::NativeObjectRef CreateBlob(
                 }];
     [_observers addObject:token];
   }
+#endif
 }
 
 // 控件事件：延后一轮再进 JS，和别的原生通知一致。

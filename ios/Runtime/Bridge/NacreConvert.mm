@@ -118,9 +118,18 @@ void RebuildEnvironment(const std::shared_ptr<AppSnapshot>& snapshot) {
     @"backgroundRefreshStatus" : BackgroundRefreshName(app.backgroundRefreshStatus),
     @"idleTimerDisabled" : @(app.isIdleTimerDisabled),
   } mutableCopy];
-  if (@available(iOS 27.0, *)) {
-    env[@"prefersReducedResourceUsage"] = @(app.systemPrefersReducedResourceUsage);
-  }
+  // 这个属性 iOS 27 才有。**两层判断都要**，管的是不同的事：
+  //   #if        编译用的 SDK 认不认识这个符号。Xcode 26 的 SDK 里压根
+  //              没声明，只写 @available 会编译不过（试用报告撞到的就是
+  //              这个：use of undeclared identifier）
+  //   @available 跑的这台机器有没有
+  // 键**无论如何都放进去**，别让 API 的形状随编译工具链变——低 SDK
+  // 编出来的包里它恒为 false。
+  BOOL reduced = NO;
+#if defined(__IPHONE_OS_VERSION_MAX_ALLOWED) && __IPHONE_OS_VERSION_MAX_ALLOWED >= 270000
+  if (@available(iOS 27.0, *)) reduced = app.systemPrefersReducedResourceUsage;
+#endif
+  env[@"prefersReducedResourceUsage"] = @(reduced);
 
   NSData* data = [NSJSONSerialization dataWithJSONObject:env options:0 error:nil];
   std::string json = data ? std::string(static_cast<const char*>(data.bytes), data.length)

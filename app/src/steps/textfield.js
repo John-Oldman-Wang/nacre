@@ -51,6 +51,23 @@ export function stepTextField(ctx) {
   assert('内容类型', field.textContentType, 'username');
   field.textContentType = null;
   assert('内容类型能清掉', field.textContentType, null);
+  // 这三个是 API_AVAILABLE(ios(27.0))。原来的实现用字典字面量，低版本上
+  // 它们是 nil，插进 @{} 当场崩（试用报告在 iOS 26.5 上撞到了）。
+  // 改成逐对加、nil 就跳过之后：**有就能用，没有就当不认识的名字抛**，
+  // 两种都不会崩。这里跑在 iOS 27 上，所以走的是「有」那一支
+  for (const late of /** @type {UITextContentType[]} */ (
+         ['cellularIMEI1', 'cellularIMEI2', 'cellularNAL'])) {
+    try {
+      field.textContentType = late;
+      assert('iOS 27 专属的 ' + late + ' 可用', field.textContentType, late);
+    } catch (e) {
+      // iOS 26 上会走到这里，而且是**抛**不是崩——这正是修复要达到的
+      const message = e instanceof Error ? e.message : '';
+      assert(late + ' 不可用时是抛而不是崩', e instanceof TypeError, true);
+      assert('错误里列出了可选值', message.includes('username'), true);
+    }
+  }
+  field.textContentType = null;
   field.textColor = '#333333';
   assert('文字颜色也是字符串', field.textColor, '#333333');
   field.textAlignment = 'center';

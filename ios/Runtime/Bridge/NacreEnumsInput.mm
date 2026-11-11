@@ -83,56 +83,70 @@ NSDictionary<NSString*, UITextContentType>* TextContentTypes() {
   static NSDictionary<NSString*, UITextContentType>* table;
   static dispatch_once_t once;
   dispatch_once(&once, ^{
-    table = @{
-               @"addressCity": UITextContentTypeAddressCity,
-               @"addressCityAndState": UITextContentTypeAddressCityAndState,
-               @"addressState": UITextContentTypeAddressState,
-               @"birthdate": UITextContentTypeBirthdate,
-               @"birthdateDay": UITextContentTypeBirthdateDay,
-               @"birthdateMonth": UITextContentTypeBirthdateMonth,
-               @"birthdateYear": UITextContentTypeBirthdateYear,
-               @"cellularEID": UITextContentTypeCellularEID,
-               @"cellularIMEI": UITextContentTypeCellularIMEI,
-               @"cellularIMEI1": UITextContentTypeCellularIMEI1,
-               @"cellularIMEI2": UITextContentTypeCellularIMEI2,
-               @"cellularNAL": UITextContentTypeCellularNAL,
-               @"countryName": UITextContentTypeCountryName,
-               @"creditCardExpiration": UITextContentTypeCreditCardExpiration,
-               @"creditCardExpirationMonth": UITextContentTypeCreditCardExpirationMonth,
-               @"creditCardExpirationYear": UITextContentTypeCreditCardExpirationYear,
-               @"creditCardFamilyName": UITextContentTypeCreditCardFamilyName,
-               @"creditCardGivenName": UITextContentTypeCreditCardGivenName,
-               @"creditCardMiddleName": UITextContentTypeCreditCardMiddleName,
-               @"creditCardName": UITextContentTypeCreditCardName,
-               @"creditCardNumber": UITextContentTypeCreditCardNumber,
-               @"creditCardSecurityCode": UITextContentTypeCreditCardSecurityCode,
-               @"creditCardType": UITextContentTypeCreditCardType,
-               @"dateTime": UITextContentTypeDateTime,
-               @"emailAddress": UITextContentTypeEmailAddress,
-               @"familyName": UITextContentTypeFamilyName,
-               @"flightNumber": UITextContentTypeFlightNumber,
-               @"fullStreetAddress": UITextContentTypeFullStreetAddress,
-               @"givenName": UITextContentTypeGivenName,
-               @"jobTitle": UITextContentTypeJobTitle,
-               @"location": UITextContentTypeLocation,
-               @"middleName": UITextContentTypeMiddleName,
-               @"name": UITextContentTypeName,
-               @"namePrefix": UITextContentTypeNamePrefix,
-               @"nameSuffix": UITextContentTypeNameSuffix,
-               @"newPassword": UITextContentTypeNewPassword,
-               @"nickname": UITextContentTypeNickname,
-               @"oneTimeCode": UITextContentTypeOneTimeCode,
-               @"organizationName": UITextContentTypeOrganizationName,
-               @"password": UITextContentTypePassword,
-               @"postalCode": UITextContentTypePostalCode,
-               @"shipmentTrackingNumber": UITextContentTypeShipmentTrackingNumber,
-               @"streetAddressLine1": UITextContentTypeStreetAddressLine1,
-               @"streetAddressLine2": UITextContentTypeStreetAddressLine2,
-               @"sublocality": UITextContentTypeSublocality,
-               @"telephoneNumber": UITextContentTypeTelephoneNumber,
-               @"url": UITextContentTypeURL,
-               @"username": UITextContentTypeUsername,
-    };
+    // **不能用字典字面量。** 其中三个常量（cellularIMEI1 / cellularIMEI2 /
+    // cellularNAL）是 API_AVAILABLE(ios(27.0))，在更低的系统上弱链接成
+    // nil，往 @{} 里插 nil 当场抛——而且发生在 dispatch_once 里，JS 那边
+    // 既捕获不到也看不到任何输出，App 直接段错误退出。
+    //
+    // 试用报告在 iOS 26.5 上撞到了这个：第一次给任意输入框写
+    // textContentType 就崩，不管值是什么。我们自己的验收跑在 iOS 27 的
+    // 模拟器上，所以一次都没碰到。
+    //
+    // 改成逐对加、nil 就跳过：低版本上那三个名字就是「不认识」，写它会
+    // 得到一条列出可选值的 TypeError，而不是崩溃。
+    NSMutableDictionary<NSString*, UITextContentType>* out =
+        [NSMutableDictionary dictionary];
+#define NACRE_TCT(key, konst) if ((konst) != nil) out[key] = (konst);
+    NACRE_TCT(@"addressCity", UITextContentTypeAddressCity)
+    NACRE_TCT(@"addressCityAndState", UITextContentTypeAddressCityAndState)
+    NACRE_TCT(@"addressState", UITextContentTypeAddressState)
+    NACRE_TCT(@"birthdate", UITextContentTypeBirthdate)
+    NACRE_TCT(@"birthdateDay", UITextContentTypeBirthdateDay)
+    NACRE_TCT(@"birthdateMonth", UITextContentTypeBirthdateMonth)
+    NACRE_TCT(@"birthdateYear", UITextContentTypeBirthdateYear)
+    NACRE_TCT(@"cellularEID", UITextContentTypeCellularEID)
+    NACRE_TCT(@"cellularIMEI", UITextContentTypeCellularIMEI)
+    NACRE_TCT(@"cellularIMEI1", UITextContentTypeCellularIMEI1)
+    NACRE_TCT(@"cellularIMEI2", UITextContentTypeCellularIMEI2)
+    NACRE_TCT(@"cellularNAL", UITextContentTypeCellularNAL)
+    NACRE_TCT(@"countryName", UITextContentTypeCountryName)
+    NACRE_TCT(@"creditCardExpiration", UITextContentTypeCreditCardExpiration)
+    NACRE_TCT(@"creditCardExpirationMonth", UITextContentTypeCreditCardExpirationMonth)
+    NACRE_TCT(@"creditCardExpirationYear", UITextContentTypeCreditCardExpirationYear)
+    NACRE_TCT(@"creditCardFamilyName", UITextContentTypeCreditCardFamilyName)
+    NACRE_TCT(@"creditCardGivenName", UITextContentTypeCreditCardGivenName)
+    NACRE_TCT(@"creditCardMiddleName", UITextContentTypeCreditCardMiddleName)
+    NACRE_TCT(@"creditCardName", UITextContentTypeCreditCardName)
+    NACRE_TCT(@"creditCardNumber", UITextContentTypeCreditCardNumber)
+    NACRE_TCT(@"creditCardSecurityCode", UITextContentTypeCreditCardSecurityCode)
+    NACRE_TCT(@"creditCardType", UITextContentTypeCreditCardType)
+    NACRE_TCT(@"dateTime", UITextContentTypeDateTime)
+    NACRE_TCT(@"emailAddress", UITextContentTypeEmailAddress)
+    NACRE_TCT(@"familyName", UITextContentTypeFamilyName)
+    NACRE_TCT(@"flightNumber", UITextContentTypeFlightNumber)
+    NACRE_TCT(@"fullStreetAddress", UITextContentTypeFullStreetAddress)
+    NACRE_TCT(@"givenName", UITextContentTypeGivenName)
+    NACRE_TCT(@"jobTitle", UITextContentTypeJobTitle)
+    NACRE_TCT(@"location", UITextContentTypeLocation)
+    NACRE_TCT(@"middleName", UITextContentTypeMiddleName)
+    NACRE_TCT(@"name", UITextContentTypeName)
+    NACRE_TCT(@"namePrefix", UITextContentTypeNamePrefix)
+    NACRE_TCT(@"nameSuffix", UITextContentTypeNameSuffix)
+    NACRE_TCT(@"newPassword", UITextContentTypeNewPassword)
+    NACRE_TCT(@"nickname", UITextContentTypeNickname)
+    NACRE_TCT(@"oneTimeCode", UITextContentTypeOneTimeCode)
+    NACRE_TCT(@"organizationName", UITextContentTypeOrganizationName)
+    NACRE_TCT(@"password", UITextContentTypePassword)
+    NACRE_TCT(@"postalCode", UITextContentTypePostalCode)
+    NACRE_TCT(@"shipmentTrackingNumber", UITextContentTypeShipmentTrackingNumber)
+    NACRE_TCT(@"streetAddressLine1", UITextContentTypeStreetAddressLine1)
+    NACRE_TCT(@"streetAddressLine2", UITextContentTypeStreetAddressLine2)
+    NACRE_TCT(@"sublocality", UITextContentTypeSublocality)
+    NACRE_TCT(@"telephoneNumber", UITextContentTypeTelephoneNumber)
+    NACRE_TCT(@"url", UITextContentTypeURL)
+    NACRE_TCT(@"username", UITextContentTypeUsername)
+#undef NACRE_TCT
+    table = out;
   });
   return table;
 }
