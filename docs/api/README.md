@@ -42,6 +42,7 @@ Nacre 的 API 分两层：
 | [原生类](native-classes.md) | 哪些能 `new`、为什么不能继承、挂自定义属性的保证边界 |
 | [结构体](structs.md) | `CGPoint`、`CGSize`、`CGRect`、`UIEdgeInsets`，只读 |
 | [枚举](enums.md) | 一律用字符串 |
+| [单位](units.md) | 长度是点不是像素；点值会不会跟着缩放 |
 | [定时器](timers.md) | `setTimeout` 系列。调度参考 Chromium |
 | [`URL` / `Headers`](url.md) | WHATWG 三件套。和浏览器有五处已知差异 |
 | [`fetch`](fetch.md) | 网络请求。线程分工是实测定下来的 |

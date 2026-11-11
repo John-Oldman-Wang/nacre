@@ -54,7 +54,7 @@ new UIStackView([a, b, c])             // = initWithArrangedSubviews:
 | `axis` | `'horizontal'` \| `'vertical'` | `'horizontal'` | 排成一行还是一列 |
 | `distribution` | [枚举字符串](enums.md) | `'fill'` | 沿轴怎么分配空间 |
 | `alignment` | [枚举字符串](enums.md) | `'fill'` | 垂直于轴怎么对齐 |
-| `spacing` | `number` \| `'system'` | `0` | 相邻两项的间距。负值可以让它们重叠 |
+| `spacing` | `number` \| `'system'` | `0` | 相邻两项的间距，单位是[点](units.md#长度和坐标点)。负值可以让它们重叠 |
 | `isBaselineRelativeArrangement` | `boolean` | `false` | 纵向排列时按基线算间距。横向排列**无效** |
 | `isLayoutMarginsRelativeArrangement` | `boolean` | `false` | 边缘约束用 layout margins 而不是边框 |
 

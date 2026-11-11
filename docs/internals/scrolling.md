@@ -109,7 +109,7 @@ Web 的滚动不卡靠两层，我们只抄得了第二层：
 
 scroll view 里套 stack 时，**忘了给 stack 自己关 `translatesAutoresizingMaskIntoConstraints`**，症状是 `contentSize` 恒为 0，而且**不会有任何约束冲突日志**——autoresizing 把 stack 钉成 `(0,0,0,0)`，`contentLayoutGuide` 跟着塌成 0，一切自洽。
 
-`addArrangedSubview` 会替排列项关掉它，但没人替 stack 关。这个坑写进 [API 文档](../api/ui-scroll-view.md#标准写法套一个-uistackview)了。
+`addArrangedSubview` 会替排列项关掉它，但没人替 stack 关。这个坑写进 [API 文档](../api/ui-scroll-view.md#内容不显示的常见原因)了。
 
 ## 这一步开了几条通道
 
