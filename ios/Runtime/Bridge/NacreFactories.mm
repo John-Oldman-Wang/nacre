@@ -175,6 +175,49 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
     if (image == nil) return {};
     return {(__bridge void*)image, "UIImage"};
   }
+
+  // 路径的类工厂。角度是弧度，UIKit y 轴朝下所以 0 在正右方、增大是顺时针。
+  // bezierPathWithCGPath: 不收——CGPathRef 还没有包装，和 CGColorRef 一样
+  // 要单独定。
+  if (className == "UIBezierPath") {
+    if ([sel isEqualToString:@"bezierPathWithRect:"]) {
+      return {(__bridge void*)[UIBezierPath bezierPathWithRect:JSONToRect(arg(0))],
+              "UIBezierPath"};
+    }
+    if ([sel isEqualToString:@"bezierPathWithOvalInRect:"]) {
+      return {(__bridge void*)[UIBezierPath bezierPathWithOvalInRect:JSONToRect(arg(0))],
+              "UIBezierPath"};
+    }
+    if ([sel isEqualToString:@"bezierPathWithRoundedRect:cornerRadius:"]) {
+      return {(__bridge void*)[UIBezierPath bezierPathWithRoundedRect:JSONToRect(arg(0))
+                                                         cornerRadius:[arg(1) doubleValue]],
+              "UIBezierPath"};
+    }
+    if ([sel isEqualToString:@"bezierPathWithRoundedRect:byRoundingCorners:cornerRadii:"]) {
+      UIRectCorner corners;
+      id bad = nil;
+      if (!RectCornerFromNames(arg(1), &corners, &bad)) {
+        *error = bad != nil
+                     ? EnumError(@"byRoundingCorners", bad, NamesForRectCorner())
+                     : [NSString stringWithFormat:
+                           @"byRoundingCorners needs an array of names; expected any of: %@",
+                           NamesForRectCorner()].UTF8String;
+        return {};
+      }
+      return {(__bridge void*)[UIBezierPath bezierPathWithRoundedRect:JSONToRect(arg(0))
+                                                    byRoundingCorners:corners
+                                                          cornerRadii:JSONToSize(arg(2))],
+              "UIBezierPath"};
+    }
+    if ([sel isEqualToString:@"bezierPathWithArcCenter:radius:startAngle:endAngle:clockwise:"]) {
+      return {(__bridge void*)[UIBezierPath bezierPathWithArcCenter:JSONToPoint(arg(0))
+                                                             radius:[arg(1) doubleValue]
+                                                         startAngle:[arg(2) doubleValue]
+                                                           endAngle:[arg(3) doubleValue]
+                                                          clockwise:[arg(4) boolValue]],
+              "UIBezierPath"};
+    }
+  }
   return {};
 }
 
@@ -242,6 +285,10 @@ nacre::NativeObjectRef ConstructNative(const std::string& className,
     object = [CALayer layer];
   } else if (className == "CAGradientLayer") {
     object = [CAGradientLayer layer];
+  } else if (className == "CAShapeLayer") {
+    object = [CAShapeLayer layer];
+  } else if (className == "UIBezierPath") {
+    object = [UIBezierPath bezierPath];
   }
   if (object == nil) return {};
   return {(void*)CFAutorelease(CFBridgingRetain(object)), className};

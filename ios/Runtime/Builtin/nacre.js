@@ -270,6 +270,14 @@
   // 所有权边上的对象属性。和 nativeGetObject / nativeSetObject 的差别只是
   // 记一笔。回边不走这里：superview、window、windowScene 在原生侧也不是
   // 持有，而且它们的另一端已经被上游的所有权边兜住了。
+  // 只问镜像，不过桥。给那些「原生读回来会换一个对象」的属性用：
+  // CAShapeLayer.path 存的是 CGPath，每次读都现包一个新的 UIBezierPath，
+  // 而写进去的那个对象 JS 这边是有的——镜像里有就还它，身份才稳得住。
+  // 返回 undefined 表示镜像里没有（包装被回收重建过），由调用方决定怎么办。
+  function ownedValue(owner, name) {
+    const slot = owner == null ? undefined : ownership.get(owner);
+    return slot === undefined ? undefined : slot.get(name);
+  }
   function nativeGetOwned(obj, name) {
     return own(obj, name, nativeGetObject(obj, name));
   }
@@ -654,6 +662,151 @@
   // frame / bounds / opacity / isHidden 这些名字 UIView 上也有。view 自己
   // 那一层用 view 的写法（它才是参与布局的那个）；独立建的子图层上 view
   // 没有对应物，只能用这里的。
+  // 路径。只管形状，不管怎么画——画出来是 CAShapeLayer 的事。
+  //
+  // 角度一律是**弧度**，而且 UIKit 的 y 轴朝下：0 弧度在正右方，角度增大
+  // 是**顺时针**，和数学课上的方向相反。
+  //
+  // 没有 -fill / -stroke / -addClip，也没有路径自己那套 lineWidth /
+  // lineCapStyle / lineJoinStyle / miterLimit / flatness：它们都只服务于
+  // 那两个绘制方法，而绘制要当前 CGContext（= 覆写 drawRect:，还没有）。
+  // 路径画在 CAShapeLayer 上时，生效的是**图层**的同名属性。
+  const UIBezierPath = defineNativeClass('UIBezierPath', class UIBezierPath extends NSObject {
+    constructor() {
+      super();
+      constructNative(this, new.target, 'UIBezierPath', []);
+    }
+
+    // ---- 现成的形状 ----
+    static bezierPathWithRect(rect) {
+      return nativeClassCall('UIBezierPath', 'bezierPathWithRect:',
+                             [structArg(rect, RECT_FIELDS, 'bezierPathWithRect')]);
+    }
+    // 内切椭圆。正方形进去就是个正圆
+    static bezierPathWithOvalInRect(rect) {
+      return nativeClassCall('UIBezierPath', 'bezierPathWithOvalInRect:',
+                             [structArg(rect, RECT_FIELDS, 'bezierPathWithOvalInRect')]);
+    }
+    // 两种写法：{ cornerRadius } 四个角一样圆，
+    // { byRoundingCorners, cornerRadii } 挑角，半径是 CGSize（横纵可以不同）
+    static bezierPathWithRoundedRect(rect, options) {
+      const o = options || {};
+      const r = structArg(rect, RECT_FIELDS, 'bezierPathWithRoundedRect');
+      if ('byRoundingCorners' in o) {
+        return nativeClassCall(
+          'UIBezierPath', 'bezierPathWithRoundedRect:byRoundingCorners:cornerRadii:',
+          [r, o.byRoundingCorners,
+           structArg(o.cornerRadii, SIZE_FIELDS, 'cornerRadii')]);
+      }
+      if ('cornerRadius' in o) {
+        return nativeClassCall('UIBezierPath', 'bezierPathWithRoundedRect:cornerRadius:',
+                               [r, o.cornerRadius]);
+      }
+      throw new TypeError('bezierPathWithRoundedRect needs { cornerRadius } ' +
+                          'or { byRoundingCorners, cornerRadii }');
+    }
+    // 一段圆弧。四个选项都要给——原生这里没有默认值，我们也不发明一个
+    static bezierPathWithArcCenter(center, options) {
+      const o = options || {};
+      for (const key of ['radius', 'startAngle', 'endAngle', 'clockwise']) {
+        if (!(key in o)) {
+          throw new TypeError('bezierPathWithArcCenter needs { radius, startAngle, ' +
+                              'endAngle, clockwise }; missing ' + key);
+        }
+      }
+      return nativeClassCall(
+        'UIBezierPath', 'bezierPathWithArcCenter:radius:startAngle:endAngle:clockwise:',
+        [structArg(center, POINT_FIELDS, 'bezierPathWithArcCenter'),
+         o.radius, o.startAngle, o.endAngle, o.clockwise]);
+    }
+
+    // ---- 自己画 ----
+    // 抬笔移到某处，开一段新的子路径
+    moveToPoint(point) {
+      nativeCall(this, 'moveToPoint:', [structArg(point, POINT_FIELDS, 'moveToPoint')]);
+    }
+    // 从 currentPoint 连一条直线过去。没有 currentPoint 时什么都不画
+    addLineToPoint(point) {
+      nativeCall(this, 'addLineToPoint:', [structArg(point, POINT_FIELDS, 'addLineToPoint')]);
+    }
+    // 三次贝塞尔：两个控制点
+    addCurveToPoint(point, options) {
+      const o = options || {};
+      nativeCall(this, 'addCurveToPoint:controlPoint1:controlPoint2:', [
+        structArg(point, POINT_FIELDS, 'addCurveToPoint'),
+        structArg(o.controlPoint1, POINT_FIELDS, 'controlPoint1'),
+        structArg(o.controlPoint2, POINT_FIELDS, 'controlPoint2'),
+      ]);
+    }
+    // 二次贝塞尔：一个控制点
+    addQuadCurveToPoint(point, options) {
+      const o = options || {};
+      nativeCall(this, 'addQuadCurveToPoint:controlPoint:', [
+        structArg(point, POINT_FIELDS, 'addQuadCurveToPoint'),
+        structArg(o.controlPoint, POINT_FIELDS, 'controlPoint'),
+      ]);
+    }
+    // 接一段圆弧。已经有 currentPoint 的话会先连一条直线到弧的起点
+    addArcWithCenter(center, options) {
+      const o = options || {};
+      for (const key of ['radius', 'startAngle', 'endAngle', 'clockwise']) {
+        if (!(key in o)) {
+          throw new TypeError('addArcWithCenter needs { radius, startAngle, ' +
+                              'endAngle, clockwise }; missing ' + key);
+        }
+      }
+      nativeCall(this, 'addArcWithCenter:radius:startAngle:endAngle:clockwise:', [
+        structArg(center, POINT_FIELDS, 'addArcWithCenter'),
+        o.radius, o.startAngle, o.endAngle, o.clockwise,
+      ]);
+    }
+    // 连回这段子路径的起点。填充时开口路径会被当成闭合的，但描边看得出区别
+    closePath() { nativeCall(this, 'closePath', []); }
+    removeAllPoints() { nativeCall(this, 'removeAllPoints', []); }
+    // 把另一条路径整段接过来。接的是副本，之后改它不影响这一条
+    appendPath(path) { nativeCall(this, 'appendPath:', [path]); }
+    // **就地**变换，不返回新路径
+    applyTransform(transform) {
+      nativeCall(this, 'applyTransform:',
+                 [structArg(transform, TRANSFORM_FIELDS, 'applyTransform')]);
+    }
+    // 反向的一条新路径。方向只在 nonZero 填充规则下看得出来
+    bezierPathByReversingPath() {
+      return nativeCallObject(this, 'bezierPathByReversingPath', []);
+    }
+
+    // ---- 问它 ----
+    // 只看**填充区域**，描边不算；开口路径按闭合之后算
+    containsPoint(point) {
+      return nativeCall(this, 'containsPoint:',
+                        [structArg(point, POINT_FIELDS, 'containsPoint')]);
+    }
+    get isEmpty() {
+      requireNative(this, 'isEmpty');
+      return nativeGet(this, 'isEmpty');
+    }
+    // 把路径包住的最小矩形。算的是**路径本身**，不含线宽
+    get bounds() {
+      requireNative(this, 'bounds');
+      return toRect(nativeGet(this, 'bounds'));
+    }
+    // 笔尖在哪。空路径时是 (0, 0)
+    get currentPoint() {
+      requireNative(this, 'currentPoint');
+      return toPoint(nativeGet(this, 'currentPoint'));
+    }
+    // 填充规则。默认 false = nonZero。注意画在图层上时不看这个，
+    // 看的是 CAShapeLayer.fillRule——这条只影响 containsPoint 的判定
+    get usesEvenOddFillRule() {
+      requireNative(this, 'usesEvenOddFillRule');
+      return nativeGet(this, 'usesEvenOddFillRule');
+    }
+    set usesEvenOddFillRule(value) {
+      requireNative(this, 'usesEvenOddFillRule');
+      nativeSet(this, 'usesEvenOddFillRule', value);
+    }
+  });
+
   const CALayer = defineNativeClass('CALayer', class CALayer extends NSObject {
     constructor() {
       super();
@@ -757,8 +910,8 @@
       requireNative(this, 'masksToBounds');
       nativeSet(this, 'masksToBounds', value);
     }
-    // **自己建的图层默认是 1，不是屏幕的 scale**，画出来会糊。
-    // view.layer 不用管，UIKit 已经设好了
+    // **默认是 1，不是屏幕的 scale**，画出来会糊。实测 view.layer 在
+    // 场景接入时**也是 1**，所以它当不了屏幕 scale 的替代品
     get contentsScale() {
       requireNative(this, 'contentsScale');
       return nativeGet(this, 'contentsScale');
@@ -923,6 +1076,135 @@
     set type(value) {
       requireNative(this, 'type');
       nativeSet(this, 'type', value);
+    }
+  });
+
+  // 画一条路径的图层。折线、扇形、饼图、K 线都靠它。
+  //
+  // 它不自己量尺寸：path 的坐标就是**图层自己坐标系里的点**，和 frame
+  // 的大小没有关系，路径超出去的部分照样画（除非 masksToBounds）。
+  defineNativeClass('CAShapeLayer', class CAShapeLayer extends CALayer {
+    constructor() {
+      super();
+      constructNative(this, new.target, 'CAShapeLayer', []);
+    }
+
+    // 要画的路径。null 表示什么都不画。
+    //
+    // **写进去的那个对象会原样还回来**：原生存的是 CGPath，读回来只能
+    // 现包一个新的 UIBezierPath，所以 JS 这边记了一份。包装被回收重建过
+    // 之后镜像就没了，那时读到的是按原生重建的新对象——和 sublayers
+    // 是同一条规矩：按原生的真相整层重建。
+    //
+    // 还有一条：路径是**存下来的副本**。写进去之后再改那条 UIBezierPath，
+    // 图层不会跟着变，要再赋值一次。
+    get path() {
+      const mine = ownedValue(this, 'path');
+      return mine === undefined ? nativeGetObject(this, 'path') : mine;
+    }
+    set path(value) {
+      nativeSetOwned(this, 'path', value);
+    }
+
+    // ---- 填 ----
+    // 默认是黑色，**不是透明**：只想要一条线的话记得设成 null
+    get fillColor() { return colorString(nativeGetOwned(this, 'fillColor')); }
+    set fillColor(value) { {
+      if (value == null) { nativeSetOwned(this, 'fillColor', null); return; }
+      const color = colorArg(value, 'fillColor');
+      if (color === undefined) return;   // 不合法，警告过了，保留旧值
+      nativeSetOwned(this, 'fillColor', color);
+    }; }
+    // 路径自交或者嵌套时才看得出区别。默认 'nonZero'
+    get fillRule() {
+      requireNative(this, 'fillRule');
+      return nativeGet(this, 'fillRule');
+    }
+    set fillRule(value) {
+      requireNative(this, 'fillRule');
+      nativeSet(this, 'fillRule', value);
+    }
+
+    // ---- 描 ----
+    // 默认是 null，所以只设 lineWidth 看不见线
+    get strokeColor() { return colorString(nativeGetOwned(this, 'strokeColor')); }
+    set strokeColor(value) { {
+      if (value == null) { nativeSetOwned(this, 'strokeColor', null); return; }
+      const color = colorArg(value, 'strokeColor');
+      if (color === undefined) return;   // 不合法，警告过了，保留旧值
+      nativeSetOwned(this, 'strokeColor', color);
+    }; }
+    // 默认 1。线是**骑在路径上**的，两边各占一半
+    get lineWidth() {
+      requireNative(this, 'lineWidth');
+      return nativeGet(this, 'lineWidth');
+    }
+    set lineWidth(value) {
+      requireNative(this, 'lineWidth');
+      nativeSet(this, 'lineWidth', value);
+    }
+    // 线头：'butt'（默认，齐根切）/ 'round' / 'square'
+    get lineCap() {
+      requireNative(this, 'lineCap');
+      return nativeGet(this, 'lineCap');
+    }
+    set lineCap(value) {
+      requireNative(this, 'lineCap');
+      nativeSet(this, 'lineCap', value);
+    }
+    // 拐角：'miter'（默认，尖角）/ 'round' / 'bevel'
+    get lineJoin() {
+      requireNative(this, 'lineJoin');
+      return nativeGet(this, 'lineJoin');
+    }
+    set lineJoin(value) {
+      requireNative(this, 'lineJoin');
+      nativeSet(this, 'lineJoin', value);
+    }
+    // 尖角尖到什么程度就削平。默认 10
+    get miterLimit() {
+      requireNative(this, 'miterLimit');
+      return nativeGet(this, 'miterLimit');
+    }
+    set miterLimit(value) {
+      requireNative(this, 'miterLimit');
+      nativeSet(this, 'miterLimit', value);
+    }
+    // 只描路径的一段，0…1。配动画能做「线一点点画出来」，
+    // 现在没有动画，直接设也能做进度条
+    get strokeStart() {
+      requireNative(this, 'strokeStart');
+      return nativeGet(this, 'strokeStart');
+    }
+    set strokeStart(value) {
+      requireNative(this, 'strokeStart');
+      nativeSet(this, 'strokeStart', value);
+    }
+    get strokeEnd() {
+      requireNative(this, 'strokeEnd');
+      return nativeGet(this, 'strokeEnd');
+    }
+    set strokeEnd(value) {
+      requireNative(this, 'strokeEnd');
+      nativeSet(this, 'strokeEnd', value);
+    }
+    // 虚线：画多长、空多长，按顺序循环。null 是实线（默认）
+    get lineDashPattern() {
+      requireNative(this, 'lineDashPattern');
+      return nativeGet(this, 'lineDashPattern');
+    }
+    set lineDashPattern(value) {
+      requireNative(this, 'lineDashPattern');
+      nativeSet(this, 'lineDashPattern', value);
+    }
+    // 虚线从哪里开始。默认 0
+    get lineDashPhase() {
+      requireNative(this, 'lineDashPhase');
+      return nativeGet(this, 'lineDashPhase');
+    }
+    set lineDashPhase(value) {
+      requireNative(this, 'lineDashPhase');
+      nativeSet(this, 'lineDashPhase', value);
     }
   });
 

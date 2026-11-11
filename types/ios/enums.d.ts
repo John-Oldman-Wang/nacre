@@ -70,6 +70,29 @@ type CACornerMask = 'minXMinY' | 'maxXMinY' | 'minXMaxY' | 'maxXMaxY';
  */
 type CAGradientLayerType = 'axial' | 'radial' | 'conic';
 
+/**
+ * 填充规则。`nonZero`（默认）按绕向加减，不为零就填；`evenOdd` 数穿过
+ * 次数，奇数才填。只在路径自交或者嵌套时不一样。
+ */
+type CAShapeLayerFillRule = 'nonZero' | 'evenOdd';
+
+/**
+ * 线头。`butt`（默认）齐根切断，`round` 加半圆，`square` 加半个方块——
+ * 后两种会让线比路径长出半个线宽。
+ */
+type CAShapeLayerLineCap = 'butt' | 'round' | 'square';
+
+/** 拐角。`miter`（默认）尖角，太尖时按 `miterLimit` 削平；`round` 圆角；`bevel` 直接削平。 */
+type CAShapeLayerLineJoin = 'miter' | 'round' | 'bevel';
+
+/**
+ * 圆角矩形要圆哪几个角。位掩码，所以用字符串数组。
+ *
+ * **没有 `allCorners`**：它在 ObjC 里的值是 `~0`，和「四个位或起来」不是
+ * 同一个数，往返不回来。四个角全圆就四个名字都写。
+ */
+type UIRectCorner = 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';
+
 type NSLayoutRelation = 'lessThanOrEqual' | 'equal' | 'greaterThanOrEqual';
 
 type UILayoutConstraintAxis = 'horizontal' | 'vertical';

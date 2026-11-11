@@ -101,3 +101,69 @@ const char* LayerClassName(CALayer* layer) {
 ---
 
 ← 返回[实现原理](README.md) ・ [项目说明](../project.md)
+
+## A5-2：路径和形状图层
+
+### 路径是另一个域，所以另开三个文件
+
+`UIBezierPath` 不是图层——它是个值对象，只管形状，不碰屏幕。所以按[文件拆分规则](../project.md#文件拆分规则)新开了 `NacrePropsPath.mm` / `NacreMethodsPath.mm` / `NacreEnumsPath.mm`，而 `CAShapeLayer` 的 11 个属性留在图层域里。
+
+分界是「这个对象是什么」，不是「谁跟谁一起用」。路径和图层天天一起用，但改动单元不一样：给路径加一个画法不会碰图层，反过来也是。
+
+### `path` 的身份靠 JS 侧镜像
+
+`CAShapeLayer.path` 在 ObjC 里是 `CGPathRef`，写进去是 `bezierPath.CGPath`。**读回来就有身份问题**——`[UIBezierPath bezierPathWithCGPath:]` 每次新建一个对象，和 [`borderColor` 读两次不相等](#第-3d-步cgcolor-和重叠属性)是同一个根因。
+
+颜色那边的解法是「上层按值兜一层」（读出来给字符串）。路径没有值表示法，所以换了个办法：**写的时候把那个 `UIBezierPath` 记进所有权镜像，读的时候原样还回去。**
+
+```js
+get path() {
+  const mine = ownedValue(this, 'path');
+  return mine === undefined ? nativeGetObject(this, 'path') : mine;
+}
+set path(value) { nativeSetOwned(this, 'path', value); }
+```
+
+**镜像不可能和原生不一致**，因为只有 JS 能设这个属性——UIKit 自己不会去改一个 `CAShapeLayer` 的 `path`。这和 `subviews` 那种「UIKit 自己也会动」的边不一样，那些边只能当 GC 的根，不能当答案。
+
+镜像没有的时候（包装被回收重建过）落回原生读。那条路会给出一个新对象，但**宁可给新对象也不要撒谎说 `null`**——和 `sublayers` 一个规矩：按原生的真相整层重建。
+
+`ownedValue()` 是为这件事新加的：只问镜像、不过桥，和 `nativeGetOwned`（问原生、顺手记一笔）正好反过来。
+
+### 路径自己的绘制属性为什么一个都不给
+
+`UIBezierPath` 在 ObjC 里也有 `lineWidth` / `lineCapStyle` / `lineJoinStyle` / `miterLimit` / `flatness` / `setLineDash:count:phase:`。**一个都没暴露**，这是判断不是遗漏。
+
+它们只服务于 `-fill` / `-stroke` / `-addClip`——路径往**当前绘图上下文**里画的时候。而那个上下文只在 `drawRect:` 里有，那是覆写点（M2）。路径画在 `CAShapeLayer` 上时，生效的是**图层**的同名属性，路径上这一套完全不参与。
+
+所以暴露它们的结果是：JS 开发者看到两份 `lineWidth`，设了路径上那份什么都不会发生。[原则 10](../project.md#原则)说能力要完备，但完备不等于把每个符号都搬过来——搬过来一个**永远不生效**的设置是减分不是加分。
+
+`usesEvenOddFillRule` 留着，因为它**确实有用**：`containsPoint:` 的判定看它。文档里写明了画在图层上时不看它。
+
+### `UIRectCorner` 不收 `allCorners`
+
+头文件里 `UIRectCornerAllCorners = ~0UL`。它不是「四个位或起来」，是全 1。
+
+位掩码在 JS 侧是字符串数组，`NamesIn...` 要把数值拆回一组名字。收了 `allCorners` 之后：`['allCorners']` 写进去得到 `~0`，读出来按位拆会得到四个角的名字加上 `allCorners` 自己——**往返不回来**。
+
+所以只收四个具体的角，要全圆就四个都写。`CACornerMask` 那边没这个问题，它本来就没有 All 常量。
+
+### 第五套一模一样的字符串枚举代码
+
+`fillRule` / `lineCap` / `lineJoin` 又是 `NSString` 常量（`kCAFillRuleNonZero` 这种），不是 `NS_ENUM`，所以 `NACRE_ENUM_MAP` 用不上——那个宏的值必须是数字。
+
+于是照着 `cornerCurve` 和渐变类型又抄了三遍「有序 pairs + `FromName` / `NameFor` / `NamesFor`」，**现在一共五套一模一样的代码**。
+
+该抽宏了，但**这一步没抽**：`check-api.sh` 的正则是按 `XxxPairs(void) … pairs = @[…]` 这个形状找的，抽宏要连脚本一起改，而那是独立的一步。先记在这里，连同已经在头文件注释里写下的提醒。
+
+有一条顺带确认的：JS 侧的名字**不照抄常量的值**。`kCAFillRuleNonZero` 的值其实是 `@"non-zero"`，而我们按已定规则给的是 `nonZero`。值是桥的实现细节，[原则 12](../project.md#原则) 说的就是这件事——使用者该看到一张能用的表，不是一条换算规则。
+
+### 三边核对的数字
+
+| | A5-1 之后 | A5-2 之后 |
+| --- | --- | --- |
+| 类 | 36 | **38** |
+| 标量读写 | 148 / 100 | **160 / 110** |
+| 对象读写 | 52 / 13 | **55 / 16** |
+
+对象那一栏 +3 读 +3 写正好是 `path` / `fillColor` / `strokeColor`。

@@ -118,6 +118,13 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
   }
 
   {
+    std::string pathResult;
+    if (PathCallMethod(object, sel, NacreArgs{args, &argPtrs}, &pathResult, error)) {
+      return pathResult;
+    }
+  }
+
+  {
     std::string navResult;
     if (NavCallMethod(object, sel, NacreArgs{args, &argPtrs}, &navResult, error)) {
       return navResult;
@@ -326,6 +333,15 @@ nacre::NativeObjectRef CallObjectMethod(id object, const std::string& name,
     if (NavCallObjectMethod(object, name, NacreArgs{navArgs, &argPtrs},
                             &navResult, error)) {
       return navResult;
+    }
+  }
+  {
+    id pathDecoded = DecodeJSON(argsJSON);
+    NSArray* pathArgs = [pathDecoded isKindOfClass:NSArray.class] ? pathDecoded : @[];
+    nacre::NativeObjectRef pathResult;
+    if (PathCallObjectMethod(object, name, NacreArgs{pathArgs, &argPtrs},
+                             &pathResult, error)) {
+      return pathResult;
     }
   }
   NSString* sel = @(name.c_str());

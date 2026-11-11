@@ -26,7 +26,7 @@
 | [桥的通道](bridge.md) | 通道是怎么一条条长出来的、JSON 编码、错误出口 |
 | [枚举和位掩码](enums.md) | 名字 ↔ 数值的映射为什么只能在原生层 |
 | [颜色](ui-color.md) | 相等性实测、动态色、上层写法的推导 |
-| [图层](ca-layer.md) | CGColor 的代价、和 UIView 重叠的属性 |
+| [图层](ca-layer.md) | CGColor 的代价、和 UIView 重叠的属性、路径身份靠镜像 |
 | [Auto Layout](auto-layout.md) | 约束的所有权、NSException 的接法 |
 | [滚动](scrolling.md) | delegate trampoline、scroll 事件的合并、实测 |
 | [导航](navigation.md) | 页面栈的持有边、事件带数据的判据、父类挡子类的闸 |

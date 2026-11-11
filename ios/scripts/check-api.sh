@@ -221,6 +221,13 @@ compare('CACornerMask',
                 r'NACRE_MASK_MAP\(CornerMask,[^,]+,(.*?)\)\n\n', mm, r'@"(\w+)":'),
         dts_union('CACornerMask'))
 
+# 圆角矩形挑角。不收 allCorners（值是 ~0，不是四个位或起来），所以
+# 原生表和 d.ts 的联合都只有四个
+compare('UIRectCorner',
+        extract('原生层的 RectCorner 掩码表',
+                r'NACRE_MASK_MAP\(RectCorner,[^,]+,(.*?)\)\n\n', mm, r'@"(\w+)":'),
+        dts_union('UIRectCorner'))
+
 # UIControlState 的 normal 是 0，掩码表里没有它，d.ts 里有——对比时补上
 state = extract('原生层的 ControlState 掩码表',
                 r'NACRE_MASK_MAP\(ControlState,[^,]+,(.*?)\)\n\n', mm, r'@"(\w+)":')
@@ -236,6 +243,12 @@ for tsname, outer, inner in [
     ('CALayerCornerCurve', r'CornerCurvePairs\(void\).*?pairs = @\[(.*?)\];',
      r'@\[\s*@"(\w+)"'),
     ('CAGradientLayerType', r'GradientTypePairs\(void\).*?pairs = @\[(.*?)\];',
+     r'@\[\s*@"(\w+)"'),
+    ('CAShapeLayerFillRule', r'FillRulePairs\(void\).*?pairs = @\[(.*?)\];',
+     r'@\[\s*@"(\w+)"'),
+    ('CAShapeLayerLineCap', r'LineCapPairs\(void\).*?pairs = @\[(.*?)\];',
+     r'@\[\s*@"(\w+)"'),
+    ('CAShapeLayerLineJoin', r'LineJoinPairs\(void\).*?pairs = @\[(.*?)\];',
      r'@\[\s*@"(\w+)"'),
     ('UILayoutPriorityName', r'LayoutPriorityTable\(void\).*?@\{(.*?)\};',
      r'@"(\w+)":'),

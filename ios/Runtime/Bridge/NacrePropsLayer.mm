@@ -1,4 +1,4 @@
-// 图层。CALayer 的几何、层级、外观，以及 CAGradientLayer。
+// 图层。CALayer 的几何、层级、外观，以及 CAGradientLayer、CAShapeLayer。
 //
 // 属性分发按能力域拆开，这里只装这一个域；调用顺序在 NacreProperties.mm。
 //
@@ -12,6 +12,7 @@ namespace nacre_bridge {
 
 const char* LayerClassName(CALayer* layer) {
   if ([layer isKindOfClass:CAGradientLayer.class]) return "CAGradientLayer";
+  if ([layer isKindOfClass:CAShapeLayer.class]) return "CAShapeLayer";
   return "CALayer";
 }
 
@@ -29,6 +30,30 @@ id ReadLayerProperty(id object, NSString* key) {
       value = PointToJSON(gradient.endPoint);
     } else if ([key isEqualToString:@"type"]) {
       value = NameForGradientType(gradient.type);
+    }
+    if (value != nil) return value;
+  }
+  if ([object isKindOfClass:CAShapeLayer.class]) {
+    CAShapeLayer* shape = (CAShapeLayer*)object;
+    if ([key isEqualToString:@"fillRule"]) {
+      value = NameForFillRule(shape.fillRule);
+    } else if ([key isEqualToString:@"lineCap"]) {
+      value = NameForLineCap(shape.lineCap);
+    } else if ([key isEqualToString:@"lineJoin"]) {
+      value = NameForLineJoin(shape.lineJoin);
+    } else if ([key isEqualToString:@"lineWidth"]) {
+      value = @(shape.lineWidth);
+    } else if ([key isEqualToString:@"miterLimit"]) {
+      value = @(shape.miterLimit);
+    } else if ([key isEqualToString:@"strokeStart"]) {
+      value = @(shape.strokeStart);
+    } else if ([key isEqualToString:@"strokeEnd"]) {
+      value = @(shape.strokeEnd);
+    } else if ([key isEqualToString:@"lineDashPhase"]) {
+      value = @(shape.lineDashPhase);
+    } else if ([key isEqualToString:@"lineDashPattern"]) {
+      // 和 locations 一样：nil 不是空数组。nil = 实线
+      value = shape.lineDashPattern ?: (id)NSNull.null;
     }
     if (value != nil) return value;
   }
@@ -106,6 +131,74 @@ BOOL WriteLayerProperty(id object, NSString* key, id value,
         return YES;
       }
       gradient.type = type;
+      return YES;
+    }
+  }
+  if ([object isKindOfClass:CAShapeLayer.class]) {
+    CAShapeLayer* shape = (CAShapeLayer*)object;
+    if ([key isEqualToString:@"fillRule"]) {
+      NSString* rule = FillRuleFromName(value);
+      if (rule == nil) {
+        *error = EnumError(@"fillRule", value, NamesForFillRule());
+        return YES;
+      }
+      shape.fillRule = rule;
+      return YES;
+    }
+    if ([key isEqualToString:@"lineCap"]) {
+      NSString* cap = LineCapFromName(value);
+      if (cap == nil) {
+        *error = EnumError(@"lineCap", value, NamesForLineCap());
+        return YES;
+      }
+      shape.lineCap = cap;
+      return YES;
+    }
+    if ([key isEqualToString:@"lineJoin"]) {
+      NSString* join = LineJoinFromName(value);
+      if (join == nil) {
+        *error = EnumError(@"lineJoin", value, NamesForLineJoin());
+        return YES;
+      }
+      shape.lineJoin = join;
+      return YES;
+    }
+    if ([key isEqualToString:@"lineWidth"]) {
+      shape.lineWidth = [value doubleValue];
+      return YES;
+    }
+    if ([key isEqualToString:@"miterLimit"]) {
+      shape.miterLimit = [value doubleValue];
+      return YES;
+    }
+    if ([key isEqualToString:@"strokeStart"]) {
+      shape.strokeStart = [value doubleValue];
+      return YES;
+    }
+    if ([key isEqualToString:@"strokeEnd"]) {
+      shape.strokeEnd = [value doubleValue];
+      return YES;
+    }
+    if ([key isEqualToString:@"lineDashPhase"]) {
+      shape.lineDashPhase = [value doubleValue];
+      return YES;
+    }
+    if ([key isEqualToString:@"lineDashPattern"]) {
+      if (value == nil || value == NSNull.null) {
+        shape.lineDashPattern = nil;
+        return YES;
+      }
+      if (![value isKindOfClass:NSArray.class]) {
+        *error = "lineDashPattern needs an array of numbers, or null";
+        return YES;
+      }
+      for (id n in (NSArray*)value) {
+        if (![n isKindOfClass:NSNumber.class]) {
+          *error = "lineDashPattern needs an array of numbers, or null";
+          return YES;
+        }
+      }
+      shape.lineDashPattern = value;
       return YES;
     }
   }
@@ -210,6 +303,22 @@ nacre::NativeObjectRef ReadLayerObjectProperty(id object,
       if (layer.backgroundColor == NULL) return {nullptr, "UIColor"};
       return {(__bridge void*)[UIColor colorWithCGColor:layer.backgroundColor], "UIColor"};
     }
+    if (name == "path" && [layer isKindOfClass:CAShapeLayer.class]) {
+      CGPathRef cg = ((CAShapeLayer*)layer).path;
+      if (cg == NULL) return {nullptr, "UIBezierPath"};
+      // 每次都是新建的包装——JS 侧优先还镜像里那个对象，镜像没有才走这里
+      return {(__bridge void*)[UIBezierPath bezierPathWithCGPath:cg], "UIBezierPath"};
+    }
+    if (name == "fillColor" && [layer isKindOfClass:CAShapeLayer.class]) {
+      CGColorRef cg = ((CAShapeLayer*)layer).fillColor;
+      if (cg == NULL) return {nullptr, "UIColor"};
+      return {(__bridge void*)[UIColor colorWithCGColor:cg], "UIColor"};
+    }
+    if (name == "strokeColor" && [layer isKindOfClass:CAShapeLayer.class]) {
+      CGColorRef cg = ((CAShapeLayer*)layer).strokeColor;
+      if (cg == NULL) return {nullptr, "UIColor"};
+      return {(__bridge void*)[UIColor colorWithCGColor:cg], "UIColor"};
+    }
     if (name == "superlayer") {
       CALayer* super = layer.superlayer;
       if (super == nil) return {nullptr, "CALayer"};
@@ -229,6 +338,17 @@ void WriteLayerObjectProperty(id object, const std::string& name, id value) {
       layer.shadowColor = color.CGColor;
     } else if (name == "backgroundColor") {
       layer.backgroundColor = color.CGColor;
+    } else if ([layer isKindOfClass:CAShapeLayer.class]) {
+      CAShapeLayer* shape = (CAShapeLayer*)layer;
+      if (name == "fillColor") {
+        shape.fillColor = color.CGColor;
+      } else if (name == "strokeColor") {
+        shape.strokeColor = color.CGColor;
+      } else if (name == "path") {
+        // 取的是 CGPath。nil 合法，表示什么都不画
+        UIBezierPath* p = [value isKindOfClass:UIBezierPath.class] ? (UIBezierPath*)value : nil;
+        shape.path = p.CGPath;
+      }
     }
   }
 }

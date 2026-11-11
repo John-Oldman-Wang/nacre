@@ -1,4 +1,4 @@
-// CALayer：圆角的掩码和曲线、渐变的类型
+// CALayer：圆角的掩码和曲线、渐变的类型、CAShapeLayer 的三个枚举
 //
 // 字符串 ↔ 数值的映射。
 //
@@ -89,6 +89,118 @@ NSString* NameForGradientType(NSString* type) {
 NSString* NamesForGradientType(void) {
   NSMutableArray<NSString*>* names = [NSMutableArray array];
   for (NSArray* pair in GradientTypePairs()) [names addObject:pair[0]];
+  return [names componentsJoinedByString:@" / "];
+}
+
+// ---- CAShapeLayer ----
+// 三个都是 NSString 常量，所以照 cornerCurve 那套手写有序 pairs。
+// 名字按已定规则取（去掉类型前缀、首字母小写），**不照抄常量的值**——
+// kCAFillRuleNonZero 的值其实是 @"non-zero"，那是桥的实现细节。
+
+// 填充规则。nonZero 是默认：射线穿过路径时按绕向加减，不为零就填。
+// evenOdd 数穿过次数，奇数填——两者只在路径自交或嵌套时不一样
+static NSArray<NSArray*>* FillRulePairs(void) {
+  static NSArray<NSArray*>* pairs;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    pairs = @[
+      @[ @"nonZero", kCAFillRuleNonZero ],
+      @[ @"evenOdd", kCAFillRuleEvenOdd ],
+    ];
+  });
+  return pairs;
+}
+
+NSString* FillRuleFromName(NSString* name) {
+  if (![name isKindOfClass:NSString.class]) return nil;
+  for (NSArray* pair in FillRulePairs()) {
+    if ([pair[0] isEqualToString:name]) return pair[1];
+  }
+  return nil;
+}
+
+NSString* NameForFillRule(NSString* rule) {
+  for (NSArray* pair in FillRulePairs()) {
+    if ([pair[1] isEqualToString:rule]) return pair[0];
+  }
+  return nil;
+}
+
+NSString* NamesForFillRule(void) {
+  NSMutableArray<NSString*>* names = [NSMutableArray array];
+  for (NSArray* pair in FillRulePairs()) [names addObject:pair[0]];
+  return [names componentsJoinedByString:@" / "];
+}
+
+// 线头。butt 是齐根切断（默认），round 加半圆，square 加半个方块——
+// 后两种都会让线比路径长出半个线宽
+static NSArray<NSArray*>* LineCapPairs(void) {
+  static NSArray<NSArray*>* pairs;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    pairs = @[
+      @[ @"butt", kCALineCapButt ],
+      @[ @"round", kCALineCapRound ],
+      @[ @"square", kCALineCapSquare ],
+    ];
+  });
+  return pairs;
+}
+
+NSString* LineCapFromName(NSString* name) {
+  if (![name isKindOfClass:NSString.class]) return nil;
+  for (NSArray* pair in LineCapPairs()) {
+    if ([pair[0] isEqualToString:name]) return pair[1];
+  }
+  return nil;
+}
+
+NSString* NameForLineCap(NSString* cap) {
+  for (NSArray* pair in LineCapPairs()) {
+    if ([pair[1] isEqualToString:cap]) return pair[0];
+  }
+  return nil;
+}
+
+NSString* NamesForLineCap(void) {
+  NSMutableArray<NSString*>* names = [NSMutableArray array];
+  for (NSArray* pair in LineCapPairs()) [names addObject:pair[0]];
+  return [names componentsJoinedByString:@" / "];
+}
+
+// 拐角。miter 是尖角（默认，太尖时按 miterLimit 削平成 bevel），
+// round 是圆角，bevel 直接削平
+static NSArray<NSArray*>* LineJoinPairs(void) {
+  static NSArray<NSArray*>* pairs;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    pairs = @[
+      @[ @"miter", kCALineJoinMiter ],
+      @[ @"round", kCALineJoinRound ],
+      @[ @"bevel", kCALineJoinBevel ],
+    ];
+  });
+  return pairs;
+}
+
+NSString* LineJoinFromName(NSString* name) {
+  if (![name isKindOfClass:NSString.class]) return nil;
+  for (NSArray* pair in LineJoinPairs()) {
+    if ([pair[0] isEqualToString:name]) return pair[1];
+  }
+  return nil;
+}
+
+NSString* NameForLineJoin(NSString* join) {
+  for (NSArray* pair in LineJoinPairs()) {
+    if ([pair[1] isEqualToString:join]) return pair[0];
+  }
+  return nil;
+}
+
+NSString* NamesForLineJoin(void) {
+  NSMutableArray<NSString*>* names = [NSMutableArray array];
+  for (NSArray* pair in LineJoinPairs()) [names addObject:pair[0]];
   return [names componentsJoinedByString:@" / "];
 }
 

@@ -1,4 +1,4 @@
-# `CALayer` 和 `CAGradientLayer`
+# `CALayer`、`CAGradientLayer` 和 `CAShapeLayer`
 
 图层是真正把东西画出来的那一层。每个 `UIView` 背后都有一个（`view.layer`），
 圆角、边框、阴影在它上面；也可以**自己建一个挂上去**，画渐变、形状、图表就靠这个。
@@ -256,6 +256,71 @@ g.colors;    // ['#000000', '#FF2D55'] ← 'label' 在写入那一刻就被定�
 
 数组里有一个不合法，**整条都不写**（并打一条警告），不会写进去一半。
 
+## `CAShapeLayer`
+
+画一条[路径](ui-bezier-path.md)的图层。折线、扇形、饼图、K 线都靠它。
+
+```js
+const shape = new CAShapeLayer();
+shape.path = somePath;
+shape.strokeColor = 'systemBlue';
+shape.fillColor = null;        // 默认是**黑色实心**，只要线的话必须设
+shape.lineWidth = 3;
+shape.frame = card.bounds;     // 和别的子图层一样要自己设
+card.layer.addSublayer(shape);
+```
+
+它**不自己量尺寸**：`path` 的坐标就是图层自己坐标系里的点，和 `frame` 的大小没有关系，路径超出去的部分照样画（除非 `masksToBounds`）。
+
+### `path`
+
+```js
+shape.path = line;
+shape.path === line;    // true
+shape.path = null;      // 什么都不画
+```
+
+**写进去的那个对象会原样还回来。** 原生存的是 `CGPath`，读回来只能现包一个新的 `UIBezierPath`，所以 JS 这边记了一份镜像。包装被回收重建过之后镜像就没了，那时读到的是按原生重建的新对象——和 `sublayers` 一个规矩：按原生的真相整层重建。
+
+还有一条照着 Apple 的头文件：**存的是副本**（`on assignment the path is copied`）。写进去之后再改那条 `UIBezierPath`，图层不会跟着变，要再赋值一次。
+
+### `fillColor` / `fillRule`
+
+`fillColor` **默认是不透明黑，不是透明**。只想要一条线的时候必须显式设成 `null`，否则整块被填满——这是最容易踩的一个坑。
+
+`fillRule` 只在路径自交或者嵌套时看得出区别：
+
+| | |
+| --- | --- |
+| `'nonZero'`（默认） | 射线穿过路径时按绕向加减，不为零就填 |
+| `'evenOdd'` | 数穿过次数，奇数才填 |
+
+### 描边
+
+`strokeColor` **默认是 `null`**，所以只设 `lineWidth` 看不见线。
+
+线是**骑在路径上**的，两边各占一半线宽——所以 `lineWidth = 10` 的路径，实际占的范围比 `bounds` 每边多 5。
+
+| | |
+| --- | --- |
+| `lineCap` | `'butt'`（默认，齐根切）/ `'round'` / `'square'`。后两种让线比路径长出半个线宽 |
+| `lineJoin` | `'miter'`（默认，尖角）/ `'round'` / `'bevel'` |
+| `miterLimit` | 尖角尖到什么程度就削平成 `bevel`，默认 10 |
+
+### `strokeStart` / `strokeEnd`
+
+只描路径的一段，0…1。配动画能做「线一点点画出来」；现在还没有动画，直接设也能当进度条用。
+
+### 虚线
+
+```js
+shape.lineDashPattern = [4, 2];   // 画 4 空 2，循环
+shape.lineDashPhase = 1;          // 从哪里开始
+shape.lineDashPattern = null;     // 实线（默认）
+```
+
+数组里有一个不是数字就抛，不会写进去一半。
+
 ## 属性一览
 
 ### `CALayer`
@@ -293,6 +358,25 @@ g.colors;    // ['#000000', '#FF2D55'] ← 'label' 在写入那一刻就被定�
 | `endPoint` | `CGPoint` | `(0.5, 1)` |
 | `type` | `'axial'` \| `'radial'` \| `'conic'` | `'axial'` |
 
+### `CAShapeLayer`（在 `CALayer` 那些之外）
+
+默认值全部对着 `CAShapeLayer.h` 的注释核过。
+
+| 属性 | 类型 | 默认值 |
+| --- | --- | --- |
+| `path` | `UIBezierPath \| null` | `null` |
+| `fillColor` | `string \| null` | **不透明黑** |
+| `fillRule` | `'nonZero'` \| `'evenOdd'` | `'nonZero'` |
+| `strokeColor` | `string \| null` | `null` |
+| `lineWidth` | `number` | `1` |
+| `lineCap` | `'butt'` \| `'round'` \| `'square'` | `'butt'` |
+| `lineJoin` | `'miter'` \| `'round'` \| `'bevel'` | `'miter'` |
+| `miterLimit` | `number` | `10` |
+| `strokeStart` | `number` | `0` |
+| `strokeEnd` | `number` | `1` |
+| `lineDashPattern` | `number[] \| null` | `null` |
+| `lineDashPhase` | `number` | `0` |
+
 ## 和原生的对照
 
 | ObjC | JS |
@@ -316,6 +400,13 @@ g.colors;    // ['#000000', '#FF2D55'] ← 'label' 在写入那一刻就被定�
 | `layer.shadowOffset = CGSizeMake(0, 4)` | `layer.shadowOffset = new CGSize(0, 4)` |
 | `gradient.colors = @[(id)a.CGColor, (id)b.CGColor]` | `gradient.colors = ['#000', '#fff']` |
 | `gradient.type = kCAGradientLayerRadial` | `gradient.type = 'radial'` |
+| `[CAShapeLayer layer]` | `new CAShapeLayer()` |
+| `shape.path = path.CGPath` | `shape.path = path` |
+| `shape.fillColor = UIColor.clearColor.CGColor` | `shape.fillColor = null` |
+| `shape.fillRule = kCAFillRuleEvenOdd` | `shape.fillRule = 'evenOdd'` |
+| `shape.lineCap = kCALineCapRound` | `shape.lineCap = 'round'` |
+| `shape.lineJoin = kCALineJoinBevel` | `shape.lineJoin = 'bevel'` |
+| `shape.lineDashPattern = @[@4, @2]` | `shape.lineDashPattern = [4, 2]` |
 
 ## 还没做
 
@@ -323,8 +414,7 @@ g.colors;    // ['#000000', '#FF2D55'] ← 'label' 在写入那一刻就被定�
 | --- | --- |
 | 布局回调 | 子图层的 `frame` 要自己维护，没有 `layoutSubviews` 可覆写（**M2**） |
 | 读屏幕 scale | `UIScreen` / `UITraitCollection.displayScale` 都没暴露，`contentsScale` 只能写死 |
-| `CAShapeLayer` / `UIBezierPath` | 折线、饼图、任意形状 |
-| `mask` / `shadowPath` | 要 `CGPath` |
+| `mask` / `shadowPath` | 要 `CGPath`。`shadowPath` 收的是 `CGPathRef`，不是 `UIBezierPath` |
 | `anchorPoint` / `transform` | 要 `CATransform3D`，和动画一起做 |
 | `contents` | 直接给图层塞一张图 |
 | 其余 `CALayer` 子类 | `CATextLayer`、`CAReplicatorLayer`… |

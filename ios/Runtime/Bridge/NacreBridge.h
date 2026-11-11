@@ -269,6 +269,25 @@ NSString* GradientTypeFromName(NSString* name);
 NSString* NameForGradientType(NSString* type);
 NSString* NamesForGradientType(void);
 
+// CAShapeLayer 的三个枚举。又是 NSString 常量（kCAFillRuleNonZero…），
+// 所以和 cornerCurve、渐变类型一样手写有序 pairs。
+// 到这里已经是第五套同形状的代码了，值得抽个宏——但抽之前要先让
+// check-api.sh 的正则认得出新形状，那是另一步。
+NSString* FillRuleFromName(NSString* name);
+NSString* NameForFillRule(NSString* rule);
+NSString* NamesForFillRule(void);
+NSString* LineCapFromName(NSString* name);
+NSString* NameForLineCap(NSString* cap);
+NSString* NamesForLineCap(void);
+NSString* LineJoinFromName(NSString* name);
+NSString* NameForLineJoin(NSString* join);
+NSString* NamesForLineJoin(void);
+
+// 圆角矩形要圆哪几个角。位掩码，所以 JS 侧是字符串数组。
+// **不收 allCorners**：它的值是 ~0，和「四个都选」不是同一个数，往返不回来。
+// 四个全写就是全圆。
+NACRE_MASK_DECL(RectCorner, UIRectCorner)
+
 // 字重和文本样式不是枚举（CGFloat / NSString 常量），但 JS 侧一样用字符串
 BOOL FontWeightFromName(NSString* name, UIFontWeight* out);
 NSString* NamesForFontWeight(void);
@@ -331,6 +350,12 @@ BOOL WriteLayerObjectArray(id object, const std::string& name, const std::vector
 // 一直是那个类，所以凡是把图层交给 JS 的地方都得问这里，不能一律写
 // "CALayer"——否则从 sublayers 里先读到的渐变层会永远是个 CALayer。
 const char* LayerClassName(CALayer* layer);
+
+// ---- 路径 ----
+// UIBezierPath 是个值对象，和图层是两个域：路径只管形状，图层管怎么画。
+// 方法通道的两个入口要用 NacreArgs，所以声明在它定义之后，和图层域一起。
+id ReadPathProperty(id object, NSString* key);
+BOOL WritePathProperty(id object, NSString* key, id value, std::string* error);
 
 id ReadScrollProperty(id object, NSString* key);
 BOOL WriteScrollProperty(id object, NSString* key, id value, std::string* error);
@@ -396,6 +421,12 @@ bool NavCallObjectArrayMethod(id object, const std::string& name, const NacreArg
 // 和导航同一个形状：一个域一个文件，每个入口返回「认不认领」
 bool LayerCallMethod(id object, NSString* sel, const NacreArgs& args,
                      std::string* out, std::string* error);
+
+// ---- 路径 ----
+bool PathCallMethod(id object, NSString* sel, const NacreArgs& args,
+                    std::string* out, std::string* error);
+bool PathCallObjectMethod(id object, const std::string& name, const NacreArgs& args,
+                          nacre::NativeObjectRef* out, std::string* error);
 
 // ---- 颜色 ----
 // 上层的颜色是字符串，解析在 JS 侧（纯文本运算），过桥的是规范化的 spec。

@@ -402,13 +402,14 @@ ios/Runtime/
 │  ├─ NacreConvert.mm     日志、JSON、结构体互转、环境快照
 │  ├─ NacreProperties.mm  属性分发的顺序表，只有分发器
 │  ├─ NacreProps*.mm      属性实现，一个能力域一个文件（Scene / Control /
-│  │                      Layout / Layer / Scroll / View / Resource）
+│  │                      Layout / Layer / Path / Scroll / View / Resource）
 │  ├─ NacreEnums.mm       共享助手 + 文字、图片、字体
 │  ├─ NacreEnums*.mm      枚举实现，域名和 NacreProps* 对齐（Layout /
-│  │                      Control / Input / Scroll / Scene / Layer）
+│  │                      Control / Input / Scroll / Scene / Layer / Path）
 │  ├─ NacreMethods.mm     方法分发，还没按域拆完的那些分支
 │  ├─ NacreMethodsNav.mm  导航域在**所有通道**上的分支
 │  ├─ NacreMethodsLayer.mm 图层域的层级操作
+│  ├─ NacreMethodsPath.mm 路径域：画线、拼接、变换
 │  ├─ NacreFactories.mm   造对象：类方法和构造
 │  ├─ NacreStorage.mm     UserDefaults
 │  ├─ NacreFileSystem.mm  文件读写
@@ -572,7 +573,8 @@ Commit message 格式：
 | 3f | 滚动 | UIScrollView、delegate trampoline、事件合并 | 已在模拟器验证通过：真实滑动一次派发 100 个 scroll，事件顺序正确，三次直写合并成一个 |
 | 3g | 缩放 | zoomScale、viewForZooming、捏合手势 | 待讨论，和手势那一步绑一起 |
 | — | `app/`：JS 源码独立成工程，esbuild 打包 | package.json、@nacre/types 当依赖装 | 已在模拟器验证通过：358 条断言和打包前一字不差，含真实滑动和点击 |
-| — | A5-1 子图层和渐变 | CALayer 可构造、几何、层级、CAGradientLayer | 待验证 |
+| — | A5-1 子图层和渐变 | CALayer 可构造、几何、层级、CAGradientLayer | 已在模拟器验证通过：48 条断言全过，屏幕上一张渐变卡片；实测 view.layer 的 contentsScale 也是 1 |
+| — | A5-2 路径和形状图层 | UIBezierPath、CAShapeLayer、三个字符串枚举、UIRectCorner 位掩码 | 已在模拟器验证通过：788 条断言全过，屏幕上一条折线和一个扇形；path 的身份靠 JS 侧镜像，写进去的对象原样还回来 |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |
@@ -674,7 +676,7 @@ iOS 的触摸不是一套机制，是**四套并行**的（hit-testing、respond
 | A2 | **本地存储**：`NSUserDefaults`、文件读写、Keychain | JS 没有任何落盘的口子。对应清单第 7 步 |
 | A3 | **任意色值**：`colorWithRed:…`、`colorWithAlphaComponent:`、自定义动态色 | 今天只能取预置常量，品牌色、半透明遮罩、「浅色一个值深色一个值」全造不出来。[方案已定](#待讨论的设计问题)、未实现，改动小 |
 | A4 | **容器控制器**：`UITabBarController`、`addChildViewController:` 一组 | tab 条自绘得出来，但父子控制器关系、生命周期和安全区传递只能原生给。它决定 App 的骨架，越晚补客户迁移越痛 |
-| A5 | **绘图对象**：~~`CAGradientLayer`~~（A5-1 已做）、`CAShapeLayer`、`UIBezierPath` / `CGPath`（A5-2） | 折线图、K 线、饼图、渐变。纯对象，不需要覆写 |
+| A5 | ~~**绘图对象**~~ **已做**：`CAGradientLayer`（A5-1）、`CAShapeLayer` + `UIBezierPath`（A5-2）。剩 `CGPath` 和 `mask` / `shadowPath` | 折线图、K 线、饼图、渐变。纯对象，不需要覆写 |
 | A6 | **Core Animation**：`CABasicAnimation` / `CAKeyframeAnimation` / `CADisplayLink` | `CADisplayLink` 是 target-action，M1a 已经够 |
 | A7 | **手势识别器**：长按、拖动、捏合 | target-action，M1a 够。抢占语义要单独设计（见清单第 10 步）。delegate 那部分要 M2 |
 | A8 | **事件对象带数据**：触点位置等 | 只能由原生在派发时填 |
