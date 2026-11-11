@@ -132,6 +132,13 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
   }
 
   {
+    std::string wsResult;
+    if (WebSocketCallMethod(object, sel, NacreArgs{args, &argPtrs}, &wsResult, error)) {
+      return wsResult;
+    }
+  }
+
+  {
     std::string navResult;
     if (NavCallMethod(object, sel, NacreArgs{args, &argPtrs}, &navResult, error)) {
       return navResult;

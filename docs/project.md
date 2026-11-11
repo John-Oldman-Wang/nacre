@@ -578,6 +578,9 @@ Commit message 格式：
 | — | A6-1 动画核心（CABasicAnimation、时间曲线、CATransaction、动画事件） | keyPath 定取值类型、两条新引擎通道、动画 trampoline | 已在模拟器验证通过：850 条断言全过，折线画出来、圆点脉动；顺带把「隐式动画」那条未验证钉死了——是真的，但要等图层渲染过一轮 |
 | — | A6-2 关键帧、动画组、弹簧 | CAKeyframeAnimation、CAAnimationGroup、CASpringAnimation、values 的数组取值 | 已在模拟器验证通过：897 条断言全过，圆点沿路径走并转向、色块跳色、方块弹进来；顺带把验收用例里最后一个写死的延迟换成了等条件 |
 | — | A6-3 CADisplayLink | 每帧回调、NSRunLoop、run loop 模式、CAFrameRateRange | 已在模拟器验证通过：925 条断言全过，圆点跟着帧左右走；按「能用就先用着」收窄，讨论里冒出的四条机制一条都没做 |
+| — | A8 事件带触点位置 | 两参的 action、JSON 负载通道 | 已在模拟器验证通过：九个 touch* 带 location / tapCount，其余事件根本没有这两个字段 |
+| — | 构造通道带上标量参数 | construct_native 加 argsJSON | 已在模拟器验证通过：纯重构，933 条断言和改之前一字不差 |
+| — | A16 WebSocket | NSURLSessionWebSocketTask、拉改推、headers、协议级 ping | 已在模拟器验证通过：958 条断言全过，文本/二进制往返、ping/pong、干净关闭（1000 + wasClean）都验到；子协议协商和首部到达未验证 |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |
@@ -725,7 +728,7 @@ bindgen 做完也解决不了同盾（风控）、mtpush（推送）、Sentry �
 | A13 | **`NSNumberFormatter` / `NSDateFormatter`** | 预编译的 V8 不带 ICU，`Intl` 缺失。千分位、货币符号、日期顺序按地区本地化手写不了 |
 | A14 | **`UIPasteboard`** | 复制地址、订单号 |
 | A15 | **`crypto.getRandomValues`** | 随机源必须来自系统。摘要/签名 JS 算得出来，但 jitless 下慢，该走 CommonCrypto |
-| A16 | **WebSocket**：`NSURLSessionWebSocketTask` | `fetch` 只有请求-响应，实时行情只能轮询 |
+| A16 | ~~**WebSocket**~~ **已做**：比 Web 多两样——可以带首部、有协议级 `ping()` | `fetch` 只有请求-响应，实时行情只能轮询 |
 | A17 | **`WKWebView`** | 协议、KYC、活动页 |
 | A18 | **生物识别**：LocalAuthentication | 系统能力 |
 | A19 | **`performance.now()`** | `Date.now()` 只有毫秒精度 |
@@ -816,7 +819,7 @@ box.frame.x = 10;       // TypeError
 
 注意这里**不能用 `Object.freeze`**：冻结对象的赋值只在严格模式下抛，而用户的 `main.js` 是普通脚本（sloppy），冻结反而会静默失败。实现用的是逐字段抛异常的取值器加 `Object.preventExtensions`。代价是每次读 `frame` 要建一个对象，jitless 下有成本，正确性优先。
 
-**3. 枚举：一律用字符串。** 名字是 ObjC 常量去掉类型前缀、首字母小写；位掩码用字符串数组；认不出的值直接抛，不静默忽略也不退回默认值。
+**3. 枚举：一律用字符串。**（唯一的例外是 `WebSocket.readyState`，见 [network.md](internals/network.md#readystate-为什么破了枚举规矩)——只有「Web 原样兼容本身就是这个 API 的主要价值」时才破例） 名字是 ObjC 常量去掉类型前缀、首字母小写；位掩码用字符串数组；认不出的值直接抛，不静默忽略也不退回默认值。
 
 ```js
 label.textAlignment = 'center';            // NSTextAlignmentCenter

@@ -785,6 +785,22 @@ nacre::NativeObjectRef CreateBlob(
                                 std::string* error) {
       return CallClassMethod(className, name, argsJSON, argPtrs, error);
     };
+    // WebSocket 的事件出口。那个文件不认识 NacreRuntime，所以在这里塞进去
+    WebSocketSetEmitter(^(id task, NSString* type, NSString* json, NacreBlob* blob) {
+      NacreRuntime* strongSelf = weakSelf;
+      if (strongSelf == nil) return;
+      if (blob != nil) {
+        [strongSelf emitEvent:type
+                         from:task
+                    className:"WebSocket"
+                         with:blob
+                 payloadClass:"Blob"];
+      } else if (json != nil) {
+        [strongSelf emitEvent:type from:task className:"WebSocket" json:json.UTF8String];
+      } else {
+        [strongSelf emitEvent:type from:task className:"WebSocket" then:nil];
+      }
+    });
     host.read_class_object_property = [](const std::string& className,
                                          const std::string& name) {
       return ReadClassObjectProperty(className, name);
@@ -888,6 +904,9 @@ nacre::NativeObjectRef CreateBlob(
         };
         if (FileSystemCallAsync(object, name, argsJSON, argPtrs, settle)) return;
         if (KeychainCallAsync(object, name, argsJSON, argPtrs, settle)) return;
+        // WebSocket 的 send / ping。它们在**主线程**就完成了调用，
+        // 回音在 NSURLSession 的队列上来，所以同样要回主线程兑现
+        if (WebSocketCallAsync(object, name, argsJSON, argPtrs, settle)) return;
       }
       if ([object isKindOfClass:UIViewController.class] &&
           name == "presentViewController") {
@@ -1354,6 +1373,19 @@ nacre::NativeObjectRef CreateBlob(
       item.target = nil;
       item.action = nil;
       [table removeObjectForKey:name];
+    }
+    return;
+  }
+  if ([object isKindOfClass:NSURLSessionWebSocketTask.class]) {
+    // 只校验名字。delegate 一直在发，没人听时 dispatchEvent 自然是空操作
+    static NSSet<NSString*>* names;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+      names = [NSSet setWithArray:@[ @"open", @"message", @"error", @"close" ]];
+    });
+    NSString* name = @(type.c_str());
+    if (![names containsObject:name]) {
+      *error = EnumError(@"addEventListener", name, @"open / message / error / close");
     }
     return;
   }

@@ -29,6 +29,7 @@ import { stepWindow } from './steps/window.js';
 import { stepImage } from './steps/image.js';
 import { stepUrl } from './steps/url.js';
 import { stepFetch } from './steps/fetch.js';
+import { stepWebSocket } from './steps/websocket.js';
 import { stepTimers } from './steps/timers.js';
 import { stepAutolayout } from './steps/autolayout.js';  // 含 CALayer
 import { stepControl } from './steps/control.js';
@@ -71,6 +72,7 @@ application.addEventListener('sceneconnect', (e) => {
   stepImage(ctx);
   stepUrl(ctx);
   stepFetch(ctx);
+  stepWebSocket(ctx);
   stepTimers(ctx);
   stepAutolayout(ctx);
   stepControl(ctx);

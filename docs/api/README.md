@@ -58,6 +58,7 @@ Nacre 的 API 分两层：
 | [定时器](timers.md) | `setTimeout` 系列。调度参考 Chromium |
 | [`URL` / `Headers`](url.md) | WHATWG 三件套。和浏览器有五处已知差异 |
 | [`fetch`](fetch.md) | 网络请求。线程分工是实测定下来的 |
+| [`WebSocket`](websocket.md) | 长连接。比 Web 多两样：可以带首部、有协议级 `ping()` |
 | [`UIColor`](ui-color.md) | 颜色。基础色、系统色、语义色 |
 | [`UIViewController`](ui-view-controller.md) | 页面。`view`、`title`、模态呈现 |
 | `NSObject` | ObjC 的根类，所有原生类的基类（继承 `EventTarget`） |

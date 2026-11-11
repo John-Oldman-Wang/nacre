@@ -1256,6 +1256,66 @@
     }
   });
 
+  // WebSocket。
+  //
+  // 上层标准，和 fetch 一个定位——底下是 NSURLSessionWebSocketTask，但那个
+  // 类不暴露。形状照 Web，**两处比 Web 多**：
+  //
+  //   headers   浏览器的构造器给不了首部，那是 Web 的历史限制不是协议的。
+  //             真实业务里 Authorization 是刚需
+  //   ping()    协议级的 ping，RFC 6455 规定对端必须回 Pong，不需要服务端
+  //             应用配合。浏览器不给这个 API，只能做应用层心跳
+  //
+  // readyState **用数字**，是我们唯一一处为 Web 兼容破掉「枚举一律字符串」
+  // 那条规矩的地方——从 Web / React Native 搬过来的代码里
+  // `ws.readyState === WebSocket.OPEN` 要能直接跑。理由记在 project.md。
+  defineNativeClass('WebSocket', class WebSocket extends NSObject {
+    constructor(url, options) {
+      super();
+      constructNative(this, new.target, 'WebSocket', [String(url), options || {}]);
+    }
+
+    static get CONNECTING() { return 0; }
+    static get OPEN() { return 1; }
+    static get CLOSING() { return 2; }
+    static get CLOSED() { return 3; }
+
+    [kSubscribe](type, on) {
+      requireNative(this, 'addEventListener');
+      native.subscribe(this[kHandle], type, on);
+      if (on) subscribed.add(this);
+      else if (this[kListeners].size === 0) subscribed.delete(this);
+    }
+
+    /** 发一条。字符串或 Blob。返回的 Promise 在**发出去之后**兑现 */
+    send(data) { return nativeCallAsync(this, 'send', [data]); }
+    /**
+     * 协议级 ping。pong 回来就兑现，连接死了就拒绝——不需要服务端应用做
+     * 任何事，这是它比应用层心跳强的地方
+     */
+    ping() { return nativeCallAsync(this, 'ping', []); }
+    /** 关。已经在关或关完了再调是空操作，和 Web 一致 */
+    close(code, reason) {
+      nativeCall(this, 'close', [code === undefined ? null : code,
+                                 reason === undefined ? null : reason]);
+    }
+
+    get url() { requireNative(this, 'url'); return nativeGet(this, 'url'); }
+    /** 0 CONNECTING / 1 OPEN / 2 CLOSING / 3 CLOSED */
+    get readyState() { requireNative(this, 'readyState'); return nativeGet(this, 'readyState'); }
+    /** 服务端选中的子协议。没有就是空串 */
+    get protocol() { requireNative(this, 'protocol'); return nativeGet(this, 'protocol'); }
+    /** 一条消息最大多少字节。超了接收会失败。**Web 没有这个** */
+    get maximumMessageSize() {
+      requireNative(this, 'maximumMessageSize');
+      return nativeGet(this, 'maximumMessageSize');
+    }
+    set maximumMessageSize(value) {
+      requireNative(this, 'maximumMessageSize');
+      nativeSet(this, 'maximumMessageSize', value);
+    }
+  });
+
   // ---------- 动画 ----------
   //
   // 时间曲线。两种来源：五个内置名字，或者四个控制点的三次贝塞尔。
@@ -3932,7 +3992,7 @@
   // 也可以是普通 JSON 值（动画的 stop 带一个布尔）——sink 一视同仁
   const objectEventField = {
     willshow: 'viewController', didshow: 'viewController', stop: 'finished',
-    tick: 'frame',
+    tick: 'frame', message: 'data', error: 'message',
   };
 
   // 原生要给某个对象自己派发事件时回调这里（场景的生命周期事件走这条路）
@@ -3941,6 +4001,13 @@
     const field = objectEventField[type];
     if (field !== undefined && payload !== undefined) {
       defineField(event, field, payload);
+    } else if (payload !== undefined && payload !== null &&
+               typeof payload === 'object' && 'wasClean' in payload) {
+      // WebSocket 关闭。按**负载的形状**认，不按事件名——'close' 这个名字
+      // 太泛，将来别的对象也会用
+      defineField(event, 'code', payload.code);
+      defineField(event, 'reason', payload.reason);
+      defineField(event, 'wasClean', payload.wasClean);
     } else if (payload !== undefined && payload !== null &&
                typeof payload === 'object' && 'tapCount' in payload) {
       // 触摸类的控件事件。原生**只给这九个**带负载，所以这里不用镜像

@@ -91,3 +91,51 @@ JS 侧的 `Response` 挂在 `FinalizationRegistry` 上，被 GC 回收时通知�
 ---
 
 ← 返回[实现原理](README.md) ・ [API 文档](../api/url.md)
+
+## A16：WebSocket
+
+上层标准，和 `fetch` 一个定位——底下是 `NSURLSessionWebSocketTask`，但那个类**不暴露**。
+
+### 拉 vs 推
+
+原生是 `receiveMessageWithCompletionHandler:`：**收一条就得自己再续一次**。Web 是 `onmessage` 推过来。这层差异由运行时吞掉——`NacreWebSocketReceiveNext()` 在 `didOpenWithProtocol:` 之后启动，每收到一条就递归续上一次，出错就停（那时 `didCompleteWithError` 会把 `close` 发出去）。
+
+### 两处比 Web 多，都是按原则 9 给的
+
+| | 为什么 Web 没有 |
+| --- | --- |
+| `headers` | 浏览器的 `WebSocket` 构造器只能传子协议，那是 Web 的**历史限制**不是协议的限制。原生的 `webSocketTaskWithRequest:` 收的是 `NSURLRequest`，首部随便设 |
+| `ping()` | 协议有 Ping/Pong 帧，但浏览器不给 JS 这个 API。原生给了，而且 RFC 6455 规定对端**必须**回 Pong——不需要服务端应用配合，比应用层心跳强 |
+
+两次都差点照搬 Web 的限制，两次都是被问住才改的。判据写下来免得再犯：**先看 iOS 有没有，再看 Web 怎么做；Web 没有不等于我们不该有。**
+
+### `readyState` 为什么破了枚举规矩
+
+运行时的规矩是「枚举一律用字符串」。这里是**唯一一处例外**：
+
+- Web 的 `readyState` 是 0–3，而且 `WebSocket.OPEN` 这种写法在真实代码里到处都是
+- 从 React Native / Web 搬过来的网络层，改这一处的收益为零、成本实打实
+
+例外要写明，否则下一个枚举就会拿它当先例。判据是：**只有「Web 原样兼容本身就是这个 API 的主要价值」时才破例**。`fetch` 的 `method`、`mode` 没破例，因为那些本来就是字符串。
+
+### readyState 自己记，不能用 NSURLSessionTask.state
+
+那个是 `running` / `suspended` / `canceling` / `completed`，和 WebSocket 的 `connecting` / `open` / `closing` / `closed` 不是一回事（比如握手期间和连上之后都是 `running`）。所以每个任务挂一个关联对象记自己的状态。
+
+### 事件负载按形状分支，不按名字
+
+`close` 事件要带三个字段（`code` / `reason` / `wasClean`），而 sink 原来的 `objectEventField` 一个类型只能映一个字段。
+
+改成**按负载的形状**认：带 `wasClean` 的就是关闭事件，带 `tapCount` 的就是触点。不按事件名，因为 `'close'` 这个名字太泛，将来别的对象也会用。
+
+### 实测
+
+| | |
+| --- | --- |
+| `maximumMessageSize` 默认 | **1048576**（1 MiB） |
+| `ws.postman-echo.com/raw` | **收到二进制帧就断连**。第一轮验收用的是它，于是二进制、ping、干净关闭全挂在连锁反应上 |
+| `echo.websocket.org` | 文本、二进制、ping、干净关闭全通 |
+
+第一轮那次还暴露了验收用例自己的毛病：ping 和 close 那一组**挂在二进制那步的后面**，二进制一超时它们就不跑了。改成超时也往下走，一个不相干的服务端行为才不会连坐掉四条断言。
+
+**还没实测的**：子协议协商、首部真的到了服务端、`maximumMessageSize` 的效果——公开的 echo 服务都不回显这些。

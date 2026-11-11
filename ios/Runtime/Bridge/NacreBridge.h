@@ -47,6 +47,13 @@
 
 typedef void (^NacreAsyncDone)(NacreAsyncResult* result);
 
+// WebSocket 的事件出口。NacreWebSocket.mm 不认识 NacreRuntime，所以由它在
+// 启动时塞进来——和文件读写的 done 块一个路子。
+// json 为 nil 表示没有负载；blob 非 nil 表示负载是个 Blob（二进制消息）。
+@class NacreBlob;
+typedef void (^NacreWebSocketEmit)(id task, NSString* type, NSString* json,
+                                   NacreBlob* blob);
+
 // Keychain 的载体。iOS 上没有「钥匙串对象」这种东西，SecItem* 是一组 C 函数，
 // 所以自己给一个单例当包装表里的那个原生指针。
 // CADisplayLink 的 trampoline。
@@ -428,6 +435,14 @@ BOOL WriteLayerObjectArray(id object, const std::string& name, const std::vector
 // "CALayer"——否则从 sublayers 里先读到的渐变层会永远是个 CALayer。
 const char* LayerClassName(CALayer* layer);
 
+// ---- WebSocket ----
+void WebSocketSetEmitter(NacreWebSocketEmit emit);
+nacre::NativeObjectRef WebSocketConstruct(id urlValue, id options);
+id ReadWebSocketProperty(id object, NSString* key);
+BOOL WriteWebSocketProperty(id object, NSString* key, id value, std::string* error);
+bool WebSocketCallAsync(id object, const std::string& name, const std::string& argsJSON,
+                        const std::vector<void*>& argPtrs, NacreAsyncDone done);
+
 // ---- 路径 ----
 // UIBezierPath 是个值对象，和图层是两个域：路径只管形状，图层管怎么画。
 // 方法通道的两个入口要用 NacreArgs，所以声明在它定义之后，和图层域一起。
@@ -523,6 +538,10 @@ bool PathCallMethod(id object, NSString* sel, const NacreArgs& args,
                     std::string* out, std::string* error);
 bool PathCallObjectMethod(id object, const std::string& name, const NacreArgs& args,
                           nacre::NativeObjectRef* out, std::string* error);
+
+// ---- WebSocket ----
+bool WebSocketCallMethod(id object, NSString* sel, const NacreArgs& args,
+                         std::string* out, std::string* error);
 
 // ---- 动画 ----
 bool AnimationCallMethod(id object, NSString* sel, const NacreArgs& args,

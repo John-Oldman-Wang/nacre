@@ -526,3 +526,100 @@ interface Console {
  * 深度与长度截断、%s 占位符、table / group / count / time。
  */
 declare const console: Console;
+
+/**
+ * WebSocket 的 `message` 事件。
+ *
+ * 和别的带负载的事件一样，回调参数的类型没有窄化，要拿就转一下型：
+ *
+ * ```js
+ * ws.addEventListener('message', (e) => {
+ *   const data = /** @type {WebSocketMessageEvent} *\/ (e).data;
+ * });
+ * ```
+ */
+declare interface WebSocketMessageEvent extends Event {
+  /** 文本消息是字符串，二进制消息是 `Blob`（字节不进 V8 堆）。 */
+  readonly data: string | Blob;
+}
+
+/** WebSocket 的 `close` 事件。 */
+declare interface WebSocketCloseEvent extends Event {
+  /** 关闭码。正常关闭是 1000；连接异常断开是 1006。 */
+  readonly code: number;
+  readonly reason: string;
+  /** 走完了关闭握手才是 `true`。连接断了是 `false`。 */
+  readonly wasClean: boolean;
+}
+
+/** WebSocket 的 `error` 事件。 */
+declare interface WebSocketErrorEvent extends Event {
+  readonly message: string;
+}
+
+/**
+ * 全双工的长连接。
+ *
+ * ```js
+ * const ws = new WebSocket('wss://example.com/quotes', {
+ *   headers: { Authorization: 'Bearer ' + token },
+ * });
+ * ws.addEventListener('open', () => ws.send('subscribe'));
+ * ws.addEventListener('message', (e) => {
+ *   console.log(/** @type {WebSocketMessageEvent} *\/ (e).data);
+ * });
+ * ws.close(1000, 'bye');
+ * ```
+ *
+ * 形状照 Web，**两处比 Web 多**：
+ *
+ * | | |
+ * | --- | --- |
+ * | `headers` | 浏览器的构造器给不了首部，那是 Web 的历史限制不是协议的 |
+ * | `ping()` | 协议级 ping，对端**必须**回 Pong，不需要服务端应用配合 |
+ *
+ * **没有 `bufferedAmount`**：`NSURLSessionWebSocketTask` 没有对应物。能自己
+ * 数「发出去还没完成的条数」，但那和 Web 的「排队字节数」不是一个定义，
+ * 同名不同义比没有更糟。
+ */
+declare class WebSocket extends NSObject {
+  constructor(
+    url: string,
+    options?: {
+      /** 子协议。服务端选中的那个在 `protocol` 上读得到。 */
+      protocols?: string[];
+      /** 握手请求的首部。**Web 给不了这个。** */
+      headers?: Record<string, string>;
+    },
+  );
+
+  static readonly CONNECTING: number;
+  static readonly OPEN: number;
+  static readonly CLOSING: number;
+  static readonly CLOSED: number;
+
+  addEventListener(
+    type: 'open' | 'message' | 'error' | 'close',
+    callback: EventListener | null,
+    options?: AddEventListenerOptions,
+  ): void;
+  removeEventListener(
+    type: 'open' | 'message' | 'error' | 'close',
+    callback: EventListener | null,
+  ): void;
+
+  /** 发一条。返回的 Promise 在**发出去之后**兑现，不等对端确认。 */
+  send(data: string | Blob): Promise<boolean>;
+  /** 协议级 ping。pong 回来就兑现，连接死了就拒绝。 */
+  ping(): Promise<boolean>;
+  /** 关。已经在关或关完了再调是空操作。 */
+  close(code?: number, reason?: string): void;
+
+  readonly url: string;
+  /** `0` CONNECTING / `1` OPEN / `2` CLOSING / `3` CLOSED。 */
+  readonly readyState: number;
+  /** 服务端选中的子协议。没有就是空串。 */
+  readonly protocol: string;
+  /** 一条消息最大多少字节，超了接收会失败。**Web 没有这个。** */
+  maximumMessageSize: number;
+}
