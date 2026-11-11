@@ -179,3 +179,39 @@ titleForState('disabled')  →  '点我试试'
 ---
 
 ← 返回[实现原理](README.md) ・ [项目说明](../project.md)
+
+## A8：触点位置怎么带上来
+
+控件事件的对象原来只有 `type` 和 `target`。第 4a 步当时的决定是「要位置等手势那一步」，但实际上**不用等**——`UIControl` 的 action 可以是两参的：
+
+```objc
+- (void)fire:(UIControl*)sender forEvent:(UIEvent*)event
+```
+
+单参那版拿不到 `UIEvent`，而触点只能从它身上取。改个 selector 就有了，不需要手势识别器，也不需要 M2。
+
+### 必须在派发那一刻取
+
+事件延后一轮才进 JS，那时 `UIEvent` 已经没了。所以位置在 `fire:forEvent:` 里就快照成 JSON，走 A6-1 加的那条 JSON 负载通道。
+
+判据和动画的 `stop` 带 `finished` 是同一条：**那个信息回头在对象上读不读得到**。读不到就必须带。滚动事件不带位置，因为 `contentOffset` 回头读得到。
+
+### 按事件类型分，不是给空值
+
+Web 的做法是：`clientX` 在 `MouseEvent` 接口上，`KeyboardEvent` **根本没有这个字段**——不是「有但为 null」。照这条分，16 个控件事件是三类：
+
+| | |
+| --- | --- |
+| 九个 `touch*` | 带 |
+| 四个 `editing*` | 不带，文本编辑和触点无关 |
+| `valueChanged` / `primaryActionTriggered` / `menuActionTriggered` | 不带。**和触点没有固定关系**——多数来自点击或拖动，但程序改 `slider.value`、或 `sendActionsForControlEvents()` 也会发。不确定就不承诺 |
+
+### 那张表只在原生层有一份
+
+原生**只给那九个**带负载；JS 侧的规则是一句「收到负载就挂上」。所以名单不用镜像到 JS，也就不存在漂移。
+
+这是前面几次教训的反面用法：凡是两边都要知道的名单，迟早会漂（`check-api.sh` 这一轮里已经抓过两次「名字藏进变量」）。能做到只有一份，就别做两份。
+
+### 没有真实触点时给 `null` 不给 `(0, 0)`
+
+`sendActionsForControlEvents()` 那条路上压根没有 `UIEvent`。Web 在这种情况下给 0（`el.click()` 之后 `clientX` 是 0），我们给 `null`——**`(0, 0)` 是个合法坐标，和「没有触点」分不开**，这正是仓库一路在消灭的那类分不开。

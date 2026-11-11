@@ -342,6 +342,8 @@ NACRE_STRING_ENUM_DECL(RotationMode)
 NACRE_STRING_ENUM_DECL(RunLoopMode)
 BOOL IsAnimationEventName(NSString* name);
 NSString* NamesForAnimationEvent(void);
+// 哪些控件事件带触点。表只在原生层有一份，见 NacreEnumsControl.mm
+BOOL IsTouchControlEvent(NSString* name);
 BOOL IsDisplayLinkEventName(NSString* name);
 NSString* NamesForDisplayLinkEvent(void);
 

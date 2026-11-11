@@ -456,10 +456,43 @@ touchDown
 除了名字，还有这些差别：
 
 - **不冒泡，也没有捕获阶段。** 事件只派发到调用 `addEventListener()` 的那个控件上。在父视图上监听收不到子控件的事件。`stopPropagation()` 可以调用，没有任何效果。
-- **事件对象只有 `type` 和 `target`。** `type` 是事件名，`target` 是派发事件的控件。没有触点坐标，没有按键信息，没有时间戳。
+- **只有 `touch*` 那九个带触点坐标**，见下面一节。其余事件的对象只有 `type` 和 `target`。
 - **不能取消。** 事件对象的 `cancelable` 是 `false`。`preventDefault()` 可以调用，没有任何效果。
 - **回调延后执行。** 见下一节。
 - **事件名是固定的 16 个。** 在控件上监听其他名字会抛 `TypeError`。Web 里可以在任何元素上监听自定义事件名，控件上不行。
+
+## 触点位置
+
+九个 `touch*` 事件的对象上有两个额外字段：
+
+```js
+button.addEventListener('touchUpInside', (e) => {
+  e.location;    // CGPoint，**这个控件自己的坐标系**
+  e.tapCount;    // 连击次数
+});
+```
+
+**只有这九个有**：`touchDown` / `touchDownRepeat` / `touchDragInside` / `touchDragOutside` / `touchDragEnter` / `touchDragExit` / `touchUpInside` / `touchUpOutside` / `touchCancel`。
+
+其余事件**根本没有这两个字段**，不是「有但为 null」：
+
+| 事件 | 为什么没有 |
+| --- | --- |
+| `editingDidBegin` / `editingChanged` / `editingDidEnd` / `editingDidEndOnExit` | 文本编辑，和触点无关 |
+| `valueChanged` / `primaryActionTriggered` / `menuActionTriggered` | **和触点没有固定关系**——多数来自一次点击或拖动，但程序改 `slider.value`、或者 `sendActionsForControlEvents()` 也会发。不确定就不承诺 |
+
+这是 Web 的做法：`clientX` 在 `MouseEvent` 上，`KeyboardEvent` 这个接口上根本没有它。
+
+### 没有真实触点时 `location` 是 `null`
+
+```js
+button.sendActionsForControlEvents(['touchUpInside']);
+// 收到的事件：location === null，tapCount === 0
+```
+
+这条路上压根没有触摸，所以给 `null` 而**不是 `(0, 0)`**——后者是个合法坐标，和「没有触点」分不开。
+
+> 类型上这两个字段在 `UIControlTouchEvent` 接口里。回调参数的类型没有窄化（`EventTarget` 的基类签名不允许），要拿就转一下型，和导航的 `willshow` 一样。
 
 ## 回调的执行时机
 
@@ -749,7 +782,6 @@ console.log(notPrevented);   // true
 
 | 想做的事 | 对应的原生能力 | 状态 |
 | --- | --- | --- |
-| 知道触摸点在控件上的位置 | 事件对象带触点坐标（`UITouch`、`UIEvent`） | 未实现 |
 | 在回调里得到事件发生那一刻的状态 | 事件对象带状态 | 未实现 |
 | 响应长按、拖动、捏合、轻扫 | `UIGestureRecognizer` 及其子类 | 未实现 |
 | 自己处理原始触摸，决定控件怎么跟踪手指 | 覆写 `touchesBegan:withEvent:`、`beginTrackingWithTouch:withEvent:` 等方法 | 未实现 |

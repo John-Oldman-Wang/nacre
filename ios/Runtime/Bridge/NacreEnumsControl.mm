@@ -185,4 +185,32 @@ NSString* NamesForControlStateArg(void) {
   return [@"normal / " stringByAppendingString:NamesForControlState()];
 }
 
+// 哪些控件事件带触点。
+//
+// 按事件**类型**分，和 Web 一样——MouseEvent 有 clientX，KeyboardEvent
+// 根本没有这个字段，不是「有但为 null」。
+//
+// 三类：
+//   touch*        带。九个
+//   editing*      文本编辑，没有触点
+//   valueChanged / primaryActionTriggered / menuActionTriggered
+//                 **和触点没有固定关系**：多数来自一次拖动或点击，但程序
+//                 改 slider.value、或者 sendActionsForControlEvents 也会发。
+//                 不确定就不承诺
+//
+// 表只在这里有一份，JS 侧不镜像——原生只给这九个带负载，JS 那边「收到
+// 负载就挂上」，不用知道名单。
+BOOL IsTouchControlEvent(NSString* name) {
+  static NSSet<NSString*>* names;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    names = [NSSet setWithArray:@[
+      @"touchDown", @"touchDownRepeat", @"touchDragInside", @"touchDragOutside",
+      @"touchDragEnter", @"touchDragExit", @"touchUpInside", @"touchUpOutside",
+      @"touchCancel",
+    ]];
+  });
+  return [name isKindOfClass:NSString.class] && [names containsObject:name];
+}
+
 }  // namespace nacre_bridge

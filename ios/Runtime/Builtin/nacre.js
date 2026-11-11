@@ -3941,6 +3941,14 @@
     const field = objectEventField[type];
     if (field !== undefined && payload !== undefined) {
       defineField(event, field, payload);
+    } else if (payload !== undefined && payload !== null &&
+               typeof payload === 'object' && 'tapCount' in payload) {
+      // 触摸类的控件事件。原生**只给这九个**带负载，所以这里不用镜像
+      // 那张表——收到负载就挂上。location 转成 CGPoint，和别处一致；
+      // 没有真实触点时（sendActionsForControlEvents）原生给的就是 null
+      defineField(event, 'location',
+                  payload.location === null ? null : toPoint(payload.location));
+      defineField(event, 'tapCount', payload.tapCount);
     }
     wrapper.dispatchEvent(event);
   });

@@ -38,6 +38,36 @@ type UIButtonRole = 'normal' | 'primary' | 'cancel' | 'destructive';
  * 它是 iOS 四套事件机制里唯一**直接注册**的那套——不走 responder chain、
  * 不受手势抢占影响，所以最接近 `addEventListener`。
  */
+/**
+ * 触摸类控件事件（九个 `touch*`）带的数据。
+ *
+ * 和导航那几个带负载的事件一样，回调参数的类型没有窄化（`EventTarget`
+ * 的基类签名不允许），要拿就转一下型：
+ *
+ * ```js
+ * button.addEventListener('touchUpInside', (e) => {
+ *   const { location, tapCount } = /** @type {UIControlTouchEvent} *\/ (e);
+ * });
+ * ```
+ *
+ * **只有 `touch*` 那九个有这些字段。** `editingChanged` 这类文本事件、
+ * 以及 `valueChanged` / `primaryActionTriggered` / `menuActionTriggered`
+ * 都没有——后三个和触点没有固定关系（程序改 `slider.value` 也会发），
+ * 不确定就不承诺。这是 Web 的做法：`clientX` 在 `MouseEvent` 上，
+ * `KeyboardEvent` 根本没有这个字段。
+ */
+declare interface UIControlTouchEvent extends Event {
+  /**
+   * 触点在**这个控件自己的坐标系**里的位置。
+   *
+   * `sendActionsForControlEvents()` 那条路上没有真实触点，这时是 `null`
+   * ——不是 `(0, 0)`，那是个合法坐标，和「没有触点」分不开。
+   */
+  readonly location: CGPoint | null;
+  /** 连击次数。没有真实触点时是 0。 */
+  readonly tapCount: number;
+}
+
 declare class UIControl extends UIView {
   constructor();
 

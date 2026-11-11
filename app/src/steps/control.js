@@ -94,16 +94,44 @@ export function stepControl(ctx) {
       // 这条是「不该发生」，只能等足够久
       setTimeout(() => {
         assert('removeEventListener 之后收不到', fired.length, 0);
-        // 留一个监听器给真实触摸用
-        btn.addEventListener('touchUpInside', () => {
-          console.log('  ✓ 真实触摸：收到 touchUpInside，state =',
-                      btn.state.join(','));
-        });
-        btn.addEventListener('touchDown', () => {
-          console.log('  ✓ 真实触摸：收到 touchDown，isHighlighted =',
-                      btn.isHighlighted);
-        });
-        console.log('  ✓ 绿色按钮已上屏，等着被点');
+
+        // ---- 触摸类事件带位置 ----
+        //
+        // 按事件**类型**分，和 Web 一样：clientX 在 MouseEvent 上，
+        // KeyboardEvent 根本没这个字段，不是「有但为 null」。
+        /** @type {any[]} */
+        const touched = [];
+        /** @type {any[]} */
+        const plain = [];
+        const onTouch = (/** @type {any} */ e) => touched.push(e);
+        const onValue = (/** @type {any} */ e) => plain.push(e);
+        btn.addEventListener('touchDown', onTouch);
+        btn.addEventListener('valueChanged', onValue);
+        btn.sendActionsForControlEvents(['touchDown', 'valueChanged']);
+        setTimeout(() => {
+          assert('主动触发的 touchDown 到了', touched.length, 1);
+          // sendActionsForControlEvents 那条路上压根没有 UIEvent。
+          // 给 null 不给 (0,0)——(0,0) 是合法坐标，和「没有触点」分不开
+          assert('没有真实触点时 location 是 null', touched[0].location, null);
+          assert('没有真实触点时 tapCount 是 0', touched[0].tapCount, 0);
+          assert('valueChanged 上根本没有 location 这个字段',
+                 'location' in plain[0], false);
+          assert('valueChanged 上也没有 tapCount', 'tapCount' in plain[0], false);
+          btn.removeEventListener('touchDown', onTouch);
+          btn.removeEventListener('valueChanged', onValue);
+
+          // 留一个监听器给真实触摸用。这条只能肉眼看：位置要落在按钮内
+          btn.addEventListener('touchUpInside', (/** @type {any} */ e) => {
+            console.log('  ✓ 真实触摸：收到 touchUpInside，state =',
+                        btn.state.join(',') + '，location = ' + e.location +
+                        '，tapCount = ' + e.tapCount);
+          });
+          btn.addEventListener('touchDown', (/** @type {any} */ e) => {
+            console.log('  ✓ 真实触摸：收到 touchDown，isHighlighted = ' +
+                        btn.isHighlighted + '，location = ' + e.location);
+          });
+          console.log('  ✓ 绿色按钮已上屏，等着被点（点下去会打出触点位置）');
+        }, 200);
       }, 200);
     });
   }

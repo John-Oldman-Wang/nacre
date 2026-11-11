@@ -46,7 +46,7 @@ using namespace nacre_bridge;
 @end
 
 @interface NacreRuntime () <NSURLSessionDataDelegate>
-- (void)emitControlEvent:(NSString*)type from:(UIControl*)control;
+- (void)emitControlEvent:(NSString*)type from:(UIControl*)control event:(UIEvent*)event;
 - (void)emitEvent:(NSString*)type
              from:(id)object
         className:(const char*)className
@@ -80,8 +80,10 @@ using namespace nacre_bridge;
 @end
 
 @implementation NacreControlTarget
-- (void)fire:(UIControl*)sender {
-  [self.runtime emitControlEvent:self.type from:sender];
+// 两参的 action。**单参那版拿不到 UIEvent**，而触点位置只能从它身上取，
+// 而且只能在这一刻取——事件延后一轮派发，到那时 UIEvent 早没了。
+- (void)fire:(UIControl*)sender forEvent:(UIEvent*)event {
+  [self.runtime emitControlEvent:self.type from:sender event:event];
 }
 // UIBarButtonItem 不是 UIControl，但 target/action 是同一套，所以复用这个
 // trampoline，只是 sender 的类名不一样
@@ -1205,8 +1207,28 @@ nacre::NativeObjectRef CreateBlob(
 
 // 控件事件：延后一轮再进 JS，和别的原生通知一致。
 // 这里捕获的是 control 的强引用，保证 block 跑起来时它还活着。
-- (void)emitControlEvent:(NSString*)type from:(UIControl*)control {
-  [self emitEvent:type from:control className:"UIControl" then:nil];
+- (void)emitControlEvent:(NSString*)type from:(UIControl*)control event:(UIEvent*)event {
+  // 只有触摸类事件带负载，JS 那边「收到负载就挂上」，不用镜像这张表。
+  //
+  // **位置必须在这里取**：事件延后一轮才进 JS，那时 UIEvent 已经没了。
+  // 和动画的 stop 带 finished 是同一条判据——那个信息回头读不到。
+  if (!IsTouchControlEvent(type)) {
+    [self emitEvent:type from:control className:"UIControl" then:nil];
+    return;
+  }
+  UITouch* touch = [event touchesForView:control].anyObject;
+  NSString* json;
+  if (touch == nil) {
+    // sendActionsForControlEvents 那条路上压根没有 UIEvent。
+    // 给 null 不给 (0,0)——(0,0) 是个合法坐标，和「没有触点」分不开
+    json = @"{\"location\":null,\"tapCount\":0}";
+  } else {
+    CGPoint p = [touch locationInView:control];
+    json = [NSString stringWithFormat:
+                @"{\"location\":{\"x\":%.6f,\"y\":%.6f},\"tapCount\":%ld}",
+                p.x, p.y, (long)touch.tapCount];
+  }
+  [self emitEvent:type from:control className:"UIControl" json:json.UTF8String];
 }
 
 // 通用的「原生发生了什么，告诉 JS」。延后一轮，completion 在派发之后跑，
@@ -1491,11 +1513,11 @@ nacre::NativeObjectRef CreateBlob(
     target.runtime = self;
     target.type = name;
     table[name] = target;
-    [control addTarget:target action:@selector(fire:) forControlEvents:bit];
+    [control addTarget:target action:@selector(fire:forEvent:) forControlEvents:bit];
   } else {
     NacreControlTarget* target = table[name];
     if (target == nil) return;
-    [control removeTarget:target action:@selector(fire:) forControlEvents:bit];
+    [control removeTarget:target action:@selector(fire:forEvent:) forControlEvents:bit];
     [table removeObjectForKey:name];
   }
 }

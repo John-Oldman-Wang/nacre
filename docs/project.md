@@ -635,7 +635,7 @@ iOS 的触摸不是一套机制，是**四套并行**的（hit-testing、respond
 | 事件名 | 按已定规则去前缀首字母小写：`'touchUpInside'`、`'valueChanged'`、`'editingChanged'`。**不加 `'click'` 别名**——Web 的 `click` 含键盘和辅助功能触发，iOS 的对应物是 `primaryActionTriggered` 而不是 `touchUpInside`，加别名等于把两个不同的东西糊在一起 |
 | 派发时机 | **延后一轮**，和现有的原生通知一致。`cancelable` 为 `false` |
 | `dispatchEvent` | **不触发原生 action**。它是 `EventTarget` 的语义，只派发给 JS 监听器；要真的触发原生用显式的 `sendActionsForControlEvents([...])` |
-| 事件对象 | 第一版只有 `type` 和 `target`，**不带触点位置**。要位置等手势那一步 |
+| 事件对象 | ~~第一版只有 `type` 和 `target`~~ —— **这条当时判断错了**：以为要等手势那一步，其实 `UIControl` 的 action 换成两参的 `fire:forEvent:` 就拿得到 `UIEvent`，不需要手势识别器。A8 已做 |
 
 #### 屏幕方向（方案已定，未实现）
 
@@ -717,7 +717,7 @@ bindgen 做完也解决不了同盾（风控）、mtpush（推送）、Sentry �
 | A5 | ~~**绘图对象**~~ **已做**：`CAGradientLayer`（A5-1）、`CAShapeLayer` + `UIBezierPath`（A5-2）。剩 `CGPath` 和 `mask` / `shadowPath` | 折线图、K 线、饼图、渐变。纯对象，不需要覆写 |
 | A6 | ~~**Core Animation**~~ **已做**：A6-1 核心、A6-2 关键帧/动画组/弹簧、A6-3 CADisplayLink。剩 CATransition、CASpringAnimation 的感知时长初始化器 | `CADisplayLink` 是 target-action，M1a 已经够 |
 | A7 | **手势识别器**：长按、拖动、捏合 | target-action，M1a 够。抢占语义要单独设计（见清单第 10 步）。delegate 那部分要 M2 |
-| A8 | **事件对象带数据**：触点位置等 | 只能由原生在派发时填 |
+| A8 | ~~**事件对象带数据**~~ **已做**：九个 `touch*` 事件带 `location` / `tapCount`。其余事件按 Web 的做法**根本没有这两个字段** | 只能由原生在派发时填 |
 | A9 | **`UITraitCollection`** + `overrideUserInterfaceStyle` | 读不到深浅色、收不到外观变化、App 内做不了主题开关。顺带堵上 `layer` 的 `borderColor` / `shadowColor` 切换主题不变色 |
 | A10 | **`UIRefreshControl`** | 依附在滚动视图的原生机制上 |
 | A11 | **`UISheetPresentationController` 的 detents** | 模态的呈现高度由系统控制，下单卡片只能整页 |
