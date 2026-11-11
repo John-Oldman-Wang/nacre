@@ -29,6 +29,7 @@ Nacre 的 API 分两层：
 
 | 对象 | 说明 |
 | --- | --- |
+| [运行时怎么工作](how-it-works.md) | **先读这一页**：代码怎么执行、有什么没有什么、线程、事件、原生对象 |
 | [`application`](application.md) | App 实例：App 级的状态、事件和能力 |
 | [`UIWindowScene`](ui-window-scene.md) | 场景：App 的一个 UI 实例，JS 创建界面的入口 |
 | [`UISceneSession`](ui-window-scene.md#uiscenesession) | 场景的持久身份：角色、标识、自定义数据 |

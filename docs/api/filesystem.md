@@ -36,7 +36,7 @@ const path = fs.documents + '/深/一层/notes.txt';
 | `readText(path)` | → `Promise<string>`，UTF-8 |
 | `readBytes(path)` | → `Promise<ArrayBuffer>`，零拷贝 |
 | `writeText(path, text)` | 原子写：先写临时文件再换名，不会留半截 |
-| `writeBytes(path, blob)` | 第二个参数收 [`Blob`](fetch.md#blob字节不进-v8-堆) |
+| `writeBytes(path, blob)` | 第二个参数收 [`Blob`](fetch.md#blob) |
 
 要写 `ArrayBuffer` 就先包一层：
 

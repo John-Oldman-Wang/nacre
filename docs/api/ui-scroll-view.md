@@ -341,7 +341,7 @@ scroller.contentOffset = new CGPoint(0, 30);
 // 只收到一个 scroll，此时 contentOffset.y 是 30
 ```
 
-**回调里的工作要少。** 滚动和 JS 都在主线程上执行。浏览器有单独的合成器线程，JS 卡住时页面照样能滚；这里没有，`scroll` 回调执行多久，画面就停多久。
+**回调里的工作要少。** `scroll` 回调执行多久，画面就停多久。原因见[运行时怎么工作](how-it-works.md#js-和界面在同一个线程上)。
 
 ## 成员说明
 

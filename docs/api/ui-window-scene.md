@@ -360,7 +360,7 @@ scene.openURL('https://example.com').then((ok) => {
 
 - 事件对象只有 `type` 和 `target` 两个字段，`target` 是这个场景。
 - 事件不能取消，`preventDefault()` 不起作用。
-- 回调不是在状态变化的那一刻同步执行，而是排到主线程的下一轮任务里执行。
+- 回调不是在状态变化的那一刻同步执行，而是稍后执行，见[运行时怎么工作](how-it-works.md#事件)。
 - 场景上也可以监听和派发自定义名字的事件，用法和普通的 `EventTarget` 一样。
 
 场景的接入和断开不在这张表里。它们是 `application` 上的 `sceneconnect` 和 `scenedisconnect`，事件对象多一个 `scene` 字段，见[场景的接入和断开](#场景的接入和断开)。

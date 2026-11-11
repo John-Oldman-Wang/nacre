@@ -165,7 +165,7 @@ showRemoteImage();
 
 三步分别是：用 [`fetch`](fetch.md) 下载并取得 `Blob`，用 `imageWithData()` 把 `Blob` 变成图片，用 `prepareForDisplay()` 在后台解码。
 
-图片的字节一直保存在原生一侧。JS 只持有 `Blob` 和 `UIImage` 两个对象，几 MB 的图片不会占用 JS 的堆内存。
+图片的数据不放在 JS 的内存里。几 MB 的图片不会增加 JS 的内存压力。
 
 `imageWithData()` 得到的图片 `scale` 是 1：200 × 200 像素的图，`size` 是 200 × 200 pt。在 @3x 屏幕上它会被放大显示。要按 @2x 或 @3x 的图处理，传 `scale`，见 [`UIImage.imageWithData()`](#uiimageimagewithdata)。
 
@@ -317,7 +317,7 @@ async function showThumbnail() {
 showThumbnail();
 ```
 
-**效果**：图片视图显示一张缩小过的图。缩略图在后台线程生成，不占用主线程。**缩略图的实际尺寸未在模拟器验证。**
+**效果**：图片视图显示一张缩小过的图。缩略图在后台生成，不卡界面。**缩略图的实际尺寸未在模拟器验证。**
 
 ## 概念
 
@@ -427,9 +427,9 @@ SF Symbols 图标的 `renderingMode` 实测是 `'automatic'`，不是 `'alwaysTe
 
 ### 解码发生在第一次显示时
 
-`imageWithData()`、`imageNamed()` 得到的图片还没有解码成像素。解码发生在图片第一次显示到屏幕上的时候，在主线程上进行。JS 也在主线程上运行，所以大图的解码会让界面卡顿一下。
+`imageWithData()`、`imageNamed()` 得到的图片还没有解码成像素。解码发生在图片第一次显示到屏幕上的时候。解码期间界面会卡住，大图尤其明显。
 
-`prepareForDisplay()` 把解码放到后台线程，完成后返回一张已经解码的新图：
+`prepareForDisplay()` 把解码放到后台进行，完成后返回一张已经解码的新图：
 
 ```js
 async function showDecoded() {
@@ -443,7 +443,7 @@ async function showDecoded() {
 showDecoded();
 ```
 
-**效果**：图片显示出来，显示时主线程不再做解码。
+**效果**：图片显示出来，显示时不再需要解码，界面不卡。
 
 小图标不需要这样做。从网络下载的大图建议都这样做。
 
@@ -606,7 +606,7 @@ if (star) {
 
 #### `prepareForDisplay()` 和 `prepareThumbnail()`
 
-在后台线程解码图片。两个方法都返回 Promise。
+在后台解码图片。两个方法都返回 Promise。
 
 | 方法 | 参数 | Promise 的结果 |
 | --- | --- | --- |

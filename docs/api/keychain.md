@@ -17,7 +17,7 @@ await kc.get('token');      // 'abc-123'，没有就是 null
 | `get(key)` | 没有这个键给 `null`，**不 reject** |
 | `set(key, value, options?)` | 值是字符串。覆盖写同一个键是正常操作 |
 | `getBytes(key)` | → `ArrayBuffer \| null` |
-| `setBytes(key, blob, options?)` | 收 [`Blob`](fetch.md#blob字节不进-v8-堆) |
+| `setBytes(key, blob, options?)` | 收 [`Blob`](fetch.md#blob) |
 | `remove(key)` | 本来就没有也算成功 |
 | `has(key)` | |
 | `keys()` | 这个 App 存过的全部键 |

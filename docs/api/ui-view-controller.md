@@ -499,7 +499,7 @@ sheet.addEventListener('diddismiss', (event) => {
 
 - 事件对象只有 `type` 和 `target` 两个字段。`target` 是被弹出的那个页面。
 - 事件不能取消，`preventDefault()` 不起作用。要阻止用户关闭，用 `isModalInPresentation`。
-- 回调不是在事情发生的那一刻同步执行，而是排到主线程的下一轮任务里执行。
+- 回调不是在事情发生的那一刻同步执行，而是稍后执行，见[运行时怎么工作](how-it-works.md#事件)。
 - 代码调 `dismissViewController()` 时这三个事件都不派发。
 - 监听可以在页面弹出之前注册。
 - **出错**：监听不认识的事件名抛 `TypeError`：

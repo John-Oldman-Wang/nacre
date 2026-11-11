@@ -359,7 +359,7 @@ button.currentTitle;        // '请先填写表单'
 
 - 事件对象只有 `type` 和 `target` 两个字段。
 - 事件不能取消，`preventDefault()` 不起作用。
-- 回调不是在触摸发生的那一刻同步执行，而是排到主线程的下一轮任务里执行。
+- 回调不是在触摸发生的那一刻同步执行，而是稍后执行，见[运行时怎么工作](how-it-works.md#事件)。
 - 监听不认识的事件名会抛 `TypeError`。
 
 完整的 16 个事件见 [`UIControl`](ui-control.md)。
