@@ -307,6 +307,30 @@ declare function clearInterval(id?: number): void;
 declare function queueMicrotask(callback: () => void): void;
 
 // ---------------------------------------------------------------------------
+// 高精度计时
+// ---------------------------------------------------------------------------
+
+/**
+ * 高精度时钟。只有一个实例，就是全局的 `performance`。
+ *
+ * 和 Web、Node 的同名对象一致，但只有 `now()` 和 `timeOrigin`，没有
+ * `mark()` / `measure()` 那一组。
+ */
+declare class Performance {
+  private constructor();
+  /**
+   * 从运行时启动算起过了多少毫秒，带小数。单调递增，不受系统时间被修改的
+   * 影响。只能用来算两次调用之间的差值，它不是日期。
+   */
+  now(): number;
+  /** `now()` 的零点对应的时刻，Unix 毫秒时间戳。 */
+  readonly timeOrigin: number;
+  toJSON(): { timeOrigin: number };
+}
+
+declare const performance: Performance;
+
+// ---------------------------------------------------------------------------
 // 事件模型
 // ---------------------------------------------------------------------------
 //

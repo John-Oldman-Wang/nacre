@@ -5245,6 +5245,31 @@
     Promise.resolve().then(callback);
   });
 
+  // ---- performance ----
+  //
+  // 上层 API，Web 原样：Node、Deno、浏览器都有这个全局。只做 now() 和
+  // timeOrigin——mark / measure 那一组 JS 自己写得出来。
+  //
+  // 时钟在引擎的 C++ 里（steady_clock），不依赖 iOS。零点是引擎建出来的
+  // 那一刻，早于任何一行 JS
+  const perfTimeOrigin = native.timeOrigin();
+  let allowPerformance = false;
+  class Performance {
+    constructor() {
+      if (!allowPerformance) throw new TypeError('Illegal constructor');
+    }
+    // 毫秒，带小数。只能拿来算差值：它不是日期
+    now() { return native.now(); }
+    // now() 的零点对应的 Unix 毫秒时间戳
+    get timeOrigin() { return perfTimeOrigin; }
+    toJSON() { return { timeOrigin: perfTimeOrigin }; }
+  }
+  allowPerformance = true;
+  const performance = new Performance();
+  allowPerformance = false;
+  define(globalThis, 'Performance', Performance);
+  define(globalThis, 'performance', performance);
+
   define(globalThis, 'Event', Event);
   define(globalThis, 'ErrorEvent', ErrorEvent);
   define(globalThis, 'PromiseRejectionEvent', PromiseRejectionEvent);

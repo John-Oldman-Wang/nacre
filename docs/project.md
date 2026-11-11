@@ -583,6 +583,7 @@ Commit message 格式：
 | — | A16 WebSocket | NSURLSessionWebSocketTask、拉改推、headers、协议级 ping | 已在模拟器验证通过：958 条断言全过，文本/二进制往返、ping/pong、干净关闭（1000 + wasClean）都验到；子协议协商和首部到达未验证 |
 | — | 内边距 | UIView 的四个边距属性、NSDirectionalEdgeInsets | 已在模拟器验证通过：996 条断言全过，栈视图的排列项按边距缩进；实测安全区是加上去的（写 16 读回 84） |
 | — | A7 点按和长按 | UIGestureRecognizer 三个类、UIView 的挂和摘、事件名即状态名 | 已在模拟器验证通过：1042 条断言全过，含 GC 回归；真实触摸也点过——点按、长按、移动都到了 JS，父视图的单击不抢 `UIButton`。实测纠正一条：长按的 began 回调里 state 是 `began` 不是 `possible`。真机（iPhone 14）上也点过，结论一致，并验到了 `cancelled`（长按中 App 退后台） |
+| — | A19 `performance.now()` | 引擎里的单调时钟、零点和 timeOrigin | 已在模拟器验证通过：1054 条断言全过，连读 1000 次没有倒退，读一次约 1 µs |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |
@@ -733,7 +734,7 @@ bindgen 做完也解决不了同盾（风控）、mtpush（推送）、Sentry �
 | A16 | ~~**WebSocket**~~ **已做**：比 Web 多两样——可以带首部、有协议级 `ping()` | `fetch` 只有请求-响应，实时行情只能轮询 |
 | A17 | **`WKWebView`** | 协议、KYC、活动页 |
 | A18 | **生物识别**：LocalAuthentication | 系统能力 |
-| A19 | **`performance.now()`** | `Date.now()` 只有毫秒精度 |
+| A19 | ~~**`performance.now()`**~~ **已做**：`now()` 和 `timeOrigin`，时钟在引擎的 C++ 里 | `Date.now()` 只有毫秒精度 |
 
 **零碎的小口子**（都在 A 组，单独列是因为改动极小）：
 

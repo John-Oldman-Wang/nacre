@@ -134,6 +134,18 @@ struct Engine::Impl {
     return duration<double, std::milli>(steady_clock::now().time_since_epoch()).count();
   }
 
+  // 墙上时钟，Unix 毫秒。只给 performance.timeOrigin 用——它会被用户改时间、
+  // 被 NTP 校正，不能拿来算时间差
+  static double WallMs() {
+    using namespace std::chrono;
+    return duration<double, std::milli>(system_clock::now().time_since_epoch()).count();
+  }
+
+  // performance.now() 的零点：引擎建出来的这一刻。两个时钟各记一次——
+  // 单调的给 now() 做差，墙上的给 timeOrigin
+  const double origin_mono_ms = NowMs();
+  const double origin_wall_ms = WallMs();
+
   // 按堆顶重新和宿主约唤醒时间。堆空了就撤销。
   void ScheduleNextWakeup() {
     if (!host.schedule_wakeup || firing_timers) return;
@@ -706,6 +718,19 @@ struct Engine::Impl {
     info.GetReturnValue().Set(id);
   }
 
+  // performance.now()：从引擎启动算起的毫秒数，带小数，单调递增。
+  // 不做任何降精度——那是浏览器为了防计时攻击加的，我们的 JS 是开发者自己
+  // 打进包里的（原则 8）
+  static void NativeNow(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    Impl* self = From(info.GetIsolate());
+    info.GetReturnValue().Set(NowMs() - self->origin_mono_ms);
+  }
+
+  static void NativeTimeOrigin(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    Impl* self = From(info.GetIsolate());
+    info.GetReturnValue().Set(self->origin_wall_ms);
+  }
+
   static void NativeRemoveTimer(const v8::FunctionCallbackInfo<v8::Value>& info) {
     v8::Isolate* isolate = info.GetIsolate();
     Impl* self = From(isolate);
@@ -905,6 +930,8 @@ struct Engine::Impl {
         {"fetchRelease", NativeFetchRelease},
         {"addTimer", NativeAddTimer},
         {"removeTimer", NativeRemoveTimer},
+        {"now", NativeNow},
+        {"timeOrigin", NativeTimeOrigin},
         {"call", NativeCall},
         {"callObj", NativeCallObject},
         {"getObjArray", NativeObjectArrayProperty},

@@ -103,6 +103,19 @@ setTimeout(() => p.catch(() => {}), 0);   // 不会上报
 
 代价是队列忙的时候上报会被推后。Chromium 也有这个问题，它接受了。
 
+## `performance.now()`：时钟就是定时器那一个
+
+定时器的到期时间本来就靠引擎里的 `NowMs()`（`std::chrono::steady_clock`），`performance.now()` 只是把它减去一个零点再交给 JS。所以没有新的时钟，也没有过桥到 ObjC——两个 V8 函数回调，纯 C++，将来 Android 原样复用。
+
+| | 定法 | 理由 |
+| --- | --- | --- |
+| 零点 | 引擎构造的那一刻 | Web 的 `timeOrigin` 是「这个上下文开始的时刻」。它早于内置脚本和 `main.js`，所以 `performance.now()` 直接读出来就是「JS 环境活了多久」 |
+| `timeOrigin` | 同一刻用 `system_clock` 记一次 | 墙上时钟会被用户改、被 NTP 校正，只能拿来做这一次换算，不能参与算差 |
+| 精度 | 不降 | 浏览器把读数取整是防计时攻击（Spectre 那一类），前提是跑不受信任的代码。我们的 JS 是开发者自己打进包里的——原则 8 |
+| 范围 | 只有 `now()`、`timeOrigin`、`toJSON()` | `mark` / `measure` 是在 `now()` 之上的记账，JS 自己写得出来；判据是「JS 层封装得出来的不做」 |
+
+没查的一件事：`steady_clock` 在设备**睡眠期间走不走**。libc++ 在 Apple 平台上的实现决定了它，没有去读。对「量一段代码花多久」没有影响，对「App 在后台待了多久」有影响——那种用途应该用 `Date.now()`。
+
 ---
 
 ← 返回[实现原理](README.md) ・ [API 文档](../api/timers.md)
