@@ -106,8 +106,9 @@ export function stepWebSocket(ctx) {
         //
         // **发得出去是我们的事，回不回来是服务端的事**——公开 echo 服务
         // 不一定支持二进制帧，所以回声这条等不到就报未验证，后面照走
+        // 直接发 TypedArray，不用自己包 Blob——JS 侧替你包
         const bytes = new Uint8Array([1, 2, 3, 4, 5]);
-        ws.send(new Blob([bytes])).then(
+        ws.send(bytes).then(
           () => { assert('二进制发得出去', true, true); afterBinarySent(); },
           (e) => { console.log('  ! 二进制发不出去：' + e.message); afterBinarySent(); },
         );

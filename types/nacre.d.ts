@@ -608,8 +608,12 @@ declare class WebSocket extends NSObject {
     callback: EventListener | null,
   ): void;
 
-  /** 发一条。返回的 Promise 在**发出去之后**兑现，不等对端确认。 */
-  send(data: string | Blob): Promise<boolean>;
+  /**
+   * 发一条。返回的 Promise 在**发出去之后**兑现，不等对端确认。
+   *
+   * `ArrayBuffer` 和 TypedArray 会被包成 `Blob` 再发。
+   */
+  send(data: string | Blob | ArrayBuffer | ArrayBufferView): Promise<boolean>;
   /** 协议级 ping。pong 回来就兑现，连接死了就拒绝。 */
   ping(): Promise<boolean>;
   /** 关。已经在关或关完了再调是空操作。 */

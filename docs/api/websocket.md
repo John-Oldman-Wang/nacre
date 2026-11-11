@@ -48,13 +48,12 @@ await ws.ping();          // pong 回来就兑现，连接死了就拒绝
 ```js
 ws.send('文本');
 ws.send(blob);            // 二进制
+ws.send(new Uint8Array([1, 2, 3]));   // ArrayBuffer / TypedArray 也行
 ```
 
 `send()` 返回 Promise，在**发出去之后**兑现——不等对端确认。没开就发会拒绝（`InvalidStateError`）。
 
 收到的 `e.data`：文本消息是**字符串**，二进制消息是 **`Blob`**（字节不进 V8 堆，和 `fetch` 的 `blob()` 同一条路）。要字节就 `await data.arrayBuffer()`。
-
-> **`send()` 只收字符串和 `Blob`。** Web 还接受 `ArrayBuffer` 和 TypedArray，我们还没做——先 `new Blob([bytes])` 包一下。
 
 ## `readyState` 是数字
 
@@ -124,7 +123,6 @@ ws.close(1000, 'bye');
 
 | | |
 | --- | --- |
-| `send(ArrayBuffer)` / TypedArray | 先 `new Blob([bytes])` |
 | `bufferedAmount` | `NSURLSessionWebSocketTask` 没有对应物。能数「发出去还没完成的条数」，但那和 Web 的「排队字节数」不是一个定义——同名不同义比没有更糟 |
 | `binaryType` | 二进制永远给 `Blob`（Web 的默认也是 `'blob'`） |
 | `extensions` | 原生不暴露 |

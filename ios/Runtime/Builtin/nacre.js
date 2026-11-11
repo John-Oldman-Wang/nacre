@@ -1287,8 +1287,18 @@
       else if (this[kListeners].size === 0) subscribed.delete(this);
     }
 
-    /** 发一条。字符串或 Blob。返回的 Promise 在**发出去之后**兑现 */
-    send(data) { return nativeCallAsync(this, 'send', [data]); }
+    /**
+     * 发一条。字符串、Blob、ArrayBuffer 或者 TypedArray。
+     * 返回的 Promise 在**发出去之后**兑现，不等对端确认。
+     *
+     * 后两种在这里包成 Blob 再走——原生侧只认字符串和 Blob，而 Blob 的
+     * 构造本来就吃 ArrayBuffer / TypedArray（字节按下标单独过桥）
+     */
+    send(data) {
+      const payload = (data instanceof ArrayBuffer || ArrayBuffer.isView(data))
+        ? new Blob([data]) : data;
+      return nativeCallAsync(this, 'send', [payload]);
+    }
     /**
      * 协议级 ping。pong 回来就兑现，连接死了就拒绝——不需要服务端应用做
      * 任何事，这是它比应用层心跳强的地方
