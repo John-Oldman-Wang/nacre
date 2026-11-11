@@ -193,4 +193,113 @@ export function stepStack(ctx) {
     assert('对照排：两块平分，中间那块不占位',
            Math.round(left2.frame.width * 2 + 12), Math.round(rowB.frame.width));
   }
+
+  // ===== 内边距 =====
+  //
+  // 内边距是 UIView 的属性，不是 UIStackView 的。stack 这边只有一个开关
+  // （isLayoutMarginsRelativeArrangement），决定排列项要不要按它缩进。
+  console.log('--- 内边距（layoutMargins）---');
+  {
+    // leading 在从左往右的语言里是左，反过来是右。断言跟着环境走
+    const ltr = application.layoutDirection === 'ltr';
+
+    // ---- 默认值 ----
+    const plain = new UIView();
+    assert('默认 layoutMargins', '' + plain.layoutMargins, 'UIEdgeInsets(8, 8, 8, 8)');
+    assert('默认 directionalLayoutMargins', '' + plain.directionalLayoutMargins,
+           'NSDirectionalEdgeInsets(8, 8, 8, 8)');
+    assert('默认会把安全区加上去', plain.insetsLayoutMarginsFromSafeArea, true);
+    assert('默认不沿用父视图的边距', plain.preservesSuperviewLayoutMargins, false);
+    assert('读出来是结构体类',
+           plain.directionalLayoutMargins instanceof NSDirectionalEdgeInsets, true);
+
+    // ---- 读写：两个属性是同一份数据 ----
+    plain.directionalLayoutMargins = new NSDirectionalEdgeInsets(1, 2, 3, 4);
+    assert('写进去读出来', '' + plain.directionalLayoutMargins,
+           'NSDirectionalEdgeInsets(1, 2, 3, 4)');
+    assert('layoutMargins 跟着变', '' + plain.layoutMargins,
+           ltr ? 'UIEdgeInsets(1, 2, 3, 4)' : 'UIEdgeInsets(1, 4, 3, 2)');
+    plain.layoutMargins = { top: 5, left: 6, bottom: 7, right: 8 };
+    assert('反过来写，directional 也跟着变', '' + plain.directionalLayoutMargins,
+           ltr ? 'NSDirectionalEdgeInsets(5, 6, 7, 8)'
+               : 'NSDirectionalEdgeInsets(5, 8, 7, 6)');
+    plain.preservesSuperviewLayoutMargins = true;
+    assert('preservesSuperviewLayoutMargins 可写', plain.preservesSuperviewLayoutMargins, true);
+    plain.insetsLayoutMarginsFromSafeArea = false;
+    assert('insetsLayoutMarginsFromSafeArea 可写', plain.insetsLayoutMarginsFromSafeArea, false);
+
+    // ---- 写错了要抛 ----
+    try {
+      // @ts-expect-error 少了 trailing
+      plain.directionalLayoutMargins = { top: 1, leading: 2, bottom: 3 };
+      console.log('  ✗ 缺字段居然通过了');
+    } catch (err) {
+      console.log('  ✓ 缺字段被拒:', err.message);
+    }
+    try {
+      // @ts-expect-error 字段只读
+      plain.directionalLayoutMargins.top = 9;
+      console.log('  ✗ 结构体字段居然能写');
+    } catch (err) {
+      console.log('  ✓ 结构体字段只读:', err instanceof TypeError);
+    }
+
+    // ---- 效果：stack 的排列项按边距缩进 ----
+    // 不挂进窗口也能算布局，而且这样安全区是 0，不会掺进来
+    const cell = new UIView();
+    const padded = new UIStackView([cell]);
+    padded.frame = new CGRect(0, 0, 200, 100);
+    padded.layoutIfNeeded();
+    assert('开关没开：排列项贴边', '' + cell.frame, 'CGRect(0, 0, 200, 100)');
+    padded.directionalLayoutMargins = { top: 10, leading: 20, bottom: 30, trailing: 40 };
+    padded.layoutIfNeeded();
+    assert('只设边距不开开关：还是贴边', '' + cell.frame, 'CGRect(0, 0, 200, 100)');
+    padded.isLayoutMarginsRelativeArrangement = true;
+    // 实测：不在窗口里、又已经布局过一次的 stack，改开关不会让它自己
+    // 重新布局，只调 layoutIfNeeded() 排列项原地不动。要先 setNeedsLayout()。
+    // 在窗口里的不用，见下面那一组
+    padded.setNeedsLayout();
+    padded.layoutIfNeeded();
+    assert('开了开关：排列项缩进去', '' + cell.frame,
+           ltr ? 'CGRect(20, 10, 140, 60)' : 'CGRect(40, 10, 140, 60)');
+
+    // ---- 同一件事，在窗口里：改完直接布局就生效 ----
+    // 垫在最底下、不收触摸，免得挡住别的步骤。安全区那条先关掉，
+    // 单独在下一组验
+    const cell2 = new UIView();
+    const live = new UIStackView([cell2]);
+    live.isUserInteractionEnabled = false;
+    live.insetsLayoutMarginsFromSafeArea = false;
+    live.frame = new CGRect(0, 0, 200, 100);
+    vc.view.insertSubview(live, { atIndex: 0 });
+    vc.view.layoutIfNeeded();
+    assert('在窗口里，没开开关：贴边', '' + cell2.frame, 'CGRect(0, 0, 200, 100)');
+    live.directionalLayoutMargins = { top: 10, leading: 20, bottom: 30, trailing: 40 };
+    live.isLayoutMarginsRelativeArrangement = true;
+    vc.view.layoutIfNeeded();
+    assert('在窗口里，开了开关：缩进去', '' + cell2.frame,
+           ltr ? 'CGRect(20, 10, 140, 60)' : 'CGRect(40, 10, 140, 60)');
+    live.removeFromSuperview();
+
+    // ---- 安全区：伸到安全区外面的视图，边距会被系统加上安全区 ----
+    // 探针铺满根视图。垫在最底下、不收触摸，免得挡住别的步骤
+    const root = vc.view;
+    const probe = new UIView();
+    probe.isUserInteractionEnabled = false;
+    probe.frame = root.bounds;
+    root.insertSubview(probe, { atIndex: 0 });
+    root.layoutIfNeeded();
+    const safeTop = probe.safeAreaInsets.top;
+    probe.directionalLayoutMargins = { top: 16, leading: 16, bottom: 16, trailing: 16 };
+    if (safeTop > 0) {
+      assert('开着：上边距 = 写的 16 + 安全区',
+             probe.directionalLayoutMargins.top, 16 + safeTop);
+      probe.insetsLayoutMarginsFromSafeArea = false;
+      assert('关掉：写多少就是多少', probe.directionalLayoutMargins.top, 16);
+    } else {
+      // 安全区要等窗口布局过才有值，没等到就不下结论
+      console.log('  ! 这时候安全区还是 0，「边距自动加上安全区」这一组未验证');
+    }
+    probe.removeFromSuperview();
+  }
 }

@@ -171,6 +171,12 @@ NSDictionary* InsetsToJSON(UIEdgeInsets i) {
   return @{@"top": @(i.top), @"left": @(i.left),
            @"bottom": @(i.bottom), @"right": @(i.right)};
 }
+// 带方向的边距。和 UIEdgeInsets 是同一回事，只是左右换成了「文字开始的
+// 那一侧 / 结束的那一侧」——从右往左的语言里两者对调
+NSDictionary* DirectionalInsetsToJSON(NSDirectionalEdgeInsets i) {
+  return @{@"top": @(i.top), @"leading": @(i.leading),
+           @"bottom": @(i.bottom), @"trailing": @(i.trailing)};
+}
 NSDictionary* RectToJSON(CGRect r) {
   return @{@"x": @(r.origin.x), @"y": @(r.origin.y),
            @"width": @(r.size.width), @"height": @(r.size.height)};
@@ -202,6 +208,11 @@ CGAffineTransform JSONToTransform(id v) {
   return CGAffineTransformMake([d[@"a"] doubleValue], [d[@"b"] doubleValue],
                                [d[@"c"] doubleValue], [d[@"d"] doubleValue],
                                [d[@"tx"] doubleValue], [d[@"ty"] doubleValue]);
+}
+NSDirectionalEdgeInsets JSONToDirectionalInsets(id v) {
+  NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
+  return NSDirectionalEdgeInsetsMake([d[@"top"] doubleValue], [d[@"leading"] doubleValue],
+                                     [d[@"bottom"] doubleValue], [d[@"trailing"] doubleValue]);
 }
 UIEdgeInsets JSONToInsets(id v) {
   NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};

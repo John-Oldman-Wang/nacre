@@ -28,6 +28,14 @@ id ReadViewProperty(id object, NSString* key) {
       value = PointToJSON(view.center);
     } else if ([key isEqualToString:@"safeAreaInsets"]) {
       value = InsetsToJSON(view.safeAreaInsets);
+    } else if ([key isEqualToString:@"layoutMargins"]) {
+      value = InsetsToJSON(view.layoutMargins);
+    } else if ([key isEqualToString:@"directionalLayoutMargins"]) {
+      value = DirectionalInsetsToJSON(view.directionalLayoutMargins);
+    } else if ([key isEqualToString:@"insetsLayoutMarginsFromSafeArea"]) {
+      value = @(view.insetsLayoutMarginsFromSafeArea);
+    } else if ([key isEqualToString:@"preservesSuperviewLayoutMargins"]) {
+      value = @(view.preservesSuperviewLayoutMargins);
     } else if ([key isEqualToString:@"alpha"]) {
       value = @(view.alpha);
     } else if ([key isEqualToString:@"isHidden"]) {
@@ -108,6 +116,23 @@ BOOL WriteViewProperty(id object, NSString* key, id value,
     if ([key isEqualToString:@"frame"]) { view.frame = JSONToRect(value); return YES; }
     if ([key isEqualToString:@"bounds"]) { view.bounds = JSONToRect(value); return YES; }
     if ([key isEqualToString:@"center"]) { view.center = JSONToPoint(value); return YES; }
+    // 内边距。两个属性是同一份数据的两个视图：写哪个，另一个跟着变
+    if ([key isEqualToString:@"layoutMargins"]) {
+      view.layoutMargins = JSONToInsets(value);
+      return YES;
+    }
+    if ([key isEqualToString:@"directionalLayoutMargins"]) {
+      view.directionalLayoutMargins = JSONToDirectionalInsets(value);
+      return YES;
+    }
+    if ([key isEqualToString:@"insetsLayoutMarginsFromSafeArea"]) {
+      view.insetsLayoutMarginsFromSafeArea = [value boolValue];
+      return YES;
+    }
+    if ([key isEqualToString:@"preservesSuperviewLayoutMargins"]) {
+      view.preservesSuperviewLayoutMargins = [value boolValue];
+      return YES;
+    }
     if ([key isEqualToString:@"alpha"]) { view.alpha = [value doubleValue]; return YES; }
     if ([key isEqualToString:@"isHidden"]) { view.hidden = [value boolValue]; return YES; }
     if ([key isEqualToString:@"clipsToBounds"]) {

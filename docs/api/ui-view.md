@@ -119,6 +119,34 @@ page.view.addSubview(bar);
 
 用约束时不需要读这个数值，直接对齐 `safeAreaLayoutGuide`，见[用约束定位](#用约束定位)。
 
+### 给视图设内边距
+
+`directionalLayoutMargins` 是视图的[内边距](#内边距)，相当于 CSS 的 `padding`。它自己不移动子视图。子视图要用约束对齐 `layoutMarginsGuide`，才会按内边距缩进。
+
+```js
+card.directionalLayoutMargins = { top: 12, leading: 20, bottom: 12, trailing: 20 };
+
+const caption = new UILabel();
+caption.text = '说明';
+caption.translatesAutoresizingMaskIntoConstraints = false;
+card.addSubview(caption);
+
+const margins = card.layoutMarginsGuide;
+NSLayoutConstraint.activateConstraints([
+  caption.topAnchor.constraintEqualToAnchor(margins.topAnchor),
+  caption.leadingAnchor.constraintEqualToAnchor(margins.leadingAnchor),
+]);
+
+console.log(String(card.directionalLayoutMargins));
+```
+
+**效果**：
+
+- 文字「说明」出现在矩形的左上角，距矩形的上边 12 pt、左边 20 pt。**未在模拟器验证。**
+- 控制台输出 `NSDirectionalEdgeInsets(12, 20, 12, 20)`。
+
+一组视图要排成一行或一列并带内边距时，用 [`UIStackView`](ui-stack-view.md#给容器加内边距)，不需要写这些约束。
+
 ### 调整叠放顺序
 
 同一个父视图里的子视图互相重叠时，后加入的画在上面。
@@ -396,6 +424,33 @@ Web 里的对应物是 CSS 的 `env(safe-area-inset-top)` 这一组值。差别�
 
 底色和背景图通常铺满整个屏幕，文字和按钮放在安全区内。
 
+### 内边距
+
+每个视图有一组内边距，表示内容应该离视图的四条边多远。Web 里的对应物是 CSS 的 `padding`。有四点不同：
+
+- **它不会自动缩进子视图。** 用到它的只有两处：对齐 `layoutMarginsGuide` 的约束，以及开了 `isLayoutMarginsRelativeArrangement` 的 [`UIStackView`](ui-stack-view.md#给容器加内边距)。用 `frame` 定位的子视图不受影响。
+- **默认值不是 0。** 新建的视图四边各 8 pt。
+- **视图伸到[安全区](#安全区)外面时，系统会把安全区加到内边距上。** 写 16 pt、上方的安全区是 68 pt，读出来的上边距是 84 pt。要写多少就是多少，把 `insetsLayoutMarginsFromSafeArea` 设成 `false`。
+- **页面的根视图有系统规定的最小边距。** 给 `page.view` 写的内边距小于最小值时，读出来是最小值。**未在模拟器验证。** 这个限制现在关不掉，见[还不能做的](#还不能做的)。
+
+内边距有两个属性，是同一份数据的两种读法，写其中一个，另一个跟着变：
+
+| 属性 | 类型 | 四个字段 | 左右怎么算 |
+| --- | --- | --- | --- |
+| `directionalLayoutMargins` | `NSDirectionalEdgeInsets` | `top`、`leading`、`bottom`、`trailing` | `leading` 是文字开始的一侧，`trailing` 是文字结束的一侧。中文和英文里 `leading` 在左，阿拉伯语这类从右往左写的语言里在右 |
+| `layoutMargins` | `UIEdgeInsets` | `top`、`left`、`bottom`、`right` | 固定的左和右 |
+
+优先用 `directionalLayoutMargins`，界面在从右往左的语言里会自动左右对调。
+
+```js
+const box = new UIView();
+box.directionalLayoutMargins = new NSDirectionalEdgeInsets(1, 2, 3, 4);
+String(box.layoutMargins);              // 'UIEdgeInsets(1, 2, 3, 4)'，语言是从左往右时
+
+box.layoutMargins = { top: 5, left: 6, bottom: 7, right: 8 };
+String(box.directionalLayoutMargins);   // 'NSDirectionalEdgeInsets(5, 6, 7, 8)'
+```
+
 ### 变换和 `frame`
 
 `transform` 是一个二维仿射变换，相当于 CSS 的 `transform`。变换以视图的中心为原点，只改变画出来的样子，不改变 `bounds` 和 `center`。
@@ -419,7 +474,7 @@ box.frame.width;     // 65.57，等于 40 × (|a| + |c|)，a 和 c 是变换矩�
 
 ### 结构体是只读的值
 
-`frame`、`bounds`、`center`、`transform`、`safeAreaInsets` 的类型是 `CGRect`、`CGPoint` 这类结构体。结构体是值，不是对视图的引用：
+`frame`、`bounds`、`center`、`transform`、`safeAreaInsets`、`layoutMargins`、`directionalLayoutMargins` 的类型是 `CGRect`、`CGPoint` 这类结构体。结构体是值，不是对视图的引用：
 
 - 每次读属性得到一个新的对象。
 - 字段不能改。写 `view.frame.x = 10` 抛 `TypeError: x is read-only: structs are values, assign a whole new one instead`。
@@ -463,9 +518,14 @@ const view = new UIView();
 | `center` | `CGPoint` | 是 | 是 | `(0, 0)` | 视图中心点在父视图坐标系里的位置，单位 [pt](units.md) |
 | `transform` | [`CGAffineTransform`](structs.md#cgaffinetransform) | 是 | 是 | 单位矩阵 | 二维仿射变换，以视图中心为原点。见[变换和 `frame`](#变换和-frame) |
 | `safeAreaInsets` | `UIEdgeInsets` | 是 | 否 | 由系统决定 | [安全区](#安全区)的四条边到视图四条边的距离，单位 [pt](units.md)。字段是 `top`、`left`、`bottom`、`right` |
+| `directionalLayoutMargins` | `NSDirectionalEdgeInsets` | 是 | 是 | `(8, 8, 8, 8)` | [内边距](#内边距)，单位 [pt](units.md)。字段是 `top`、`leading`、`bottom`、`trailing` |
+| `layoutMargins` | `UIEdgeInsets` | 是 | 是 | `(8, 8, 8, 8)` | 同一份[内边距](#内边距)，单位 [pt](units.md)。字段是 `top`、`left`、`bottom`、`right` |
+| `insetsLayoutMarginsFromSafeArea` | 布尔 | 是 | 是 | `true` | `true`：视图伸到[安全区](#安全区)外面的那几条边，内边距读出来是写入的值加上安全区。`false`：读出来就是写入的值 |
+| `preservesSuperviewLayoutMargins` | 布尔 | 是 | 是 | `false` | `true`：父视图的内边距比自己的大时，采用父视图的。`false`：只用自己的。设成 `true` 之后的效果**未在模拟器验证** |
 | `intrinsicContentSize` | `CGSize` | 是 | 否 | `(-1, -1)` | 视图按内容算出的固有大小，单位 [pt](units.md)。普通 `UIView` 没有内容，返回 `(-1, -1)`，表示没有固有大小。`UILabel` 返回文字的大小 |
 
-- 写入 `frame`、`bounds`、`center`、`transform` 时可以给结构体对象，也可以给字段齐全的普通对象。
+- 写入 `frame`、`bounds`、`center`、`transform`、`layoutMargins`、`directionalLayoutMargins` 时可以给结构体对象，也可以给字段齐全的普通对象。
+- 内边距没有变化通知。系统改动它的情况有两种：安全区变了，或者开了 `preservesSuperviewLayoutMargins` 而父视图的内边距变了。得知这两种变化需要先支持用 JS 继承原生类，见[还不能做的](#还不能做的)。
 - **出错**（以 `frame` 为例，其他属性把开头的名字换成属性名）：
   - 给的不是对象：`TypeError: frame needs an object with all of: x, y, width, height`
   - 缺字段，或字段不是有限的数：`TypeError: frame is missing height, or it is not a finite number`
@@ -643,7 +703,7 @@ layout guide 是不显示的矩形，有自己的一组锚点，只用来对齐�
 | 属性 | 类型 | 代表的区域 |
 | --- | --- | --- |
 | `safeAreaLayoutGuide` | `UILayoutGuide` | [安全区](#安全区) |
-| `layoutMarginsGuide` | `UILayoutGuide` | 视图四边各向内缩进一段系统边距之后的区域 |
+| `layoutMarginsGuide` | `UILayoutGuide` | 视图四边各向内缩进[内边距](#内边距)之后的区域 |
 | `readableContentGuide` | `UILayoutGuide` | 适合阅读长文字的宽度范围。视图很宽时它比视图窄 |
 | `keyboardLayoutGuide` | `UIKeyboardLayoutGuide` | 键盘占的区域。键盘收起时它的上边在安全区的底边，键盘弹出时在键盘的顶边。用法见[键盘避让](ui-text-field.md#键盘避让一条约束) |
 
@@ -737,6 +797,9 @@ label.contentHuggingPriorityForAxis('horizontal');   // 250
 | `[view insertSubview:box belowSubview:other]` | `view.insertSubview(box, { belowSubview: other })` |
 | `[view convertPoint:p toView:other]` | `view.convertPoint(p, { toView: other })` |
 | `[view convertRect:r fromView:other]` | `view.convertRect(r, { fromView: other })` |
+| `view.directionalLayoutMargins = NSDirectionalEdgeInsetsMake(8, 16, 8, 16)` | `view.directionalLayoutMargins = new NSDirectionalEdgeInsets(8, 16, 8, 16)` |
+| `view.layoutMargins = UIEdgeInsetsMake(8, 16, 8, 16)` | `view.layoutMargins = new UIEdgeInsets(8, 16, 8, 16)` |
+| `view.insetsLayoutMarginsFromSafeArea = NO` | `view.insetsLayoutMarginsFromSafeArea = false` |
 | `[view sizeThatFits:CGSizeMake(300, 999)]` | `view.sizeThatFits(new CGSize(300, 999))` |
 | `[view hitTest:p withEvent:nil]` | `view.hitTest(p)` |
 | `[view endEditing:YES]` | `view.endEditing(true)` |
@@ -763,7 +826,8 @@ label.contentHuggingPriorityForAxis('horizontal');   // 250
 | 用一段代码块做属性动画 | `+[UIView animateWithDuration:animations:]` | 未实现。动画可以用 [Core Animation](ca-animation.md) |
 | 三维变换 | `transform3D`、`CATransform3D` | 未实现 |
 | 用一个视图的形状遮住另一个视图 | `maskView` | 未实现 |
-| 设置视图的内边距 | `layoutMargins`、`directionalLayoutMargins` | 未实现 |
+| 内边距变化时收到通知 | 覆写 `layoutMarginsDidChange` | 未实现。需要先支持用 JS 继承原生类 |
+| 去掉页面根视图的最小内边距 | `UIViewController` 的 `viewRespectsSystemMinimumLayoutMargins`、`systemMinimumLayoutMargins` | 未实现 |
 | 让视图跟着父视图的大小自动伸缩（不用约束） | `autoresizingMask` | 未实现 |
 | 设置视图和子视图的主题色 | `tintColor` | 只在 `UIImageView` 上有 |
 | 读取深浅色模式，或让某个视图固定用深色或浅色 | `traitCollection`、`overrideUserInterfaceStyle` | 未实现 |
@@ -772,6 +836,7 @@ label.contentHuggingPriorityForAxis('horizontal');   // 250
 
 - [Auto Layout](auto-layout.md)：用约束定位的全部写法
 - [结构体](structs.md)：`CGRect`、`CGPoint`、`CGSize`、`UIEdgeInsets`、`CGAffineTransform`
+- [`UIStackView`](ui-stack-view.md)：按内边距缩进排列项的容器
 - [`CALayer`](ca-layer.md)：圆角、边框、阴影、渐变
 - [颜色](ui-color.md)：`backgroundColor` 能写哪些值
 - [单位](units.md)：pt 是什么

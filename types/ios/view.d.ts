@@ -18,6 +18,28 @@ declare class UIView extends UIResponder {
   set center(value: CGPointLike);
   readonly safeAreaInsets: UIEdgeInsets;
   /**
+   * 内边距，单位是点。`layoutMarginsGuide` 和开了
+   * `isLayoutMarginsRelativeArrangement` 的 `UIStackView` 按它缩进。
+   *
+   * `leading` / `trailing` 跟着文字方向走。读出来的值不一定等于写进去的：
+   * `insetsLayoutMarginsFromSafeArea` 为 `true` 时系统会把安全区加上去。
+   */
+  get directionalLayoutMargins(): NSDirectionalEdgeInsets;
+  set directionalLayoutMargins(value: NSDirectionalEdgeInsetsLike);
+  /**
+   * 同一份内边距，左右写死的版本。和 `directionalLayoutMargins` 是同一份
+   * 数据，写哪个另一个都跟着变。
+   */
+  get layoutMargins(): UIEdgeInsets;
+  set layoutMargins(value: UIEdgeInsetsLike);
+  /**
+   * 默认 `true`：视图伸到安全区外面的那几条边，内边距自动加上安全区。
+   * 要「写多少就是多少」就设成 `false`。
+   */
+  insetsLayoutMarginsFromSafeArea: boolean;
+  /** 默认 `false`。`true`：父视图的内边距比自己大时，用父视图的。 */
+  preservesSuperviewLayoutMargins: boolean;
+  /**
    * 「我天生多大」。普通 UIView 返回 (-1, -1)，表示没有固有尺寸；
    * UILabel 按文字算。
    */

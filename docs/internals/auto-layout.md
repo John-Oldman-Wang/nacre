@@ -77,6 +77,33 @@ JS 侧给字符串 `'system'` / `'default'`，映射留在原生层——和[枚
 
 构造函数里也要补这一笔，而且**旧的 superview 必须在 `constructNative` 之前读**——之后它们已经挂到 stack 上了。
 
+## 内边距：属性在 `UIView` 上，不在 `UIStackView` 上
+
+试用者要的是「`UIStackView` 的 padding」，查头文件才发现 `UIStackView.h` 里只有一个开关（`layoutMarginsRelativeArrangement`），边距本身是 `UIView` 的 `layoutMargins` / `directionalLayoutMargins`。所以这一步改的是 `NacrePropsView.mm`，`UIStackView` 一行没动——开关在第 3e 步就暴露了，只是当时边距写不了，开了也只能用默认的 8 pt。
+
+定下来的几条：
+
+| | 做法 | 理由 |
+| --- | --- | --- |
+| 两个边距属性 | 都暴露 | 底层的承诺是和 Apple 文档一一对上。它们是同一份数据的两个视图，成本只是多一对取值器 |
+| `NSDirectionalEdgeInsets` | 新增结构体，写法和 `UIEdgeInsets` 完全一样 | 不拿 `UIEdgeInsets` 顶替：字段名不同（`leading` / `trailing`），顶替就得讲「`left` 其实是 `leading`」这种换算规则 |
+| `insetsLayoutMarginsFromSafeArea` | 一起暴露 | 它默认是 `true`，不暴露的话贴着屏幕边的容器写 16 读回来是 84，而且 JS 关不掉——写进去和看到的不一样 |
+| `preservesSuperviewLayoutMargins` | 一起暴露 | 同一组的第四个，一个布尔 |
+| `UIViewController` 的 `systemMinimumLayoutMargins` / `viewRespectsSystemMinimumLayoutMargins` | **没做** | 只影响控制器根视图自己，放在它里面的容器不受影响。记在 API 文档的「还不能做的」里 |
+| 变化通知 | **没有** | `layoutMarginsDidChange` 是覆写点，要 M2。系统会改它的场合只有两种：安全区变了、开了 `preserves…` 而父视图的边距变了 |
+
+实测（iPhone Air 模拟器）：
+
+| | 结果 |
+| --- | --- |
+| 新建 `UIView` 的默认边距 | 四边各 **8**，两个属性读出来一致 |
+| 写 `directionalLayoutMargins` 后读 `layoutMargins` | 跟着变；反过来也是。从左往右的语言里 `leading` = `left` |
+| 只写边距、不开开关 | 排列项**贴边**，边距不起作用 |
+| 开了开关 | 200 × 100 的容器、边距 (10, 20, 30, 40)，排列项是 (20, 10, 140, 60) |
+| 铺满根视图的视图，写上边距 16 | `insetsLayoutMarginsFromSafeArea` 为 `true` 时读回来 **84**（16 + 安全区 68），是**相加**不是取大；设成 `false` 后读回来 16 |
+
+**一个咬过验收用例的事实**：不在窗口里、又已经布局过一次的 `UIStackView`，改开关之后只调 `layoutIfNeeded()`，排列项**原地不动**；先调 `setNeedsLayout()` 就对了。在窗口里的不需要。第一次跑时这条断言挂了，加了三组诊断（不在窗口 + `setNeedsLayout`、不在窗口 + 第一次布局前就设好、在窗口里）才分清是「没有重新布局」而不是「边距没写进去」——开关和边距读回来都是对的。API 文档里给了一条提示。
+
 ## 实测纠正 / 确认的事实
 
 | | 结果 |

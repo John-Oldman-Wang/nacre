@@ -42,6 +42,20 @@ declare class UIEdgeInsets {
   readonly right: number;
 }
 
+/**
+ * 带方向的边距，单位是点。
+ *
+ * 和 `UIEdgeInsets` 的区别只在左右：`leading` 是文字开始的那一侧（从左往右
+ * 的语言里是左），`trailing` 是结束的那一侧。从右往左的语言里两者对调。
+ */
+declare class NSDirectionalEdgeInsets {
+  constructor(top: number, leading: number, bottom: number, trailing: number);
+  readonly top: number;
+  readonly leading: number;
+  readonly bottom: number;
+  readonly trailing: number;
+}
+
 // 写入宽、读出窄：赋值时给个普通对象也行（字段齐就认，少一个会抛），
 // 读出来永远是结构体类。所以 setter 收 Like、getter 给类本身。
 type CGPointLike = CGPoint | { x: number; y: number };
@@ -68,6 +82,10 @@ type CAFrameRateRangeLike =
 type UIEdgeInsetsLike =
   | UIEdgeInsets
   | { top: number; left: number; bottom: number; right: number };
+
+type NSDirectionalEdgeInsetsLike =
+  | NSDirectionalEdgeInsets
+  | { top: number; leading: number; bottom: number; trailing: number };
 
 /**
  * 2×3 的仿射矩阵。

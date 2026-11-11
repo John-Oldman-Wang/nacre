@@ -16,6 +16,7 @@ status: partial
 | `gap` | `spacing` |
 | `justify-content` 加上各项的 `flex-grow` | `distribution` |
 | `align-items` | `alignment` |
+| `padding` | `directionalLayoutMargins`，并把 `isLayoutMarginsRelativeArrangement` 设成 `true` |
 | `flex-wrap` | 没有 |
 
 和 flexbox 有七点不同：
@@ -24,7 +25,7 @@ status: partial
 - **子视图要用 `addArrangedSubview()` 加。** 用 `addSubview()` 加进去的视图不参与排列。见[排列项和子视图](#排列项和子视图)。
 - **隐藏一项，它就让出位置。** `isHidden = true` 的效果相当于 CSS 的 `display: none`，其余项自动重新排列。
 - **间距只能写点数或 `'system'`。** 单位是点（pt），没有 `em` 和百分比，也不跟着字号变。见[单位](units.md)。
-- **没有 padding。** 容器的内边距现在设不了，替代写法见[加底色、圆角和内边距](#加底色圆角和内边距)。
+- **内边距要多开一个开关。** 只写内边距不生效，还要把 `isLayoutMarginsRelativeArrangement` 设成 `true`。见[给容器加内边距](#给容器加内边距)。
 - **没有 `align-self` 和 `order`。** 交叉轴的对齐方式整个容器只有一个。顺序就是加入的顺序。
 - **容器自己的底色和圆角不显示。** 见[它自己不显示](#它自己不显示)。
 
@@ -317,9 +318,40 @@ row.addArrangedSubview(stacked);
 
 > **注意**：嵌套排不出列对齐的表格。每一行各自计算宽度，第二行的第二项和第一行的第二项没有关系。要让列对齐，用约束让同一列的各个视图宽度相等，见 [Auto Layout](auto-layout.md)。
 
-### 加底色、圆角和内边距
+### 给容器加内边距
 
-排列容器自己的底色和圆角不显示，也没有内边距属性。做法是在外面套一个普通视图：底色和圆角设在外层视图上，内边距用约束的 `constant` 留出来。
+内边距是容器四条边和排列项之间留出的空白，相当于 CSS 的 `padding`。要写两个属性：`directionalLayoutMargins` 给出四条边各留多少，`isLayoutMarginsRelativeArrangement` 让排列项按它缩进。
+
+```js
+const padded = new UIStackView();
+padded.axis = 'vertical';
+padded.spacing = 8;
+padded.isLayoutMarginsRelativeArrangement = true;
+padded.directionalLayoutMargins = { top: 16, leading: 16, bottom: 16, trailing: 16 };
+
+for (const text of ['标题', '说明文字']) {
+  const label = new UILabel();
+  label.text = text;
+  padded.addArrangedSubview(label);
+}
+
+column.addArrangedSubview(padded);
+```
+
+**效果**：两行文字，离容器的四条边各 16 pt。
+
+这段代码没有在模拟器运行过。「排列项按内边距缩进」在验收用例里核对过：200 × 100 pt 的容器，内边距是上 10、左 20、下 30、右 40 pt，排列项的位置是 (20, 10)，大小是 140 × 60 pt。
+
+- 两个属性缺一不可。只写 `directionalLayoutMargins`、不开 `isLayoutMarginsRelativeArrangement`，排列项仍然贴着容器的边缘。
+- `leading` 是文字开始的一侧，`trailing` 是文字结束的一侧。中文和英文里 `leading` 在左。
+- 内边距的默认值是四边各 8 pt，不是 0。只开开关、不写内边距时用的是这个默认值。
+- `directionalLayoutMargins` 是从 `UIView` 继承来的，完整说明见 [`UIView` 的内边距](ui-view.md#内边距)。
+
+> **注意**：容器的某条边伸到安全区外面时（比如容器铺满整个屏幕），系统会把安全区加到那条边的内边距上。要写多少就是多少，把容器的 `insetsLayoutMarginsFromSafeArea` 设成 `false`。
+
+### 加底色和圆角
+
+排列容器自己的底色和圆角不显示。做法是在外面套一个普通视图：底色和圆角设在外层视图上，容器的四条边对齐外层视图，内边距设在容器上。
 
 ```js
 const card = new UIView();
@@ -329,6 +361,8 @@ card.layer.cornerRadius = 12;
 const content = new UIStackView();
 content.axis = 'vertical';
 content.spacing = 8;
+content.isLayoutMarginsRelativeArrangement = true;
+content.directionalLayoutMargins = { top: 16, leading: 16, bottom: 16, trailing: 16 };
 content.translatesAutoresizingMaskIntoConstraints = false;
 card.addSubview(content);
 
@@ -338,12 +372,12 @@ for (const text of ['标题', '说明文字']) {
   content.addArrangedSubview(label);
 }
 
-// 容器的四条边各离外层视图 16 pt
+// 容器的四条边和外层视图对齐
 NSLayoutConstraint.activateConstraints([
-  content.topAnchor.constraintEqualToAnchor(card.topAnchor, { constant: 16 }),
-  content.bottomAnchor.constraintEqualToAnchor(card.bottomAnchor, { constant: -16 }),
-  content.leadingAnchor.constraintEqualToAnchor(card.leadingAnchor, { constant: 16 }),
-  content.trailingAnchor.constraintEqualToAnchor(card.trailingAnchor, { constant: -16 }),
+  content.topAnchor.constraintEqualToAnchor(card.topAnchor),
+  content.bottomAnchor.constraintEqualToAnchor(card.bottomAnchor),
+  content.leadingAnchor.constraintEqualToAnchor(card.leadingAnchor),
+  content.trailingAnchor.constraintEqualToAnchor(card.trailingAnchor),
 ]);
 
 column.addArrangedSubview(card);
@@ -412,7 +446,7 @@ column.addArrangedSubview(card);
 
 排列容器只负责排列，自己不画任何东西。给它设 `backgroundColor` 或 `layer.cornerRadius`，屏幕上看不到。
 
-要底色和圆角，在外面套一个普通的 `UIView`，写法见[加底色、圆角和内边距](#加底色圆角和内边距)。
+要底色和圆角，在外面套一个普通的 `UIView`，写法见[加底色和圆角](#加底色和圆角)。
 
 ### `distribution` 的取值
 
@@ -604,7 +638,7 @@ const filled = new UIStackView([red, orange, teal]);
 | `alignment` | 字符串 | 是 | 是 | `'fill'` | 交叉轴方向上各项怎么对齐。取值见下表 |
 | `spacing` | 数，或 `'system'` | 是 | 是 | `0` | 相邻两项之间的间距，单位 [pt](units.md)。`'system'` 表示用系统推荐的间距 |
 | `isBaselineRelativeArrangement` | 布尔 | 是 | 是 | `false` | `true`：纵向排列时，间距从上一项最后一行文字的基线量到下一项第一行文字的基线。`false`：间距从上一项的底边量到下一项的顶边。横向排列时这个属性无效 |
-| `isLayoutMarginsRelativeArrangement` | 布尔 | 是 | 是 | `false` | `true`：排列项排在容器的边距以内，四周留出系统默认的边距。`false`：排列项贴着容器的边缘 |
+| `isLayoutMarginsRelativeArrangement` | 布尔 | 是 | 是 | `false` | `true`：排列项排在容器的[内边距](ui-view.md#内边距)以内。`false`：排列项贴着容器的边缘，内边距不起作用 |
 | `arrangedSubviews` | `UIView` 的数组 | 是 | 否 | 空数组 | 全部排列项，按排列顺序。隐藏的排列项也在里面 |
 
 `distribution` 的取值，示意图见 [`distribution` 的取值](#distribution-的取值)：
@@ -633,8 +667,9 @@ const filled = new UIStackView([red, orange, teal]);
 补充说明：
 
 - `spacing` 写负数时相邻两项会重叠。**未在模拟器验证。**
-- `isBaselineRelativeArrangement` 和 `isLayoutMarginsRelativeArrangement` 的默认值和读写在验收用例里核对过，设成 `true` 之后的效果**未在模拟器验证**。
-- `isLayoutMarginsRelativeArrangement` 用到的边距现在读不到也写不了，只能是系统默认的值。见[还不能做的](#还不能做的)。
+- `isBaselineRelativeArrangement` 的默认值和读写在验收用例里核对过，设成 `true` 之后的效果**未在模拟器验证**。
+- `isLayoutMarginsRelativeArrangement` 用到的内边距是从 `UIView` 继承来的 `directionalLayoutMargins`，见[给容器加内边距](#给容器加内边距)。
+- 容器还没加到窗口里、又已经布局过一次时，改内边距或 `isLayoutMarginsRelativeArrangement` 之后要先调 `setNeedsLayout()`，再调 `layoutIfNeeded()`，排列项的位置才会更新。容器在窗口里时不需要。
 - `arrangedSubviews` 每次读出来是一个新数组。数组里的视图对象是同一个，可以用 `===` 比较。
 - 这些属性都没有变化通知。只有你自己的代码能改它们。
 
@@ -780,6 +815,7 @@ if (spacing === 'default') {
 | `stack.spacing = UIStackViewSpacingUseSystem` | `stack.spacing = 'system'` |
 | `stack.baselineRelativeArrangement = YES` | `stack.isBaselineRelativeArrangement = true` |
 | `stack.layoutMarginsRelativeArrangement = YES` | `stack.isLayoutMarginsRelativeArrangement = true` |
+| `stack.directionalLayoutMargins = NSDirectionalEdgeInsetsMake(16, 16, 16, 16)` | `stack.directionalLayoutMargins = new NSDirectionalEdgeInsets(16, 16, 16, 16)` |
 | `stack.arrangedSubviews` | `stack.arrangedSubviews` |
 | `[stack addArrangedSubview:v]` | `stack.addArrangedSubview(v)` |
 | `[stack insertArrangedSubview:v atIndex:1]` | `stack.insertArrangedSubview(v, { atIndex: 1 })` |
@@ -794,7 +830,6 @@ if (spacing === 'default') {
 
 | 想做的事 | 对应的原生能力 | 状态 |
 | --- | --- | --- |
-| 给容器设内边距（CSS 的 `padding`） | `layoutMargins`、`directionalLayoutMargins` | 未实现。替代写法见[加底色、圆角和内边距](#加底色圆角和内边距) |
 | 指定用哪个子视图的文字做基线对齐 | `viewForFirstBaselineLayout`、`viewForLastBaselineLayout` | 未实现 |
 | 放不下时自动换行，或排成网格 | iOS 没有对应的容器，要用 `UICollectionView` | 未实现 |
 | 排列项位置变化时带动画 | `UIView` 动画 | 未实现 |

@@ -581,6 +581,7 @@ Commit message 格式：
 | — | A8 事件带触点位置 | 两参的 action、JSON 负载通道 | 已在模拟器验证通过：九个 touch* 带 location / tapCount，其余事件根本没有这两个字段 |
 | — | 构造通道带上标量参数 | construct_native 加 argsJSON | 已在模拟器验证通过：纯重构，933 条断言和改之前一字不差 |
 | — | A16 WebSocket | NSURLSessionWebSocketTask、拉改推、headers、协议级 ping | 已在模拟器验证通过：958 条断言全过，文本/二进制往返、ping/pong、干净关闭（1000 + wasClean）都验到；子协议协商和首部到达未验证 |
+| — | 内边距 | UIView 的四个边距属性、NSDirectionalEdgeInsets | 已在模拟器验证通过：996 条断言全过，栈视图的排列项按边距缩进；实测安全区是加上去的（写 16 读回 84） |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |
@@ -735,7 +736,7 @@ bindgen 做完也解决不了同盾（风控）、mtpush（推送）、Sentry �
 
 **零碎的小口子**（都在 A 组，单独列是因为改动极小）：
 
-- `UIStackView` 的 `layoutMargins` / `directionalLayoutMargins` / `isLayoutMarginsRelativeArrangement`：今天设不了内边距，每处要多套一层 view 加四条约束
+- ~~`UIStackView` 的内边距~~ **已做**：边距其实是 `UIView` 的属性（`layoutMargins` / `directionalLayoutMargins`），连同 `insetsLayoutMarginsFromSafeArea` 一起暴露了。见[实现原理](internals/auto-layout.md#内边距属性在-uiview-上不在-uistackview-上)
 - 颜色常量表缺 `systemGray2`–`systemGray6`、`systemFill` 一组、`systemGroupedBackground` 一组
 - 被模态呈现的 `UINavigationController` 收不到 `diddismiss`——这就是[订阅按事件名分流那条 TODO](#待讨论的设计问题)
 

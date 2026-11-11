@@ -108,6 +108,8 @@ CGPoint JSONToPoint(id v);
 CGSize JSONToSize(id v);
 CGRect JSONToRect(id v);
 UIEdgeInsets JSONToInsets(id v);
+NSDictionary* DirectionalInsetsToJSON(NSDirectionalEdgeInsets i);
+NSDirectionalEdgeInsets JSONToDirectionalInsets(id v);
 NSDictionary* TransformToJSON(CGAffineTransform t);
 CGAffineTransform JSONToTransform(id v);
 

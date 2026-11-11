@@ -543,6 +543,20 @@
     }
   });
 
+  // 带方向的边距。和 UIEdgeInsets 的区别只在左右：leading 是文字开始的
+  // 那一侧（从左往右的语言里是左），trailing 是结束的那一侧
+  const NSDirectionalEdgeInsets = define(globalThis, 'NSDirectionalEdgeInsets',
+                                         class NSDirectionalEdgeInsets {
+    constructor(top, leading, bottom, trailing) {
+      defineStructFields(this, [['top', num(top)], ['leading', num(leading)],
+                                ['bottom', num(bottom)], ['trailing', num(trailing)]]);
+    }
+    toString() {
+      return 'NSDirectionalEdgeInsets(' + this.top + ', ' + this.leading + ', ' +
+             this.bottom + ', ' + this.trailing + ')';
+    }
+  });
+
   // 2×3 的仿射矩阵：
   //
   //   | a  b  0 |
@@ -633,6 +647,7 @@
   const SIZE_FIELDS = ['width', 'height'];
   const FRAME_RATE_FIELDS = ['minimum', 'maximum', 'preferred'];
   const INSETS_FIELDS = ['top', 'left', 'bottom', 'right'];
+  const DIRECTIONAL_INSETS_FIELDS = ['top', 'leading', 'bottom', 'trailing'];
   const TRANSFORM_FIELDS = ['a', 'b', 'c', 'd', 'tx', 'ty'];
   const toRect = (o) => (o == null ? null : new CGRect(o.x, o.y, o.width, o.height));
   const toPoint = (o) => (o == null ? null : new CGPoint(o.x, o.y));
@@ -643,6 +658,9 @@
     (o == null ? null : new CGAffineTransform(o.a, o.b, o.c, o.d, o.tx, o.ty));
   const toInsets = (o) =>
     (o == null ? null : new UIEdgeInsets(o.top, o.left, o.bottom, o.right));
+  const toDirectionalInsets = (o) =>
+    (o == null ? null
+               : new NSDirectionalEdgeInsets(o.top, o.leading, o.bottom, o.trailing));
 
   // ---- 继承链的空壳 ----
   // 照搬 ObjC 的继承关系，现在先空着，以后往上加成员时子类自动继承。
@@ -2105,6 +2123,43 @@
     get safeAreaInsets() {
       requireNative(this, 'safeAreaInsets');
       return toInsets(nativeGet(this, 'safeAreaInsets'));
+    }
+    // 内边距。两个属性是同一份数据的两个视图：directional 那个的
+    // leading / trailing 跟着文字方向走，另一个的 left / right 写死。
+    // 读出来的值**不一定等于写进去的**：insetsLayoutMarginsFromSafeArea
+    // 为 true 时系统会把安全区加上去
+    get layoutMargins() {
+      requireNative(this, 'layoutMargins');
+      return toInsets(nativeGet(this, 'layoutMargins'));
+    }
+    set layoutMargins(value) {
+      requireNative(this, 'layoutMargins');
+      nativeSet(this, 'layoutMargins', structArg(value, INSETS_FIELDS, 'layoutMargins'));
+    }
+    get directionalLayoutMargins() {
+      requireNative(this, 'directionalLayoutMargins');
+      return toDirectionalInsets(nativeGet(this, 'directionalLayoutMargins'));
+    }
+    set directionalLayoutMargins(value) {
+      requireNative(this, 'directionalLayoutMargins');
+      nativeSet(this, 'directionalLayoutMargins',
+                structArg(value, DIRECTIONAL_INSETS_FIELDS, 'directionalLayoutMargins'));
+    }
+    get insetsLayoutMarginsFromSafeArea() {
+      requireNative(this, 'insetsLayoutMarginsFromSafeArea');
+      return nativeGet(this, 'insetsLayoutMarginsFromSafeArea');
+    }
+    set insetsLayoutMarginsFromSafeArea(value) {
+      requireNative(this, 'insetsLayoutMarginsFromSafeArea');
+      nativeSet(this, 'insetsLayoutMarginsFromSafeArea', value);
+    }
+    get preservesSuperviewLayoutMargins() {
+      requireNative(this, 'preservesSuperviewLayoutMargins');
+      return nativeGet(this, 'preservesSuperviewLayoutMargins');
+    }
+    set preservesSuperviewLayoutMargins(value) {
+      requireNative(this, 'preservesSuperviewLayoutMargins');
+      nativeSet(this, 'preservesSuperviewLayoutMargins', value);
     }
     sizeThatFits(size) {
       return toSize(nativeCall(this, 'sizeThatFits:',
