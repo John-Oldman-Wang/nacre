@@ -34,6 +34,7 @@ import { stepTimers } from './steps/timers.js';
 import { stepPerformance } from './steps/performance.js';
 import { stepCrypto } from './steps/crypto.js';
 import { stepDevice } from './steps/device.js';
+import { stepConversion } from './steps/conversion.js';
 import { stepPasteboard } from './steps/pasteboard.js';
 import { stepFeedback } from './steps/feedback.js';
 import { stepAutolayout } from './steps/autolayout.js';  // 含 CALayer
@@ -84,6 +85,7 @@ application.addEventListener('sceneconnect', (e) => {
   stepPerformance(ctx);
   stepCrypto(ctx);
   stepDevice(ctx);
+  stepConversion(ctx);
   stepAutolayout(ctx);
   stepControl(ctx);
   stepButton(ctx);

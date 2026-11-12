@@ -305,6 +305,16 @@
 
   // 换父节点时原生会自动从旧父节点摘掉，镜像要跟上。没有原生对象时返回
   // null——那种 view 还没进任何树。
+  // options 对象里某个成员「带没带」。照 Web IDL 的约定：值是 undefined 的
+  // 成员视为没带，{ scale: undefined } 等于 {}。
+  //
+  // 不能写 'key' in o——那只看键在不在，undefined 会被当成有效值一路传到
+  // 原生（过 JSON 变成 null，原生拿到 NSNull）。条件表达式里顺手写出来的
+  // { atIndex: cond ? 0 : undefined } 是很常见的写法，不该因此出错
+  function has(o, key) {
+    return o[key] !== undefined;
+  }
+
   function superviewOf(view) {
     if (view == null || view[kHandle] === undefined) return null;
     return nativeGetObject(view, 'superview');
@@ -736,13 +746,13 @@
     static bezierPathWithRoundedRect(rect, options) {
       const o = options || {};
       const r = structArg(rect, RECT_FIELDS, 'bezierPathWithRoundedRect');
-      if ('byRoundingCorners' in o) {
+      if (has(o, 'byRoundingCorners')) {
         return nativeClassCall(
           'UIBezierPath', 'bezierPathWithRoundedRect:byRoundingCorners:cornerRadii:',
           [r, o.byRoundingCorners,
            structArg(o.cornerRadii, SIZE_FIELDS, 'cornerRadii')]);
       }
-      if ('cornerRadius' in o) {
+      if (has(o, 'cornerRadius')) {
         return nativeClassCall('UIBezierPath', 'bezierPathWithRoundedRect:cornerRadius:',
                                [r, o.cornerRadius]);
       }
@@ -909,11 +919,11 @@
     insertSublayer(layer, options) {
       const o = options || {};
       const from = superlayerOf(layer);
-      if ('atIndex' in o) {
+      if (has(o, 'atIndex')) {
         nativeCall(this, 'insertSublayer:atIndex:', [layer, o.atIndex]);
-      } else if ('above' in o) {
+      } else if (has(o, 'above')) {
         nativeCall(this, 'insertSublayer:above:', [layer, o.above]);
-      } else if ('below' in o) {
+      } else if (has(o, 'below')) {
         nativeCall(this, 'insertSublayer:below:', [layer, o.below]);
       } else {
         throw new TypeError(
@@ -938,7 +948,7 @@
     addAnimation(animation, options) {
       const o = options || {};
       nativeCall(this, 'addAnimation:forKey:',
-                 [animation, 'forKey' in o ? o.forKey : null]);
+                 [animation, has(o, 'forKey') ? o.forKey : null]);
       ownOne(this, 'animations', animation);
     }
     removeAllAnimations() {
@@ -1815,7 +1825,7 @@
     }
     static feedbackGeneratorWithStyle(style, options) {
       const o = options || {};
-      if (!('forView' in o)) {
+      if (!(has(o, 'forView'))) {
         throw new TypeError('feedbackGeneratorWithStyle needs { forView }');
       }
       return nativeClassCall('UIImpactFeedbackGenerator',
@@ -1917,13 +1927,13 @@
     addToRunLoop(runLoop, options) {
       const o = options || {};
       nativeCall(this, 'addToRunLoop:forMode:',
-                 [runLoop, 'forMode' in o ? o.forMode : 'default']);
+                 [runLoop, has(o, 'forMode') ? o.forMode : 'default']);
       ownOne(this, 'runLoops', runLoop);
     }
     removeFromRunLoop(runLoop, options) {
       const o = options || {};
       nativeCall(this, 'removeFromRunLoop:forMode:',
-                 [runLoop, 'forMode' in o ? o.forMode : 'default']);
+                 [runLoop, has(o, 'forMode') ? o.forMode : 'default']);
     }
     // 从所有模式里摘掉。摘完就再也启动不了，要新的就再 new 一个
     invalidate() { nativeCall(this, 'invalidate', []); }
@@ -2007,8 +2017,8 @@
     const o = options || {};
     let selector = first + ':';
     const args = [other];
-    if ('multiplier' in o) { selector += 'multiplier:'; args.push(o.multiplier); }
-    if ('constant' in o) { selector += 'constant:'; args.push(o.constant); }
+    if (has(o, 'multiplier')) { selector += 'multiplier:'; args.push(o.multiplier); }
+    if (has(o, 'constant')) { selector += 'constant:'; args.push(o.constant); }
     return constraintOf(nativeCallObject(anchor, selector, args), anchor, other);
   }
   // 按状态设置时的 { forState: [...] }。缺了就抛，不默默当成 normal——
@@ -2025,7 +2035,7 @@
 
   function stateOption(options, what) {
     const o = options || {};
-    if (!('forState' in o)) throw new TypeError(what + ' needs { forState }');
+    if (!(has(o, 'forState'))) throw new TypeError(what + ' needs { forState }');
     return o.forState;
   }
 
@@ -2034,7 +2044,7 @@
   // multiplier 省略时按 1 ——它是乘法的单位元，省略的含义没有歧义。
   function systemSpacingConstraint(anchor, first, other, options) {
     const o = options || {};
-    const multiplier = 'multiplier' in o ? o.multiplier : 1;
+    const multiplier = has(o, 'multiplier') ? o.multiplier : 1;
     return constraintOf(
       nativeCallObject(anchor, first + ':multiplier:', [other, multiplier]),
       anchor, other);
@@ -2303,15 +2313,15 @@
     convertPoint(point, options) {
       const p = structArg(point, POINT_FIELDS, 'convertPoint');
       const o = options || {};
-      if ('toView' in o) return toPoint(nativeCall(this, 'convertPoint:toView:', [p, o.toView]));
-      if ('fromView' in o) return toPoint(nativeCall(this, 'convertPoint:fromView:', [p, o.fromView]));
+      if (has(o, 'toView')) return toPoint(nativeCall(this, 'convertPoint:toView:', [p, o.toView]));
+      if (has(o, 'fromView')) return toPoint(nativeCall(this, 'convertPoint:fromView:', [p, o.fromView]));
       throw new TypeError('convertPoint needs { toView } or { fromView }');
     }
     convertRect(rect, options) {
       const r = structArg(rect, RECT_FIELDS, 'convertRect');
       const o = options || {};
-      if ('toView' in o) return toRect(nativeCall(this, 'convertRect:toView:', [r, o.toView]));
-      if ('fromView' in o) return toRect(nativeCall(this, 'convertRect:fromView:', [r, o.fromView]));
+      if (has(o, 'toView')) return toRect(nativeCall(this, 'convertRect:toView:', [r, o.toView]));
+      if (has(o, 'fromView')) return toRect(nativeCall(this, 'convertRect:fromView:', [r, o.fromView]));
       throw new TypeError('convertRect needs { toView } or { fromView }');
     }
     hitTest(point) {
@@ -2341,11 +2351,11 @@
     insertSubview(view, options) {
       const o = options || {};
       const from = superviewOf(view);
-      if ('atIndex' in o) {
+      if (has(o, 'atIndex')) {
         nativeCall(this, 'insertSubview:atIndex:', [view, o.atIndex]);
-      } else if ('belowSubview' in o) {
+      } else if (has(o, 'belowSubview')) {
         nativeCall(this, 'insertSubview:belowSubview:', [view, o.belowSubview]);
-      } else if ('aboveSubview' in o) {
+      } else if (has(o, 'aboveSubview')) {
         nativeCall(this, 'insertSubview:aboveSubview:', [view, o.aboveSubview]);
       } else {
         throw new TypeError(
@@ -2480,7 +2490,7 @@
     }
     setContentHuggingPriority(priority, options) {
       const o = options || {};
-      if (!('forAxis' in o)) {
+      if (!(has(o, 'forAxis'))) {
         throw new TypeError('setContentHuggingPriority needs { forAxis }');
       }
       nativeCall(this, 'setContentHuggingPriority:forAxis:', [priority, o.forAxis]);
@@ -2490,7 +2500,7 @@
     }
     setContentCompressionResistancePriority(priority, options) {
       const o = options || {};
-      if (!('forAxis' in o)) {
+      if (!(has(o, 'forAxis'))) {
         throw new TypeError('setContentCompressionResistancePriority needs { forAxis }');
       }
       nativeCall(this, 'setContentCompressionResistancePriority:forAxis:',
@@ -2502,7 +2512,7 @@
     systemLayoutSizeFittingSize(size, options) {
       const target = structArg(size, SIZE_FIELDS, 'systemLayoutSizeFittingSize');
       const o = options || {};
-      if ('withHorizontalFittingPriority' in o || 'verticalFittingPriority' in o) {
+      if (has(o, 'withHorizontalFittingPriority') || has(o, 'verticalFittingPriority')) {
         return toSize(nativeCall(
           this,
           'systemLayoutSizeFittingSize:withHorizontalFittingPriority:verticalFittingPriority:',
@@ -2586,7 +2596,7 @@
     constructor() { nativeOnly(new.target); }
     static systemFontOfSize(size, options) {
       const o = options || {};
-      if ('weight' in o) {
+      if (has(o, 'weight')) {
         return nativeClassCall('UIFont', 'systemFontOfSize:weight:', [size, o.weight]);
       }
       return nativeClassCall('UIFont', 'systemFontOfSize:', [size]);
@@ -2600,16 +2610,16 @@
     static monospacedSystemFontOfSize(size, options) {
       const o = options || {};
       return nativeClassCall('UIFont', 'monospacedSystemFontOfSize:weight:',
-                             [size, 'weight' in o ? o.weight : 'regular']);
+                             [size, has(o, 'weight') ? o.weight : 'regular']);
     }
     static monospacedDigitSystemFontOfSize(size, options) {
       const o = options || {};
       return nativeClassCall('UIFont', 'monospacedDigitSystemFontOfSize:weight:',
-                             [size, 'weight' in o ? o.weight : 'regular']);
+                             [size, has(o, 'weight') ? o.weight : 'regular']);
     }
     static fontWithName(name, options) {
       const o = options || {};
-      if (!('size' in o)) throw new TypeError('fontWithName needs { size }');
+      if (!(has(o, 'size'))) throw new TypeError('fontWithName needs { size }');
       return nativeClassCall('UIFont', 'fontWithName:size:', [name, o.size]);
     }
     // 动态字体：跟随系统的「文字大小」设置
@@ -2651,7 +2661,7 @@
     // 吃 Blob：fetch 下来的字节直接变成图，全程不进 V8 堆
     static imageWithData(blob, options) {
       const o = options || {};
-      if ('scale' in o) {
+      if (has(o, 'scale')) {
         return nativeClassCall('UIImage', 'imageWithData:scale:', [blob, o.scale]);
       }
       return nativeClassCall('UIImage', 'imageWithData:', [blob]);
@@ -2674,11 +2684,11 @@
     // 把图放大只会糊，这个不会。
     resizableImage(options) {
       const o = options || {};
-      if (!('withCapInsets' in o)) {
+      if (!(has(o, 'withCapInsets'))) {
         throw new TypeError('resizableImage needs { withCapInsets }');
       }
       const insets = structArg(o.withCapInsets, INSETS_FIELDS, 'withCapInsets');
-      if ('resizingMode' in o) {
+      if (has(o, 'resizingMode')) {
         return nativeCallObject(this, 'resizableImageWithCapInsets:resizingMode:',
                                 [insets, o.resizingMode]);
       }
@@ -3488,7 +3498,7 @@
     }
     insertArrangedSubview(view, options) {
       const o = options || {};
-      if (!('atIndex' in o)) {
+      if (!(has(o, 'atIndex'))) {
         throw new TypeError('insertArrangedSubview needs { atIndex }');
       }
       const from = superviewOf(view);
@@ -3502,7 +3512,7 @@
     // spacing 属性）。两个哨兵在 ObjC 里是 FLT_MIN / FLT_MAX，不让它们进 JS
     setCustomSpacing(spacing, options) {
       const o = options || {};
-      if (!('afterView' in o)) {
+      if (!(has(o, 'afterView'))) {
         throw new TypeError('setCustomSpacing needs { afterView }');
       }
       nativeCall(this, 'setCustomSpacing:afterView:', [spacing, o.afterView]);
@@ -5113,7 +5123,7 @@
       super();
       const list = parts === undefined || parts === null ? [] : Array.from(parts);
       const o = options === undefined || options === null ? {} : options;
-      const type = 'type' in o ? String(o.type) : '';
+      const type = has(o, 'type') ? String(o.type) : '';
       // 字符串走 JSON，ArrayBuffer / TypedArray 的字节按下标单独过去，
       // 嵌套的 Blob 第一版不支持（要先把它的字节取出来）
       const prepared = list.map((item) => {
@@ -5245,8 +5255,8 @@
       this[kRequestId] = 0;
       this[kBodyUsed] = false;
       this[kResponseInit] = {
-        status: 'status' in o ? Number(o.status) : 200,
-        statusText: 'statusText' in o ? String(o.statusText) : '',
+        status: has(o, 'status') ? Number(o.status) : 200,
+        statusText: has(o, 'statusText') ? String(o.statusText) : '',
         url: '',
         headers: new Headers(o.headers),
       };
@@ -5270,11 +5280,11 @@
       this[kRequestId] = 0;
       this[kBodyUsed] = false;
       this.url = fromRequest ? input.url : new URL(String(input)).href;
-      this.method = ('method' in o ? String(o.method) : fromRequest ? input.method : 'GET')
+      this.method = (has(o, 'method') ? String(o.method) : fromRequest ? input.method : 'GET')
                       .toUpperCase();
       this.headers = new Headers(
-        'headers' in o ? o.headers : fromRequest ? input.headers : undefined);
-      const body = 'body' in o ? o.body : fromRequest ? input[kBodyText] : undefined;
+        has(o, 'headers') ? o.headers : fromRequest ? input.headers : undefined);
+      const body = has(o, 'body') ? o.body : fromRequest ? input[kBodyText] : undefined;
       this[kBodyText] = body === undefined || body === null ? null : String(body);
       // 不 Object.freeze：bodyUsed 是读 body 时才置上的，冻了就写不进去。
       // Web 的 Request 用内部槽存这个状态，我们用 Symbol 属性，所以不能冻。

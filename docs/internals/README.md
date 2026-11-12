@@ -38,6 +38,7 @@
 | [图片](ui-image.md) | Asset Catalog 实测、解码线程 |
 | [定时器](timers.md) | 调度、时间预算、未处理拒绝的结算、`performance.now()` 的时钟 |
 | [系统能力](system.md) | `UIDevice` 为什么只做静态信息；剪贴板为什么是同步属性、一次写入为什么收到两次 `change`；触感反馈为什么不给 `new` |
+| [参数转换](conversion.md) | `{ atIndex: undefined }` 为什么会闪退、为什么照 Web IDL、转换为什么必须在 JS 一侧 |
 | [随机数](crypto.md) | 随机源归宿主、填的是视图不是 buffer、为什么照搬 65536 的上限 |
 | [网络](network.md) | fetch 的线程分工、URL 和 WHATWG 的差异 |
 | [运行时](runtime.md) | V8 启动、主线程、严格模式、空闲 GC |
