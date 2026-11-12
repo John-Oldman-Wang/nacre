@@ -458,6 +458,13 @@ nacre::NativeObjectRef DeviceClassObject(const std::string& className,
                                          const std::string& name);
 id ReadDeviceProperty(id object, NSString* key);
 
+// ---- 触感反馈 ----
+NACRE_ENUM_DECL(ImpactFeedbackStyle, UIImpactFeedbackStyle)
+NACRE_ENUM_DECL(NotificationFeedbackType, UINotificationFeedbackType)
+bool FeedbackClassCall(const std::string& className, NSString* sel, NSArray* args,
+                       const std::vector<void*>& argPtrs, nacre::NativeObjectRef* out,
+                       std::string* error);
+
 // ---- 剪贴板 ----
 nacre::NativeObjectRef PasteboardClassObject(const std::string& className,
                                              const std::string& name);
@@ -587,6 +594,8 @@ bool PathCallObjectMethod(id object, const std::string& name, const NacreArgs& a
                           nacre::NativeObjectRef* out, std::string* error);
 
 // ---- WebSocket ----
+bool FeedbackCallMethod(id object, NSString* sel, const NacreArgs& args,
+                        std::string* out, std::string* error);
 bool GestureCallMethod(id object, NSString* sel, const NacreArgs& args,
                        std::string* out, std::string* error);
 bool WebSocketCallMethod(id object, NSString* sel, const NacreArgs& args,

@@ -217,6 +217,8 @@ for macro, tsname in [('TextAlignment', 'NSTextAlignment'),
                        'UIScrollViewContentInsetAdjustmentBehavior'),
                       ('GestureState', 'UIGestureRecognizerState'),
                       ('UserInterfaceIdiom', 'UIUserInterfaceIdiom'),
+                      ('ImpactFeedbackStyle', 'UIImpactFeedbackStyle'),
+                      ('NotificationFeedbackType', 'UINotificationFeedbackType'),
                       ('KeychainAccessible', 'KeychainAccessible')]:
     compare(tsname, mm_enum(macro), dts_union(tsname))
 

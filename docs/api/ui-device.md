@@ -130,7 +130,7 @@ const device = UIDevice.currentDevice;
 | `systemVersion` | 字符串 | 是 | 否 | 操作系统的版本，形如 `'26.1'` 或 `'26.1.2'`。比较前先转成数，见[上面的例子](#只在某个系统版本以上才做某件事) |
 | `model` | 字符串 | 是 | 否 | 设备的种类。iPhone 上是 `'iPhone'`。它不是具体的型号，分不出是 iPhone 14 还是 iPhone Air |
 | `localizedModel` | 字符串 | 是 | 否 | `model` 按系统语言翻译后的写法 |
-| `name` | 字符串 | 是 | 否 | 设备的名字。读不到用户在「设置」里给设备起的名字。模拟器上读到的是模拟器的名字，比如 `'iPhone Air'`（实测）；真机上的值**未验证** |
+| `name` | 字符串 | 是 | 否 | 设备的名字。读不到用户在「设置」里给设备起的名字。真机上它和 `model` 相同，是 `'iPhone'`；模拟器上读到的是模拟器的名字，比如 `'iPhone Air'`（都是实测） |
 | `userInterfaceIdiom` | 字符串 | 是 | 否 | 界面的类型，取值见下表 |
 | `identifierForVendor` | 字符串或 `null` | 是 | 否 | 这个开发者的 App 在这台设备上共用的 UUID。见[上面的例子](#给这台设备一个稳定的标识) |
 

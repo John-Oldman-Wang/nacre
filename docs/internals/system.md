@@ -33,7 +33,7 @@
 
 | | 结果（iPhone Air 模拟器） |
 | --- | --- |
-| `name` | **`iPhone Air`**，是模拟器的名字；`model` 是 `iPhone`。头文件那句「Synonym for model」在模拟器上不成立——验收用例照着头文件写的那条断言第一次跑就挂了。真机上是什么值还没看 |
+| `name` | **`iPhone Air`**，是模拟器的名字；`model` 是 `iPhone`。头文件那句「Synonym for model」在模拟器上不成立——验收用例照着头文件写的那条断言第一次跑就挂了。**真机（iPhone 14、iOS 27.0.1）上是 `iPhone`**，和 `model` 相同，头文件那句在真机上属实 |
 | `systemVersion` | `27.2` |
 | `localizedModel` | `iPhone`（系统语言是英文） |
 | `UIDevice.currentDevice` 读两次 | 同一个包装 |
@@ -69,4 +69,52 @@ ObjC 的 `string` 是 `nullable`，写 nil 是什么效果头文件没说。没�
 | 自己写，收不收得到 `change` | 收得到 |
 | 连续写两次（一次字符串、一次 `null`） | 收到 **4** 次 `change`，不是 2 次。四次回调里读到的 `changeCount` 是同一个值——事件延后一轮才到，那时两次写入都已经完成 |
 
-没验的（要真机）：复制之后到别的 App 里粘贴；读别的 App 复制的内容时系统弹不弹提示；别的 App 改剪贴板时发不发 `change`。
+真机（iPhone 14）上用面板里的两个按钮点出来的：
+
+| | 结果 |
+| --- | --- |
+| 写一次 `string` | 收到 **2** 次 `change`。和模拟器上「写两次收到 4 次」对得上：一次写入就是两条通知 |
+| 切到别的 App 复制一段文字再回来 | `changeCount` 从 24 变成 25，**没有** `change` 事件。所以这条通知只管本进程造成的变化 |
+| 读别的 App 复制的内容 | **这一次读取 6613 ms 才返回。** 日志里紧跟着场景的 `inactive` → `active`，也就是系统弹了提示、等用户点完才把值交回来 |
+
+最后一条是这一步最要紧的实测：**同步读真的会卡住主线程，而且卡多久取决于用户什么时候点**。这段时间里定时器、事件、动画回调全都不走。「原样暴露成同步属性」的决定不变（把它包成 Promise 也改变不了主线程被系统占着这件事），但文档里的提示从「可能」改成了有数字的结论。
+
+没验的：复制之后到别的 App 里粘贴（操作了，但日志里看不到那一侧）。
+
+## 触感反馈
+
+### 只给和视图绑定的工厂，不给 `new`
+
+动手前以为是 `new UIImpactFeedbackGenerator('medium')`。查头文件才发现：
+
+```objc
+- (instancetype)init API_DEPRECATED_WITH_REPLACEMENT("+feedbackGeneratorForView:", ios(10.0, API_TO_BE_DEPRECATED));
+- (instancetype)initWithStyle:(UIImpactFeedbackStyle)style API_DEPRECATED_WITH_REPLACEMENT("+feedbackGeneratorWithStyle:forView:", ios(10.0, API_TO_BE_DEPRECATED));
+```
+
+两个初始化方法都标成了将废弃，替代品是 iOS 17.5 加的、和视图绑定的类方法。我们的最低版本是 iOS 26，替代品恒可用，所以**只暴露替代品**。给一个 Apple 已经宣布要废弃的入口，等于让 JS 开发者写出将来要改的代码。
+
+落到 JS 上就是「类方法 + options」那条已定的映射，没有发明东西：
+
+```js
+UIImpactFeedbackGenerator.feedbackGeneratorWithStyle('medium', { forView: view })   // +feedbackGeneratorWithStyle:forView:
+UISelectionFeedbackGenerator.feedbackGeneratorForView(view)                         // +feedbackGeneratorForView:
+```
+
+`new` 的报错信息里直接写出该用哪个工厂。那条隐规则（`finalCheck` 先于「不可构造」）照旧：继承它先报继承。
+
+### 带位置的变体没做
+
+`impactOccurredAtLocation:` 这一组（同样是 17.5 加的）是给 iPad 上的触控笔和触控板用的——让反馈落在输入设备上。只支持 iPhone 的现在用不上。
+
+### `intensity` 拦在 0 到 1
+
+头文件没写范围，Apple 的文档写的是 0 到 1。范围外的值系统怎么处理没有承诺，所以原生层拦掉并抛，不交给系统去猜。
+
+### 验证
+
+模拟器没有触感引擎，能自动验的只有：四个类都不能 `new`、工厂给出正确的类、五种力度都建得出来、十一次调用都不抛、三种写错都抛。验收用例在屏幕右上的面板里放了两排按钮（轻 / 中 / 重，选择 / 成功 / 失败）。
+
+真机（iPhone 14）上六个按钮各点了一次，日志里六次调用都执行了、没有报错。**震感本身日志里看不到**——力度分不分得出来、成功和失败的节奏一不一样，只有拿着手机的人知道，所以 API 文档里描述震感的句子仍然标着未验证。
+
+一个顺带看到的问题：面板是按 iPhone Air 的宽度（420 pt）用固定 `frame` 摆的，iPhone 14 只有 390 pt 宽，最右边被切掉一截。验收界面整理成区块之后这类问题会一起消失。

@@ -16,8 +16,8 @@ declare class UIDevice extends NSObject {
   static readonly currentDevice: UIDevice;
 
   /**
-   * 设备的名字。**拿不到用户在设置里起的名字**（iOS 16 起）。模拟器上
-   * 读到的是模拟器的名字，比如 `'iPhone Air'`。
+   * 设备的名字。**拿不到用户在设置里起的名字**（iOS 16 起）。真机上它和
+   * `model` 相同；模拟器上读到的是模拟器的名字，比如 `'iPhone Air'`。
    */
   readonly name: string;
   /** 设备的种类，比如 `'iPhone'`。不是具体型号。 */

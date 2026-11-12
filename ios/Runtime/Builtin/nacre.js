@@ -1759,8 +1759,8 @@
     constructor() { nativeOnly(new.target); }
     static get currentDevice() { return nativeClassObject('UIDevice', 'currentDevice'); }
 
-    // 拿不到用户给设备起的名字（iOS 16 起）。头文件说它是 model 的同义词，
-    // 但模拟器上实测是模拟器的名字（iPhone Air），不等于 model
+    // 拿不到用户给设备起的名字（iOS 16 起）。头文件说它是 model 的同义词：
+    // 真机上属实（都是 iPhone），模拟器上是模拟器的名字（iPhone Air）
     get name() { requireNative(this, 'name'); return nativeGet(this, 'name'); }
     get model() { requireNative(this, 'model'); return nativeGet(this, 'model'); }
     get localizedModel() {
@@ -1782,6 +1782,74 @@
       requireNative(this, 'identifierForVendor');
       return nativeGet(this, 'identifierForVendor');
     }
+  });
+
+  // ---- 触感反馈 ----
+  //
+  // 让手机震一下。三种：撞击（按钮按下、东西落位）、选择（滚轮换了一格）、
+  // 通知（成功 / 警告 / 失败）。
+  //
+  // **没有 new**。ObjC 的 -init 在头文件里已经标成将废弃，替代品是和视图
+  // 绑定的工厂方法，这里只给后者。
+  function noFeedbackInit(newTarget, hint) {
+    finalCheck(newTarget);   // 是子类化就先报子类化
+    throw new TypeError(
+      'Illegal constructor: ' + (nativeClassNames.get(newTarget) || 'this class') +
+      ' has no public initializer; use ' + hint);
+  }
+  const UIFeedbackGenerator = defineNativeClass('UIFeedbackGenerator',
+                                                class UIFeedbackGenerator extends NSObject {
+    constructor() {
+      noFeedbackInit(new.target, 'one of its subclasses, e.g. ' +
+        'UIImpactFeedbackGenerator.feedbackGeneratorWithStyle(style, { forView: view })');
+    }
+    // 提前让触感引擎就绪。马上就要触发时先调它，延迟更小
+    prepare() { nativeCall(this, 'prepare', []); }
+  });
+
+  defineNativeClass('UIImpactFeedbackGenerator',
+                    class UIImpactFeedbackGenerator extends UIFeedbackGenerator {
+    constructor() {
+      noFeedbackInit(new.target,
+        'UIImpactFeedbackGenerator.feedbackGeneratorWithStyle(style, { forView: view })');
+    }
+    static feedbackGeneratorWithStyle(style, options) {
+      const o = options || {};
+      if (!('forView' in o)) {
+        throw new TypeError('feedbackGeneratorWithStyle needs { forView }');
+      }
+      return nativeClassCall('UIImpactFeedbackGenerator',
+                             'feedbackGeneratorWithStyle:forView:', [style, o.forView]);
+    }
+    impactOccurred() { nativeCall(this, 'impactOccurred', []); }
+    // 0 到 1，1 是这种力度的满强度
+    impactOccurredWithIntensity(intensity) {
+      nativeCall(this, 'impactOccurredWithIntensity:', [intensity]);
+    }
+  });
+
+  defineNativeClass('UISelectionFeedbackGenerator',
+                    class UISelectionFeedbackGenerator extends UIFeedbackGenerator {
+    constructor() {
+      noFeedbackInit(new.target, 'UISelectionFeedbackGenerator.feedbackGeneratorForView(view)');
+    }
+    static feedbackGeneratorForView(view) {
+      return nativeClassCall('UISelectionFeedbackGenerator', 'feedbackGeneratorForView:', [view]);
+    }
+    selectionChanged() { nativeCall(this, 'selectionChanged', []); }
+  });
+
+  defineNativeClass('UINotificationFeedbackGenerator',
+                    class UINotificationFeedbackGenerator extends UIFeedbackGenerator {
+    constructor() {
+      noFeedbackInit(new.target,
+        'UINotificationFeedbackGenerator.feedbackGeneratorForView(view)');
+    }
+    static feedbackGeneratorForView(view) {
+      return nativeClassCall('UINotificationFeedbackGenerator', 'feedbackGeneratorForView:',
+                             [view]);
+    }
+    notificationOccurred(type) { nativeCall(this, 'notificationOccurred:', [type]); }
   });
 
   // 系统剪贴板。只有类级的单例 generalPasteboard，现在只管字符串。

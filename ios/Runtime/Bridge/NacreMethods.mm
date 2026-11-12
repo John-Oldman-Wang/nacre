@@ -139,6 +139,13 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
   }
 
   {
+    std::string feedbackResult;
+    if (FeedbackCallMethod(object, sel, NacreArgs{args, &argPtrs}, &feedbackResult, error)) {
+      return feedbackResult;
+    }
+  }
+
+  {
     std::string gestureResult;
     if (GestureCallMethod(object, sel, NacreArgs{args, &argPtrs}, &gestureResult, error)) {
       return gestureResult;

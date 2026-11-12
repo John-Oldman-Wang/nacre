@@ -586,7 +586,8 @@ Commit message 格式：
 | — | A19 `performance.now()` | 引擎里的单调时钟、零点和 timeOrigin | 已在模拟器验证通过：1054 条断言全过，连读 1000 次没有倒退，读一次约 1 µs |
 | — | A15 随机数 | `crypto.getRandomValues`、`randomUUID`、宿主的随机源 | 已在模拟器验证通过：1073 条断言全过，子视图只填自己那一段；填 32 字节约 0.67 µs |
 | — | `UIDevice` 静态信息 | 类级单例 currentDevice、七个只读属性 | 已在模拟器验证通过：1086 条断言通过；实测纠正一条——模拟器上 name 是模拟器的名字，不是 model |
-| — | A14 剪贴板 | UIPasteboard 的字符串、通知中心观察者 | 已在模拟器验证通过：1104 条断言全过；实测写 null 是清空、连续写两次收到 4 次 change。跨 App 粘贴和系统提示要真机 |
+| — | A14 剪贴板 | UIPasteboard 的字符串、通知中心观察者 | 已在模拟器验证通过：1104 条断言全过；实测写 null 是清空、写一次收到 2 次 change。真机上点过：读别的 App 复制的内容会弹系统提示，**那一次同步读卡了主线程 6.6 秒**；别的 App 改剪贴板不发 change |
+| — | A12 触感反馈 | 三个生成器类、绑定视图的工厂、两个枚举 | 已在模拟器验证通过：1125 条断言全过（建得出来、调了不抛、写错会抛）。真机上六个按钮都点过，调用都执行了；震感如何日志里看不到 |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |
@@ -730,7 +731,7 @@ bindgen 做完也解决不了同盾（风控）、mtpush（推送）、Sentry �
 | A9 | **`UITraitCollection`** + `overrideUserInterfaceStyle` | 读不到深浅色、收不到外观变化、App 内做不了主题开关。顺带堵上 `layer` 的 `borderColor` / `shadowColor` 切换主题不变色 |
 | A10 | **`UIRefreshControl`** | 依附在滚动视图的原生机制上 |
 | A11 | **`UISheetPresentationController` 的 detents** | 模态的呈现高度由系统控制，下单卡片只能整页 |
-| A12 | **触感反馈**：`UIImpactFeedbackGenerator` 一组 | 系统能力 |
+| A12 | ~~**触感反馈**~~ **已做**：`UIImpactFeedbackGenerator` 一组三个类，只给绑定视图的工厂（`init` 已被 Apple 标成将废弃） | 系统能力 |
 | A13 | **`NSNumberFormatter` / `NSDateFormatter`** | 预编译的 V8 不带 ICU，`Intl` 缺失。千分位、货币符号、日期顺序按地区本地化手写不了 |
 | A14 | ~~**`UIPasteboard`**~~ **已做**：字符串的读写、`hasStrings`、`changeCount`、`change` 事件。剩图片、网址、多条内容 | 复制地址、订单号 |
 | A15 | ~~**`crypto.getRandomValues`**~~ **已做**，连同 `randomUUID()`。剩 `crypto.subtle` | 随机源必须来自系统。摘要/签名 JS 算得出来，但 jitless 下慢，该走 CommonCrypto |

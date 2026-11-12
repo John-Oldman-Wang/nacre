@@ -27,6 +27,12 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
     return false;
   };
 
+  // 触感反馈的工厂在 NacreFeedback.mm，它自己说认不认领
+  {
+    nacre::NativeObjectRef made;
+    if (FeedbackClassCall(className, sel, args, argPtrs, &made, error)) return made;
+  }
+
   // 按 spec 造一个颜色。spec 已经由 JS 侧的解析器规范化过
   if (className == "UIColor" && [sel isEqualToString:@"nacreFromSpec"]) {
     UIColor* color = ColorFromSpec(arg(0));

@@ -35,6 +35,7 @@ import { stepPerformance } from './steps/performance.js';
 import { stepCrypto } from './steps/crypto.js';
 import { stepDevice } from './steps/device.js';
 import { stepPasteboard } from './steps/pasteboard.js';
+import { stepFeedback } from './steps/feedback.js';
 import { stepAutolayout } from './steps/autolayout.js';  // 含 CALayer
 import { stepControl } from './steps/control.js';
 import { stepButton } from './steps/button.js';
@@ -97,6 +98,7 @@ application.addEventListener('sceneconnect', (e) => {
   stepDisplayLink(ctx);
   stepGesture(ctx);
   stepPasteboard(ctx);
+  stepFeedback(ctx);
   stepNavigation(ctx);
   stepModal(ctx);
   stepOwnership(ctx);
