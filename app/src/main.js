@@ -52,6 +52,7 @@ import { stepGesture } from './steps/gesture.js';
 import { stepNavigation } from './steps/navigation.js';
 import { stepModal } from './steps/modal.js';
 import { stepOwnership } from './steps/ownership.js';
+import { stepLifetime } from './steps/lifetime.js';
 
 /**
  * 各步共享的上下文。跨段共享的东西只有三样，其余全是段内局部。
@@ -107,6 +108,7 @@ application.addEventListener('sceneconnect', (e) => {
   stepNavigation(ctx);
   stepModal(ctx);
   stepOwnership(ctx);
+  stepLifetime(ctx);
 
   console.log('✓ 屏幕上：一个纵向滚动的瀑布，每一步一个区块，带小标题；输入框那张卡片贴在底部');
 });

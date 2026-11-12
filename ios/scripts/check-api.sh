@@ -363,7 +363,10 @@ for label, a, b in pairs:
 # 固化在这里。
 #
 # 真相在原生层：一个 selector 的分支里用了取对象参数的助手，它就收对象。
-OBJ_ARG_HELPERS = re.compile(r'\b(?:objectArg|viewArg|optionalViewArg|guideArg|colorArg|imageArg|vcArg|layerArg|gestureArg)\s*\(')
+#
+# args.object( 是不经助手、直接取对象参数的写法。它曾经不在这张表里，于是
+# addAnimation:forKey:、addToRunLoop:forMode:、appendPath: 这几个分支没人盯。
+OBJ_ARG_HELPERS = re.compile(r'\b(?:objectArg|viewArg|optionalViewArg|guideArg|colorArg|imageArg|vcArg|layerArg|gestureArg)\s*\(|\bargs\.object\s*\(')
 # kSyncStack 是导航栈那条边的专用写法：它按原生真相整层 ownAll 一遍，
 # 所以调它就等于记了边
 OWN_MARKERS = re.compile(
@@ -387,11 +390,14 @@ def branch_body(text, start):
 
 obj_arg_sels = set()
 _branches = 0
-for m in re.finditer(r'\[sel isEqualToString:@"([^"]+)"\]', mm):
+# 分支有两种写法：ObjC 字符串的 [sel isEqualToString:@"…"]，和返回对象数组
+# 那条通道用的 name == "…"（std::string）。后一种只认带冒号的，属性名也是
+# 这么比的，不带冒号。
+for m in re.finditer(r'\[sel isEqualToString:@"([^"]+)"\]|\bname == "([^"]*:[^"]*)"', mm):
     _branches += 1
     body = branch_body(mm, m.end())
     if body is not None and OBJ_ARG_HELPERS.search(body):
-        obj_arg_sels.add(m.group(1))
+        obj_arg_sels.add(m.group(1) or m.group(2))
 if _branches == 0:
     complain('脚本', '分发表里的 selector 分支定位不到，check-api.sh 要更新')
     obj_arg_sels = None
@@ -404,7 +410,11 @@ def js_methods(text):
     out, lines = [], text.split('\n')
     i = 0
     while i < len(lines):
-        if re.match(r'^    (?:get |set |static )?[A-Za-z_$\[][^;]*\{\s*$', lines[i]):
+        # 写在一行里的方法：appendPath(path) { nativeCall(…); }。原来只认
+        # 「行尾是 { 」的多行写法，这种一行的整个被跳过了
+        if re.match(r'^    (?:get |set |static )?[A-Za-z_$\[][^;]*\)\s*\{.*\}\s*$', lines[i]):
+            out.append(lines[i])
+        elif re.match(r'^    (?:get |set |static )?[A-Za-z_$\[][^;]*\{\s*$', lines[i]):
             body, i = [lines[i]], i + 1
             while i < len(lines) and lines[i] != '    }':
                 body.append(lines[i]); i += 1
@@ -423,6 +433,8 @@ OWNERSHIP_EXEMPT = {
     'convertPoint:toView:', 'convertPoint:fromView:',
     'convertRect:toView:', 'convertRect:fromView:',
     'isDescendantOfView:', 'customSpacingAfterView:',
+    # 接过来的是副本（头文件：appends the contents），之后和参数没有关系
+    'appendPath:',
     # 参数本来就已经是自己的子视图，持有边在 addSubview 那一步就记过了
     'bringSubviewToFront:', 'sendSubviewToBack:',
     'setCustomSpacing:afterView:',
@@ -433,7 +445,8 @@ OWNERSHIP_EXEMPT = {
 if obj_arg_sels and JS_METHODS:
     seen = set()
     for body in JS_METHODS:
-        sels = set(re.findall(r"nativeCall(?:Void|Object|ObjectArray)?\(this, '([^']+)'", body))
+        # \s*：实参换行写的（nativeCallObjectArray(⏎ this, '…'）也要认
+        sels = set(re.findall(r"nativeCall(?:Void|Object|ObjectArray)?\(\s*this,\s*'([^']+)'", body))
         hit = (sels & obj_arg_sels) - OWNERSHIP_EXEMPT
         if not hit: continue
         seen |= hit

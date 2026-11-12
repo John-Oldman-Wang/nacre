@@ -276,6 +276,39 @@ imageForState(state) {
 
 最后一条是补上去的——**第一版这里是静默通过的**：JS 侧正则一旦失配，`hit` 永远是空集，这一节就永远「一致」。正是 `extract()` 当初要防的那种失效，所以加了「一个都没对上就报」的守卫。
 
+**后来又堵了三个盲区**（2026-11-12）。它们不是「判据错了」，是抽取的正则各漏了一种写法，漏掉的部分一直没人盯：
+
+| 漏的写法 | 例子 | 漏掉了什么 |
+| --- | --- | --- |
+| 不经助手、直接 `args.object(` 取对象 | `addAnimation:forKey:`、`addToRunLoop:forMode:`、`appendPath:` | 这几个 selector 不算「收对象」 |
+| 分支写成 `name == "…"` 而不是 `[sel isEqualToString:@"…"]` | 返回对象数组那条通道：`popToViewController:animated:`、`setViewControllers:animated:` | 同上 |
+| JS 侧写在一行里的方法，以及实参换行的调用 | `appendPath(path) { nativeCall(…); }` | 这些方法体根本没被切出来 |
+
+堵上之后只报出一处真的：`removeFromRunLoop:forMode:` 收了 run loop 却没有动持有边。那条边当时还记反了（见下一节）。`appendPath:` 进了白名单——头文件说它接过来的是内容的副本。
+
+盲区是做「删掉订阅保活集合」之前查出来的。那个集合一直在替所有权镜像遮着漏边，要拿掉它，这张网得先是完整的。
+
+
+## 没有父对象的三类：边挂在谁身上
+
+视图、手势、页面都在某个父对象下面，从 `application` 一路走得到。下面三类没有父对象，系统却会一直让它们活着、给它们发事件。判据还是那一条——**原生谁持有它，JS 侧就由谁的包装持有它**：
+
+| 对象 | 原生由谁持有 | JS 侧的边 | 什么时候放开 |
+| --- | --- | --- | --- |
+| `CADisplayLink` | 加进去的那个 run loop | `runLoop` → `displayLinks` | 最后一个模式被 `removeFromRunLoop` 摘掉，或者 `invalidate()` |
+| `WebSocket` | 系统的网络会话（不暴露） | `application` → `webSockets` | 关闭事件派发之后 |
+| `NSRunLoop.mainRunLoop`、`UIPasteboard.generalPasteboard` | 系统单例 | 类自己 → 那个包装 | 不放开 |
+
+三个细节：
+
+- **display link 那条边原来记反了**，是 link 持有 run loop。那个方向什么都保不住：run loop 是单例，本来就不会没；而 link 加进去之后 JS 丢掉引用，包装就被回收了，原生那个 link 还在 run loop 上每帧空转。
+- **系统不告诉我们一个 link 在哪几个模式上**，所以 JS 侧自己记（`linkRunLoops`）。加进 `default` 和 `tracking` 两个模式、只摘掉一个，它还在另一个上，不能放。
+- **`WebSocket` 的出口在事件汇入口**，不在 `close()` 方法里。`close()` 只是开始关，对端先关、连接失败也都要放开，而这三种情况原生最后都会发一个 `close` 事件（失败时是 `error` 之后补一个 1006）。这个事件不受「有没有人监听」影响，原生总是发。
+
+这一组**原来靠的是订阅保活集合**：加了监听器的对象被一个全局强引用的 `Set` 拿着。所以不加监听器的时候它们其实一直是漏的，只是不加监听器的 display link 和 WebSocket 没什么用，没人撞上。
+
+验收在 `app/src/steps/lifetime.js`，**故意都不加监听器**，这样结果不受那个集合干扰。改之前 4 条失败（在 run loop 上的 link 被回收了、打开着的 socket 被回收了），改之后 10 条全过，包括「放开之后要能被回收」的那一半。
+
 ## 又漏过一次：`new Blob()` 只抄了句柄的数值
 
 所有权镜像管的是「JS 包装之间谁拖住谁」。这一次漏的地方更靠下：**一个原生对象有了两个 JS 对象，引擎只认其中一个**。

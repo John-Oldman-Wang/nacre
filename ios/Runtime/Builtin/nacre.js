@@ -1372,10 +1372,13 @@
   // readyState **用数字**，是我们唯一一处为 Web 兼容破掉「枚举一律字符串」
   // 那条规矩的地方——从 Web / React Native 搬过来的代码里
   // `ws.readyState === WebSocket.OPEN` 要能直接跑。理由记在 project.md。
-  defineNativeClass('WebSocket', class WebSocket extends NSObject {
+  const WebSocketClass = defineNativeClass('WebSocket', class WebSocket extends NSObject {
     constructor(url, options) {
       super();
       constructNative(this, new.target, 'WebSocket', [String(url), options || {}]);
+      // 连接没关之前，系统的网络会话一直拿着它、给它发消息。它没有父对象，
+      // 所以由 application 拿着；收到关闭事件之后放开（见事件汇入口）
+      ownOne(application, 'webSockets', this);
     }
 
     static get CONNECTING() { return 0; }
@@ -1830,7 +1833,11 @@
   // 等于它。暴露它是因为 CADisplayLink.addToRunLoop 躲不开这个参数。
   defineNativeClass('NSRunLoop', class NSRunLoop extends NSObject {
     constructor() { nativeOnly(new.target); }
-    static get mainRunLoop() { return nativeClassObject('NSRunLoop', 'mainRunLoop'); }
+    // 系统的单例一直活着，所以由类自己拿着它的包装。display link 的持有边
+    // 就挂在这个包装上，它得是一个固定的根
+    static get mainRunLoop() {
+      return own(this, 'mainRunLoop', nativeClassObject('NSRunLoop', 'mainRunLoop'));
+    }
   });
 
   // 这台设备。只有类级的单例 currentDevice，全部只读。
@@ -1939,8 +1946,10 @@
   // 所以另外给了两个不取内容的查询：hasStrings 和 changeCount
   defineNativeClass('UIPasteboard', class UIPasteboard extends NSObject {
     constructor() { nativeOnly(new.target); }
+    // 系统的单例一直活着，所以由类自己拿着它的包装
     static get generalPasteboard() {
-      return nativeClassObject('UIPasteboard', 'generalPasteboard');
+      return own(this, 'generalPasteboard',
+                 nativeClassObject('UIPasteboard', 'generalPasteboard'));
     }
 
     [kSubscribe](type, on) {
@@ -1980,6 +1989,9 @@
   //
   // 日常动画**优先用 animate / CAAnimation**：那些跑在 render server 里，
   // 主线程卡住照样走；display link 驱动的每帧都要 JS，主线程一忙就掉帧。
+  // link -> { runLoop, modes }：它现在在哪个 run loop 的哪几个模式上
+  const linkRunLoops = new WeakMap();
+
   defineNativeClass('CADisplayLink', class CADisplayLink extends NSObject {
     constructor() {
       super();
@@ -1995,19 +2007,39 @@
 
     // 'default' 只在平时跑，**滚动时会停**；'common' 滚动时也跑。
     // 这是 display link 最常见的坑
+    // 持有边的方向照原生：**run loop 拿着 link**，不是反过来。加进去之后
+    // JS 这边一个引用都不留，link 也要活着——系统会一直叫它。
+    // 系统不告诉我们一个 link 现在在哪几个模式上，所以自己记着：最后一个
+    // 模式摘掉，或者 invalidate，才放开
     addToRunLoop(runLoop, options) {
       const o = options || {};
-      nativeCall(this, 'addToRunLoop:forMode:',
-                 [runLoop, has(o, 'forMode') ? o.forMode : 'default']);
-      ownOne(this, 'runLoops', runLoop);
+      const mode = has(o, 'forMode') ? o.forMode : 'default';
+      nativeCall(this, 'addToRunLoop:forMode:', [runLoop, mode]);
+      let held = linkRunLoops.get(this);
+      if (held === undefined) linkRunLoops.set(this, (held = { runLoop, modes: new Set() }));
+      held.modes.add(String(mode));
+      ownOne(runLoop, 'displayLinks', this);
     }
     removeFromRunLoop(runLoop, options) {
       const o = options || {};
-      nativeCall(this, 'removeFromRunLoop:forMode:',
-                 [runLoop, has(o, 'forMode') ? o.forMode : 'default']);
+      const mode = has(o, 'forMode') ? o.forMode : 'default';
+      nativeCall(this, 'removeFromRunLoop:forMode:', [runLoop, mode]);
+      const held = linkRunLoops.get(this);
+      if (held === undefined) return;
+      held.modes.delete(String(mode));
+      if (held.modes.size === 0) {
+        disown(runLoop, 'displayLinks', this);
+        linkRunLoops.delete(this);
+      }
     }
     // 从所有模式里摘掉。摘完就再也启动不了，要新的就再 new 一个
-    invalidate() { nativeCall(this, 'invalidate', []); }
+    invalidate() {
+      nativeCall(this, 'invalidate', []);
+      const held = linkRunLoops.get(this);
+      if (held === undefined) return;
+      disown(held.runLoop, 'displayLinks', this);
+      linkRunLoops.delete(this);
+    }
 
     // 下面三个都是**秒**，和 ObjC 一致。基准是设备启动，不是 Date.now()，
     // 只能拿来算差值
@@ -4478,6 +4510,11 @@
       defineField(event, 'numberOfTouches', payload.numberOfTouches);
     }
     wrapper.dispatchEvent(event);
+    // WebSocket 关掉了：系统不再拿着它，这边也放开。放在派发之后，监听器
+    // 里还要用它。连接失败走的也是这里——原生在 error 之后总会补一个 close
+    if (wrapper instanceof WebSocketClass && type === 'close') {
+      disown(application, 'webSockets', wrapper);
+    }
   });
 
   // C++ 要建包装对象时回调这里。同一个原生指针 C++ 那边会复用已有的包装，
