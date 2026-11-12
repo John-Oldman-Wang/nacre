@@ -124,5 +124,5 @@ export function stepFeedback(ctx) {
     ['成功', () => { notify.notificationOccurred('success'); console.log('  ✓ 真实触摸：通知 success'); }],
     ['失败', () => { notify.notificationOccurred('error'); console.log('  ✓ 真实触摸：通知 error'); }],
   ]);
-  console.log('  ✓ 右上角的面板里多了两排按钮：轻 / 中 / 重，选择 / 成功 / 失败');
+  console.log('  ✓ 面板里多了两排按钮：轻 / 中 / 重，选择 / 成功 / 失败');
 }

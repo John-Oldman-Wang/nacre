@@ -145,7 +145,7 @@ export function stepGesture(ctx) {
   //   点按钮   → 只有按钮自己的 touchUpInside，容器的点按不触发
   //   长按容器 → began，抬手 ended
   const pad = new UIView();
-  pad.frame = new CGRect(270, 688, 140, 56);
+  pad.frame = new CGRect(16, 0, 140, 56);
   pad.backgroundColor = 'systemIndigo';
   pad.layer.cornerRadius = 10;
   const chip = new UIView();
@@ -158,7 +158,7 @@ export function stepGesture(ctx) {
   button.setTitle('按钮', { forState: ['normal'] });
   button.setTitleColor('white', { forState: ['normal'] });
   pad.addSubview(button);
-  vc.view.addSubview(pad);
+  ctx.section('手势：点按、长按（点它、按住它）', 56).addSubview(pad);
 
   /** @param {UIView|null} hit */
   const nameOf = (hit) =>
@@ -198,5 +198,5 @@ export function stepGesture(ctx) {
   });
 
   assert('容器上挂了两个识别器', pad.gestureRecognizers.length, 2);
-  console.log('  ✓ 靛蓝色容器已上屏（右下，橙色子块 + 按钮），等着被点和长按');
+  console.log('  ✓ 靛蓝色容器已上屏（橙色子块 + 按钮），等着被点和长按');
 }

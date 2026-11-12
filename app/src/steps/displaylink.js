@@ -86,10 +86,10 @@ export function stepDisplayLink(ctx) {
   // 「暂停之后不再收到」这类**否定断言**另外要一个对照组：一个永不暂停的
   // link。只靠「等一会儿没动静」会在主线程被堵住时假通过。
   const card = new UIView();
-  card.frame = new CGRect(230, 616, 150, 60);
+  card.frame = new CGRect(16, 0, 150, 60);
   card.backgroundColor = 'secondarySystemBackground';
   card.layer.cornerRadius = 10;
-  vc.view.addSubview(card);
+  ctx.section('CADisplayLink：每帧走一步', 60).addSubview(card);
 
   const dot = new UIView();
   dot.frame = new CGRect(0, 22, 16, 16);

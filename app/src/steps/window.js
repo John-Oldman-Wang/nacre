@@ -1,5 +1,7 @@
 // 由 JS 创建窗口和根页面，再验 UIView 的几何、层级、外观和文字。
 
+import { createWaterfall } from '../waterfall.js';
+
 /** @param {import("../main.js").StepContext} ctx */
 export function stepWindow(ctx) {
   const { assert, scene } = ctx;
@@ -77,59 +79,68 @@ export function stepWindow(ctx) {
   console.log('  rootView.center =', '' + vc.view.center);
   console.log('  safeAreaInsets =', '' + vc.view.safeAreaInsets);
 
+  // 版面：一个纵向滚动的瀑布，每一步占一个区块（见 waterfall.js）。
+  // 从这里往后，各步都往自己的区块里放东西，不再直接碰根视图
+  const waterfall = createWaterfall(vc);
+  ctx.section = waterfall.section;
+  ctx.column = waterfall.column;
+  ctx.dock = waterfall.dock;
+  // 这一段要验的是「父视图和子视图」，所以拿一个区块的内容区当父视图
+  const canvas = waterfall.section('UIView：几何、层级、外观', 230);
+
   console.log('  --- 建子视图 ---');
   const box = new UIView();
   console.log('  new UIView() 成功, instanceof UIView =', box instanceof UIView,
               '| instanceof UIResponder =', box instanceof UIResponder);
-  box.frame = new CGRect(40, 120, 200, 120);
+  box.frame = new CGRect(16, 0, 200, 120);
   box.backgroundColor = UIColor.systemIndigoColor;
   console.log('  写入 frame 后读回 =', '' + box.frame);
   console.log('  写入时用普通对象也行：');
   const box2 = new UIView();
-  box2.frame = { x: 60, y: 270, width: 160, height: 80 };
+  box2.frame = { x: 36, y: 150, width: 160, height: 80 };
   box2.backgroundColor = UIColor.systemTealColor;
   box2.alpha = 0.6;
   console.log('    box2.frame =', '' + box2.frame, '| alpha =', box2.alpha);
 
   console.log('  --- 层级 ---');
   console.log('  加之前 superview =', box.superview, '| window =', box.window);
-  vc.view.addSubview(box);
-  vc.view.addSubview(box2);
-  console.log('  addSubview 之后 superview === rootView =', box.superview === vc.view);
+  canvas.addSubview(box);
+  canvas.addSubview(box2);
+  console.log('  addSubview 之后 superview === 父视图 =', box.superview === canvas);
   console.log('  box.window === win =', box.window === win);
-  console.log('  rootView.subviews.length =', vc.view.subviews.length);
-  console.log('  subviews[0] === box =', vc.view.subviews[0] === box);
-  console.log('  isDescendantOfView(rootView) =', box.isDescendantOfView(vc.view));
+  console.log('  父视图.subviews.length =', canvas.subviews.length);
+  console.log('  subviews[0] === box =', canvas.subviews[0] === box);
+  console.log('  isDescendantOfView(父视图) =', box.isDescendantOfView(canvas));
 
   box.tag = 42;
-  console.log('  viewWithTag(42) === box =', vc.view.viewWithTag(42) === box);
-  console.log('  viewWithTag(99) =', vc.view.viewWithTag(99));
+  console.log('  viewWithTag(42) === box =', canvas.viewWithTag(42) === box);
+  console.log('  viewWithTag(99) =', canvas.viewWithTag(99));
 
   console.log('  --- insertSubview 的 options ---');
   const box3 = new UIView();
-  box3.frame = new CGRect(100, 170, 120, 120);
+  box3.frame = new CGRect(76, 50, 120, 120);
   box3.backgroundColor = UIColor.systemOrangeColor;
-  vc.view.insertSubview(box3, { aboveSubview: box });
+  canvas.insertSubview(box3, { aboveSubview: box });
   console.log('  insertSubview(aboveSubview) 后 subviews.length =',
-              vc.view.subviews.length);
+              canvas.subviews.length);
   console.log('  box3 在 box 之后 =',
-              vc.view.subviews.indexOf(box3) > vc.view.subviews.indexOf(box));
+              canvas.subviews.indexOf(box3) > canvas.subviews.indexOf(box));
   // @ts-expect-error options 必须指明插到哪
-  try { vc.view.insertSubview(box3, {}); console.log('  ✗ 空 options 居然通过'); }
+  try { canvas.insertSubview(box3, {}); console.log('  ✗ 空 options 居然通过'); }
   catch (err) { console.log('  ✓ 空 options 被拒:', err.message); }
 
   console.log('  --- 坐标转换 ---');
-  console.log('  box 的原点转到 rootView =',
-              '' + box.convertPoint(new CGPoint(0, 0), { toView: vc.view }));
+  console.log('  box 的原点转到 父视图 =',
+              '' + box.convertPoint(new CGPoint(0, 0), { toView: canvas }));
   console.log('  sizeThatFits({200,200}) =',
               '' + box.sizeThatFits(new CGSize(200, 200)));
 
   console.log('  --- 移除 ---');
   const tmp = new UIView();
-  vc.view.addSubview(tmp);
-  const before = vc.view.subviews.length;
+  canvas.addSubview(tmp);
+  const before = canvas.subviews.length;
   tmp.removeFromSuperview();
-  console.log('  removeFromSuperview:', before, '→', vc.view.subviews.length,
+  console.log('  removeFromSuperview:', before, '→', canvas.subviews.length,
               '| superview =', tmp.superview);
 
   console.log('  --- 枚举：字符串 ---');
@@ -225,9 +236,8 @@ export function stepWindow(ctx) {
   console.log('  sizeThatFits({402,999}) =',
               '' + title.sizeThatFits(new CGSize(402, 999)));
 
-  const safe = vc.view.safeAreaInsets;
-  title.frame = new CGRect(0, safe.top + 16, vc.view.bounds.width, fit.height);
-  vc.view.addSubview(title);
+  // 大标题放在瀑布的最上面。它是排列项，位置和宽度由容器定，不用设 frame
+  waterfall.column.insertArrangedSubview(title, { atIndex: 0 });
 
   console.log('  --- 多行 + 截断 ---');
   const body2 = new UILabel();
@@ -250,8 +260,6 @@ export function stepWindow(ctx) {
   console.log('  限两行 =', '' + bodyFit, '| 不限行数 =', '' + freeFit);
   console.log('  行数限制生效 =', freeFit.height > bodyFit.height,
               '（不限行数更高）');
-  body2.frame = new CGRect(24, 420, w, bodyFit.height);
-  vc.view.addSubview(body2);
 
   console.log('  --- 等宽字体 ---');
   const mono = new UILabel();
@@ -260,8 +268,13 @@ export function stepWindow(ctx) {
   mono.textColor = UIColor.systemTealColor;
   mono.textAlignment = 'center';
   const monoFit = mono.intrinsicContentSize;
-  mono.frame = new CGRect(0, 500, vc.view.bounds.width, monoFit.height);
-  vc.view.addSubview(mono);
+  // 两段文字的高度都量出来了，才知道这个区块要多高
+  const textHost = waterfall.section('UILabel：多行截断、等宽字体',
+                                     bodyFit.height + 12 + monoFit.height);
+  body2.frame = new CGRect(24, 0, w, bodyFit.height);
+  textHost.addSubview(body2);
+  mono.frame = new CGRect(0, bodyFit.height + 12, vc.view.bounds.width, monoFit.height);
+  textHost.addSubview(mono);
   console.log('  等宽字体 =', mono.font.fontName);
 
   ctx.vc = vc;

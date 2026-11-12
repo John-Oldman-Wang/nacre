@@ -2,7 +2,8 @@
 
 /** @param {import("../main.js").StepContext} ctx */
 export function stepImage(ctx) {
-  const { assert, vc } = ctx;
+  const { assert } = ctx;
+  const host = ctx.section('UIImage / UIImageView：居中、填满、九宫格、着色、网络图', 180);
 
   // ===== 图片 =====
   console.log('  --- UIImage ---');
@@ -139,15 +140,15 @@ export function stepImage(ctx) {
     centeredView.image = dotImage;
     centeredView.contentMode = 'center';
     centeredView.backgroundColor = UIColor.secondarySystemBackgroundColor;
-    centeredView.frame = new CGRect(20, 560, 100, 60);
-    vc.view.addSubview(centeredView);
+    centeredView.frame = new CGRect(16, 0, 100, 60);
+    host.addSubview(centeredView);
 
     const fillView = new UIImageView();
     fillView.image = dotImage;
     fillView.contentMode = 'scaleAspectFill';
     fillView.clipsToBounds = true;
-    fillView.frame = new CGRect(140, 560, 100, 60);
-    vc.view.addSubview(fillView);
+    fillView.frame = new CGRect(132, 0, 100, 60);
+    host.addSubview(fillView);
 
     // 九宫格铺满：20pt 的边框图拉成 100x60，四角不变形
     const nineSliceView = new UIImageView();
@@ -157,16 +158,16 @@ export function stepImage(ctx) {
         withCapInsets: new UIEdgeInsets(6, 6, 6, 6),
       });
     }
-    nineSliceView.frame = new CGRect(260, 560, 100, 60);
-    vc.view.addSubview(nineSliceView);
+    nineSliceView.frame = new CGRect(248, 0, 100, 60);
+    host.addSubview(nineSliceView);
 
     // 模板图 + tintColor：同一张 symbol 按颜色重新上色
     const tintedView = new UIImageView();
     tintedView.image = symbol;
     tintedView.tintColor = UIColor.systemPinkColor;
     tintedView.contentMode = 'scaleAspectFit';
-    tintedView.frame = new CGRect(20, 630, 60, 40);
-    vc.view.addSubview(tintedView);
+    tintedView.frame = new CGRect(16, 70, 60, 40);
+    host.addSubview(tintedView);
     assert('tintColor 读回来是语义色的名字', tintedView.tintColor, 'systemPink');
 
     // 后台解码：解码默认在绘制时发生（主线程），这个把它挪到后台
@@ -191,8 +192,8 @@ export function stepImage(ctx) {
   remoteView.contentMode = 'scaleAspectFill';
   remoteView.clipsToBounds = true;
   remoteView.backgroundColor = UIColor.secondarySystemBackgroundColor;
-  remoteView.frame = new CGRect(100, 630, 160, 110);
-  vc.view.addSubview(remoteView);
+  remoteView.frame = new CGRect(92, 70, 160, 110);
+  host.addSubview(remoteView);
 
   (async () => {
     const imageURL = 'https://picsum.photos/200/200?random=1';

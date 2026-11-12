@@ -8,11 +8,11 @@ export function stepButton(ctx) {
   {
     const button = UIButton.buttonWithType('system');
     button.translatesAutoresizingMaskIntoConstraints = false;
-    vc.view.addSubview(button);
+    const host = ctx.section('UIButton：按状态设标题和颜色', 44);
+    host.addSubview(button);
     NSLayoutConstraint.activateConstraints([
-      button.centerXAnchor.constraintEqualToAnchor(vc.view.centerXAnchor),
-      button.bottomAnchor.constraintEqualToAnchor(
-        vc.view.safeAreaLayoutGuide.bottomAnchor, { constant: -176 }),
+      button.centerXAnchor.constraintEqualToAnchor(host.centerXAnchor),
+      button.centerYAnchor.constraintEqualToAnchor(host.centerYAnchor),
     ]);
 
     assert('buttonWithType 给的是 UIButton', button instanceof UIButton, true);

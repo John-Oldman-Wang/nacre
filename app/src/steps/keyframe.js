@@ -156,10 +156,10 @@ export function stepKeyframe(ctx) {
 
   // ---- 上屏：沿路径走 + 跳色 + 弹进来 ----
   const card = new UIView();
-  card.frame = new CGRect(230, 514, 150, 90);
+  card.frame = new CGRect(16, 0, 150, 90);
   card.backgroundColor = 'secondarySystemBackground';
   card.layer.cornerRadius = 10;
-  vc.view.addSubview(card);
+  ctx.section('关键帧、动画组、弹簧', 90).addSubview(card);
 
   // 一个圆点沿曲线来回走，跟着切线转
   const dot = new CAShapeLayer();

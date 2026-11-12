@@ -206,10 +206,10 @@ export function stepAnimation(ctx) {
 
   // ---- 上屏：折线画出来 + 扇形脉动 ----
   const card = new UIView();
-  card.frame = new CGRect(230, 412, 150, 90);
+  card.frame = new CGRect(16, 0, 150, 90);
   card.backgroundColor = 'secondarySystemBackground';
   card.layer.cornerRadius = 10;
-  vc.view.addSubview(card);
+  ctx.section('CABasicAnimation：描线、脉动', 90).addSubview(card);
 
   const poly = new UIBezierPath();
   poly.moveToPoint(new CGPoint(12, 70));

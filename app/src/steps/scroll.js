@@ -9,7 +9,8 @@ export function stepScroll(ctx) {
   // 事件真的到得了 JS，以及同一轮里的多次滚动被合并成一次。
   console.log('--- UIScrollView ---');
   {
-    const root = vc.view;
+    const page = vc.view;
+    const root = ctx.section('UIScrollView：滚动、事件合并（滑它）', 150);
     const guide = root.safeAreaLayoutGuide;
 
     const scroller = new UIScrollView();
@@ -66,7 +67,7 @@ export function stepScroll(ctx) {
     NSLayoutConstraint.activateConstraints([
       scroller.leadingAnchor.constraintEqualToAnchor(guide.leadingAnchor, { constant: 16 }),
       scroller.trailingAnchor.constraintEqualToAnchor(guide.trailingAnchor, { constant: -16 }),
-      scroller.bottomAnchor.constraintEqualToAnchor(guide.bottomAnchor, { constant: -352 }),
+      scroller.bottomAnchor.constraintEqualToAnchor(guide.bottomAnchor),
       scroller.heightAnchor.constraintEqualToConstant(150),
       // 四边钉 contentLayoutGuide：内容多大由内容自己说了算
       column.topAnchor.constraintEqualToAnchor(content.topAnchor),
@@ -76,7 +77,7 @@ export function stepScroll(ctx) {
       // 宽度钉 frameLayoutGuide：横向不滚
       column.widthAnchor.constraintEqualToAnchor(frame.widthAnchor),
     ]);
-    root.layoutIfNeeded();
+    page.layoutIfNeeded();
 
     // contentSize 没有手设，是约束自己算出来的
     const expectedHeight = 12 * 36 + 11 * 6;

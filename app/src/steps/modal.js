@@ -7,6 +7,8 @@ export function stepModal(ctx) {
   const { assert, vc } = ctx;
 
   console.log('--- 模态呈现 ---');
+  // 区块现在就建：按钮要等 600 ms 才加，那时再建区块，它在瀑布里的位置就乱了
+  const modalHost = ctx.section('模态呈现：弹一张能拖走的卡片', 44);
 
   // ---- 默认值（不用上屏）----
   const sheet = new UIViewController();
@@ -97,11 +99,11 @@ export function stepModal(ctx) {
     open.backgroundColor = UIColor.systemGreenColor;
     open.setTitleColor(UIColor.whiteColor, { forState: ['normal'] });
     open.layer.cornerRadius = 10;
-    open.frame = new CGRect(250, 352, 150, 44);
+    open.frame = new CGRect(16, 0, 150, 44);
     open.addEventListener('primaryActionTriggered', () => {
       vc.presentViewController(draggable, { animated: true });
     });
-    vc.view.addSubview(open);
-    console.log('  ✓ 第一页右上角多了「弹一张卡片 ↑」，弹出来能拖走也能点「完成」');
+    modalHost.addSubview(open);
+    console.log('  ✓ 第一页多了「弹一张卡片 ↑」，弹出来能拖走也能点「完成」');
   }, 600);
 }

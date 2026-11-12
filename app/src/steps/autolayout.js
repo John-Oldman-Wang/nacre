@@ -8,7 +8,10 @@ export function stepAutolayout(ctx) {
   // ===== Auto Layout =====
   console.log('--- Auto Layout ---');
   {
-    const root = vc.view;
+    // root 是这一步的区块。它在版面上的角色和以前的根视图一样：横向铺满，
+    // 安全区就是它自己的范围
+    const page = vc.view;
+    const root = ctx.section('Auto Layout + CALayer：约束、圆角、阴影', 76);
     const guide = root.safeAreaLayoutGuide;
 
     const card = new UIView();
@@ -31,7 +34,7 @@ export function stepAutolayout(ctx) {
     const batch = [
       card.leadingAnchor.constraintEqualToAnchor(guide.leadingAnchor, { constant: 16 }),
       card.trailingAnchor.constraintEqualToAnchor(guide.trailingAnchor, { constant: -16 }),
-      card.bottomAnchor.constraintEqualToAnchor(guide.bottomAnchor, { constant: -24 }),
+      card.bottomAnchor.constraintEqualToAnchor(guide.bottomAnchor, { constant: -8 }),
       cardHeight,
       left.leadingAnchor.constraintEqualToAnchor(card.leadingAnchor, { constant: 8 }),
       left.widthAnchor.constraintEqualToConstant(60),
@@ -45,7 +48,7 @@ export function stepAutolayout(ctx) {
       batch.push(v.bottomAnchor.constraintEqualToAnchor(card.bottomAnchor, { constant: -8 }));
     }
     NSLayoutConstraint.activateConstraints(batch);
-    root.layoutIfNeeded();
+    page.layoutIfNeeded();
 
     const safeWidth = guide.layoutFrame.width;
     assert('card 宽 = 安全区宽 - 32', card.frame.width, safeWidth - 32);
@@ -58,10 +61,10 @@ export function stepAutolayout(ctx) {
 
     // constant 是建好之后唯一能改的数值，改完重新布局就生效
     cardHeight.constant = 84;
-    root.layoutIfNeeded();
+    page.layoutIfNeeded();
     assert('改 constant 后重新布局', card.frame.height, 84);
     cardHeight.constant = 60;
-    root.layoutIfNeeded();
+    page.layoutIfNeeded();
 
     // 约束装在两端的最近公共祖先上：card 的位置约束在 root 上，
     // 子块之间的约束在 card 上
@@ -183,7 +186,7 @@ export function stepAutolayout(ctx) {
       spacer.topAnchor.constraintEqualToAnchor(card.topAnchor),
       spacer.heightAnchor.constraintEqualToConstant(4),
     ]);
-    root.layoutIfNeeded();
+    page.layoutIfNeeded();
     assert('guide 占的就是那 8pt 间距', spacer.layoutFrame.width, 8);
     assert('guide 不画东西但有尺寸', spacer.layoutFrame.height, 4);
 
@@ -197,12 +200,12 @@ export function stepAutolayout(ctx) {
     // 批量停用：card 的高度约束一撤，高度就由子块撑起来（8 + 44 + 8）
     NSLayoutConstraint.deactivateConstraints([cardHeight]);
     assert('停用后 isActive 变 false', cardHeight.isActive, false);
-    root.layoutIfNeeded();
+    page.layoutIfNeeded();
     // 高度塌成上下两个 8pt——子块的高度本来就是跟着 card 走的（没有固有高度），
     // 撤掉 card 的高度之后这一维谁都没定，求解器取了最小解
     assert('撤掉高度约束后塌成上下两个间距', card.frame.height, 16);
     cardHeight.isActive = true;
-    root.layoutIfNeeded();
+    page.layoutIfNeeded();
 
     // ===== CALayer：圆角、边框、阴影 =====
     console.log('--- CALayer ---');

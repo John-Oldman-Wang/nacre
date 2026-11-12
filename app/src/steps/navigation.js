@@ -279,9 +279,9 @@ export function stepNavigation(ctx) {
   enter.backgroundColor = UIColor.systemIndigoColor;
   enter.setTitleColor(UIColor.whiteColor, { forState: ['normal'] });
   enter.layer.cornerRadius = 10;
-  enter.frame = new CGRect(250, 300, 150, 44);
+  enter.frame = new CGRect(16, 0, 150, 44);
   enter.addEventListener('primaryActionTriggered', () => router.push('/list'));
-  vc.view.addSubview(enter);
+  ctx.section('UINavigationController：页面栈（点它进去，左滑返回）', 44).addSubview(enter);
 
   // ---- 路由本身的几条，不用等上屏 ----
   assert('router 一开始在根上', router.path, '/');
@@ -293,5 +293,5 @@ export function stepNavigation(ctx) {
     console.log('  ✓ 没登记的路径被拒:', err.message);
   }
 
-  console.log('  ✓ 多页面已上屏：第一页右上角「进入路由 →」，进去能点、能左滑返回');
+  console.log('  ✓ 多页面已上屏：第一页的「进入路由 →」，进去能点、能左滑返回');
 }

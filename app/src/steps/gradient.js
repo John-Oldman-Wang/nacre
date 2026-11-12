@@ -132,10 +132,10 @@ export function stepGradient(ctx) {
   // 子图层**不走 Auto Layout**（CALayer 的 autoresizingMask 和 layoutManager
   // 在 iOS 上都不可用），所以这里用固定 frame，渐变层的 frame 也自己设。
   const card = new UIView();
-  card.frame = new CGRect(230, 240, 150, 52);
+  card.frame = new CGRect(16, 0, 150, 52);
   card.layer.cornerRadius = 10;
   card.layer.masksToBounds = true;   // 不裁的话渐变会盖过圆角
-  vc.view.addSubview(card);
+  ctx.section('CAGradientLayer：渐变', 52).addSubview(card);
 
   const bg = new CAGradientLayer();
   bg.colors = ['#5856D6', '#FF2D55'];

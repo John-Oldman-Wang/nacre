@@ -10,7 +10,8 @@ export function stepStack(ctx) {
   // 让它塌陷、其余项自动补位。
   console.log('--- UIStackView ---');
   {
-    const root = vc.view;
+    const page = vc.view;
+    const root = ctx.section('UIStackView：三等分、嵌套、隐藏即让位', 100);
     const guide = root.safeAreaLayoutGuide;
     /** @param {UIColor} color */
     const block = (color) => {
@@ -57,10 +58,10 @@ export function stepStack(ctx) {
     NSLayoutConstraint.activateConstraints([
       row.leadingAnchor.constraintEqualToAnchor(guide.leadingAnchor, { constant: 16 }),
       row.trailingAnchor.constraintEqualToAnchor(guide.trailingAnchor, { constant: -16 }),
-      row.bottomAnchor.constraintEqualToAnchor(guide.bottomAnchor, { constant: -240 }),
+      row.bottomAnchor.constraintEqualToAnchor(guide.bottomAnchor, { constant: -56 }),
       row.heightAnchor.constraintEqualToConstant(44),
     ]);
-    root.layoutIfNeeded();
+    page.layoutIfNeeded();
 
     // ---- 真的排开了 ----
     const total = row.frame.width;
@@ -77,7 +78,7 @@ export function stepStack(ctx) {
 
     // ---- 隐藏即塌陷：这是约束做不到的 ----
     b.isHidden = true;
-    root.layoutIfNeeded();
+    page.layoutIfNeeded();
     const twoUp = row.arrangedSubviews.map((v) => v.frame.width);
     assert('隐藏项宽度归零', twoUp[1], 0);
     assert('剩下两项平分', twoUp[0], twoUp[2]);
@@ -85,7 +86,7 @@ export function stepStack(ctx) {
            Math.round(twoUp[0] * 2 + 12), Math.round(total));
     assert('隐藏的那项还在排列里', row.arrangedSubviews.length, 3);
     b.isHidden = false;
-    root.layoutIfNeeded();
+    page.layoutIfNeeded();
     assert('显示回来又是三等分', row.arrangedSubviews[0].frame.width, widths[0]);
 
     // ---- 对齐的别名：leading 和 top 是同一个值 ----
@@ -106,13 +107,13 @@ export function stepStack(ctx) {
     assert('没设过自定义间距就是 default', row.customSpacingAfterView(a), 'default');
     row.setCustomSpacing(40, { afterView: a });
     assert('自定义间距读回来', row.customSpacingAfterView(a), 40);
-    root.layoutIfNeeded();
+    page.layoutIfNeeded();
     assert('自定义间距真的生效了', Math.round(b.frame.x - a.frame.width), 40);
     row.setCustomSpacing('system', { afterView: a });
     assert('自定义间距也能要系统值', row.customSpacingAfterView(a), 'system');
     row.setCustomSpacing('default', { afterView: a });
     assert('撤回后回到 spacing', row.customSpacingAfterView(a), 'default');
-    root.layoutIfNeeded();
+    page.layoutIfNeeded();
 
     // ---- 排列和 subviews 是两件事 ----
     row.removeArrangedSubview(b);
@@ -186,10 +187,10 @@ export function stepStack(ctx) {
     NSLayoutConstraint.activateConstraints([
       rowB.leadingAnchor.constraintEqualToAnchor(guide.leadingAnchor, { constant: 16 }),
       rowB.trailingAnchor.constraintEqualToAnchor(guide.trailingAnchor, { constant: -16 }),
-      rowB.bottomAnchor.constraintEqualToAnchor(guide.bottomAnchor, { constant: -296 }),
+      rowB.bottomAnchor.constraintEqualToAnchor(guide.bottomAnchor),
       rowB.heightAnchor.constraintEqualToConstant(44),
     ]);
-    root.layoutIfNeeded();
+    page.layoutIfNeeded();
     assert('对照排：两块平分，中间那块不占位',
            Math.round(left2.frame.width * 2 + 12), Math.round(rowB.frame.width));
   }

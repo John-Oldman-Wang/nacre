@@ -10,11 +10,11 @@ export function stepControl(ctx) {
     btn.translatesAutoresizingMaskIntoConstraints = false;
     btn.backgroundColor = UIColor.systemGreenColor;
     btn.layer.cornerRadius = 10;
-    vc.view.addSubview(btn);
+    const host = ctx.section('UIControl：控件事件（点它）', 52);
+    host.addSubview(btn);
     NSLayoutConstraint.activateConstraints([
-      btn.centerXAnchor.constraintEqualToAnchor(vc.view.centerXAnchor),
-      btn.bottomAnchor.constraintEqualToAnchor(
-        vc.view.safeAreaLayoutGuide.bottomAnchor, { constant: -110 }),
+      btn.centerXAnchor.constraintEqualToAnchor(host.centerXAnchor),
+      btn.bottomAnchor.constraintEqualToAnchor(host.bottomAnchor),
       btn.widthAnchor.constraintEqualToConstant(220),
       btn.heightAnchor.constraintEqualToConstant(52),
     ]);

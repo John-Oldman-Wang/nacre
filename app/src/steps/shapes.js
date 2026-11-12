@@ -188,10 +188,10 @@ export function stepShapes(ctx) {
   // 和别的子图层一样，形状图层的 frame 要自己设；path 的坐标是**图层自己
   // 坐标系里的点**，和 frame 的大小没关系
   const card = new UIView();
-  card.frame = new CGRect(230, 310, 150, 90);
+  card.frame = new CGRect(16, 0, 150, 90);
   card.backgroundColor = 'secondarySystemBackground';
   card.layer.cornerRadius = 10;
-  vc.view.addSubview(card);
+  ctx.section('CAShapeLayer + UIBezierPath：折线和扇形', 90).addSubview(card);
 
   const poly = new UIBezierPath();
   poly.moveToPoint(new CGPoint(12, 70));

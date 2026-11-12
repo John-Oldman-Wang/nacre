@@ -67,8 +67,8 @@ export function stepTransform(ctx) {
   const block = new UIView();
   block.backgroundColor = UIColor.systemYellowColor;
   block.layer.cornerRadius = 8;
-  block.frame = new CGRect(24, 304, 40, 40);
-  vc.view.addSubview(block);
+  block.frame = new CGRect(24, 12, 40, 40);
+  ctx.section('transform：旋转 30°、放大 1.2 倍', 64).addSubview(block);
 
   assert('view 默认是单位矩阵', block.transform.isIdentity, true);
   assert('读出来是 CGAffineTransform', block.transform instanceof CGAffineTransform, true);
@@ -98,5 +98,5 @@ export function stepTransform(ctx) {
   // 屏幕上留一个转过的黄块
   block.transform = CGAffineTransform.scale(1.2).concat(
     CGAffineTransform.rotation(Math.PI / 6));
-  console.log('  ✓ 屏幕上：左边一个转了 30° 放大 1.2 倍的黄块');
+  console.log('  ✓ 屏幕上：一个转了 30° 放大 1.2 倍的黄块');
 }

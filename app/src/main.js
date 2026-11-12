@@ -63,7 +63,10 @@ import { stepOwnership } from './steps/ownership.js';
  * @property {UIWindow} win 窗口，同上。timers 那段要在它上面挂 becomekey
  * @property {UINavigationController} [nav] 导航控制器，GC 那一步要用它验栈的持有边
  * @property {UIViewController} [modalPage] 可以拖走的那张卡片，由 stepModal 建
- * @property {UIStackView} [systemPanel] 屏幕右上那块「系统能力」面板，各步往里加一排按钮
+ * @property {UIStackView} [systemPanel] 系统能力那个区块里的面板，各步往里加一排按钮
+ * @property {import("./waterfall.js").Waterfall["section"]} section 新开一个区块，返回内容区
+ * @property {UIStackView} column 装着所有区块的纵向排列容器，由 stepWindow 建
+ * @property {import("./waterfall.js").Waterfall["dock"]} dock 让瀑布的底边接在某个视图上面
  */
 
 application.addEventListener('sceneconnect', (e) => {
@@ -105,7 +108,7 @@ application.addEventListener('sceneconnect', (e) => {
   stepModal(ctx);
   stepOwnership(ctx);
 
-  console.log('✓ 屏幕上：三个色块 + 标题 + 两行说明 + 一行等宽数字 + 一张渐变卡片 + 一条折线和一个扇形 + 一张画出来的折线卡片 + 一张沿路径走的卡片 + 一个每帧走的圆点 + 一块能点能长按的容器');
+  console.log('✓ 屏幕上：一个纵向滚动的瀑布，每一步一个区块，带小标题；输入框那张卡片贴在底部');
 });
 
 application.addEventListener('scenedisconnect', (e) => {

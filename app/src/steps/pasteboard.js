@@ -1,7 +1,7 @@
 // UIPasteboard：系统剪贴板上的字符串。
 
 /**
- * 屏幕右上的「系统能力」面板：一个纵向的排列容器，每一步往里加一排按钮。
+ * 「剪贴板、触感反馈」那个区块里的面板：一个纵向的排列容器，每一步往里加一排按钮。
  * 剪贴板和触感反馈都要真的点一下才看得出效果，所以给它们留一块地方。
  *
  * @param {import("../main.js").StepContext} ctx
@@ -9,10 +9,14 @@
  */
 export function systemPanel(ctx) {
   if (ctx.systemPanel) return ctx.systemPanel;
+  // 面板横向铺满区块（左右各留 16），不再写死宽度——以前按 iPhone Air 的
+  // 宽度摆在右上角，iPhone 14 上最右一列被切掉一截
+  const host = ctx.section('剪贴板、触感反馈（点这些按钮）', 106);
   const card = new UIView();
-  card.frame = new CGRect(250, 128, 160, 106);
+  card.translatesAutoresizingMaskIntoConstraints = false;
   card.backgroundColor = 'secondarySystemBackground';
   card.layer.cornerRadius = 10;
+  host.addSubview(card);
   const column = new UIStackView();
   column.axis = 'vertical';
   column.distribution = 'fillEqually';
@@ -20,9 +24,18 @@ export function systemPanel(ctx) {
   // 四周留 8 点：内边距那一步做的能力，这里是第一处真用上的
   column.isLayoutMarginsRelativeArrangement = true;
   column.directionalLayoutMargins = { top: 8, leading: 8, bottom: 8, trailing: 8 };
-  column.frame = new CGRect(0, 0, 160, 106);
+  column.translatesAutoresizingMaskIntoConstraints = false;
   card.addSubview(column);
-  ctx.vc.view.addSubview(card);
+  NSLayoutConstraint.activateConstraints([
+    card.leadingAnchor.constraintEqualToAnchor(host.leadingAnchor, { constant: 16 }),
+    card.trailingAnchor.constraintEqualToAnchor(host.trailingAnchor, { constant: -16 }),
+    card.topAnchor.constraintEqualToAnchor(host.topAnchor),
+    card.bottomAnchor.constraintEqualToAnchor(host.bottomAnchor),
+    column.leadingAnchor.constraintEqualToAnchor(card.leadingAnchor),
+    column.trailingAnchor.constraintEqualToAnchor(card.trailingAnchor),
+    column.topAnchor.constraintEqualToAnchor(card.topAnchor),
+    column.bottomAnchor.constraintEqualToAnchor(card.bottomAnchor),
+  ]);
   ctx.systemPanel = column;
   return column;
 }
@@ -111,7 +124,7 @@ export function stepPasteboard(ctx) {
                   '，读这一下用了 ' + cost.toFixed(1) + ' ms');
     }],
   ]);
-  console.log('  ✓ 右上角的面板里有「复制」「粘贴」两个按钮');
+  console.log('  ✓ 面板里有「复制」「粘贴」两个按钮');
 
   // ---- 自动的读写断言：只在模拟器上跑 ----
   //

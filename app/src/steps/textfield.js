@@ -128,6 +128,9 @@ export function stepTextField(ctx) {
     field.trailingAnchor.constraintEqualToAnchor(card.trailingAnchor, { constant: -12 }),
     field.centerYAnchor.constraintEqualToAnchor(card.centerYAnchor),
   ]);
+  // 这张卡片不进瀑布：它要验的就是「贴着键盘走」。瀑布的底边改成接在它上面，
+  // 免得最后几个区块被它盖住
+  ctx.dock(card);
   vc.view.layoutIfNeeded();
 
   // 键盘没弹出来时，guide 的顶边就是安全区底边
