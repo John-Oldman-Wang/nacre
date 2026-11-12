@@ -642,8 +642,14 @@ struct Engine::Impl {
     if (!v8::JSON::Stringify(ctx, json_parts).ToLocal(&json)) return;
     NativeObjectRef ref = self->host.create_blob(
         SafeToString(isolate, json), buffers, SafeToString(isolate, info[1]));
-    v8::Local<v8::Object> wrapper = self->WrapNative(ctx, ref);
-    if (!wrapper.IsEmpty()) info.GetReturnValue().Set(wrapper);
+    if (ref.ptr == nullptr || !info[2]->IsObject()) return;
+    // 第三个参数是 JS 那边正在构造的 Blob（this）。把它**本身**绑成这个原生
+    // 对象的包装，返回句柄——和 construct 是同一个做法。
+    //
+    // 以前这里用 WrapNative 另建一个包装交回去，JS 只从上面抄走句柄的数值。
+    // 那个包装没人拿着，被 GC 回收时 ReleaseHandle 把句柄和原生数据一起放掉，
+    // 而用户手里的 Blob 还活着：size 读出来是 null。
+    info.GetReturnValue().Set(self->BindWrapper(info[2].As<v8::Object>(), ref.ptr));
   }
 
   // fetch 的三个入口。真正的活在宿主那边，这里只过参数。

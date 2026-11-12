@@ -72,6 +72,16 @@ export function stepOwnership(ctx) {
     console.log('  ! 取不到 dot 图，按状态那一组未验证');
   }
 
+  // ===== new Blob() =====
+  //
+  // 这个不是所有权边的问题，但只有 GC 之后才看得出来，所以放在这里验。
+  // Blob 的构造函数以前只把句柄的**数值**抄到自己身上，引擎登记的那个包装
+  // 对象没人拿着，成了垃圾。它被回收时原生数据跟着放掉——Blob 对象自己还
+  // 活得好好的，数据没了：size 读出来是 null，交给 imageWithData 报不是 Blob。
+  // 新建之后立刻用是好的，所以平时很难撞上。
+  const keptBlob = new Blob([new Uint8Array([1, 2, 3])]);
+  assert('基线：刚建的 Blob 有 3 个字节', keptBlob.size, 3);
+
   function makeGarbage() {
     for (let i = 0; i < 20; i++) {
       /** @type {object[]} */ const junk = [];
@@ -107,6 +117,8 @@ export function stepOwnership(ctx) {
       .map((g) => /** @type {any} */ (g).probe)
       .filter((probe) => probe !== undefined);
     assert('手势识别器：GC 后包装还是原来那个', keptGestures.join(','), '挂在识别器包装上');
+
+    assert('new Blob()：GC 之后数据还在', keptBlob.size, 3);
 
     // 这一条在补镜像之前是段错误，不是断言失败
     const late = orphanAnchor.constraintEqualToConstant(50);

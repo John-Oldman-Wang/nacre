@@ -618,6 +618,7 @@ Commit message 格式：
 | — | 参数转换 3：原生层只校验不转换 | 三个取参宏（类型不对就从所在函数返回）、`SafeNumber`、`check-api.sh` 的裸取值检查 | 已在模拟器验证通过：全部断言通过；另用一次性探针绕过 JS 的转换把 31 种脏值直接送到原生，全部报错、不崩、原值不动。探针抓到一处漏网（`unsignedIntValue`），已改 |
 | — | 参数转换 4：入口的异常保护 | `Guarded` 包住 17 个宿主入口，三个入口补了报错出口，异步的接住后拒掉 Promise | 已在模拟器验证通过：1193 条断言全过。`view.addSubview(view)` 以前闪退，现在是能 `catch` 的 TypeError；整轮验收里只有这一次走到保底 |
 | — | 参数转换 5：对象参数类型不对就抛 | `viewArg` 一类填报错、`NACRE_OBJECT_OR_NIL`、写对象属性的通道补上报错出口 | 已在模拟器验证通过：1219 条断言全过。那条记了很久的待办（`addSubview(颜色)` 静默什么都不做）关掉了 |
+| — | 修复：`new Blob()` 在 GC 之后丢数据 | `createBlob` 改成把 `this` 绑成包装（`BindWrapper`），和 `construct` 一致 | 已在模拟器验证通过：先加断言跑出失败（GC 后 `size` 是 `null`），修完 1221 条断言全过 |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |

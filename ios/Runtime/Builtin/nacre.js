@@ -5211,8 +5211,13 @@
         }
         return item;
       });
-      const handle = native.createBlob(prepared, type, '');
-      if (handle) Object.defineProperty(this, kHandle, { value: handle[kHandle] });
+      // 把 this 交给原生去绑，和 constructNative 一样。不能让原生另建一个
+      // 包装、这里只抄句柄的数值——那个包装没人拿着，GC 一回收，句柄和数据
+      // 一起没了，而这个 Blob 还活着
+      const handle = native.createBlob(prepared, type, this);
+      // 建不出来就抛，别留一个没有句柄的空壳
+      if (!handle) throw new TypeError('cannot construct Blob from these parts');
+      Object.defineProperty(this, kHandle, { value: handle });
     }
     get size() { requireNative(this, 'size'); return nativeGet(this, 'size'); }
     get type() { requireNative(this, 'type'); return nativeGet(this, 'type'); }

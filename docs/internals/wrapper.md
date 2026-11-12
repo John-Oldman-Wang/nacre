@@ -276,6 +276,55 @@ imageForState(state) {
 
 最后一条是补上去的——**第一版这里是静默通过的**：JS 侧正则一旦失配，`hit` 永远是空集，这一节就永远「一致」。正是 `extract()` 当初要防的那种失效，所以加了「一个都没对上就报」的守卫。
 
+## 又漏过一次：`new Blob()` 只抄了句柄的数值
+
+所有权镜像管的是「JS 包装之间谁拖住谁」。这一次漏的地方更靠下：**一个原生对象有了两个 JS 对象，引擎只认其中一个**。
+
+### 现象
+
+```js
+const blob = new Blob([bytes]);
+blob.size;            // 3
+// …… 一次 GC 之后 ……
+blob.size;            // null
+UIImage.imageWithData(blob);   // TypeError: imageWithData needs a Blob
+```
+
+`blob` 这个变量一直被拿着，对象自己活得好好的，数据没了。新建之后立刻用是好的，所以平时很难撞上——它是做参数转换时一次性探针跑到一半、恰好经历了一次 GC 才露出来的。
+
+### 根因
+
+```js
+const handle = native.createBlob(prepared, type, '');
+if (handle) Object.defineProperty(this, kHandle, { value: handle[kHandle] });
+```
+
+引擎那边 `createBlob` 用 `WrapNative` 建了一个包装对象交回来，JS 只从它身上**抄走句柄的数值**，放到正在构造的 `this` 上。于是：
+
+| | 是谁 | 引擎认不认它 |
+| --- | --- | --- |
+| 交回来的那个包装 | 工厂按 `Blob.prototype` 建的 | 认。弱引用挂在它身上，它被回收时 `ReleaseHandle` |
+| 用户手里的 `this` | `new Blob()` 的结果 | 不认。只是恰好存着同一个数字 |
+
+第一个对象出了构造函数就没人拿着，成了垃圾。GC 回收它的那一刻，句柄从表里删掉、原生数据 release——用户手里那个 `this` 上的数字从此指向空。
+
+这和 `constructNative` 是同一个问题的两种答案。别的可构造的类走的是 `native.construct(className, args, handles, wrapper)`，把 `this` **本身**交给引擎去绑（`BindWrapper`）；`Blob` 因为要单独传字节缓冲，有自己的通道，写那条通道的时候没有照这个做法。全仓库只有这一处。
+
+### 改法
+
+`createBlob` 的第三个参数原来是个没人用的空串，现在传 `this`。引擎那边从 `WrapNative` 换成 `BindWrapper`，返回句柄——和 `construct` 完全一致。建不出来就抛，不留一个没有句柄的空壳。
+
+### 先让断言失败，再修
+
+回归断言放在 GC 那一组（`ownership.js`）：建一个 Blob 并一直拿着，等对照组确认 GC 真的跑过之后读 `size`。
+
+| | 结果 |
+| --- | --- |
+| 不改代码，只加断言 | `✗ new Blob()：GC 之后数据还在 = null（期望 3）` |
+| 改完 | `✓ … = 3`，全部 1221 条断言通过 |
+
+先跑出失败这一步不能省：这个问题的特点就是「不 GC 就看不出来」，一条从来没失败过的断言证明不了它盯的是对的地方。
+
 ---
 
 ← 返回[实现原理](README.md) ・ [项目说明](../project.md)
