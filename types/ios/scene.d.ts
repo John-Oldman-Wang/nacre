@@ -32,6 +32,11 @@ type SceneEventName = UISceneEventType | (string & {});
 
 declare class UIWindowScene extends UIScene {
   private constructor();
+  /**
+   * 整个场景的外观特征。系统设置里现在是深色还是浅色，读这里。
+   * 变了会派发 `traitchange` 事件，事件对象是 `UITraitChangeEvent`。
+   */
+  readonly traitCollection: UITraitCollection;
   /** 这个场景自己的前后台状态，和 application.state（所有场景的聚合）不是一回事。 */
   readonly activationState: UISceneActivationState;
   readonly session: UISceneSession;

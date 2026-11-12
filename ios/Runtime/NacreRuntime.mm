@@ -67,6 +67,10 @@ using namespace nacre_bridge;
                    type:(const std::string&)type
                      on:(BOOL)on
                   error:(std::string*)error;
+- (void)routeSubscription:(id)object
+                     type:(const std::string&)type
+                       on:(BOOL)on
+                    error:(std::string*)error;
 - (void)installPresentationDelegate:(UIViewController*)vc;
 @end
 
@@ -1460,6 +1464,38 @@ nacre::NativeObjectRef CreateBlob(
                    type:(const std::string&)type
                      on:(BOOL)on
                   error:(std::string*)error {
+  // 外观特征变了。视图、页面、场景都认这一个事件名，而它们各自的分支
+  // （控件、滚动、导航、tab、模态）只认自己那几个，所以在分到各个类之前
+  // 先按名字认走
+  {
+    __weak NacreRuntime* weakSelf = self;
+    NacreTraitEmit emit = ^(id environment, UITraitCollection* previous) {
+      const char* cls =
+          [environment isKindOfClass:UIViewController.class] ? "UIViewController"
+          : [environment isKindOfClass:UIWindowScene.class]  ? "UIWindowScene"
+                                                             : "UIView";
+      [weakSelf emitEvent:@"traitchange"
+                     from:environment
+                className:cls
+                     with:previous
+             payloadClass:"UITraitCollection"];
+    };
+    if (TraitSetSubscription(object, @(type.c_str()), on, emit, error)) return;
+  }
+  [self routeSubscription:object type:type on:on error:error];
+  // 各个类报「不认识这个事件名」时列的是自己那张表，里面没有 traitchange。
+  // 这三类对象都多认它一个，所以在这里补到名单末尾
+  if (error != nullptr && TraitObservable(object) &&
+      error->find("expected one of:") != std::string::npos) {
+    *error += " / traitchange";
+  }
+}
+
+// 按对象的类分到各自的分支
+- (void)routeSubscription:(id)object
+                     type:(const std::string&)type
+                       on:(BOOL)on
+                    error:(std::string*)error {
   // 手势。域自己管 trampoline 和事件名表，这里只把事件出口塞给它
   {
     __weak NacreRuntime* weakSelf = self;

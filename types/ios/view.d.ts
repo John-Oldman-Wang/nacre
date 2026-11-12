@@ -9,6 +9,17 @@
 declare class UIView extends UIResponder {
   constructor();
 
+  /**
+   * 这个视图所处的环境：深色还是浅色、屏幕几倍、文字多大。
+   * 变了会派发 `traitchange` 事件，事件对象是 `UITraitChangeEvent`。
+   */
+  readonly traitCollection: UITraitCollection;
+  /**
+   * 强制这个视图（连同它里面的一切）用浅色或深色，不管系统设置。
+   * 默认 `'unspecified'`：跟随外层。
+   */
+  overrideUserInterfaceStyle: UIUserInterfaceStyle;
+
   // 几何。读 frame 每次都建一个新的 CGRect，字段只读；写入时给普通对象也行
   get frame(): CGRect;
   set frame(value: CGRectLike);
@@ -453,6 +464,17 @@ declare class UIViewController extends UIResponder {
   set tabBarItem(value: UITabBarItem | null);
   /** 这个页面所在的 tab 控制器。不在任何 tab 控制器里时是 `null`。 */
   readonly tabBarController: UITabBarController | null;
+
+  /**
+   * 这个页面所处的环境：深色还是浅色、屏幕几倍、文字多大。
+   * 变了会派发 `traitchange` 事件，事件对象是 `UITraitChangeEvent`。
+   */
+  readonly traitCollection: UITraitCollection;
+  /**
+   * 强制这个页面（连同它里面的一切）用浅色或深色，不管系统设置。
+   * 默认 `'unspecified'`：跟随外层。
+   */
+  overrideUserInterfaceStyle: UIUserInterfaceStyle;
 
   /**
    * 子控制器，按加入的顺序。自己写容器（比如自己画 tab 条）时用。

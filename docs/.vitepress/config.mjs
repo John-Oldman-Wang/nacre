@@ -104,6 +104,7 @@ export default defineConfig({
             api('UIFont', 'ui-font'),
             api('UIImage / UIImageView', 'ui-image'),
             api('颜色', 'ui-color'),
+            api('外观特征（深浅色）', 'ui-trait-collection'),
           ],
         },
         {
@@ -179,6 +180,7 @@ export default defineConfig({
             internals('Auto Layout', 'auto-layout'),
             internals('滚动', 'scrolling'),
             internals('导航', 'navigation'),
+            internals('外观特征', 'traits'),
             internals('输入框', 'text-input'),
             internals('图层', 'ca-layer'),
             internals('动画', 'ca-animation'),

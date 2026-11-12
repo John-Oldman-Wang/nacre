@@ -321,7 +321,7 @@ export function stepContainers(ctx) {
   assert('不认识的事件名：两类名字都列出来',
          thrown(() => tabs.addEventListener('select', () => {})),
          'TypeError: addEventListener has no value "select"; expected one of: ' +
-         'didselect / willdismiss / diddismiss / dismissattempted');
+         'didselect / willdismiss / diddismiss / dismissattempted / traitchange');
   assert('模态的事件名也能订', thrown(() => tabs.addEventListener('diddismiss', () => {})), '没抛');
   let selects = 0;
   tabs.addEventListener('didselect', () => { selects++; });

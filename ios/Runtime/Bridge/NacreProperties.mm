@@ -23,6 +23,7 @@ std::string ReadNativeProperty(id object, const std::string& name) {
   if (value == nil) value = ReadDisplayLinkProperty(object, key);
   if (value == nil) value = ReadWebSocketProperty(object, key);
   if (value == nil) value = ReadGestureProperty(object, key);
+  if (value == nil) value = ReadTraitProperty(object, key);
   if (value == nil) value = ReadDeviceProperty(object, key);
   if (value == nil) value = ReadPasteboardProperty(object, key);
   if (value == nil) value = ReadScrollProperty(object, key);
@@ -51,6 +52,7 @@ void WriteNativeProperty(id object, const std::string& name, const std::string& 
   if (WriteDisplayLinkProperty(object, key, value, error)) return;
   if (WriteWebSocketProperty(object, key, value, error)) return;
   if (WriteGestureProperty(object, key, value, error)) return;
+  if (WriteTraitProperty(object, key, value, error)) return;
   if (WritePasteboardProperty(object, key, value, error)) return;
   if (WriteScrollProperty(object, key, value, error)) return;
   if (WriteViewProperty(object, key, value, error)) return;
@@ -86,6 +88,10 @@ nacre::NativeObjectRef ReadNativeObjectProperty(id object, const std::string& na
   }
   {
     nacre::NativeObjectRef ref = ReadGestureObjectProperty(object, name);
+    if (!ref.class_name.empty()) return ref;
+  }
+  {
+    nacre::NativeObjectRef ref = ReadTraitObjectProperty(object, name);
     if (!ref.class_name.empty()) return ref;
   }
   {

@@ -551,6 +551,15 @@ sheet.dismissViewController({ animated: true }).then((closed) => {
 
 - **出错**：写入表里没有的值抛 `TypeError`：`modalTransitionStyle has no value "…"; expected one of: …`
 
+### 外观特征
+
+| 属性 | 类型 | 可读 | 可写 | 默认值 | 含义 |
+| --- | --- | --- | --- | --- | --- |
+| `traitCollection` | [`UITraitCollection`](ui-trait-collection.md) | 是 | 否 | — | 这个页面所处环境的外观特征：深色还是浅色、屏幕几倍、文字多大 |
+| `overrideUserInterfaceStyle` | `'unspecified'` \| `'light'` \| `'dark'` | 是 | 是 | `'unspecified'` | 强制这个页面和它里面的一切用浅色或深色 |
+
+外观特征变了会派发 `traitchange` 事件。用法、取值和要注意的地方都在[外观特征](ui-trait-collection.md)。
+
 ### 和导航栈的关系
 
 | 属性 | 类型 | 可读 | 可写 | 默认值 | 说明 |
@@ -611,7 +620,7 @@ sheet.addEventListener('diddismiss', (event) => {
 - **出错**：监听不认识的事件名抛 `TypeError`：
 
   ```
-  addEventListener has no value "dismiss"; expected one of: willdismiss / diddismiss / dismissattempted
+  addEventListener has no value "dismiss"; expected one of: willdismiss / diddismiss / dismissattempted / traitchange
   ```
 
 > **注意**：被弹出的页面是一个 `UINavigationController` 时，收不到这三个事件。在它上面监听这三个事件名会抛错，因为导航控制器只接受自己的 `willshow` 和 `didshow`。

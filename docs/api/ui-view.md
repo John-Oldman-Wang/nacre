@@ -633,6 +633,15 @@ card.addGestureRecognizer(tap);
 
 - **出错**：参数不是识别器：`TypeError: addGestureRecognizer needs a UIGestureRecognizer`
 
+### 外观特征
+
+| 属性 | 类型 | 可读 | 可写 | 默认值 | 含义 |
+| --- | --- | --- | --- | --- | --- |
+| `traitCollection` | [`UITraitCollection`](ui-trait-collection.md) | 是 | 否 | — | 这个视图所处环境的外观特征：深色还是浅色、屏幕几倍、文字多大 |
+| `overrideUserInterfaceStyle` | `'unspecified'` \| `'light'` \| `'dark'` | 是 | 是 | `'unspecified'` | 强制这个视图和它的子视图用浅色或深色 |
+
+外观特征变了会派发 `traitchange` 事件。用法、取值和要注意的地方都在[外观特征](ui-trait-collection.md)。
+
 ### 外观
 
 | 属性 | 类型 | 可读 | 可写 | 默认值 | 含义 |

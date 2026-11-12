@@ -319,6 +319,7 @@ EventTarget → NSObject → UIResponder → UIScene → UIWindowScene
 
 | 属性 | 类型 | 可读 | 可写 | 默认值 | 含义 |
 | --- | --- | --- | --- | --- | --- |
+| `traitCollection` | [`UITraitCollection`](ui-trait-collection.md) | 是 | 否 | — | 整个场景的外观特征。系统设置里是深色还是浅色，读它的 `userInterfaceStyle`。变了会派发 `traitchange` 事件，见[外观特征](ui-trait-collection.md) |
 | `activationState` | `'unattached'` \| `'foregroundActive'` \| `'foregroundInactive'` \| `'background'` \| `'unknown'` | 是 | 否 | 由系统决定 | 这个场景的激活状态。取值见[激活状态](#激活状态)。变化时派发[事件](#事件)里的四个事件 |
 | `session` | [`UISceneSession`](#uiscenesession) | 是 | 否 | 由系统决定 | 这个场景的会话对象。同一个场景每次读到的是同一个对象 |
 | `isFullScreen` | 布尔 | 是 | 否 | 由系统决定 | `true` 表示场景占满整个屏幕，`false` 表示没有占满。没有变化通知，因为对应的原生事件还没有暴露。**iPhone 上读到的值未记录** |

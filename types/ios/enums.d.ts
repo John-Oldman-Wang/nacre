@@ -205,6 +205,29 @@ type UIBarButtonItemEventType = 'primaryActionTriggered';
 /** 导航控制器上能监听的事件。 */
 type UINavigationControllerEventType = 'willshow' | 'didshow';
 
+/** 深色还是浅色。`'unspecified'` 只在「没有指定」的地方出现，比如没强制过的 `overrideUserInterfaceStyle`。 */
+type UIUserInterfaceStyle = 'unspecified' | 'light' | 'dark';
+
+/** 这个方向上地方宽不宽裕。iPhone 竖屏时横向是 `'compact'`、纵向是 `'regular'`。 */
+type UIUserInterfaceSizeClass = 'unspecified' | 'compact' | 'regular';
+
+/** 用户有没有在系统设置里打开「增强对比度」。 */
+type UIAccessibilityContrast = 'unspecified' | 'normal' | 'high';
+
+/** 文字从左往右写还是从右往左写。 */
+type UITraitEnvironmentLayoutDirection = 'unspecified' | 'leftToRight' | 'rightToLeft';
+
+/** 用户在系统设置里选的文字大小，从小到大。默认是 `'large'`。 */
+type UIContentSizeCategory =
+  | 'unspecified'
+  | 'extraSmall' | 'small' | 'medium' | 'large'
+  | 'extraLarge' | 'extraExtraLarge' | 'extraExtraExtraLarge'
+  | 'accessibilityMedium' | 'accessibilityLarge' | 'accessibilityExtraLarge'
+  | 'accessibilityExtraExtraLarge' | 'accessibilityExtraExtraExtraLarge';
+
+/** 视图、页面、场景上都能监听的那一个事件。 */
+type UITraitChangeEventType = 'traitchange';
+
 /** tab 控制器上能监听的事件。 */
 type UITabBarControllerEventType = 'didselect';
 

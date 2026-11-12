@@ -99,11 +99,14 @@ declare class UIControl extends UIView {
    * 写错了不该静默不响应。
    */
   addEventListener(
-    type: UIControlEventType,
+    type: UIControlEventType | UITraitChangeEventType,
     callback: EventListener | null,
     options?: AddEventListenerOptions,
   ): void;
-  removeEventListener(type: UIControlEventType, callback: EventListener | null): void;
+  removeEventListener(
+    type: UIControlEventType | UITraitChangeEventType,
+    callback: EventListener | null,
+  ): void;
 }
 
 /**

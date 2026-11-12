@@ -2337,10 +2337,63 @@
     }
   });
 
+  // 外观特征：一组「当前环境是什么样」的值。从视图、页面、场景的
+  // traitCollection 读，只读，不能自己建。先开了七个字段
+  defineNativeClass('UITraitCollection', class UITraitCollection extends NSObject {
+    constructor() { nativeOnly(new.target); }
+    get userInterfaceStyle() {
+      requireNative(this, 'userInterfaceStyle');
+      return nativeGet(this, 'userInterfaceStyle');
+    }
+    // 屏幕上 1 pt 等于几个像素
+    get displayScale() { requireNative(this, 'displayScale'); return nativeGet(this, 'displayScale'); }
+    get preferredContentSizeCategory() {
+      requireNative(this, 'preferredContentSizeCategory');
+      return nativeGet(this, 'preferredContentSizeCategory');
+    }
+    get horizontalSizeClass() {
+      requireNative(this, 'horizontalSizeClass');
+      return nativeGet(this, 'horizontalSizeClass');
+    }
+    get verticalSizeClass() {
+      requireNative(this, 'verticalSizeClass');
+      return nativeGet(this, 'verticalSizeClass');
+    }
+    get accessibilityContrast() {
+      requireNative(this, 'accessibilityContrast');
+      return nativeGet(this, 'accessibilityContrast');
+    }
+    get layoutDirection() {
+      requireNative(this, 'layoutDirection');
+      return nativeGet(this, 'layoutDirection');
+    }
+  });
+
   const UIView = defineNativeClass('UIView', class UIView extends UIResponder {
     constructor() {
       super();
       constructNative(this, new.target, 'UIView', []);
+    }
+
+    // 普通视图只有一个要告诉原生的事件：traitchange（外观特征变了）。别的
+    // 名字照旧只是 JS 这边的事件，不过桥。子类（控件、滚动视图）有自己的
+    // 一套，会覆写这个钩子，但 traitchange 在原生那边是先按名字认走的，
+    // 所以它们也都认
+    [kSubscribe](type, on) {
+      if (type === 'traitchange') subscribeNative(this, type, on);
+    }
+
+    // ---- 外观特征 ----
+    // 这个视图所处的环境：深色还是浅色、屏幕几倍、文字多大。每次读都是当时的值
+    get traitCollection() { return nativeGetObject(this, 'traitCollection'); }
+    // 强制这个视图（连同它里面的一切）用浅色或深色。'unspecified' 是跟随外层
+    get overrideUserInterfaceStyle() {
+      requireNative(this, 'overrideUserInterfaceStyle');
+      return nativeGet(this, 'overrideUserInterfaceStyle');
+    }
+    set overrideUserInterfaceStyle(value) {
+      requireNative(this, 'overrideUserInterfaceStyle');
+      nativeSet(this, 'overrideUserInterfaceStyle', value);
     }
 
     // ---- 几何 ----
@@ -4047,6 +4100,13 @@
   defineNativeClass('UIWindowScene', class UIWindowScene extends UIScene {
     constructor() { nativeOnly(new.target); }
 
+    // 整个场景的外观特征：系统设置里是深色还是浅色，读这里
+    get traitCollection() { return nativeGetObject(this, 'traitCollection'); }
+    // 场景的生命周期事件原生总是发，不用订；只有 traitchange 要告诉原生
+    [kSubscribe](type, on) {
+      if (type === 'traitchange') subscribeNative(this, type, on);
+    }
+
     // 这个场景自己的前后台状态，和 application.state（所有场景的聚合）不是一回事
     get activationState() { return nativeGet(this, 'activationState'); }
     get session() { return nativeGetOwned(this, 'session'); }
@@ -4153,6 +4213,19 @@
     get navigationItem() { return nativeGetOwned(this, 'navigationItem'); }
     get navigationController() { return nativeGetOwned(this, 'navigationController'); }
     get parentViewController() { return nativeGetOwned(this, 'parentViewController'); }
+
+    // ---- 外观特征 ----
+    // 这个页面所处的环境：深色还是浅色、屏幕几倍、文字多大。每次读都是当时的值
+    get traitCollection() { return nativeGetObject(this, 'traitCollection'); }
+    // 强制这个页面（连同它里面的一切）用浅色或深色。'unspecified' 是跟随外层
+    get overrideUserInterfaceStyle() {
+      requireNative(this, 'overrideUserInterfaceStyle');
+      return nativeGet(this, 'overrideUserInterfaceStyle');
+    }
+    set overrideUserInterfaceStyle(value) {
+      requireNative(this, 'overrideUserInterfaceStyle');
+      nativeSet(this, 'overrideUserInterfaceStyle', value);
+    }
 
     // ---- 在 tab 条上的样子 ----
     // 不设的话系统按页面的 title 建一个；写 null 也是让系统重新建一个
@@ -4654,6 +4727,7 @@
   // 也可以是普通 JSON 值（动画的 stop 带一个布尔）——sink 一视同仁
   const objectEventField = {
     willshow: 'viewController', didshow: 'viewController', didselect: 'viewController',
+    traitchange: 'previousTraitCollection',
     stop: 'finished',
     tick: 'frame', message: 'data', error: 'message',
   };

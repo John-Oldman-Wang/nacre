@@ -31,6 +31,7 @@
 | [Auto Layout](auto-layout.md) | 约束的所有权、NSException 的接法 |
 | [滚动](scrolling.md) | delegate trampoline、scroll 事件的合并、实测 |
 | [导航](navigation.md) | 页面栈的持有边、事件带数据的判据、父类挡子类的闸 |
+| [外观特征](traits.md) | 变化通知为什么不卡在同步回调上、事件名先按名字认走、三条实测 |
 | [本地存储](storage.md) | 为什么叫 get/set、验值为什么在 JS 侧、落盘怎么验 |
 | [文件读写](filesystem.md) | 为什么有上层对象、名字为什么不叫 files、错误的两层分工 |
 | [输入框](text-input.md) | 为什么不卡 M1b、撤掉了哪个属性、三个坑 |

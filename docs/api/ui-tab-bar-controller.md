@@ -277,11 +277,11 @@ tabs.addEventListener('didselect', (e) => {
 - 代码改 `selectedIndex` 或 `selectedViewController` 时不派发（实测）。
 - 事件不能取消。不能用它阻止用户切换，见[还不能做的](#还不能做的)。
 - 回调不是在点击的那一刻同步执行，而是稍后执行，见[运行时怎么工作](how-it-works.md#事件)。
-- 它是一个页面，所以被模态呈现时，[模态的三个关闭事件](ui-view-controller.md#事件)也能在它上面监听。
+- 它是一个页面，所以被模态呈现时，[模态的三个关闭事件](ui-view-controller.md#事件)也能在它上面监听。[`traitchange`](ui-trait-collection.md#traitchange-事件) 也能。
 - **出错**：监听不认识的事件名抛 `TypeError`：
 
   ```
-  addEventListener has no value "select"; expected one of: didselect / willdismiss / diddismiss / dismissattempted
+  addEventListener has no value "select"; expected one of: didselect / willdismiss / diddismiss / dismissattempted / traitchange
   ```
 
 ### `UITabBarItem`

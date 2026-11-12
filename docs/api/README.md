@@ -68,6 +68,7 @@ Nacre 的 API 分两层：
 | [`fetch`](fetch.md) | 网络请求。线程分工是实测定下来的 |
 | [`WebSocket`](websocket.md) | 长连接。比 Web 多两样：可以带首部、有协议级 `ping()` |
 | [`UIColor`](ui-color.md) | 颜色。基础色、系统色、语义色 |
+| [外观特征](ui-trait-collection.md) | 深色还是浅色、屏幕几倍、文字多大。读取、强制、变化通知 |
 | [`UIViewController`](ui-view-controller.md) | 页面。`view`、`title`、模态呈现、父子控制器 |
 | `NSObject` | ObjC 的根类，所有原生类的基类（继承 `EventTarget`） |
 | `EventTarget` / `Event` | 事件基类，见 [`application`](application.md) 的「继承关系」 |

@@ -85,6 +85,8 @@ typedef void (^NacrePasteboardEmit)(UIPasteboard* pasteboard, NSString* type);
 // 手势的事件出口。NacreGesture.mm 不认识 NacreRuntime，订阅时由它塞进来
 typedef void (^NacreGestureEmit)(UIGestureRecognizer* recognizer, NSString* type,
                                  NSString* json);
+// 外观特征变了的事件出口：谁的特征变了、变之前是什么
+typedef void (^NacreTraitEmit)(id environment, UITraitCollection* previous);
 
 // 手势的 trampoline：运行时自己当 target，只记订阅了哪几个事件名。
 // 识别器通过关联对象持有它，它对识别器没有引用，不成环
@@ -548,6 +550,15 @@ bool PasteboardSetSubscription(id object, NSString* type, BOOL on, NacrePasteboa
 
 // ---- 密码学 ----
 bool FillRandom(void* bytes, size_t length);
+
+// ---- 外观特征 ----
+// 一个域一个文件（NacreTrait.mm）。枚举只在那个文件里用，所以不在这里声明
+bool TraitObservable(id object);
+bool TraitSetSubscription(id object, NSString* type, BOOL on, NacreTraitEmit emit,
+                          std::string* error);
+id ReadTraitProperty(id object, NSString* key);
+BOOL WriteTraitProperty(id object, NSString* key, id value, std::string* error);
+nacre::NativeObjectRef ReadTraitObjectProperty(id object, const std::string& name);
 
 // ---- 手势 ----
 // 一个域一个文件（NacreGesture.mm），每个入口返回「认不认领」

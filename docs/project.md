@@ -644,6 +644,7 @@ Commit message 格式：
 | — | 所有权镜像补全（二）：删掉订阅保活集合 | 加监听器不再改变对象的寿命；导航栈和模态各常驻一个内部事件，系统自己弹栈、用户拖走模态时镜像跟上；包装被重建时打警告 | 已在模拟器验证通过：先加 13 条断言跑出 11 条失败（游离的带监听器的对象不回收），游离对象都被回收。警告用一次性探针验过。系统返回和拖走靠真实触摸：点返回后第二页在第 3 秒被回收、卡片还在，拖走后其余两个在第 11 秒被回收；改完全量 1301 条断言全过。真机（iPhone 14）上探针验过，结论一致；路由进出那一步真机未验证 |
 | — | A4-1 父子控制器 | `addChildViewController` 一组、`childViewControllers`、`additionalSafeAreaInsets` | 已在模拟器验证通过：1332 条断言全过，验收里用它搭了一个自己画 tab 条的界面。实测成环的父子关系 UIKit 不检查、会栈溢出崩掉，运行时在加之前拦成 `TypeError`。真实点击切换过，贴着安全区的那行字停在按钮条上方 |
 | — | A4-2 `UITabBarController` | `UITabBarItem`、`UITabBar`（两个颜色）、`didselect`、`tabBarMinimizeBehavior` | 已在模拟器验证通过：1393 条断言全过。实测程序改选中项不派发 `didselect`、`selectedImage` 读回来不是写进去的对象。真实点击切换过，每次都收到 `didselect`；标签栏实际的样子（图标、角标、颜色）没有核对 |
+| — | A9-1 外观特征 | `UITraitCollection`（七项）、`overrideUserInterfaceStyle`、`traitchange` 事件 | 已在模拟器验证通过（iOS 27.2）：1432 条断言全过；用 `simctl` 切换系统的深浅色和文字大小，场景和视图都收到了 `traitchange`。实测写了强制之后立刻读还是旧值、不在窗口里的视图强制不生效。iOS 26 上没验（被键盘场景那条 TODO 挡着） |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |
@@ -731,7 +732,7 @@ iOS 的触摸不是一套机制，是**四套并行**的（hit-testing、respond
 
 **我们自己的验收永远碰不到它**：全跑在 iOS 27 的模拟器上。「支持 iOS 26+」这句话从来没被验证过。这是**验证方法的缺口**，不只是代码的。
 
-> 后续（2026-11-12）：这个缺口补了两处。**编译期**：最低版本设的是 26.0，用了更新的接口而没加 `@available` 时编译器会给警告，但一次全量编译有两万多条别的警告（V8 头文件的可空性标注），它一直淹在里面。现在 `run-sim.sh` 把它单独捞出来。捞出来的第一批就是上面这三个常量——它们当时只做了「是 nil 就跳过」，两层保护一层都没写，已补上。**运行期**：装了 iOS 26.0 的模拟器系统，验收可以在 26 上跑了。还没有的是 Xcode 26 本身，「用 26 的 SDK 能不能编过」仍然没验证过。
+> 后续（2026-11-12）：这个缺口补了两处。**编译期**：最低版本设的是 26.0，用了更新的接口而没加 `@available` 时编译器会给警告，但一次全量编译有两万多条别的警告（V8 头文件的可空性标注），它一直淹在里面。现在 `run-sim.sh` 把它单独捞出来。捞出来的第一批就是上面这三个常量——它们当时只做了「是 nil 就跳过」，两层保护一层都没写，已补上。**运行期**：装了 iOS 26.0 的模拟器系统，验收可以在 26 上跑了。第一次跑就查出一个 26 特有的问题，见下面「iOS 26 上键盘第一次弹出时」那条 TODO。还没有的是 Xcode 26 本身，「用 26 的 SDK 能不能编过」仍然没验证过。
 
 **2. Xcode 26.5 编译不过。** 两处用了 iOS 27 才有的符号（`systemPrefersReducedResourceUsage` 和它的通知），只写了 `@available`。那是运行时检查，**编译时符号还得在 SDK 里**。
 
@@ -786,7 +787,7 @@ bindgen 做完也解决不了同盾（风控）、mtpush（推送）、Sentry �
 | A6 | ~~**Core Animation**~~ **已做**：A6-1 核心、A6-2 关键帧/动画组/弹簧、A6-3 CADisplayLink。剩 CATransition、CASpringAnimation 的感知时长初始化器 | `CADisplayLink` 是 target-action，M1a 已经够 |
 | A7 | **手势识别器**：~~点按、长按~~ **已做**（见[事件模型](internals/events.md#a7-的第一片点按和长按)）。剩拖动、捏合、轻扫 | target-action，M1a 够。抢占语义原样暴露 iOS 的三个属性，没有另外设计。delegate 那部分要 M2 |
 | A8 | ~~**事件对象带数据**~~ **已做**：九个 `touch*` 事件带 `location` / `tapCount`。其余事件按 Web 的做法**根本没有这两个字段** | 只能由原生在派发时填 |
-| A9 | **`UITraitCollection`** + `overrideUserInterfaceStyle` | 读不到深浅色、收不到外观变化、App 内做不了主题开关。顺带堵上 `layer` 的 `borderColor` / `shadowColor` 切换主题不变色 |
+| A9 | ~~**`UITraitCollection`** + `overrideUserInterfaceStyle`~~ **已做**：读七项、强制深浅色、`traitchange`。剩 `updateTraitsIfNeeded`、其余各项、图层颜色按所属视图解析 | 读不到深浅色、收不到外观变化、App 内做不了主题开关。顺带堵上 `layer` 的 `borderColor` / `shadowColor` 切换主题不变色 |
 | A10 | **`UIRefreshControl`** | 依附在滚动视图的原生机制上 |
 | A11 | **`UISheetPresentationController` 的 detents** | 模态的呈现高度由系统控制，下单卡片只能整页 |
 | A12 | ~~**触感反馈**~~ **已做**：`UIImpactFeedbackGenerator` 一组三个类，只给绑定视图的工厂（`init` 已被 Apple 标成将废弃） | 系统能力 |
@@ -977,6 +978,20 @@ Web 能双向字符串化是因为 CSSOM 自己留着声明串，我们没有这
 
 **TODO：颜色解析的性能还没实测。** 现在解析在 JS 侧，靠池化摊掉——同一个串只解析一次，之后是 `Map.get` + `WeakRef.deref`。而**过桥写属性那一次省不掉**，所以稳态成本里解析接近零；把解析挪到原生反而会让重复字符串每次都过桥。但**首次解析在 jitless 下到底多少微秒没量过**。先给验收用例加一条基准，有数再谈优化。WebAssembly 这条路不通——lite mode / jitless 下编译不了 wasm。
 
+**TODO：iOS 26 上键盘第一次弹出时，会多收到一次 `sceneconnect`。**（2026-11-12 在 iOS 26.0 的模拟器上查到，iOS 27 上没有出现。）
+
+输入框聚焦、键盘弹出的那一刻，系统会接入一个内部场景来放键盘的窗口：原生类是 `_UIKeyboardWindowScene`（`UIWindowScene` 的私有子类），会话角色是 `_UIScreenBasedSceneSession`，没有委托。运行时靠 `UISceneWillConnectNotification` 发 `sceneconnect`，判断条件只有「是不是 `UIWindowScene`」，所以它被当成普通场景转给了 JS。`application.scenes` 不受影响，那里面始终只有一个。
+
+后果：`main.js` 如果像文档里的例子那样在 `sceneconnect` 里建窗口和页面，会在键盘的场景上再建一套。验收用例启动时会自动聚焦一个输入框，所以它在 26 上整套跑了两遍，两遍互相踩存储，多出 11 条失败。
+
+用最小的 App 复现过：只建窗口和页面，一个场景；加一个输入框并聚焦，聚焦的瞬间多出第二个。
+
+修法（未做）：运行时只转发**公开角色**的场景（应用场景 `UIWindowSceneSessionRoleApplication`，以及外接显示器场景），私有角色的不转。要改两处通知：接入和断开那一组、场景自己的四个前后台事件。在临时副本里加了这个判断之后，iOS 26.0 上验收只跑一遍，1397 条通过、0 条失败，和 iOS 27 逐条对比只差三处预期内的（三个 iOS 27 专属的输入类型在 26 上抛 `TypeError`；启动时自动聚焦在 26 上键盘能弹出来；启动时 `application.scenes.length` 在 26 上是 1）。
+
+没确认的：iOS 27 是不再有这个场景，还是只是没触发到。27.2 的模拟器上启动时那个键盘弹不出来。
+
+**在它修好之前，iOS 26 上的验收结果不能直接用**（会跑两遍）。要在 26 上验别的东西，先在临时副本里加上那个判断。
+
 **TODO：`check-api.sh` 的标量核对是按名字的并集，不分类。** 做输入框时咬了一次：`textAlignment` 只在 `UILabel` 分支接了原生，`UITextField` 漏了，而名字在集合里所以脚本没报，运行时才抛，连带整个 `sceneconnect` 中断、黑屏。同一家的还有「标量接了不等于对象属性也接了」——那是另一条通道。要改成按类比对，得先让脚本知道每个分支属于哪个类。
 
 **已实现：对象参数类型不对会抛。** 原来 `view.addSubview(UIColor.redColor)`、`NSLayoutConstraint.activateConstraints([1, 2, 3])`、`label.font = 'Helvetica'` 都是什么都不发生也不报错。现在统一按 Web IDL：对象不转换，不是要求的那个类就抛 `TypeError`；本来就可空的参数和属性传 `null` 照常。见[参数转换](internals/conversion.md#第-5-步对象参数不转换类型不对就抛)。
@@ -1022,13 +1037,9 @@ JS 侧的属性是一个个显式定义的取值器，名字不认识的赋值�
 
 于是 JS 侧现在只能在自己知道布局变了的时候重设一次，**系统驱动的重新布局（旋转、动态字体、键盘）跟不上**。三条路：覆写 `layoutSubviews`（M2）、`+layerClass`（M2）、**KVO 监听 `view.layer.bounds` 做成 `layoutchange` 事件（不需要 M2）**。第三条该单独走一遍 SOP——它是新发明一个事件，而且 KVO 在布局动画期间的时序没实测过。
 
-**TODO：JS 读不到屏幕的 scale。** 做 A5-1 时撞出来的：`CALayer.contentsScale` 默认是 1，**实测连 `view.layer` 在场景接入时也是 1**，所以它当不了屏幕 scale 的替代品。而 `UIScreen` 没暴露、`UITraitCollection.displayScale` 也没有，于是自己建的图层要高清光栅化只能把 3 写死在 JS 里。跟下面那条一起补。
+**已实现：屏幕的 scale 和外观特征都读得到了。** `view.traitCollection.displayScale` 给出屏幕是几倍的（实测还没进窗口的视图也读得到 3，不是 0），所以自己建的图层要高清光栅化不用再把 3 写死。`UITraitCollection` 先开了七项，`overrideUserInterfaceStyle` 可写，变化通知是 `traitchange` 事件。详见 [API 文档](api/ui-trait-collection.md)和[实现原理](internals/traits.md)。
 
-**TODO：`UITraitCollection` 还没暴露。** 这一条挡着三件事：
-
-- JS 读不到当前是深色还是浅色、文字大小是多少、对比度设置
-- JS 收不到外观变化的通知，没法自己做判断（换图、换布局）
-- `overrideUserInterfaceStyle` 写不了，局部强制深浅做不到
+原来这条 TODO 里写的「挡着三件事」（读不到深浅色和文字大小、收不到变化通知、写不了强制深浅）都通了。还剩的：`updateTraitsIfNeeded`、其余十几项、通用的 `traitOverrides`。
 
 **注意区分**：动态色和动态字体本身**不需要** JS 做任何事——`view.backgroundColor = UIColor.systemBackgroundColor` 之后，深色模式切换时 UIKit 自己重新解析并重绘；标签跟随文字大小靠 `UILabel.adjustsFontForContentSizeCategory` 这个属性。trait 事件服务的是**JS 自己要对外观做反应**的场合，不是颜色和字体的刷新。
 

@@ -694,7 +694,7 @@ card.addEventListener('touchUpInside', (e) => {
 - 同一个事件名和同一个函数重复注册，只算一次。
 - 回调里抛出的异常不影响同一事件的其他回调。运行时把异常输出到控制台，以 `Event listener threw:` 开头。
 - **出错**：
-  - 事件名不在 16 个之内：`TypeError: addEventListener has no value "click"; expected one of: touchDown / touchDownRepeat / touchDragInside / touchDragOutside / touchDragEnter / touchDragExit / touchUpInside / touchUpOutside / touchCancel / valueChanged / primaryActionTriggered / menuActionTriggered / editingDidBegin / editingChanged / editingDidEnd / editingDidEndOnExit`
+  - 事件名不在 16 个之内：`TypeError: addEventListener has no value "click"; expected one of: touchDown / touchDownRepeat / touchDragInside / touchDragOutside / touchDragEnter / touchDragExit / touchUpInside / touchUpOutside / touchCancel / valueChanged / primaryActionTriggered / menuActionTriggered / editingDidBegin / editingChanged / editingDidEnd / editingDidEndOnExit / traitchange`。名单最后的 `traitchange` 不是控件事件，是所有视图都有的[外观特征变化通知](ui-trait-collection.md#traitchange-事件)
   - `callback` 不是函数也不是 `null`：`TypeError: Failed to execute 'addEventListener': parameter 2 is not of type 'Function'.`
 
 事件对象的成员：
