@@ -106,9 +106,17 @@ NSDictionary<NSString*, UITextContentType>* TextContentTypes() {
     NACRE_TCT(@"birthdateYear", UITextContentTypeBirthdateYear)
     NACRE_TCT(@"cellularEID", UITextContentTypeCellularEID)
     NACRE_TCT(@"cellularIMEI", UITextContentTypeCellularIMEI)
-    NACRE_TCT(@"cellularIMEI1", UITextContentTypeCellularIMEI1)
-    NACRE_TCT(@"cellularIMEI2", UITextContentTypeCellularIMEI2)
-    NACRE_TCT(@"cellularNAL", UITextContentTypeCellularNAL)
+    // 下面三个是 iOS 27 才有的，两层保护都要写（project.md 第 3 节）：
+    // #if 管编译用的 SDK 认不认识这几个名字——只写 @available 的话，
+    // Xcode 26 的 SDK 里没有它们，连编译都过不了；@available 管跑的那台
+    // 机器上有没有。原来两层都没有，靠的是上面那个「是 nil 就跳过」。
+#if defined(__IPHONE_OS_VERSION_MAX_ALLOWED) && __IPHONE_OS_VERSION_MAX_ALLOWED >= 270000
+    if (@available(iOS 27.0, *)) {
+      NACRE_TCT(@"cellularIMEI1", UITextContentTypeCellularIMEI1)
+      NACRE_TCT(@"cellularIMEI2", UITextContentTypeCellularIMEI2)
+      NACRE_TCT(@"cellularNAL", UITextContentTypeCellularNAL)
+    }
+#endif
     NACRE_TCT(@"countryName", UITextContentTypeCountryName)
     NACRE_TCT(@"creditCardExpiration", UITextContentTypeCreditCardExpiration)
     NACRE_TCT(@"creditCardExpirationMonth", UITextContentTypeCreditCardExpirationMonth)

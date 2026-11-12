@@ -15,9 +15,25 @@ bash ./scripts/fetch-v8.sh
 bash ./scripts/build-js.sh
 xcodegen generate --quiet
 
+mkdir -p build
 xcodebuild -project Nacre.xcodeproj -scheme Nacre -configuration Debug \
   -sdk iphonesimulator -destination "platform=iOS Simulator,id=$DEVICE" \
-  -derivedDataPath build -quiet build
+  -derivedDataPath build -quiet build 2>&1 | tee build/xcodebuild.log
+
+# 用了比最低支持版本（iOS 26）更新的系统接口、却没加 @available 保护的地方。
+# 编译器对这个只给警告，而一次全量编译有两万多条别的警告（V8 头文件的
+# 可空性标注），这几条淹在里面，从来没人看见过。所以单独捞出来放在最后。
+#
+# 增量编译只重编改过的文件，这里只看得到这次重编到的那些。要看全量：
+# rm -rf build 之后再跑一次。
+AVAILABILITY=$(grep -E '\[-Wunguarded-availability(-new)?\]' build/xcodebuild.log \
+                 | sed 's#^.*/ios/##' | sort -u || true)
+if [ -n "$AVAILABILITY" ]; then
+  echo
+  echo "⚠️  下面这些接口在 iOS 26 上没有，用之前要加 @available 保护（否则在 26 上会崩）："
+  echo "$AVAILABILITY"
+  echo
+fi
 
 APP="build/Build/Products/Debug-iphonesimulator/Nacre.app"
 xcrun simctl boot "$DEVICE" 2>/dev/null || true

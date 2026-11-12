@@ -114,7 +114,7 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 
 | 方面 | 选型 |
 | --- | --- |
-| 系统与设备 | iOS 26+，只支持 iPhone，只支持 arm64（真机和 Apple Silicon 模拟器），Xcode 26+。**用到 iOS 27 才有的符号时，`#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 270000` 和 `@available` 两层都要写**——前者管编译用的 SDK 认不认识，后者管跑的机器有没有。只写后者在 Xcode 26 上编译不过 |
+| 系统与设备 | iOS 26+，只支持 iPhone，只支持 arm64（真机和 Apple Silicon 模拟器），Xcode 26+。**用到 iOS 27 才有的符号时，`#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 270000` 和 `@available` 两层都要写**——前者管编译用的 SDK 认不认识，后者管跑的机器有没有。只写后者在 Xcode 26 上编译不过。漏写后者时编译器只给警告（`-Wunguarded-availability-new`），`run-sim.sh` 会把这类警告单独列在构建输出的最后 |
 | JS 引擎 | V8 14.9.207.39，使用 [NativeScript/v8-buildscripts](https://github.com/NativeScript/v8-buildscripts) 发布的预编译静态库；lite mode 构建，即 jitless。**不要传 `--jitless`**（只读标志，设置会崩溃） |
 | V8 获取方式 | `ios/scripts/fetch-v8.sh` 下载并校验 SHA256，放到 `ios/Vendor/v8`，不提交 |
 | 线程模型 | **JS 运行在主线程**，和 UIKit 同线程，所以同步读布局和同步回调天然成立。主线程栈用链接器参数 `-Wl,-stack_size,0x800000` 设为 8MB（真机默认 1MB，不够 V8 用）。V8 的空闲任务在 run loop 即将等待时执行，做增量 GC。理由和代价见下 |
@@ -730,6 +730,8 @@ iOS 的触摸不是一套机制，是**四套并行**的（hit-testing、respond
 **1. `textContentType` 在 iOS 26.x 上必崩。** `NacreEnumsInput.mm` 的表里有三个 `API_AVAILABLE(ios(27.0))` 的常量（`cellularIMEI1` / `cellularIMEI2` / `cellularNAL`），低版本上弱链接成 nil，往字典字面量里插 nil 当场抛——而且发生在 `dispatch_once` 里，JS 既捕获不到也看不到输出。
 
 **我们自己的验收永远碰不到它**：全跑在 iOS 27 的模拟器上。「支持 iOS 26+」这句话从来没被验证过。这是**验证方法的缺口**，不只是代码的。
+
+> 后续（2026-11-12）：这个缺口补了两处。**编译期**：最低版本设的是 26.0，用了更新的接口而没加 `@available` 时编译器会给警告，但一次全量编译有两万多条别的警告（V8 头文件的可空性标注），它一直淹在里面。现在 `run-sim.sh` 把它单独捞出来。捞出来的第一批就是上面这三个常量——它们当时只做了「是 nil 就跳过」，两层保护一层都没写，已补上。**运行期**：装了 iOS 26.0 的模拟器系统，验收可以在 26 上跑了。还没有的是 Xcode 26 本身，「用 26 的 SDK 能不能编过」仍然没验证过。
 
 **2. Xcode 26.5 编译不过。** 两处用了 iOS 27 才有的符号（`systemPrefersReducedResourceUsage` 和它的通知），只写了 `@available`。那是运行时检查，**编译时符号还得在 SDK 里**。
 
