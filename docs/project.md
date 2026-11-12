@@ -637,6 +637,7 @@ Commit message 格式：
 | — | 参数转换 5：对象参数类型不对就抛 | `viewArg` 一类填报错、`NACRE_OBJECT_OR_NIL`、写对象属性的通道补上报错出口 | 已在模拟器验证通过：1219 条断言全过。那条记了很久的待办（`addSubview(颜色)` 静默什么都不做）关掉了 |
 | — | 修复：`new Blob()` 在 GC 之后丢数据 | `createBlob` 改成把 `this` 绑成包装（`BindWrapper`），和 `construct` 一致 | 已在模拟器验证通过：先加断言跑出失败（GC 后 `size` 是 `null`），修完 1221 条断言全过 |
 | — | 验收界面按区块瀑布排列 | `app/src/waterfall.js`：滚动视图套排列容器，每一步一个带标题的区块 | 已在模拟器验证通过：1221 条断言一条没少（按标签逐条比对），几何相关的数值没变；滚动、点按钮、点手势区块都试过。长按在滚动视图里还没试 |
+| — | 修复：fetch 请求记录的两处生命周期问题 | 读取期间由 JS 拿着 `Response`；记录加 `responded`，响应头没到就结束的当场删；释放时停掉还在跑的下载 | 已在模拟器验证通过：先加用例跑出失败（读取的 Promise 等了 15 秒不结算），修完照常结算。失败请求的滞留用一次性探针验的，没有常驻断言。来源是一份外部审查，另外三条还没处理 |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |

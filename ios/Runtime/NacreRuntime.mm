@@ -36,6 +36,9 @@ using namespace nacre_bridge;
 @property(nonatomic, strong) NSURLSessionDataTask* task;
 @property(nonatomic, strong) NSMutableData* body;
 @property(nonatomic) BOOL completed;      // body 下载完了（成功或失败）
+// 响应头交给 JS 了。从这一刻起 JS 那边有一个 Response，这条记录的清理
+// 归它管（它被回收时来 fetchRelease）；在这之前结束的请求没有人会来清理
+@property(nonatomic) BOOL responded;
 @property(nonatomic, strong) NSError* error;
 // 等 body 的那个调用。headers 先到、body 后到，所以 read 可能来得比完成早
 @property(nonatomic) int pendingBodyCallId;
@@ -485,6 +488,7 @@ static const void* kNacrePresentationDelegateKey = &kNacrePresentationDelegateKe
       [response isKindOfClass:NSHTTPURLResponse.class] ? (NSHTTPURLResponse*)response : nil;
   [self withTask:dataTask
               do:^(NacreFetchTask* entry, int callId) {
+                entry.responded = YES;
                 NSMutableArray* headerPairs = [NSMutableArray array];
                 [http.allHeaderFields
                     enumerateKeysAndObjectsUsingBlock:^(id k, id v, BOOL* stop) {
@@ -518,10 +522,16 @@ static const void* kNacrePresentationDelegateKey = &kNacrePresentationDelegateKe
               do:^(NacreFetchTask* entry, int callId) {
                 entry.completed = YES;
                 entry.error = error;
-                if (error && entry.pendingBodyCallId == 0) {
-                  // headers 都没到就失败了，拒绝那个 Response 的 Promise
-                  [self rejectCall:callId withError:error];
+                if (!entry.responded) {
+                  // 响应头都没到就结束了（连不上、超时、被取消）：拒绝 fetch
+                  // 的那个 Promise。JS 那边没有建出 Response，不会有人来
+                  // fetchRelease，所以记录在这里当场删掉。
+                  if (error) [self rejectCall:callId withError:error];
+                  [self->_fetchTasks removeObjectForKey:@(entry.requestId)];
+                  return;
                 }
+                // 响应头到了之后才失败的：fetch 的 Promise 早已兑现，错误留在
+                // 记录里，等读 body 时交出去
                 if (entry.pendingBodyCallId != 0) {
                   // 已经有人在等 body 了，现在能给了
                   [self deliverBody:entry
@@ -684,8 +694,14 @@ nacre::NativeObjectRef CreateBlob(
   return {(void*)CFAutorelease(CFBridgingRetain(blob)), "Blob"};
 }
 
+// Response 被回收了。读取期间 JS 侧拿着 Response（见 nacre.js 的 reading），
+// 所以走到这里时不会有人在等这个 body
 - (void)fetchRelease:(int)requestId {
   dispatch_async(_fetchQueue, ^{
+    NacreFetchTask* entry = self->_fetchTasks[@(requestId)];
+    if (!entry) return;
+    // 还没下完就没人要了：停掉下载，不然它会在后台下完再整个扔掉
+    if (!entry.completed) [entry.task cancel];
     [self->_fetchTasks removeObjectForKey:@(requestId)];
   });
 }

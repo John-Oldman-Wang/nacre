@@ -5313,6 +5313,13 @@
     native.fetchRelease(requestId);
   });
 
+  // 正在读 body 的对象。读取返回的 Promise 不持有 Response，所以
+  // `fetch(url).then((res) => res.text())` 里 text() 一返回 res 就没人拿着了。
+  // body 还没下完时它被回收，上面那个清理回调会把原生的请求记录删掉，
+  // 下载完成时找不到记录，这个 Promise 就永远不结算。
+  // 所以读取期间由这里拿着它，结算（成功、失败、取消都算）之后放开。
+  const reading = new Set();
+
   function readBody(target, kind) {
     if (target[kBodyUsed]) {
       // Web 规范：body 只能读一次。读过第二次要抛，不能静默给空的
@@ -5321,7 +5328,13 @@
     target[kBodyUsed] = true;
     const id = target[kRequestId];
     if (!id) return Promise.reject(new TypeError('This object has no body'));
-    return native.fetchReadBody(id, kind);
+    const result = native.fetchReadBody(id, kind);
+    reading.add(target);
+    const done = () => { reading.delete(target); };
+    // 两个分支都接住：这条派生出来的 Promise 没人拿，拒绝不接就成了
+    // 未处理的拒绝。交给调用方的仍然是 result 本身
+    result.then(done, done);
+    return result;
   }
 
   class Body {

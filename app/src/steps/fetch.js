@@ -139,4 +139,85 @@ export function stepFetch(ctx) {
       console.log('  ✗ fetch 用例整体出错:', err && err.message);
     }
   })();
+
+  // ===== 读 body 期间 Response 被回收（回归）=====
+  //
+  // `fetch(url).then((res) => res.text())`：text() 返回之后就没有人拿着 res 了。
+  // 修之前，body 还没下完时 res 被回收 → 原生那条请求记录跟着被删 → 下载完成
+  // 的回调按 id 查不到记录 → 这个 Promise 永远不结算。
+  //
+  // 对照组是另一个同样慢的响应，拿到之后不读、不留引用。只有它在下载结束
+  // **之前**被回收了，才说明 GC 真的赶在了那个时间窗里，这一轮的结论才算数。
+  (async () => {
+    const { storage } = application;
+    const tickKey = 'nacre.acceptance.gcTick';
+    const noop = () => {};
+    try {
+      // /drip：响应头立刻回来，body 在 6 秒里一点一点给
+      const drip = 'https://httpbin.org/drip?duration=6&numbytes=60&code=200&delay=0';
+      const t0 = performance.now();
+      let state = 'pending';
+      let length = -1;
+      let collectedAt = -1;
+      let pendingWhenCollected = false;
+      // 对照组用 FinalizationRegistry 而不是 WeakRef：轮询 deref() 会把目标
+      // 保到当前这一轮任务结束，增量标记跨着好几轮，等于一直保着它——
+      // 实测那样写对照组永远不被回收。
+      const registry = new FinalizationRegistry(() => {
+        collectedAt = Math.round(performance.now() - t0);
+        pendingWhenCollected = state === 'pending';
+      });
+
+      fetch(drip + '&who=read')
+        .then((res) => {
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          return res.text();
+        })
+        .then((text) => { state = 'fulfilled'; length = text.length; },
+              (err) => { state = 'rejected: ' + (err && err.message); });
+      const controlOK = await fetch(drip + '&who=control').then((res) => {
+        registry.register(res, 0);
+        return res.ok;
+      });
+
+      // 清理回调是 V8 平台队列里的任务，要有原生事件进来那一轮才会被执行。
+      // 定时器那一轮不算，所以每一拍写一次本地存储，让 change 事件来带它。
+      storage.addEventListener('change', noop);
+      for (let tick = 0; state === 'pending' && performance.now() - t0 < 15000; tick++) {
+        if (collectedAt < 0) {
+          // 清理回调要等一次**完整** GC，小对象只会触发新生代回收。
+          // 大块缓冲区记在堆外内存上，每拍 96 MB，实测 3 秒左右出一次完整回收。
+          for (let i = 0; i < 24; i++) new Uint8Array(4 << 20);
+          for (let i = 0; i < 20; i++) {
+            /** @type {object[]} */ const junk = [];
+            for (let j = 0; j < 3000; j++) junk.push({ i, j, s: 'x'.repeat(16) + j });
+          }
+        }
+        storage.set(tickKey, tick);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      const waited = Math.round(performance.now() - t0);
+
+      console.log('--- fetch：读 body 期间 Response 被回收 ---');
+      if (!controlOK || state.startsWith('rejected')) {
+        console.log('  ! 慢响应没拿到（' + state + '），多半是 httpbin 限流，这一条未验证');
+      } else if (collectedAt < 0 || !pendingWhenCollected) {
+        console.log('  ! 对照组没在下载结束之前被回收（collectedAt = ' + collectedAt +
+                    '），GC 没赶上，这一条未验证');
+      } else if (state === 'pending') {
+        console.log('  ✗ 读取开始之后丢掉 Response：对照组在 ' + collectedAt +
+                    ' ms 被回收，读取的 Promise 等了 ' + waited + ' ms 还没结算');
+      } else {
+        console.log('  ✓ 读取开始之后丢掉 Response：对照组在 ' + collectedAt +
+                    ' ms 被回收，读取在 ' + waited + ' ms 照常结算');
+        assert('读到的内容完整（60 字节）', length, 60);
+      }
+    } catch (err) {
+      console.log('  ✗ 「读 body 期间被回收」用例整体出错:', err && /** @type {Error} */ (err).message);
+    } finally {
+      storage.removeEventListener('change', noop);
+      storage.remove(tickKey);
+      console.log('--- fetch：以上回归跑完 ---');
+    }
+  })();
 }
