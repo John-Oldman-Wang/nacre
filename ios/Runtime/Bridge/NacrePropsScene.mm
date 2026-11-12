@@ -76,7 +76,7 @@ BOOL WriteSceneProperty(id object, NSString* key, id value,
                       std::string* error) {
   if ([object isKindOfClass:UINavigationController.class]) {
     if ([key isEqualToString:@"isNavigationBarHidden"]) {
-      ((UINavigationController*)object).navigationBarHidden = [value boolValue];
+      ((UINavigationController*)object).navigationBarHidden = NACRE_BOOL(value, key);
       return YES;
     }
   }
@@ -92,7 +92,7 @@ BOOL WriteSceneProperty(id object, NSString* key, id value,
       return YES;
     }
     if ([key isEqualToString:@"hidesBackButton"]) {
-      item.hidesBackButton = [value boolValue];
+      item.hidesBackButton = NACRE_BOOL(value, key);
       return YES;
     }
   }
@@ -119,7 +119,7 @@ BOOL WriteSceneProperty(id object, NSString* key, id value,
       return YES;
     }
     if ([key isEqualToString:@"isModalInPresentation"]) {
-      vc.modalInPresentation = [value boolValue];
+      vc.modalInPresentation = NACRE_BOOL(value, key);
       return YES;
     }
     if ([key isEqualToString:@"title"]) {
@@ -144,7 +144,7 @@ BOOL WriteSceneProperty(id object, NSString* key, id value,
 
   if ([object isKindOfClass:UIWindow.class]) {
     if ([key isEqualToString:@"windowLevel"]) {
-      ((UIWindow*)object).windowLevel = [value doubleValue];
+      ((UIWindow*)object).windowLevel = NACRE_NUM(value, key);
       return YES;
     }
   }

@@ -68,7 +68,7 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
       return EncodeJSON(@([responder resignFirstResponder]));
     }
     if ([sel isEqualToString:@"endEditing:"] && [object isKindOfClass:UIView.class]) {
-      return EncodeJSON(@([(UIView*)object endEditing:[valueArg(0) boolValue]]));
+      return EncodeJSON(@([(UIView*)object endEditing:NACRE_BOOL(valueArg(0), sel)]));
     }
   }
 
@@ -163,12 +163,12 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
     UIScrollView* sv = (UIScrollView*)object;
     if ([sel isEqualToString:@"setContentOffset:animated:"]) {
       [sv setContentOffset:JSONToPoint(valueArg(0))
-                  animated:[valueArg(1) boolValue]];
+                  animated:NACRE_BOOL(valueArg(1), sel)];
       return "null";
     }
     if ([sel isEqualToString:@"scrollRectToVisible:animated:"]) {
       [sv scrollRectToVisible:JSONToRect(valueArg(0))
-                     animated:[valueArg(1) boolValue]];
+                     animated:NACRE_BOOL(valueArg(1), sel)];
       return "null";
     }
     if ([sel isEqualToString:@"flashScrollIndicators"]) {
@@ -191,7 +191,7 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
     }
     if ([sel isEqualToString:@"insertArrangedSubview:atIndex:"]) {
       if (UIView* child = viewArg(0)) {
-        NSInteger index = [valueArg(1) integerValue];
+        NSInteger index = NACRE_INT(valueArg(1), sel);
         if (index < 0 || (NSUInteger)index > stack.arrangedSubviews.count) {
           *error = [NSString stringWithFormat:
                        @"insertArrangedSubview: atIndex %ld is out of range (0...%lu)",
@@ -225,7 +225,7 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
       if (UIView* child = viewArg(0)) [view addSubview:child];
     } else if ([sel isEqualToString:@"insertSubview:atIndex:"]) {
       if (UIView* child = viewArg(0)) {
-        [view insertSubview:child atIndex:[valueArg(1) integerValue]];
+        [view insertSubview:child atIndex:NACRE_INT(valueArg(1), sel)];
       }
     } else if ([sel isEqualToString:@"insertSubview:belowSubview:"]) {
       if (UIView* child = viewArg(0)) {
@@ -387,7 +387,7 @@ nacre::NativeObjectRef CallObjectMethod(id object, const std::string& name,
   if ([object isKindOfClass:UIView.class]) {
     UIView* view = (UIView*)object;
     if ([sel isEqualToString:@"viewWithTag:"] && args.count > 0) {
-      return {(__bridge void*)[view viewWithTag:[args[0] integerValue]], "UIView"};
+      return {(__bridge void*)[view viewWithTag:NACRE_INT(args[0], sel)], "UIView"};
     }
     if ([sel isEqualToString:@"hitTest:withEvent:"] && args.count > 0) {
       return {(__bridge void*)[view hitTest:JSONToPoint(args[0]) withEvent:nil], "UIView"};
@@ -425,8 +425,13 @@ nacre::NativeObjectRef CallObjectMethod(id object, const std::string& name,
   // 所以这里先查，把「你问错了」变成 TypeError 而不是崩溃。
   if ([object isKindOfClass:NSLayoutAnchor.class]) {
     NSLayoutAnchor* anchor = (NSLayoutAnchor*)object;
+    // 这一组方法的标量参数全是数（multiplier、constant）。对象参数在
+    // 数组里是 null，跳过；其余的先整体查一遍，下面才敢直接取
+    for (id given in args) {
+      if (given != NSNull.null && !RequireNumber(given, sel, error)) return {};
+    }
     auto num = [&](NSUInteger i) -> CGFloat {
-      return i < args.count ? [args[i] doubleValue] : 0;
+      return i < args.count ? SafeNumber(args[i]) : 0;
     };
     id otherRaw = argPtrs.empty() ? nil : (__bridge id)argPtrs[0];
     NSLayoutConstraint* made = nil;

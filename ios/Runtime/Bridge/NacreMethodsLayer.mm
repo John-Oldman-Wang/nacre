@@ -37,9 +37,16 @@ bool LayerCallMethod(id object, NSString* sel, const NacreArgs& args,
       *out = "null";
       return true;
     }
+    // 下标是 unsigned：负数直接转进去会绕成一个天文数字
+    NSInteger index = NACRE_INT(args.value(1), sel);
+    if (index < 0) {
+      *error = "insertSublayer:atIndex: index must not be negative";
+      *out = "null";
+      return true;
+    }
     // 下标越界 UIKit 会抛，错误来自调用方，接住变成 TypeError
     @try {
-      [layer insertSublayer:child atIndex:(unsigned)[args.value(1) unsignedIntValue]];
+      [layer insertSublayer:child atIndex:(unsigned)index];
     } @catch (NSException* e) {
       *error = [NSString stringWithFormat:@"insertSublayer:atIndex: %@", e.reason].UTF8String;
     }

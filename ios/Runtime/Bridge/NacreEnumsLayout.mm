@@ -116,7 +116,7 @@ BOOL StackSpacingFromValue(id value, CGFloat* out, BOOL allowDefault) {
     return NO;
   }
   if (![value isKindOfClass:NSNumber.class]) return NO;
-  *out = [value doubleValue];
+  *out = SafeNumber(value);
   return YES;
 }
 
@@ -157,7 +157,7 @@ static NSDictionary<NSString*, NSNumber*>* LayoutPriorityTable(void) {
 
 BOOL LayoutPriorityFromValue(id value, UILayoutPriority* out) {
   if ([value isKindOfClass:NSNumber.class]) {
-    *out = [value floatValue];
+    *out = SafeNumber(value);
     return YES;
   }
   if (![value isKindOfClass:NSString.class]) return NO;

@@ -1,6 +1,7 @@
 // 参数怎么转换：照 Web IDL。这个文件按步骤往下长——
 //   第 1 步：options 里值是 undefined 的成员视为没带
 //   第 2 步：API 层按类型转换（数、整数、布尔、字符串）
+//   第 3 步：原生层只校验不转换（从这里够不着，验证方式见 internals/conversion.md）
 
 /** @param {import("../main.js").StepContext} ctx */
 export function stepConversion(ctx) {
@@ -202,4 +203,26 @@ export function stepConversion(ctx) {
   assert('new CGPoint(NaN, 0)：以前静默变成 0，现在抛',
          thrown(() => new CGPoint(NaN, 0)),
          'TypeError: a struct field must be a finite number, got NaN');
+
+  // ===== 第 3 步：原生层只校验 =====
+  //
+  // 原生的类型报错从这里够不着——值到它手里之前已经被上面那一层转好了。
+  // 那一层是用一次性的探针验的（见 internals/conversion.md）。这里留的是
+  // 探针抓出来的那几处，以及「取值范围」仍然由原生把关。
+  console.log('--- 参数转换：原生层把关 ---');
+  const host = /** @type {any} */ (new CALayer());
+  host.insertSublayer(new CALayer(), { atIndex: '0' });
+  assert("insertSublayer 的 atIndex = '0'：按整数用", host.sublayers.length, 1);
+  assert('insertSublayer 的 atIndex = -1：范围不对，原生拒',
+         thrown(() => host.insertSublayer(new CALayer(), { atIndex: -1 })),
+         'TypeError: insertSublayer:atIndex: index must not be negative');
+  assert('没插进去', host.sublayers.length, 1);
+  assert("imageWithData 的 scale = 'big'：转不出数",
+         thrown(() => /** @type {any} */ (UIImage).imageWithData(new Blob([png]), { scale: 'big' })),
+         'TypeError: scale must be a finite number, got "big"');
+  assert('imageWithData 给的不是 Blob',
+         thrown(() => /** @type {any} */ (UIImage).imageWithData(new UIView())),
+         'TypeError: imageWithData needs a Blob');
+  assert('imageNamed(5)：名字按字符串用，找不到是 null，不抛',
+         /** @type {any} */ (UIImage).imageNamed(5), null);
 }

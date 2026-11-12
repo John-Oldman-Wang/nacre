@@ -164,23 +164,23 @@ BOOL WriteLayerProperty(id object, NSString* key, id value,
       return YES;
     }
     if ([key isEqualToString:@"lineWidth"]) {
-      shape.lineWidth = [value doubleValue];
+      shape.lineWidth = NACRE_NUM(value, key);
       return YES;
     }
     if ([key isEqualToString:@"miterLimit"]) {
-      shape.miterLimit = [value doubleValue];
+      shape.miterLimit = NACRE_NUM(value, key);
       return YES;
     }
     if ([key isEqualToString:@"strokeStart"]) {
-      shape.strokeStart = [value doubleValue];
+      shape.strokeStart = NACRE_NUM(value, key);
       return YES;
     }
     if ([key isEqualToString:@"strokeEnd"]) {
-      shape.strokeEnd = [value doubleValue];
+      shape.strokeEnd = NACRE_NUM(value, key);
       return YES;
     }
     if ([key isEqualToString:@"lineDashPhase"]) {
-      shape.lineDashPhase = [value doubleValue];
+      shape.lineDashPhase = NACRE_NUM(value, key);
       return YES;
     }
     if ([key isEqualToString:@"lineDashPattern"]) {
@@ -205,19 +205,19 @@ BOOL WriteLayerProperty(id object, NSString* key, id value,
   if ([object isKindOfClass:CALayer.class]) {
     CALayer* layer = (CALayer*)object;
     if ([key isEqualToString:@"cornerRadius"]) {
-      layer.cornerRadius = [value doubleValue];
+      layer.cornerRadius = NACRE_NUM(value, key);
       return YES;
     }
     if ([key isEqualToString:@"borderWidth"]) {
-      layer.borderWidth = [value doubleValue];
+      layer.borderWidth = NACRE_NUM(value, key);
       return YES;
     }
     if ([key isEqualToString:@"shadowOpacity"]) {
-      layer.shadowOpacity = [value floatValue];
+      layer.shadowOpacity = NACRE_NUM(value, key);
       return YES;
     }
     if ([key isEqualToString:@"shadowRadius"]) {
-      layer.shadowRadius = [value doubleValue];
+      layer.shadowRadius = NACRE_NUM(value, key);
       return YES;
     }
     if ([key isEqualToString:@"shadowOffset"]) {
@@ -237,23 +237,23 @@ BOOL WriteLayerProperty(id object, NSString* key, id value,
       return YES;
     }
     if ([key isEqualToString:@"zPosition"]) {
-      layer.zPosition = [value doubleValue];
+      layer.zPosition = NACRE_NUM(value, key);
       return YES;
     }
     if ([key isEqualToString:@"opacity"]) {
-      layer.opacity = [value floatValue];
+      layer.opacity = NACRE_NUM(value, key);
       return YES;
     }
     if ([key isEqualToString:@"isHidden"]) {
-      layer.hidden = [value boolValue];
+      layer.hidden = NACRE_BOOL(value, key);
       return YES;
     }
     if ([key isEqualToString:@"masksToBounds"]) {
-      layer.masksToBounds = [value boolValue];
+      layer.masksToBounds = NACRE_BOOL(value, key);
       return YES;
     }
     if ([key isEqualToString:@"contentsScale"]) {
-      layer.contentsScale = [value doubleValue];
+      layer.contentsScale = NACRE_NUM(value, key);
       return YES;
     }
     if ([key isEqualToString:@"cornerCurve"]) {

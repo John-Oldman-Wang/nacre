@@ -115,19 +115,19 @@ BOOL WriteControlProperty(id object, NSString* key, id value,
       return YES;
     }
     if ([key isEqualToString:@"isSecureTextEntry"]) {
-      field.secureTextEntry = [value boolValue];
+      field.secureTextEntry = NACRE_BOOL(value, key);
       return YES;
     }
     if ([key isEqualToString:@"clearsOnBeginEditing"]) {
-      field.clearsOnBeginEditing = [value boolValue];
+      field.clearsOnBeginEditing = NACRE_BOOL(value, key);
       return YES;
     }
     if ([key isEqualToString:@"adjustsFontSizeToFitWidth"]) {
-      field.adjustsFontSizeToFitWidth = [value boolValue];
+      field.adjustsFontSizeToFitWidth = NACRE_BOOL(value, key);
       return YES;
     }
     if ([key isEqualToString:@"minimumFontSize"]) {
-      field.minimumFontSize = [value doubleValue];
+      field.minimumFontSize = NACRE_NUM(value, key);
       return YES;
     }
     if ([key isEqualToString:@"textAlignment"]) {
@@ -140,7 +140,7 @@ BOOL WriteControlProperty(id object, NSString* key, id value,
       return YES;
     }
     if ([key isEqualToString:@"enablesReturnKeyAutomatically"]) {
-      field.enablesReturnKeyAutomatically = [value boolValue];
+      field.enablesReturnKeyAutomatically = NACRE_BOOL(value, key);
       return YES;
     }
     // 这八个形状一样，但**不用宏铺开**：check-api.sh 按 isEqualToString
@@ -243,17 +243,17 @@ BOOL WriteControlProperty(id object, NSString* key, id value,
       item.style = style;
       return YES;
     }
-    if ([key isEqualToString:@"width"]) { item.width = [value doubleValue]; return YES; }
-    if ([key isEqualToString:@"isHidden"]) { item.hidden = [value boolValue]; return YES; }
+    if ([key isEqualToString:@"width"]) { item.width = NACRE_NUM(value, key); return YES; }
+    if ([key isEqualToString:@"isHidden"]) { item.hidden = NACRE_BOOL(value, key); return YES; }
     if ([key isEqualToString:@"title"]) {
       item.title = [value isKindOfClass:NSString.class] ? value : nil;
       return YES;
     }
     if ([key isEqualToString:@"isEnabled"]) {
-      item.enabled = [value boolValue];
+      item.enabled = NACRE_BOOL(value, key);
       return YES;
     }
-    if ([key isEqualToString:@"tag"]) { item.tag = [value integerValue]; return YES; }
+    if ([key isEqualToString:@"tag"]) { item.tag = NACRE_INT(value, key); return YES; }
   }
   if ([object isKindOfClass:UIButton.class]) {
     if ([key isEqualToString:@"role"]) {
@@ -269,10 +269,10 @@ BOOL WriteControlProperty(id object, NSString* key, id value,
 
   if ([object isKindOfClass:UIControl.class]) {
     UIControl* control = (UIControl*)object;
-    if ([key isEqualToString:@"isEnabled"]) { control.enabled = [value boolValue]; return YES; }
-    if ([key isEqualToString:@"isSelected"]) { control.selected = [value boolValue]; return YES; }
+    if ([key isEqualToString:@"isEnabled"]) { control.enabled = NACRE_BOOL(value, key); return YES; }
+    if ([key isEqualToString:@"isSelected"]) { control.selected = NACRE_BOOL(value, key); return YES; }
     if ([key isEqualToString:@"isHighlighted"]) {
-      control.highlighted = [value boolValue];
+      control.highlighted = NACRE_BOOL(value, key);
       return YES;
     }
     if ([key isEqualToString:@"contentHorizontalAlignment"]) {

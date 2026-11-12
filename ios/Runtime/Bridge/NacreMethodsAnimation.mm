@@ -88,7 +88,7 @@ bool AnimationCallMethod(id object, NSString* sel, const NacreArgs& args,
     if ([sel isEqualToString:@"controlPointAtIndex:"]) {
       // ObjC 是出参（float[2]），这里改成返回一个 CGPoint——
       // 「出参可以改成返回值」是已定的映射规则
-      NSUInteger index = [args.value(0) unsignedIntegerValue];
+      NSUInteger index = NACRE_INT(args.value(0), sel);
       if (index > 3) {
         *error = "controlPointAtIndex: index must be 0…3";
         *out = "null";
@@ -155,7 +155,7 @@ bool TransactionCallClassMethod(const std::string& className, NSString* sel,
     return true;
   }
   if ([sel isEqualToString:@"setDisableActions:"]) {
-    [CATransaction setDisableActions:[args.value(0) boolValue]];
+    [CATransaction setDisableActions:NACRE_BOOL(args.value(0), sel)];
     *out = "null";
     return true;
   }
@@ -164,7 +164,7 @@ bool TransactionCallClassMethod(const std::string& className, NSString* sel,
     return true;
   }
   if ([sel isEqualToString:@"setAnimationDuration:"]) {
-    [CATransaction setAnimationDuration:[args.value(0) doubleValue]];
+    [CATransaction setAnimationDuration:NACRE_NUM(args.value(0), sel)];
     *out = "null";
     return true;
   }

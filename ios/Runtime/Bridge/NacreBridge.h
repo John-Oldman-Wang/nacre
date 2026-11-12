@@ -128,6 +128,55 @@ NSDirectionalEdgeInsets JSONToDirectionalInsets(id v);
 NSDictionary* TransformToJSON(CGAffineTransform t);
 CGAffineTransform JSONToTransform(id v);
 
+// ---- 取参：原生层只收类型精确的值 ----
+//
+// 分工见 project.md 的 API 设计原则第 13 条：转换全在 JS 一侧做完，
+// 原生不猜、不转。下面三个 Require* 只做判断——类型不是它要的那一种就往
+// error 里写一句话并返回 false。
+//
+// 正常使用时走不到这些报错（nacre.js 已经把值转好了）；走到了，说明
+// 运行时自己漏了一处转换，报错能直接指出是哪个属性或哪个方法。
+bool RequireNumber(id value, NSString* what, std::string* error);    // 有限的数，不含布尔
+bool RequireInteger(id value, NSString* what, std::string* error);   // 上一条 + 没有小数部分
+bool RequireBool(id value, NSString* what, std::string* error);      // 只认 true / false
+// 没有报错出口的地方用（结构体解码、颜色）：不是数就给 0，绝不会崩
+double SafeNumber(id value);
+
+// 取参失败时的返回值。能变成任何返回类型的「空值」；对返回 bool / BOOL 的
+// 函数是 true——那些函数的约定是「返回真表示我认领了」，而这里确实认领了，
+// 只是带着错误。
+struct NacreFail {
+  operator bool() const { return true; }
+  template <class T> operator T() const { return T{}; }
+};
+
+// 环境快照之前先把宏放在这里：下面的宏在各域的 .mm 里用
+//
+// 用法：  view.alpha = NACRE_NUM(value, key);
+//         [UIFont systemFontOfSize:NACRE_NUM(arg(0), sel)]
+//
+// 要求当前作用域里有 `std::string* error`。类型不对时**直接从所在的函数
+// 返回**（GNU 的语句表达式里可以 return），所以后面那次原生调用根本不会
+// 执行——不是「用 0 调一次再报错」。
+#define NACRE_NUM(v, what)                                                    \
+  ({                                                                          \
+    id _nv = (v);                                                             \
+    if (!nacre_bridge::RequireNumber(_nv, (what), error)) return NacreFail(); \
+    [_nv doubleValue];                                                        \
+  })
+#define NACRE_INT(v, what)                                                     \
+  ({                                                                           \
+    id _nv = (v);                                                              \
+    if (!nacre_bridge::RequireInteger(_nv, (what), error)) return NacreFail(); \
+    [_nv integerValue];                                                        \
+  })
+#define NACRE_BOOL(v, what)                                                  \
+  ({                                                                         \
+    id _nv = (v);                                                            \
+    if (!nacre_bridge::RequireBool(_nv, (what), error)) return NacreFail();  \
+    [_nv boolValue];                                                         \
+  })
+
 // ---- 环境快照 ----
 NSString* BackgroundRefreshName(UIBackgroundRefreshStatus status);
 NSString* SceneActivationName(UISceneActivationState state);

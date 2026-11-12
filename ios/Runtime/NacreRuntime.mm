@@ -913,7 +913,7 @@ nacre::NativeObjectRef CreateBlob(
           name == "presentViewController") {
         NSArray* args = DecodeJSON(argsJSON);
         BOOL animated = [args isKindOfClass:NSArray.class] && args.count > 1
-                            ? [args[1] boolValue] : NO;
+                            ? [args[1] isEqual:@YES] : NO;
         UIViewController* host = (UIViewController*)object;
         id first = argPtrs.empty() ? nil : (__bridge id)argPtrs[0];
         UIViewController* modal =
@@ -937,7 +937,7 @@ nacre::NativeObjectRef CreateBlob(
           name == "dismissViewController") {
         NSArray* args = DecodeJSON(argsJSON);
         BOOL animated = [args isKindOfClass:NSArray.class] && args.count > 0
-                            ? [args[0] boolValue] : NO;
+                            ? [args[0] isEqual:@YES] : NO;
         [(UIViewController*)object dismissViewControllerAnimated:animated
                                                       completion:^{
           [strongSelf settleCall:callId with:YES];

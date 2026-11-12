@@ -46,7 +46,7 @@ BOOL DecelerationRateFromValue(id value, CGFloat* out) {
     return NO;
   }
   if (![value isKindOfClass:NSNumber.class]) return NO;
-  *out = [value doubleValue];
+  *out = SafeNumber(value);
   return YES;
 }
 

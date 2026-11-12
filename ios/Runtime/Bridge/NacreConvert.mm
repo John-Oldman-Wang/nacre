@@ -157,6 +157,61 @@ id DecodeJSON(const std::string& json) {
   return (value == nil || value == NSNull.null) ? nil : value;
 }
 
+// ---- 取参：只判断，不转换 ----
+// 报错里说清「收到的是什么」。JSON 过桥之后能看到的只有这几种
+static NSString* DescribeForError(id given) {
+  if (given == nil || given == NSNull.null) return @"null";
+  if ([given isKindOfClass:NSString.class]) return [NSString stringWithFormat:@"\"%@\"", given];
+  if ([given isKindOfClass:NSNumber.class]) {
+    if (CFGetTypeID((__bridge CFTypeRef)given) == CFBooleanGetTypeID()) {
+      return [given boolValue] ? @"true" : @"false";
+    }
+    return [given description];
+  }
+  if ([given isKindOfClass:NSArray.class]) return @"an array";
+  if ([given isKindOfClass:NSDictionary.class]) return @"an object";
+  return NSStringFromClass([given class]);
+}
+
+static bool IsBoolean(id given) {
+  return [given isKindOfClass:NSNumber.class] &&
+         CFGetTypeID((__bridge CFTypeRef)given) == CFBooleanGetTypeID();
+}
+
+bool RequireNumber(id given, NSString* what, std::string* error) {
+  if ([given isKindOfClass:NSNumber.class] && !IsBoolean(given) &&
+      isfinite([given doubleValue])) {
+    return true;
+  }
+  *error = [NSString stringWithFormat:@"%@ must be a finite number, got %@", what,
+                                      DescribeForError(given)].UTF8String;
+  return false;
+}
+
+bool RequireInteger(id given, NSString* what, std::string* error) {
+  if (!RequireNumber(given, what, error)) return false;
+  double d = [given doubleValue];
+  if (d == floor(d)) return true;
+  *error = [NSString stringWithFormat:@"%@ must be an integer, got %@", what,
+                                      DescribeForError(given)].UTF8String;
+  return false;
+}
+
+bool RequireBool(id given, NSString* what, std::string* error) {
+  if (IsBoolean(given)) return true;
+  *error = [NSString stringWithFormat:@"%@ must be true or false, got %@", what,
+                                      DescribeForError(given)].UTF8String;
+  return false;
+}
+
+double SafeNumber(id given) {
+  if ([given isKindOfClass:NSNumber.class]) {
+    double d = [given doubleValue];
+    return isfinite(d) ? d : 0;
+  }
+  return 0;
+}
+
 // 结构体和 JSON 的互转。线上格式是扁平的（CGRect 是 x/y/width/height，
 // 不是嵌套的 origin/size）——JS 侧的 CGRect 类负责提供嵌套视图，
 // 线上格式是内部约定，以后换编码不影响 JS。
@@ -183,21 +238,21 @@ NSDictionary* RectToJSON(CGRect r) {
 }
 CGPoint JSONToPoint(id v) {
   NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
-  return CGPointMake([d[@"x"] doubleValue], [d[@"y"] doubleValue]);
+  return CGPointMake(SafeNumber(d[@"x"]), SafeNumber(d[@"y"]));
 }
 CGSize JSONToSize(id v) {
   NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
-  return CGSizeMake([d[@"width"] doubleValue], [d[@"height"] doubleValue]);
+  return CGSizeMake(SafeNumber(d[@"width"]), SafeNumber(d[@"height"]));
 }
 CAFrameRateRange JSONToFrameRateRange(id v) {
   NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
-  return CAFrameRateRangeMake([d[@"minimum"] floatValue], [d[@"maximum"] floatValue],
-                              [d[@"preferred"] floatValue]);
+  return CAFrameRateRangeMake(SafeNumber(d[@"minimum"]), SafeNumber(d[@"maximum"]),
+                              SafeNumber(d[@"preferred"]));
 }
 CGRect JSONToRect(id v) {
   NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
-  return CGRectMake([d[@"x"] doubleValue], [d[@"y"] doubleValue],
-                    [d[@"width"] doubleValue], [d[@"height"] doubleValue]);
+  return CGRectMake(SafeNumber(d[@"x"]), SafeNumber(d[@"y"]),
+                    SafeNumber(d[@"width"]), SafeNumber(d[@"height"]));
 }
 NSDictionary* TransformToJSON(CGAffineTransform t) {
   return @{@"a": @(t.a), @"b": @(t.b), @"c": @(t.c),
@@ -205,19 +260,19 @@ NSDictionary* TransformToJSON(CGAffineTransform t) {
 }
 CGAffineTransform JSONToTransform(id v) {
   NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
-  return CGAffineTransformMake([d[@"a"] doubleValue], [d[@"b"] doubleValue],
-                               [d[@"c"] doubleValue], [d[@"d"] doubleValue],
-                               [d[@"tx"] doubleValue], [d[@"ty"] doubleValue]);
+  return CGAffineTransformMake(SafeNumber(d[@"a"]), SafeNumber(d[@"b"]),
+                               SafeNumber(d[@"c"]), SafeNumber(d[@"d"]),
+                               SafeNumber(d[@"tx"]), SafeNumber(d[@"ty"]));
 }
 NSDirectionalEdgeInsets JSONToDirectionalInsets(id v) {
   NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
-  return NSDirectionalEdgeInsetsMake([d[@"top"] doubleValue], [d[@"leading"] doubleValue],
-                                     [d[@"bottom"] doubleValue], [d[@"trailing"] doubleValue]);
+  return NSDirectionalEdgeInsetsMake(SafeNumber(d[@"top"]), SafeNumber(d[@"leading"]),
+                                     SafeNumber(d[@"bottom"]), SafeNumber(d[@"trailing"]));
 }
 UIEdgeInsets JSONToInsets(id v) {
   NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
-  return UIEdgeInsetsMake([d[@"top"] doubleValue], [d[@"left"] doubleValue],
-                          [d[@"bottom"] doubleValue], [d[@"right"] doubleValue]);
+  return UIEdgeInsetsMake(SafeNumber(d[@"top"]), SafeNumber(d[@"left"]),
+                          SafeNumber(d[@"bottom"]), SafeNumber(d[@"right"]));
 }
 
 // 枚举：JS 侧一律用字符串。名字是我们定的（去掉类型前缀、首字母小写），

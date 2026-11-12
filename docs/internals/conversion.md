@@ -107,3 +107,74 @@ Web IDL 的普通 `DOMString` 遇到 `null` 得到 `"null"`、遇到 `undefined`
 ### 连带改掉的断言
 
 前几步按「类型不对就抛」写的四条断言反过来了：点按次数给小数（现在截成整数）、长按时长给数字字符串（现在按数用）、剪贴板写数字（现在转成字符串）、虚线段给 `['4']`（现在是 `[4]`）。最后一条是跑模拟器时才发现的——它是全部一千多条旧断言里唯一受影响的。负的次数、超出 0 到 1 的强度仍然抛——那是取值范围，不归这条规则管。
+
+## 第 3 步：原生层只校验，不转换
+
+### 三个宏
+
+原来的写法是 `view.alpha = [value doubleValue]`、`[UIFont systemFontOfSize:[arg(0) doubleValue]]`，一共 122 处。它们有两种坏法：对象不认识这个方法（`NSNull`、字典、数组）就闪退；认识但不是数（字符串、`nil`）就静默给一个值。
+
+换成三个宏：
+
+```objc
+view.alpha = NACRE_NUM(value, key);
+[UIFont systemFontOfSize:NACRE_NUM(arg(0), sel)];
+```
+
+`NACRE_NUM` / `NACRE_INT` / `NACRE_BOOL` 各自先问 `RequireNumber` / `RequireInteger` / `RequireBool`。类型不精确就往 `error` 里写一句话，**并且直接从所在的函数返回**——用的是 GNU 的语句表达式，里面可以写 `return`。
+
+「直接返回」是这个设计的要点。另一种写法是让取参函数返回 0 并记下错误，但那样后面那次原生调用仍然会带着 0 执行一遍（`insertSubview:atIndex:0`），然后才报错——副作用已经发生了。宏在参数求值阶段就走了，消息根本没发出去。
+
+返回什么由 `NacreFail` 决定：它能转成任何返回类型的空值；对返回 `bool` / `BOOL` 的函数转成真——那些函数的约定是「返回真表示我认领了」，而这里确实认领了，只是带着错误。
+
+**这一条咬过一次。** 手势那个文件里有两个辅助函数 `CountValue` / `AmountValue`，返回真的意思是「值可用」。批量替换把宏放了进去，失败时返回真，意思正好反了。编译器不会报，是列出每处宏的外层函数逐个看才发现的。那两个函数改成了直接调 `RequireInteger` / `RequireNumber`。所以规矩是：**宏只用在「返回真表示认领」的分发函数里**。
+
+### 严格到什么程度
+
+| | 接受 | 拒绝 |
+| --- | --- | --- |
+| `RequireNumber` | `NSNumber`、不是布尔、有限 | 布尔、字符串、`NSNull`、`nil`、数组、字典 |
+| `RequireInteger` | 上一条，且没有小数部分 | `3.9` |
+| `RequireBool` | 只认 `true` / `false`（用 `CFBooleanGetTypeID` 认，`@1` 不算） | 数字 1、字符串 |
+
+没有报错出口的地方（结构体解码、颜色的分量、异步的呈现）用 `SafeNumber`：不是数就给 0，绝不会崩。那些路径的值在 JS 一侧已经校验过，这里只求不崩。
+
+### 怎么验的：一次性的探针
+
+正常使用时走不到原生的这些报错——API 层已经把值转好了，这正是分工的目的。所以没法写成常驻的验收用例。
+
+做法是临时让 JS 的六个转换助手原样放行（看一个全局开关），把脏值直接送到原生，记下结果，然后还原。31 种写法的结果：
+
+| 送到原生的 | 结果 |
+| --- | --- |
+| `alpha` ← `'0.5'` / `undefined` / `null` / `NaN` / `{}` / `[1]` / `true` | 七种都抛 `alpha must be a finite number, got …`，`alpha` 保持 0.25 |
+| `tag` ← `3.9` | `tag must be an integer, got 3.9` |
+| `isHidden` ← `1` / `'false'` / `null` | `isHidden must be true or false, got …` |
+| `repeatCount` ← `Infinity` | 照常通过（那个特例还在） |
+| `systemFontOfSize('17')`、`(NaN)` | 抛；对照 `(17)` 正常 |
+| `insertSubview(v, { atIndex: NaN / '0' / 1.5 })` | 三种都抛，**子视图个数还是 0**——调用没有执行；对照 `{ atIndex: 0 }` 插进去了 |
+| `viewWithTag('9')`、`constraintEqualToConstant('40')`、`constraintEqualToAnchor(…, { constant: '8' })`、`CATransaction.setDisableActions('yes')`、`impactOccurredWithIntensity('max')` | 都抛 |
+| `numberOfTapsRequired` ← `-1` | 仍然是原来那句范围错误，没有被类型检查盖住 |
+
+`undefined` 和 `NaN` 在报错里都显示成 `got null`——这就是「转换必须在 JS 一侧」的那个原因：过了 JSON，原生看到的只有 `null`。
+
+全程 App 没有退出。
+
+### 探针抓到的一个漏网
+
+`insertSublayer(layer, { atIndex: '0' })` **没抛，插进去了**。那一处写的是 `unsignedIntValue`，不在批量替换的那几个名字里（`doubleValue` / `floatValue` / `integerValue` / `boolValue`）。全仓库只有这一处，已改；`check-api.sh` 的检查把 `intValue`、`unsignedIntValue`、`longValue` 也一起盯上了。
+
+### 机械检查
+
+`check-api.sh` 新增一节：`Bridge/` 和 `NacreRuntime.mm` 里不许出现对 JS 给的值（`value`、`arg(N)`、`valueArg(N)`、`args.value(N)`、`args[…]`、`d[@"…"]`）直接调 `xxxValue`。在沙盒副本里把两处改回裸调用验过：两处都报。
+
+这一节同样会说「是我自己失效了」：一个 `NACRE_*` 宏都找不到时，报的是「脚本要更新」。
+
+### 顺带改掉的
+
+原生层有四条报错是中文的（`imageNamed 需要一个字符串名字` 等），违反了「暴露出去的一切用英文」。探针的输出里看到的，一起改成了英文，API 文档里引用它们的四处也跟着改了。
+
+### 探针顺带发现、没有处理的
+
+`new Blob([...])` 建出来的对象，在一次垃圾回收之后读 `size` 得到 `null`、交给 `imageWithData` 报「不是 Blob」；新建之后立刻用是好的。原因是 `Blob` 的构造函数只把句柄的数值抄到自己身上，引擎登记的那个包装对象成了垃圾，被回收时原生数据跟着放掉了。和参数转换无关，单独处理。
+

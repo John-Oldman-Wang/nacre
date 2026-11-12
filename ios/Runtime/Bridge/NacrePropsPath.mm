@@ -34,7 +34,7 @@ BOOL WritePathProperty(id object, NSString* key, id value, std::string* error) {
   if (![object isKindOfClass:UIBezierPath.class]) return NO;
   UIBezierPath* path = (UIBezierPath*)object;
   if ([key isEqualToString:@"usesEvenOddFillRule"]) {
-    path.usesEvenOddFillRule = [value boolValue];
+    path.usesEvenOddFillRule = NACRE_BOOL(value, key);
     return YES;
   }
   return NO;

@@ -56,17 +56,17 @@ BOOL WriteLayoutProperty(id object, NSString* key, id value,
   if ([object isKindOfClass:UIKeyboardLayoutGuide.class]) {
     UIKeyboardLayoutGuide* guide = (UIKeyboardLayoutGuide*)object;
     if ([key isEqualToString:@"followsUndockedKeyboard"]) {
-      guide.followsUndockedKeyboard = [value boolValue];
+      guide.followsUndockedKeyboard = NACRE_BOOL(value, key);
       return YES;
     }
     if ([key isEqualToString:@"keyboardDismissPadding"]) {
-      guide.keyboardDismissPadding = [value doubleValue];
+      guide.keyboardDismissPadding = NACRE_NUM(value, key);
       return YES;
     }
   }
   if ([object isKindOfClass:NSLayoutConstraint.class]) {
     NSLayoutConstraint* c = (NSLayoutConstraint*)object;
-    if ([key isEqualToString:@"constant"]) { c.constant = [value doubleValue]; return YES; }
+    if ([key isEqualToString:@"constant"]) { c.constant = NACRE_NUM(value, key); return YES; }
     if ([key isEqualToString:@"identifier"]) {
       c.identifier = [value isKindOfClass:NSString.class] ? value : nil;
       return YES;
@@ -85,7 +85,7 @@ BOOL WriteLayoutProperty(id object, NSString* key, id value,
       // 而这是 JS 写错了，必须变成 JS 的异常。这是少数几处接 NSException 的地方
       // ——判据是「不接的代价是崩溃，而错误来自调用方」。
       @try {
-        c.active = [value boolValue];
+        c.active = NACRE_BOOL(value, key);
       } @catch (NSException* e) {
         *error = [NSString stringWithFormat:@"failed to activate constraint: %@", e.reason].UTF8String;
       }

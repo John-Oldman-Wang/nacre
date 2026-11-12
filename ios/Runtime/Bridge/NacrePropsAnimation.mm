@@ -190,7 +190,7 @@ BOOL WriteDisplayLinkProperty(id object, NSString* key, id value, std::string* e
   if (![object isKindOfClass:CADisplayLink.class]) return NO;
   CADisplayLink* link = (CADisplayLink*)object;
   if ([key isEqualToString:@"isPaused"]) {
-    link.paused = [value boolValue];
+    link.paused = NACRE_BOOL(value, key);
     return YES;
   }
   if ([key isEqualToString:@"preferredFrameRateRange"]) {
@@ -275,18 +275,18 @@ BOOL WriteAnimationProperty(id object, NSString* key, id value, std::string* err
   // 子类在前
   if ([object isKindOfClass:CASpringAnimation.class]) {
     CASpringAnimation* spring = (CASpringAnimation*)object;
-    if ([key isEqualToString:@"mass"]) { spring.mass = [value doubleValue]; return YES; }
+    if ([key isEqualToString:@"mass"]) { spring.mass = NACRE_NUM(value, key); return YES; }
     if ([key isEqualToString:@"stiffness"]) {
-      spring.stiffness = [value doubleValue];
+      spring.stiffness = NACRE_NUM(value, key);
       return YES;
     }
-    if ([key isEqualToString:@"damping"]) { spring.damping = [value doubleValue]; return YES; }
+    if ([key isEqualToString:@"damping"]) { spring.damping = NACRE_NUM(value, key); return YES; }
     if ([key isEqualToString:@"initialVelocity"]) {
-      spring.initialVelocity = [value doubleValue];
+      spring.initialVelocity = NACRE_NUM(value, key);
       return YES;
     }
     if ([key isEqualToString:@"allowsOverdamping"]) {
-      spring.allowsOverdamping = [value boolValue];
+      spring.allowsOverdamping = NACRE_BOOL(value, key);
       return YES;
     }
   }
@@ -390,21 +390,21 @@ BOOL WriteAnimationProperty(id object, NSString* key, id value, std::string* err
   }
   if ([object isKindOfClass:CAAnimation.class]) {
     CAAnimation* anim = (CAAnimation*)object;
-    if ([key isEqualToString:@"duration"]) { anim.duration = [value doubleValue]; return YES; }
-    if ([key isEqualToString:@"beginTime"]) { anim.beginTime = [value doubleValue]; return YES; }
-    if ([key isEqualToString:@"speed"]) { anim.speed = [value floatValue]; return YES; }
-    if ([key isEqualToString:@"timeOffset"]) { anim.timeOffset = [value doubleValue]; return YES; }
+    if ([key isEqualToString:@"duration"]) { anim.duration = NACRE_NUM(value, key); return YES; }
+    if ([key isEqualToString:@"beginTime"]) { anim.beginTime = NACRE_NUM(value, key); return YES; }
+    if ([key isEqualToString:@"speed"]) { anim.speed = NACRE_NUM(value, key); return YES; }
+    if ([key isEqualToString:@"timeOffset"]) { anim.timeOffset = NACRE_NUM(value, key); return YES; }
     if ([key isEqualToString:@"repeatCount"]) {
-      anim.repeatCount = [value isEqual:@"infinity"] ? HUGE_VALF : [value floatValue];
+      anim.repeatCount = [value isEqual:@"infinity"] ? HUGE_VALF : NACRE_NUM(value, key);
       return YES;
     }
     if ([key isEqualToString:@"repeatDuration"]) {
-      anim.repeatDuration = [value isEqual:@"infinity"] ? HUGE_VAL : [value doubleValue];
+      anim.repeatDuration = [value isEqual:@"infinity"] ? HUGE_VAL : NACRE_NUM(value, key);
       return YES;
     }
-    if ([key isEqualToString:@"autoreverses"]) { anim.autoreverses = [value boolValue]; return YES; }
+    if ([key isEqualToString:@"autoreverses"]) { anim.autoreverses = NACRE_BOOL(value, key); return YES; }
     if ([key isEqualToString:@"removedOnCompletion"]) {
-      anim.removedOnCompletion = [value boolValue];
+      anim.removedOnCompletion = NACRE_BOOL(value, key);
       return YES;
     }
     if ([key isEqualToString:@"fillMode"]) {

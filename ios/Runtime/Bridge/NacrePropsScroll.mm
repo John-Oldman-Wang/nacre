@@ -110,40 +110,40 @@ BOOL WriteScrollProperty(id object, NSString* key, id value,
       return YES;
     }
     if ([key isEqualToString:@"automaticallyAdjustsScrollIndicatorInsets"]) {
-      sv.automaticallyAdjustsScrollIndicatorInsets = [value boolValue];
+      sv.automaticallyAdjustsScrollIndicatorInsets = NACRE_BOOL(value, key);
       return YES;
     }
     if ([key isEqualToString:@"isScrollEnabled"]) {
-      sv.scrollEnabled = [value boolValue];
+      sv.scrollEnabled = NACRE_BOOL(value, key);
       return YES;
     }
     if ([key isEqualToString:@"isDirectionalLockEnabled"]) {
-      sv.directionalLockEnabled = [value boolValue];
+      sv.directionalLockEnabled = NACRE_BOOL(value, key);
       return YES;
     }
-    if ([key isEqualToString:@"bounces"]) { sv.bounces = [value boolValue]; return YES; }
+    if ([key isEqualToString:@"bounces"]) { sv.bounces = NACRE_BOOL(value, key); return YES; }
     if ([key isEqualToString:@"alwaysBounceVertical"]) {
-      sv.alwaysBounceVertical = [value boolValue];
+      sv.alwaysBounceVertical = NACRE_BOOL(value, key);
       return YES;
     }
     if ([key isEqualToString:@"alwaysBounceHorizontal"]) {
-      sv.alwaysBounceHorizontal = [value boolValue];
+      sv.alwaysBounceHorizontal = NACRE_BOOL(value, key);
       return YES;
     }
     if ([key isEqualToString:@"isPagingEnabled"]) {
-      sv.pagingEnabled = [value boolValue];
+      sv.pagingEnabled = NACRE_BOOL(value, key);
       return YES;
     }
     if ([key isEqualToString:@"scrollsToTop"]) {
-      sv.scrollsToTop = [value boolValue];
+      sv.scrollsToTop = NACRE_BOOL(value, key);
       return YES;
     }
     if ([key isEqualToString:@"showsVerticalScrollIndicator"]) {
-      sv.showsVerticalScrollIndicator = [value boolValue];
+      sv.showsVerticalScrollIndicator = NACRE_BOOL(value, key);
       return YES;
     }
     if ([key isEqualToString:@"showsHorizontalScrollIndicator"]) {
-      sv.showsHorizontalScrollIndicator = [value boolValue];
+      sv.showsHorizontalScrollIndicator = NACRE_BOOL(value, key);
       return YES;
     }
     if ([key isEqualToString:@"indicatorStyle"]) {
@@ -173,11 +173,11 @@ BOOL WriteScrollProperty(id object, NSString* key, id value,
       return YES;
     }
     if ([key isEqualToString:@"delaysContentTouches"]) {
-      sv.delaysContentTouches = [value boolValue];
+      sv.delaysContentTouches = NACRE_BOOL(value, key);
       return YES;
     }
     if ([key isEqualToString:@"canCancelContentTouches"]) {
-      sv.canCancelContentTouches = [value boolValue];
+      sv.canCancelContentTouches = NACRE_BOOL(value, key);
       return YES;
     }
   }
@@ -221,11 +221,11 @@ BOOL WriteScrollProperty(id object, NSString* key, id value,
       return YES;
     }
     if ([key isEqualToString:@"isBaselineRelativeArrangement"]) {
-      stack.baselineRelativeArrangement = [value boolValue];
+      stack.baselineRelativeArrangement = NACRE_BOOL(value, key);
       return YES;
     }
     if ([key isEqualToString:@"isLayoutMarginsRelativeArrangement"]) {
-      stack.layoutMarginsRelativeArrangement = [value boolValue];
+      stack.layoutMarginsRelativeArrangement = NACRE_BOOL(value, key);
       return YES;
     }
   }

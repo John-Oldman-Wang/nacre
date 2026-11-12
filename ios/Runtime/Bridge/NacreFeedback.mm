@@ -85,8 +85,7 @@ bool FeedbackCallMethod(id object, NSString* sel, const NacreArgs& args,
       return true;
     }
     if ([sel isEqualToString:@"impactOccurredWithIntensity:"]) {
-      id given = args.value(0);
-      double intensity = [given isKindOfClass:NSNumber.class] ? [given doubleValue] : NAN;
+      double intensity = NACRE_NUM(args.value(0), @"intensity");
       // 头文件没写范围，Apple 文档写的是 0 到 1。范围外的值是什么效果没有
       // 承诺，所以拦掉，不交给系统去猜
       if (!(intensity >= 0 && intensity <= 1)) {

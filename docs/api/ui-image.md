@@ -475,7 +475,7 @@ const logo = UIImage.imageNamed('JS/assets/dot');
 
 - **参数** `name`：字符串。图片在 App 包里的路径，可以不带扩展名。规则见 [`imageNamed` 的查找规则](#imagenamed-的查找规则实测)。
 - **返回**：`UIImage`。找不到时返回 `null`。
-- **出错**：`name` 不是字符串时抛 `TypeError: imageNamed 需要一个字符串名字`。
+- `name` 不是字符串时按 `String()` 转，规则见[传进来的值怎么转换](how-it-works.md#传进来的值怎么转换)。
 
 #### `UIImage.systemImageNamed()`
 
@@ -487,7 +487,7 @@ const star = UIImage.systemImageNamed('star.fill');
 
 - **参数** `name`：字符串。SF Symbols 的图标名。
 - **返回**：`UIImage`，它的 `isSymbolImage` 是 `true`。名字不存在时返回 `null`。
-- **出错**：`name` 不是字符串时抛 `TypeError: systemImageNamed 需要一个字符串名字`。
+- `name` 不是字符串时按 `String()` 转。
 
 #### `UIImage.imageWithContentsOfFile()`
 
@@ -500,7 +500,7 @@ const img = UIImage.imageWithContentsOfFile(application.fileSystem.caches + '/co
 - **参数** `path`：字符串。文件的绝对路径。目录的路径从[文件读写](filesystem.md)取得。
 - **返回**：`UIImage`。文件不存在或不是图片时返回 `null`。
 - 只读取真实的文件，不查 Asset Catalog。
-- **出错**：`path` 不是字符串时抛 `TypeError: imageWithContentsOfFile 需要一个字符串路径`。
+- `path` 不是字符串时按 `String()` 转。
 
 #### `UIImage.imageWithData()`
 
@@ -528,7 +528,9 @@ if (a && b) {
 - **参数** `blob`：[`Blob`](fetch.md)。通常来自 `fetch` 的 `res.blob()`。
 - **参数** `options.scale`：数，可选。图片的倍率，表示一个点对应几个像素。不传时是 1。传了之后 `size` 等于像素数除以 `scale`。值不大于 0 时按 1 处理。
 - **返回**：`UIImage`。字节不是系统支持的图片格式时返回 `null`。
-- **出错**：`blob` 不是 `Blob` 时抛 `TypeError: imageWithData 需要一个 Blob`。
+- **出错**：
+  - `blob` 不是 `Blob`：`TypeError: imageWithData needs a Blob`
+  - `options.scale` 转不成数：`TypeError: scale must be a finite number, got "big"`
 
 #### 属性
 

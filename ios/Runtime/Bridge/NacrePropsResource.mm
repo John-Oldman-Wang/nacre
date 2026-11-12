@@ -184,10 +184,10 @@ UIColor* ColorFromSpec(id spec) {
   if (![spec isKindOfClass:NSDictionary.class]) return nil;
   NSString* kind = spec[@"kind"];
   if ([kind isEqualToString:@"rgba"]) {
-    return [UIColor colorWithRed:[spec[@"r"] doubleValue]
-                           green:[spec[@"g"] doubleValue]
-                            blue:[spec[@"b"] doubleValue]
-                           alpha:[spec[@"a"] doubleValue]];
+    return [UIColor colorWithRed:SafeNumber(spec[@"r"])
+                           green:SafeNumber(spec[@"g"])
+                            blue:SafeNumber(spec[@"b"])
+                           alpha:SafeNumber(spec[@"a"])];
   }
   if ([kind isEqualToString:@"name"]) {
     return NamedColors()[spec[@"name"] ?: @""];

@@ -31,7 +31,7 @@ bool NavCallMethod(id object, NSString* sel, const NacreArgs& args,
     id v = args.object(i);
     return [v isKindOfClass:UIViewController.class] ? (UIViewController*)v : nil;
   };
-  BOOL animated = [args.value(1) boolValue];
+  BOOL animated = NACRE_BOOL(args.value(1), sel);
 
   if ([sel isEqualToString:@"pushViewController:animated:"]) {
     UIViewController* vc = vcArg(0);
@@ -52,7 +52,7 @@ bool NavCallMethod(id object, NSString* sel, const NacreArgs& args,
     return true;
   }
   if ([sel isEqualToString:@"setNavigationBarHidden:animated:"]) {
-    [nav setNavigationBarHidden:[args.value(0) boolValue] animated:animated];
+    [nav setNavigationBarHidden:NACRE_BOOL(args.value(0), sel) animated:animated];
     *out = "null";
     return true;
   }
@@ -64,7 +64,7 @@ bool NavCallObjectMethod(id object, const std::string& name, const NacreArgs& ar
   if (![object isKindOfClass:UINavigationController.class]) return false;
   if (name != "popViewControllerAnimated:") return false;
   UINavigationController* nav = (UINavigationController*)object;
-  BOOL animated = [args.value(0) boolValue];
+  BOOL animated = NACRE_BOOL(args.value(0), @"animated");
   // 栈底那一个弹不动，返回 nil —— 「没命中」和「你问错了」要分开，
   // 所以这里不填 error
   *out = {(__bridge void*)[nav popViewControllerAnimated:animated], "UIViewController"};
@@ -84,9 +84,9 @@ bool NavCallObjectArrayMethod(id object, const std::string& name, const NacreArg
       *error = "popToViewController: expects a UIViewController";
       return true;
     }
-    popped = [nav popToViewController:vc animated:[args.value(1) boolValue]];
+    popped = [nav popToViewController:vc animated:NACRE_BOOL(args.value(1), @"animated")];
   } else if (name == "popToRootViewControllerAnimated:") {
-    popped = [nav popToRootViewControllerAnimated:[args.value(0) boolValue]];
+    popped = [nav popToRootViewControllerAnimated:NACRE_BOOL(args.value(0), @"animated")];
   } else if (name == "setViewControllers:animated:") {
     // 数组按「每个参数一个句柄」传，最后一个参数是 animated
     NSMutableArray<UIViewController*>* list = [NSMutableArray array];
@@ -98,7 +98,8 @@ bool NavCallObjectArrayMethod(id object, const std::string& name, const NacreArg
       }
       if (vc != nil) [list addObject:vc];
     }
-    BOOL animated = args.values.count > 0 && [args.values.lastObject boolValue];
+    BOOL animated = NO;
+    if (args.values.count > 0) animated = NACRE_BOOL(args.values.lastObject, @"animated");
     @try {
       [nav setViewControllers:list animated:animated];
     } @catch (NSException* e) {

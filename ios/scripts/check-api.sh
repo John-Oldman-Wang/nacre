@@ -449,6 +449,28 @@ if obj_arg_sels and JS_METHODS:
     if stale:
         complain('所有权', f'OWNERSHIP_EXEMPT 里这些已经不收对象参数了，该删：{sorted(stale)}')
 
+# ----------------------- 7. 原生层不许对 JS 给的值直接调 xxxValue
+#
+# 试用反馈里的闪退就是这么来的：{ atIndex: undefined } 过 JSON 变成 null，
+# 原生拿到 NSNull 直接调 integerValue，进程没了。同一类写法当时有 122 处。
+#
+# 规则（project.md 原则 13）：类型转换全在 JS 一侧，原生只校验。取数值要走
+# NACRE_NUM / NACRE_INT / NACRE_BOOL（类型不对就报错并从所在函数返回），
+# 没有报错出口的地方走 SafeNumber。这里盯着别再长出裸调用。
+RAW_VALUE = re.compile(
+    r'\[\s*(?:value|(?:arg|valueArg|scalar)\(\d+\)|args\.value\(\d+\)|args\[[^\]]+\]'
+    r'|args\.values\.\w+|\w+\[@"\w+"\])\s+'
+    r'(?:double|float|integer|unsignedInteger|int|unsignedInt|long|longLong|bool)Value\]')
+_macro_uses = len(re.findall(r'\bNACRE_(?:NUM|INT|BOOL)\(', mm))
+if _macro_uses == 0:
+    # 一个宏都没用上，说明这一节的前提变了（宏改名了），不报的话会永远「通过」
+    complain('脚本', 'NACRE_NUM / NACRE_INT / NACRE_BOOL 一处都没找到，check-api.sh 要更新')
+else:
+    raw = sorted(set(m.group(0) for m in RAW_VALUE.finditer(mm)))
+    if raw:
+        complain('取参', f'原生层对 JS 给的值直接取数，要换成 NACRE_NUM / NACRE_INT / '
+                         f'NACRE_BOOL 或 SafeNumber：{raw}')
+
 # ------------------------------------------------------------------ 报告
 if problems:
     print('API 三边核对：发现 %d 处不一致\n' % len(problems))

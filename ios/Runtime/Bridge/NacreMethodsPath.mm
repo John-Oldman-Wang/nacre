@@ -39,10 +39,10 @@ bool PathCallMethod(id object, NSString* sel, const NacreArgs& args,
   }
   if ([sel isEqualToString:@"addArcWithCenter:radius:startAngle:endAngle:clockwise:"]) {
     [path addArcWithCenter:JSONToPoint(args.value(0))
-                    radius:[args.value(1) doubleValue]
-                startAngle:[args.value(2) doubleValue]
-                  endAngle:[args.value(3) doubleValue]
-                 clockwise:[args.value(4) boolValue]];
+                    radius:NACRE_NUM(args.value(1), sel)
+                startAngle:NACRE_NUM(args.value(2), sel)
+                  endAngle:NACRE_NUM(args.value(3), sel)
+                 clockwise:NACRE_BOOL(args.value(4), sel)];
     *out = "null";
     return true;
   }

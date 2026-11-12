@@ -182,7 +182,7 @@ id ReadWebSocketProperty(id object, NSString* key) {
 BOOL WriteWebSocketProperty(id object, NSString* key, id value, std::string* error) {
   if (![object isKindOfClass:NSURLSessionWebSocketTask.class]) return NO;
   if ([key isEqualToString:@"maximumMessageSize"]) {
-    ((NSURLSessionWebSocketTask*)object).maximumMessageSize = [value integerValue];
+    ((NSURLSessionWebSocketTask*)object).maximumMessageSize = NACRE_INT(value, key);
     return YES;
   }
   return NO;
@@ -198,10 +198,10 @@ bool WebSocketCallMethod(id object, NSString* sel, const NacreArgs& args,
     *out = "null";
     return true;
   }
+  // 关闭码可以不给（null），给了就得是整数
   id codeValue = args.value(0);
-  NSInteger code = [codeValue isKindOfClass:NSNumber.class]
-                       ? [codeValue integerValue]
-                       : (NSInteger)NSURLSessionWebSocketCloseCodeNormalClosure;
+  NSInteger code = NSURLSessionWebSocketCloseCodeNormalClosure;
+  if (codeValue != nil && codeValue != NSNull.null) code = NACRE_INT(codeValue, @"code");
   id reason = args.value(1);
   NSData* reasonData = [reason isKindOfClass:NSString.class]
                            ? [reason dataUsingEncoding:NSUTF8StringEncoding]

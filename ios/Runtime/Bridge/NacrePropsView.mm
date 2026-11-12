@@ -106,7 +106,7 @@ BOOL WriteViewProperty(id object, NSString* key, id value,
   if ([object isKindOfClass:UIView.class]) {
     UIView* view = (UIView*)object;
     if ([key isEqualToString:@"translatesAutoresizingMaskIntoConstraints"]) {
-      view.translatesAutoresizingMaskIntoConstraints = [value boolValue];
+      view.translatesAutoresizingMaskIntoConstraints = NACRE_BOOL(value, key);
       return YES;
     }
     if ([key isEqualToString:@"transform"]) {
@@ -126,25 +126,25 @@ BOOL WriteViewProperty(id object, NSString* key, id value,
       return YES;
     }
     if ([key isEqualToString:@"insetsLayoutMarginsFromSafeArea"]) {
-      view.insetsLayoutMarginsFromSafeArea = [value boolValue];
+      view.insetsLayoutMarginsFromSafeArea = NACRE_BOOL(value, key);
       return YES;
     }
     if ([key isEqualToString:@"preservesSuperviewLayoutMargins"]) {
-      view.preservesSuperviewLayoutMargins = [value boolValue];
+      view.preservesSuperviewLayoutMargins = NACRE_BOOL(value, key);
       return YES;
     }
-    if ([key isEqualToString:@"alpha"]) { view.alpha = [value doubleValue]; return YES; }
-    if ([key isEqualToString:@"isHidden"]) { view.hidden = [value boolValue]; return YES; }
+    if ([key isEqualToString:@"alpha"]) { view.alpha = NACRE_NUM(value, key); return YES; }
+    if ([key isEqualToString:@"isHidden"]) { view.hidden = NACRE_BOOL(value, key); return YES; }
     if ([key isEqualToString:@"clipsToBounds"]) {
-      view.clipsToBounds = [value boolValue];
+      view.clipsToBounds = NACRE_BOOL(value, key);
       return YES;
     }
-    if ([key isEqualToString:@"isOpaque"]) { view.opaque = [value boolValue]; return YES; }
+    if ([key isEqualToString:@"isOpaque"]) { view.opaque = NACRE_BOOL(value, key); return YES; }
     if ([key isEqualToString:@"isUserInteractionEnabled"]) {
-      view.userInteractionEnabled = [value boolValue];
+      view.userInteractionEnabled = NACRE_BOOL(value, key);
       return YES;
     }
-    if ([key isEqualToString:@"tag"]) { view.tag = [value integerValue]; return YES; }
+    if ([key isEqualToString:@"tag"]) { view.tag = NACRE_INT(value, key); return YES; }
     if ([key isEqualToString:@"contentMode"]) {
       UIViewContentMode mode;
       if (!ContentModeFromName(value, &mode)) {
@@ -159,7 +159,7 @@ BOOL WriteViewProperty(id object, NSString* key, id value,
   if ([object isKindOfClass:UIImageView.class]) {
     UIImageView* iv = (UIImageView*)object;
     if ([key isEqualToString:@"isHighlighted"]) {
-      iv.highlighted = [value boolValue];
+      iv.highlighted = NACRE_BOOL(value, key);
       return YES;
     }
   }
@@ -198,24 +198,24 @@ BOOL WriteViewProperty(id object, NSString* key, id value,
       return YES;
     }
     if ([key isEqualToString:@"numberOfLines"]) {
-      label.numberOfLines = [value integerValue];
+      label.numberOfLines = NACRE_INT(value, key);
       return YES;
     }
     if ([key isEqualToString:@"adjustsFontSizeToFitWidth"]) {
-      label.adjustsFontSizeToFitWidth = [value boolValue];
+      label.adjustsFontSizeToFitWidth = NACRE_BOOL(value, key);
       return YES;
     }
     if ([key isEqualToString:@"minimumScaleFactor"]) {
-      label.minimumScaleFactor = [value doubleValue];
+      label.minimumScaleFactor = NACRE_NUM(value, key);
       return YES;
     }
     if ([key isEqualToString:@"isHighlighted"]) {
-      label.highlighted = [value boolValue];
+      label.highlighted = NACRE_BOOL(value, key);
       return YES;
     }
-    if ([key isEqualToString:@"isEnabled"]) { label.enabled = [value boolValue]; return YES; }
+    if ([key isEqualToString:@"isEnabled"]) { label.enabled = NACRE_BOOL(value, key); return YES; }
     if ([key isEqualToString:@"preferredMaxLayoutWidth"]) {
-      label.preferredMaxLayoutWidth = [value doubleValue];
+      label.preferredMaxLayoutWidth = NACRE_NUM(value, key);
       return YES;
     }
     if ([key isEqualToString:@"shadowOffset"]) {

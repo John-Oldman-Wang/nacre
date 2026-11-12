@@ -90,7 +90,7 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
     }
     if ([sel isEqualToString:@"fixedSpaceItemOfWidth:"]) {
       return {(__bridge void*)[UIBarButtonItem
-                  fixedSpaceItemOfWidth:[arg(0) doubleValue]],
+                  fixedSpaceItemOfWidth:NACRE_NUM(arg(0), sel)],
               "UIBarButtonItem"};
     }
   }
@@ -107,27 +107,27 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
   if (className == "UIFont") {
     UIFont* font = nil;
     if ([sel isEqualToString:@"systemFontOfSize:"]) {
-      font = [UIFont systemFontOfSize:[arg(0) doubleValue]];
+      font = [UIFont systemFontOfSize:NACRE_NUM(arg(0), sel)];
     } else if ([sel isEqualToString:@"boldSystemFontOfSize:"]) {
-      font = [UIFont boldSystemFontOfSize:[arg(0) doubleValue]];
+      font = [UIFont boldSystemFontOfSize:NACRE_NUM(arg(0), sel)];
     } else if ([sel isEqualToString:@"italicSystemFontOfSize:"]) {
-      font = [UIFont italicSystemFontOfSize:[arg(0) doubleValue]];
+      font = [UIFont italicSystemFontOfSize:NACRE_NUM(arg(0), sel)];
     } else if ([sel isEqualToString:@"systemFontOfSize:weight:"]) {
       UIFontWeight w;
       if (!weight(1, &w)) return {};
-      font = [UIFont systemFontOfSize:[arg(0) doubleValue] weight:w];
+      font = [UIFont systemFontOfSize:NACRE_NUM(arg(0), sel) weight:w];
     } else if ([sel isEqualToString:@"monospacedSystemFontOfSize:weight:"]) {
       UIFontWeight w;
       if (!weight(1, &w)) return {};
-      font = [UIFont monospacedSystemFontOfSize:[arg(0) doubleValue] weight:w];
+      font = [UIFont monospacedSystemFontOfSize:NACRE_NUM(arg(0), sel) weight:w];
     } else if ([sel isEqualToString:@"monospacedDigitSystemFontOfSize:weight:"]) {
       UIFontWeight w;
       if (!weight(1, &w)) return {};
-      font = [UIFont monospacedDigitSystemFontOfSize:[arg(0) doubleValue] weight:w];
+      font = [UIFont monospacedDigitSystemFontOfSize:NACRE_NUM(arg(0), sel) weight:w];
     } else if ([sel isEqualToString:@"fontWithName:size:"]) {
       NSString* fontName = [arg(0) isKindOfClass:NSString.class] ? arg(0) : nil;
       if (fontName == nil) return {};
-      font = [UIFont fontWithName:fontName size:[arg(1) doubleValue]];
+      font = [UIFont fontWithName:fontName size:NACRE_NUM(arg(1), sel)];
     } else if ([sel isEqualToString:@"preferredFontForTextStyle:"]) {
       UIFontTextStyle style = TextStyleFromName(arg(0));
       if (style == nil) {
@@ -149,19 +149,19 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
       // Asset Catalog 和 bundle 里的普通文件都能命中，而且认子目录路径
       // （实测 'assets/logo' 可以，但不会递归搜）
       if (text == nil) {
-        *error = "imageNamed 需要一个字符串名字";
+        *error = "imageNamed needs a string name";
         return {};
       }
       image = [UIImage imageNamed:text];
     } else if ([sel isEqualToString:@"systemImageNamed:"]) {
       if (text == nil) {
-        *error = "systemImageNamed 需要一个字符串名字";
+        *error = "systemImageNamed needs a string name";
         return {};
       }
       image = [UIImage systemImageNamed:text];
     } else if ([sel isEqualToString:@"imageWithContentsOfFile:"]) {
       if (text == nil) {
-        *error = "imageWithContentsOfFile 需要一个字符串路径";
+        *error = "imageWithContentsOfFile needs a string path";
         return {};
       }
       image = [UIImage imageWithContentsOfFile:text];
@@ -170,12 +170,12 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
       // 字节来自 Blob，全程不进 V8 堆——fetch 下来的图直接上屏走这条
       id source = argPtrs.empty() ? nil : (__bridge id)argPtrs[0];
       if (![source isKindOfClass:NacreBlob.class]) {
-        *error = "imageWithData 需要一个 Blob";
+        *error = "imageWithData needs a Blob";
         return {};
       }
       NSData* data = ((NacreBlob*)source).data;
       if ([sel isEqualToString:@"imageWithData:scale:"]) {
-        double scale = [arg(1) doubleValue];
+        double scale = NACRE_NUM(arg(1), sel);
         image = [UIImage imageWithData:data scale:scale > 0 ? scale : 1.0];
       } else {
         image = [UIImage imageWithData:data];
@@ -200,10 +200,10 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
     }
     if ([sel isEqualToString:@"functionWithControlPoints:"]) {
       return {(__bridge void*)[CAMediaTimingFunction
-                  functionWithControlPoints:[arg(0) floatValue]
-                                           :[arg(1) floatValue]
-                                           :[arg(2) floatValue]
-                                           :[arg(3) floatValue]],
+                  functionWithControlPoints:NACRE_NUM(arg(0), sel)
+                                           :NACRE_NUM(arg(1), sel)
+                                           :NACRE_NUM(arg(2), sel)
+                                           :NACRE_NUM(arg(3), sel)],
               "CAMediaTimingFunction"};
     }
   }
@@ -249,7 +249,7 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
     }
     if ([sel isEqualToString:@"bezierPathWithRoundedRect:cornerRadius:"]) {
       return {(__bridge void*)[UIBezierPath bezierPathWithRoundedRect:JSONToRect(arg(0))
-                                                         cornerRadius:[arg(1) doubleValue]],
+                                                         cornerRadius:NACRE_NUM(arg(1), sel)],
               "UIBezierPath"};
     }
     if ([sel isEqualToString:@"bezierPathWithRoundedRect:byRoundingCorners:cornerRadii:"]) {
@@ -270,10 +270,10 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
     }
     if ([sel isEqualToString:@"bezierPathWithArcCenter:radius:startAngle:endAngle:clockwise:"]) {
       return {(__bridge void*)[UIBezierPath bezierPathWithArcCenter:JSONToPoint(arg(0))
-                                                             radius:[arg(1) doubleValue]
-                                                         startAngle:[arg(2) doubleValue]
-                                                           endAngle:[arg(3) doubleValue]
-                                                          clockwise:[arg(4) boolValue]],
+                                                             radius:NACRE_NUM(arg(1), sel)
+                                                         startAngle:NACRE_NUM(arg(2), sel)
+                                                           endAngle:NACRE_NUM(arg(3), sel)
+                                                          clockwise:NACRE_BOOL(arg(4), sel)],
               "UIBezierPath"};
     }
   }

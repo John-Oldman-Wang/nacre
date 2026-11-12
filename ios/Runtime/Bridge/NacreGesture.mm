@@ -156,47 +156,46 @@ id ReadGestureProperty(id object, NSString* key) {
   return nil;
 }
 
-// 个数是 NSUInteger：负数直接赋进去会绕成一个天文数字，而且不报错。
-// 所以这里拦一下，不是整数或者小于 0 就拒
+// 取值范围的检查。类型已经由 Require* 把过关了，这里只管「不能是负数」
+// ——那是范围的问题，不是类型的问题，所以单独一句报错。
+// 注意这两个函数返回 true 表示**值可用**，不能在里面用 NACRE_NUM 那几个宏
+// （宏失败时让所在函数返回「真」，在这里意思正好反了）
 static bool CountValue(NSString* key, id value, NSUInteger* out, std::string* error) {
-  if ([value isKindOfClass:NSNumber.class]) {
-    double d = [value doubleValue];
-    if (d >= 0 && d == floor(d)) {
-      *out = (NSUInteger)d;
-      return true;
-    }
+  if (!RequireInteger(value, key, error)) return false;
+  double d = SafeNumber(value);
+  if (d < 0) {
+    *error = [NSString stringWithFormat:@"%@ must be a non-negative integer", key].UTF8String;
+    return false;
   }
-  *error = [NSString stringWithFormat:@"%@ must be a non-negative integer", key].UTF8String;
-  return false;
+  *out = (NSUInteger)d;
+  return true;
 }
 
-// 时长和距离：不是数、或者小于 0 都没有意义
 static bool AmountValue(NSString* key, id value, double* out, std::string* error) {
-  if ([value isKindOfClass:NSNumber.class]) {
-    double d = [value doubleValue];
-    if (isfinite(d) && d >= 0) {
-      *out = d;
-      return true;
-    }
+  if (!RequireNumber(value, key, error)) return false;
+  double d = SafeNumber(value);
+  if (d < 0) {
+    *error = [NSString stringWithFormat:@"%@ must be a non-negative number", key].UTF8String;
+    return false;
   }
-  *error = [NSString stringWithFormat:@"%@ must be a non-negative number", key].UTF8String;
-  return false;
+  *out = d;
+  return true;
 }
 
 BOOL WriteGestureProperty(id object, NSString* key, id value, std::string* error) {
   if (![object isKindOfClass:UIGestureRecognizer.class]) return NO;
   UIGestureRecognizer* r = (UIGestureRecognizer*)object;
-  if ([key isEqualToString:@"isEnabled"]) { r.enabled = [value boolValue]; return YES; }
+  if ([key isEqualToString:@"isEnabled"]) { r.enabled = NACRE_BOOL(value, key); return YES; }
   if ([key isEqualToString:@"cancelsTouchesInView"]) {
-    r.cancelsTouchesInView = [value boolValue];
+    r.cancelsTouchesInView = NACRE_BOOL(value, key);
     return YES;
   }
   if ([key isEqualToString:@"delaysTouchesBegan"]) {
-    r.delaysTouchesBegan = [value boolValue];
+    r.delaysTouchesBegan = NACRE_BOOL(value, key);
     return YES;
   }
   if ([key isEqualToString:@"delaysTouchesEnded"]) {
-    r.delaysTouchesEnded = [value boolValue];
+    r.delaysTouchesEnded = NACRE_BOOL(value, key);
     return YES;
   }
 
