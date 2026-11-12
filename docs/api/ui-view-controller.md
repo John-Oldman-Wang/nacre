@@ -558,6 +558,8 @@ sheet.dismissViewController({ animated: true }).then((closed) => {
 | `navigationController` | [`UINavigationController`](ui-navigation-controller.md) 或 `null` | 是 | 否 | `null` | 这个页面所在的导航栈。不在任何导航栈里时是 `null` |
 | `parentViewController` | `UIViewController` 或 `null` | 是 | 否 | `null` | 包含这个页面的父控制器。页面在导航栈里时，它就是那个导航控制器。见[父子控制器](#父子控制器) |
 
+`tabBarItem` 和 `tabBarController` 这两个和底部标签栏有关的属性，见 [`UITabBarController`](ui-tab-bar-controller.md#页面上的两个属性)。
+
 这两个属性在页面被推入、弹出导航栈时变化。变化的时刻通过导航控制器的 `willshow`、`didshow` 事件得知，见 [`UINavigationController`](ui-navigation-controller.md)。`parentViewController` 也会被 `addChildViewController()` 和 `removeFromParentViewController()` 改变。
 
 ### 父子控制器
@@ -640,6 +642,7 @@ sheet.addEventListener('diddismiss', (event) => {
 | `[child removeFromParentViewController]` | `child.removeFromParentViewController()` |
 | `parent.childViewControllers` | `parent.childViewControllers` |
 | `vc.additionalSafeAreaInsets = UIEdgeInsetsMake(0, 0, 44, 0)` | `vc.additionalSafeAreaInsets = new UIEdgeInsets(0, 0, 44, 0)` |
+| `vc.tabBarItem`、`vc.tabBarController` | 相同，见 [`UITabBarController`](ui-tab-bar-controller.md) |
 
 有三处和原生不同：
 
@@ -659,7 +662,6 @@ sheet.addEventListener('diddismiss', (event) => {
 | 自己写页面切换的动画 | `UIViewControllerAnimatedTransitioning` | 未实现 |
 | 两个子页面之间带动画地切换 | `transitionFromViewController:toViewController:duration:options:animations:completion:` | 未实现 |
 | 子页面知道自己什么时候出现、什么时候消失 | `viewWillAppear:` 一组、`beginAppearanceTransition:animated:` | 未实现，原因同第一行 |
-| 底部标签栏切换页面 | `UITabBarController` | 未实现 |
 | 弹系统样式的提示框和确认框 | `UIAlertController` | 未实现 |
 | 被模态呈现的导航控制器收到关闭事件 | 同 [事件](#事件) | 未实现。导航控制器只接受导航事件 |
 | 用代码关闭模态页时也收到事件 | — | 系统不发这个通知。在调 `dismissViewController()` 的地方自己处理 |
@@ -669,6 +671,7 @@ sheet.addEventListener('diddismiss', (event) => {
 ## 参见
 
 - [`UINavigationController`](ui-navigation-controller.md)：显示页面的另一种方式，推入和弹出导航栈
+- [`UITabBarController`](ui-tab-bar-controller.md)：系统写好的底部标签栏
 - [导航条上的东西](ui-bar-button-item.md)：`navigationItem` 的类型，导航条的标题和按钮
 - [`UIWindow`](ui-window.md)：`rootViewController` 在这里设
 - [`UIView`](ui-view.md)：`view` 的类型

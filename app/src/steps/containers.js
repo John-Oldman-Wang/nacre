@@ -192,12 +192,215 @@ export function stepContainers(ctx) {
            page.view.bounds.height - label.frame.y - label.frame.height, barHeight + 8);
   }, 1000);
 
+  // ===== UITabBarController =====
+  console.log('--- UITabBarController ---');
+  /** @param {string} title */
+  const tabPage = (title) => {
+    const page = new UIViewController();
+    page.title = title;
+    return page;
+  };
+  const tabs = new UITabBarController();
+  assert('一开始没有页面', tabs.viewControllers.length, 0);
+  assert('没有页面时 selectedIndex', tabs.selectedIndex, -1);
+  assert('没有页面时 selectedViewController', tabs.selectedViewController, null);
+
+  const first = tabPage('甲');
+  const second = tabPage('乙');
+  const third = tabPage('丙');
+  tabs.viewControllers = [first, second, third];
+  assert('写进三个页面', tabs.viewControllers.length, 3);
+  assert('读回来是同一批对象', tabs.viewControllers[1] === second, true);
+  assert('默认选中第 0 个', tabs.selectedIndex, 0);
+  assert('selectedViewController 跟着', tabs.selectedViewController === first, true);
+  assert('页面的 tabBarController 是它', second.tabBarController === tabs, true);
+  assert('页面的 parentViewController 也是它', second.parentViewController === tabs, true);
+  assert('不在里面的页面 tabBarController 是 null', tabPage('外').tabBarController, null);
+
+  tabs.selectedIndex = 2;
+  assert('写 selectedIndex', tabs.selectedViewController === third, true);
+  tabs.selectedViewController = second;
+  assert('写 selectedViewController', tabs.selectedIndex, 1);
+  assert('selectedIndex 越界',
+         thrown(() => { tabs.selectedIndex = 3; }),
+         'TypeError: selectedIndex 3 is out of range; there are 3 view controllers');
+  assert('selectedIndex 给负数', thrown(() => { tabs.selectedIndex = -1; }).split(' is ')[0],
+         'TypeError: selectedIndex -1');
+  assert('越界之后原来选中的没变', tabs.selectedIndex, 1);
+  assert('selectedViewController 给不在里面的页面',
+         thrown(() => { tabs.selectedViewController = tabPage('外'); }),
+         "TypeError: selectedViewController must be one of this tab bar controller's viewControllers");
+  assert('viewControllers 里混了不是页面的',
+         // @ts-expect-error 要的是 UIViewController
+         thrown(() => { tabs.viewControllers = [first, UIColor.redColor]; }),
+         'TypeError: viewControllers only accepts UIViewController');
+  assert('被拒之后页面没变', tabs.viewControllers.length, 3);
+
+  tabs.setViewControllers([first, third], { animated: false });
+  assert('setViewControllers 换成两个', tabs.viewControllers.length, 2);
+  assert('被换掉的那一页不再属于它', second.tabBarController, null);
+  tabs.viewControllers = null;
+  assert('写 null 等于清空', tabs.viewControllers.length, 0);
+  tabs.viewControllers = [first, second, third];
+
+  // --- 每一格长什么样：页面自己的 tabBarItem ---
+  const auto = first.tabBarItem;
+  assert('不设也有一个 tabBarItem', auto instanceof UITabBarItem, true);
+  assert('系统自动建的 tabBarItem 用的是页面的 title', auto.title, '甲');
+  const house = UIImage.systemImageNamed('house');
+  const houseFill = UIImage.systemImageNamed('house.fill');
+  const item = new UITabBarItem({ title: '首页', image: house, selectedImage: houseFill, tag: 7 });
+  first.tabBarItem = item;
+  assert('写进去的 tabBarItem 读回来是同一个', first.tabBarItem === item, true);
+  assert('构造时给的 title', item.title, '首页');
+  assert('构造时给的 image', item.image === house, true);
+  // 实测：selectedImage 读回来**不是**写进去的那个对象。UIKit 在写入时另存了
+  // 一份（两次读是同一个，尺寸也一样，就是和你给的那个不 ===）。image 没有
+  // 这个现象。读一律走原生，所以这里照实给
+  const readBack = item.selectedImage;
+  assert('构造时给的 selectedImage：读得回来', readBack !== null, true);
+  assert('selectedImage：尺寸和写进去的一样',
+         readBack !== null && houseFill !== null &&
+         readBack.size.width === houseFill.size.width, true);
+  assert('selectedImage：两次读是同一个对象', item.selectedImage === readBack, true);
+  assert('实测：selectedImage 读回来不是写进去的那个对象', readBack === houseFill, false);
+  assert('构造时给的 tag', item.tag, 7);
+  assert('badgeValue 默认是 null', item.badgeValue, null);
+  item.badgeValue = '3';
+  assert('badgeValue 写得进去', item.badgeValue, '3');
+  item.badgeValue = /** @type {any} */ (12);
+  assert('badgeValue 给数：按 String() 转', item.badgeValue, '12');
+  item.badgeValue = null;
+  assert('badgeValue 写 null 是去掉角标', item.badgeValue, null);
+  assert('badgeColor 默认是 null（系统的红色）', item.badgeColor, null);
+  item.badgeColor = 'systemIndigo';
+  assert('badgeColor 写得进去', item.badgeColor, 'systemIndigo');
+  item.isEnabled = false;
+  assert('isEnabled 写得进去', item.isEnabled, false);
+  item.isEnabled = true;
+  first.tabBarItem = null;
+  assert('写 null 不是清空：系统又建了一个', first.tabBarItem instanceof UITabBarItem, true);
+  assert('重新建的不是原来那个', first.tabBarItem === item, false);
+  first.tabBarItem = item;
+  assert('tabBarItem 给的不是 UITabBarItem',
+         // @ts-expect-error 要的是 UITabBarItem
+         thrown(() => { first.tabBarItem = new UIBarButtonItem({ title: 'x' }); }),
+         'TypeError: tabBarItem needs a UITabBarItem or null');
+  assert('UITabBarItem 不带参数也能建', new UITabBarItem().title, null);
+
+  // --- tab 条 ---
+  const tabBar = tabs.tabBar;
+  assert('tabBar 是 UITabBar', tabBar instanceof UITabBar, true);
+  assert('tabBar 每次读是同一个', tabs.tabBar === tabBar, true);
+  // @ts-expect-error 构造函数是私有的
+  assert('UITabBar 不能自己建', thrown(() => new UITabBar()),
+         'TypeError: Illegal constructor: UITabBar is created by the runtime, not by new');
+  assert('tabBar.tintColor 默认', tabBar.tintColor, 'systemBlue');
+  assert('tabBar.unselectedItemTintColor 默认', tabBar.unselectedItemTintColor, null);
+  tabBar.tintColor = 'systemPink';
+  assert('tabBar.tintColor 写得进去', tabBar.tintColor, 'systemPink');
+  tabBar.unselectedItemTintColor = 'systemGray';
+  assert('tabBar.unselectedItemTintColor 写得进去', tabBar.unselectedItemTintColor, 'systemGray');
+
+  assert('isTabBarHidden 默认', tabs.isTabBarHidden, false);
+  tabs.isTabBarHidden = true;
+  assert('isTabBarHidden 写得进去', tabs.isTabBarHidden, true);
+  tabs.setTabBarHidden(false, { animated: false });
+  assert('setTabBarHidden 改回来', tabs.isTabBarHidden, false);
+  assert('tabBarMinimizeBehavior 默认', tabs.tabBarMinimizeBehavior, 'automatic');
+  tabs.tabBarMinimizeBehavior = 'onScrollDown';
+  assert('tabBarMinimizeBehavior 写得进去', tabs.tabBarMinimizeBehavior, 'onScrollDown');
+  assert('tabBarMinimizeBehavior 写错',
+         // @ts-expect-error 只有那四个
+         thrown(() => { tabs.tabBarMinimizeBehavior = 'always'; }),
+         'TypeError: tabBarMinimizeBehavior has no value "always"; expected one of: ' +
+         'automatic / never / onScrollDown / onScrollUp');
+  tabs.tabBarMinimizeBehavior = 'automatic';
+
+  // --- 事件 ---
+  assert('不认识的事件名：两类名字都列出来',
+         thrown(() => tabs.addEventListener('select', () => {})),
+         'TypeError: addEventListener has no value "select"; expected one of: ' +
+         'didselect / willdismiss / diddismiss / dismissattempted');
+  assert('模态的事件名也能订', thrown(() => tabs.addEventListener('diddismiss', () => {})), '没抛');
+  let selects = 0;
+  tabs.addEventListener('didselect', () => { selects++; });
+  tabs.selectedIndex = 2;
+  tabs.selectedIndex = 0;
+  // 实测：didselect 只在用户点 tab 条时派发，程序改 selectedIndex 不派发
+  setTimeout(() => {
+    assert('程序改了两次 selectedIndex：didselect 一次都不派发', selects, 0);
+  }, 500);
+
+  // --- 弹一个真的 tab 界面出来（点它，再点底下的三格）---
+  const tabHost = ctx.section('UITabBarController：三个 tab（点它，切换，再点「关闭」）', 44);
+  const openTabs = UIButton.buttonWithType('system');
+  openTabs.setTitle('弹一个 tab 界面 ↑', { forState: ['normal'] });
+  openTabs.backgroundColor = UIColor.systemPinkColor;
+  openTabs.setTitleColor(UIColor.whiteColor, { forState: ['normal'] });
+  openTabs.layer.cornerRadius = 10;
+  openTabs.frame = new CGRect(16, 0, 180, 44);
+  tabHost.addSubview(openTabs);
+  openTabs.addEventListener('primaryActionTriggered', () => {
+    const screen = new UITabBarController();
+    /** @type {[string, string, string, string | null][]} */
+    const cells = [
+      ['首页', 'house', 'systemIndigo', null],
+      ['行情', 'chart.line.uptrend.xyaxis', 'systemTeal', '3'],
+      ['我的', 'person', 'systemOrange', null],
+    ];
+    screen.viewControllers = cells.map(([title, symbol, color, badge], index) => {
+      const page = new UIViewController();
+      page.title = title;
+      page.view.backgroundColor = color;
+      page.tabBarItem = new UITabBarItem({
+        title, image: UIImage.systemImageNamed(symbol), badgeValue: badge,
+      });
+      const close = UIButton.buttonWithType('system');
+      close.setTitle('关闭（这是「' + title + '」）', { forState: ['normal'] });
+      close.setTitleColor(UIColor.whiteColor, { forState: ['normal'] });
+      close.frame = new CGRect(40, 140, 260, 44);
+      close.addEventListener('primaryActionTriggered', () => {
+        screen.dismissViewController({ animated: true });
+      });
+      page.view.addSubview(close);
+      // 中间那一页包一层导航控制器：tab 里套导航是最常见的搭法
+      if (index !== 1) return page;
+      const nav = new UINavigationController(page);
+      nav.tabBarItem = page.tabBarItem;
+      return nav;
+    });
+    screen.tabBar.tintColor = 'systemPink';
+    screen.modalPresentationStyle = 'fullScreen';
+    screen.addEventListener('didselect', (e) => {
+      const picked = /** @type {UITabBarControllerEvent} */ (e).viewController;
+      console.log('  ✓ 真实触摸：didselect，选中的是第 ' + screen.selectedIndex +
+                  ' 格，事件带的页面就是 selectedViewController = ' +
+                  (picked === screen.selectedViewController));
+    });
+    ctx.vc.presentViewController(screen, { animated: true });
+    console.log('  tab 界面已弹出：点底下的三格切换，再点页面上的「关闭」');
+  });
+
+  // ===== 持有边（GC 之后）=====
   // ===== 持有边（GC 之后）=====
   (async () => {
     const keeper = new UIViewController();
+    const tabsKeeper = new UITabBarController();
     /** @type {Set<string>} */
     const collected = new Set();
     const registry = new FinalizationRegistry((/** @type {string} */ name) => { collected.add(name); });
+    (() => {
+      const page = new UIViewController();
+      /** @type {any} */ (page).probe = '挂在 tab 页面的包装上';
+      const cell = new UITabBarItem({ title: '探针' });
+      /** @type {any} */ (cell).probe = '挂在 tabBarItem 的包装上';
+      page.tabBarItem = cell;
+      const replaced = new UIViewController();
+      tabsKeeper.viewControllers = [page, replaced];
+      tabsKeeper.viewControllers = [page];
+      registry.register(replaced, '被换掉的 tab 页面');
+    })();
     (() => {
       const kept = new UIViewController();
       /** @type {any} */ (kept).probe = '挂在子控制器的包装上';
@@ -208,8 +411,11 @@ export function stepContainers(ctx) {
       gone.removeFromParentViewController();
       registry.register(gone, '移除了的');
     })();
+    // 晚几秒再逼 GC：启动那几秒里有几条量「主线程没被卡住」的断言
+    // （文件读写那一组），GC 的压力和它们撞上会把它们撞红
+    await new Promise((resolve) => setTimeout(resolve, 6000));
     const ran = await collectGarbage();
-    console.log('--- 父子控制器：持有边 ---');
+    console.log('--- 容器控制器：持有边 ---');
     if (!ran) {
       console.log('  ! 对照组没被回收，GC 没跑到，这一组未验证');
       return;
@@ -218,6 +424,12 @@ export function stepContainers(ctx) {
     assert('读回来还是原来那个包装',
            /** @type {any} */ (keeper.childViewControllers[0]).probe, '挂在子控制器的包装上');
     assert('移除了的子控制器：被回收', collected.has('移除了的'), true);
-    console.log('--- 父子控制器：以上断言跑完 ---');
+
+    assert('tab 控制器的页面：没被回收，读回来还是原来那个包装',
+           /** @type {any} */ (tabsKeeper.viewControllers[0]).probe, '挂在 tab 页面的包装上');
+    assert('页面的 tabBarItem：读回来还是原来那个包装',
+           /** @type {any} */ (tabsKeeper.viewControllers[0].tabBarItem).probe, '挂在 tabBarItem 的包装上');
+    assert('被换掉的 tab 页面：被回收', collected.has('被换掉的 tab 页面'), true);
+    console.log('--- 容器控制器：以上断言跑完 ---');
   })();
 }

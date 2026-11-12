@@ -327,6 +327,10 @@ nacre::NativeObjectRef ConstructNative(const std::string& className,
     } else {
       object = [[UIBarButtonItem alloc] init];
     }
+  } else if (className == "UITabBarController") {
+    object = [[UITabBarController alloc] init];
+  } else if (className == "UITabBarItem") {
+    object = [[UITabBarItem alloc] init];
   } else if (className == "UINavigationController") {
     id root = args.empty() ? nil : (__bridge id)args[0];
     if ([root isKindOfClass:UIViewController.class]) {

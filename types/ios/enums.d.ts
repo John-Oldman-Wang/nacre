@@ -205,6 +205,19 @@ type UIBarButtonItemEventType = 'primaryActionTriggered';
 /** 导航控制器上能监听的事件。 */
 type UINavigationControllerEventType = 'willshow' | 'didshow';
 
+/** tab 控制器上能监听的事件。 */
+type UITabBarControllerEventType = 'didselect';
+
+/**
+ * 内容滚动时 tab 条要不要收成一小条。
+ *
+ * - `'automatic'`：系统决定
+ * - `'never'`：一直完整显示
+ * - `'onScrollDown'`：往下滚时收起，往上滚时恢复
+ * - `'onScrollUp'`：往上滚时收起，往下滚时恢复
+ */
+type UITabBarMinimizeBehavior = 'automatic' | 'never' | 'onScrollDown' | 'onScrollUp';
+
 /** 滚动指示条的外观。`'default'` 跟随浅色/深色自动切换。 */
 type UIScrollViewIndicatorStyle = 'default' | 'black' | 'white';
 

@@ -313,6 +313,31 @@ static auto Guarded(const char* where, std::string* error, Fn&& fn) -> decltype(
 
 @end
 
+// tab 控制器的 trampoline。只转一件事：用户点了某个 tab。
+// 「能不能切过去」那个委托方法要同步返回 BOOL，不接。
+@interface NacreTabDelegate : NSObject <UITabBarControllerDelegate>
+@property(nonatomic, weak) NacreRuntime* runtime;
+@property(nonatomic, strong) NSMutableSet<NSString*>* types;
+@end
+
+@implementation NacreTabDelegate
+
+- (void)tabBarController:(UITabBarController*)tabBarController
+    didSelectViewController:(UIViewController*)viewController {
+  if (![self.types containsObject:@"didselect"]) return;
+  const char* payloadClass =
+      [viewController isKindOfClass:UINavigationController.class] ? "UINavigationController"
+      : [viewController isKindOfClass:UITabBarController.class]   ? "UITabBarController"
+                                                                  : "UIViewController";
+  [self.runtime emitEvent:@"didselect"
+                     from:tabBarController
+                className:"UITabBarController"
+                     with:viewController
+             payloadClass:payloadClass];
+}
+
+@end
+
 // 模态页被关掉的 trampoline。delegate 挂在 presentationController 上，但
 // 事件派发到**被呈现的那个 VC** 上——UIPresentationController 对 JS 没有别的
 // 用处，暴露出来只为挂一个 delegate。
@@ -359,6 +384,8 @@ static const void* kNacreScrollDelegateKey = &kNacreScrollDelegateKey;
 static const void* kNacreDefaultsObserverKey = &kNacreDefaultsObserverKey;
 // 同理：navigationController.delegate 也是 weak
 static const void* kNacreNavDelegateKey = &kNacreNavDelegateKey;
+// 关联对象的 key：UITabBarController → NacreTabDelegate（delegate 属性是 weak）
+static const void* kNacreTabDelegateKey = &kNacreTabDelegateKey;
 // 关联对象的 key：CAAnimation → NacreAnimationDelegate。
 // anim.delegate 是 **strong**（和别的几个相反），所以这个关联对象只是
 // 为了取消订阅时找得回来，不是为了持有
@@ -1567,6 +1594,38 @@ nacre::NativeObjectRef CreateBlob(
       [d.types removeObject:name];
     }
     return;
+  }
+  // tab 控制器：自己的事件在这里认。它也是页面，能被模态呈现，所以别的
+  // 名字不在这里拒，往下落到模态那一支——但报错时要把两边的名字都列出来
+  if ([object isKindOfClass:UITabBarController.class]) {
+    UITabBarController* tabs = (UITabBarController*)object;
+    NSString* name = @(type.c_str());
+    if (IsTabEventName(name)) {
+      NacreTabDelegate* d = objc_getAssociatedObject(tabs, kNacreTabDelegateKey);
+      if (on) {
+        if (d == nil) {
+          d = [NacreTabDelegate new];
+          d.runtime = self;
+          d.types = [NSMutableSet set];
+          objc_setAssociatedObject(tabs, kNacreTabDelegateKey, d,
+                                   OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+          tabs.delegate = d;
+        }
+        [d.types addObject:name];
+      } else if (d != nil) {
+        [d.types removeObject:name];
+        if (d.types.count == 0) {
+          tabs.delegate = nil;
+          objc_setAssociatedObject(tabs, kNacreTabDelegateKey, nil,
+                                   OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+      }
+      return;
+    }
+    if (![name isEqualToString:@"@dismissed"] && !IsPresentationEventName(name)) {
+      *error = EnumError(@"addEventListener", name, NamesForTabEvent());
+      return;
+    }
   }
   if ([object isKindOfClass:UINavigationController.class]) {
     UINavigationController* nav = (UINavigationController*)object;

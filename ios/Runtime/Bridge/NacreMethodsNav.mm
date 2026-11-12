@@ -84,6 +84,13 @@ bool ContainerCallMethod(id object, NSString* sel, const NacreArgs& args,
   if (![object isKindOfClass:UIViewController.class]) return false;
   UIViewController* vc = (UIViewController*)object;
 
+  if ([vc isKindOfClass:UITabBarController.class] &&
+      [sel isEqualToString:@"setTabBarHidden:animated:"]) {
+    [(UITabBarController*)vc setTabBarHidden:NACRE_BOOL(args.value(0), sel)
+                                    animated:NACRE_BOOL(args.value(1), @"animated")];
+    *out = "null";
+    return true;
+  }
   if ([sel isEqualToString:@"addChildViewController:"]) {
     id child = args.object(0);
     if (![child isKindOfClass:UIViewController.class]) {
@@ -146,6 +153,25 @@ bool NavCallObjectMethod(id object, const std::string& name, const NacreArgs& ar
 bool NavCallObjectArrayMethod(id object, const std::string& name, const NacreArgs& args,
                               std::vector<nacre::NativeObjectRef>* out,
                               std::string* error) {
+  // tab 控制器的整组替换。和导航的同名，所以按类先分开。它没有返回值，
+  // 走这条通道只是因为参数是一组对象
+  if ([object isKindOfClass:UITabBarController.class] &&
+      name == "setViewControllers:animated:") {
+    NSMutableArray<UIViewController*>* list = [NSMutableArray array];
+    const size_t count = args.ptrs ? args.ptrs->size() : 0;
+    for (size_t i = 0; i + 1 < count; i++) {
+      id vc = args.object(i);
+      if (![vc isKindOfClass:UIViewController.class]) {
+        *error = "setViewControllers only accepts UIViewController";
+        return true;
+      }
+      [list addObject:vc];
+    }
+    [(UITabBarController*)object
+        setViewControllers:list
+                  animated:NACRE_BOOL(args.value(count == 0 ? 0 : count - 1), @"animated")];
+    return true;
+  }
   if (![object isKindOfClass:UINavigationController.class]) return false;
   UINavigationController* nav = (UINavigationController*)object;
   NSArray<UIViewController*>* popped = nil;

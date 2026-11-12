@@ -10,11 +10,25 @@ namespace nacre_bridge {
 // 只在第一次给它建包装时决定类型
 static const char* ControllerClassName(UIViewController* vc) {
   if ([vc isKindOfClass:UINavigationController.class]) return "UINavigationController";
+  if ([vc isKindOfClass:UITabBarController.class]) return "UITabBarController";
   return "UIViewController";
 }
 
 id ReadSceneProperty(id object, NSString* key) {
   id value = nil;
+  if ([object isKindOfClass:UITabBarController.class]) {
+    UITabBarController* tabs = (UITabBarController*)object;
+    if ([key isEqualToString:@"selectedIndex"]) {
+      // 没有选中项、或者选中的是「更多」时原生给 NSNotFound（NSIntegerMax），
+      // 那个数 JS 的 number 表示不准，所以翻成 -1
+      NSUInteger index = tabs.selectedIndex;
+      value = index == NSNotFound ? @(-1) : @(index);
+    } else if ([key isEqualToString:@"isTabBarHidden"]) {
+      value = @(tabs.isTabBarHidden);
+    } else if ([key isEqualToString:@"tabBarMinimizeBehavior"]) {
+      value = NameForTabBarMinimizeBehavior(tabs.tabBarMinimizeBehavior);
+    }
+  }
   if ([object isKindOfClass:UINavigationController.class]) {
     UINavigationController* nav = (UINavigationController*)object;
     if ([key isEqualToString:@"isNavigationBarHidden"]) {
@@ -83,6 +97,35 @@ id ReadSceneProperty(id object, NSString* key) {
 
 BOOL WriteSceneProperty(id object, NSString* key, id value,
                       std::string* error) {
+  if ([object isKindOfClass:UITabBarController.class]) {
+    UITabBarController* tabs = (UITabBarController*)object;
+    if ([key isEqualToString:@"selectedIndex"]) {
+      NSInteger index = NACRE_INT(value, key);
+      NSInteger count = (NSInteger)tabs.viewControllers.count;
+      if (index < 0 || index >= count) {
+        *error = [NSString stringWithFormat:
+                      @"selectedIndex %ld is out of range; there are %ld view controllers",
+                      (long)index, (long)count].UTF8String;
+        return YES;
+      }
+      tabs.selectedIndex = (NSUInteger)index;
+      return YES;
+    }
+    if ([key isEqualToString:@"isTabBarHidden"]) {
+      tabs.tabBarHidden = NACRE_BOOL(value, key);
+      return YES;
+    }
+    if ([key isEqualToString:@"tabBarMinimizeBehavior"]) {
+      UITabBarMinimizeBehavior behavior;
+      if (!TabBarMinimizeBehaviorFromName(value, &behavior)) {
+        *error = EnumError(@"tabBarMinimizeBehavior", value,
+                           NamesForTabBarMinimizeBehavior());
+        return YES;
+      }
+      tabs.tabBarMinimizeBehavior = behavior;
+      return YES;
+    }
+  }
   if ([object isKindOfClass:UINavigationController.class]) {
     if ([key isEqualToString:@"isNavigationBarHidden"]) {
       ((UINavigationController*)object).navigationBarHidden = NACRE_BOOL(value, key);
@@ -174,6 +217,28 @@ BOOL WriteSceneProperty(id object, NSString* key, id value,
 
 nacre::NativeObjectRef ReadSceneObjectProperty(id object,
                                             const std::string& name) {
+  if ([object isKindOfClass:UITabBarController.class]) {
+    UITabBarController* tabs = (UITabBarController*)object;
+    if (name == "selectedViewController") {
+      UIViewController* selected = tabs.selectedViewController;
+      return {(__bridge void*)selected, ControllerClassName(selected)};
+    }
+    if (name == "tabBar") return {(__bridge void*)tabs.tabBar, "UITabBar"};
+  }
+  if ([object isKindOfClass:UITabBar.class]) {
+    UITabBar* bar = (UITabBar*)object;
+    if (name == "tintColor") return {(__bridge void*)bar.tintColor, "UIColor"};
+    if (name == "unselectedItemTintColor") {
+      return {(__bridge void*)bar.unselectedItemTintColor, "UIColor"};
+    }
+  }
+  if ([object isKindOfClass:UIViewController.class]) {
+    UIViewController* vc = (UIViewController*)object;
+    if (name == "tabBarItem") return {(__bridge void*)vc.tabBarItem, "UITabBarItem"};
+    if (name == "tabBarController") {
+      return {(__bridge void*)vc.tabBarController, "UITabBarController"};
+    }
+  }
   if ([object isKindOfClass:UINavigationController.class]) {
     UINavigationController* nav = (UINavigationController*)object;
     if (name == "topViewController") {
@@ -228,6 +293,35 @@ nacre::NativeObjectRef ReadSceneObjectProperty(id object,
 
 void WriteSceneObjectProperty(id object, const std::string& name, id value,
                               std::string* error) {
+  if ([object isKindOfClass:UITabBarController.class] && name == "selectedViewController") {
+    UITabBarController* tabs = (UITabBarController*)object;
+    // 只能选已经在 viewControllers 里的。给别的 UIKit 会抛，这里先拦成一句
+    // 说得清的话
+    if (![value isKindOfClass:UIViewController.class] ||
+        ![tabs.viewControllers containsObject:value]) {
+      *error = "selectedViewController must be one of this tab bar controller's viewControllers";
+      return;
+    }
+    tabs.selectedViewController = (UIViewController*)value;
+    return;
+  }
+  if ([object isKindOfClass:UITabBar.class]) {
+    UITabBar* bar = (UITabBar*)object;
+    if (name == "tintColor") {
+      bar.tintColor = NACRE_OBJECT_OR_NIL(value, UIColor, name);
+      return;
+    }
+    if (name == "unselectedItemTintColor") {
+      bar.unselectedItemTintColor = NACRE_OBJECT_OR_NIL(value, UIColor, name);
+      return;
+    }
+  }
+  if ([object isKindOfClass:UIViewController.class] && name == "tabBarItem") {
+    // 头文件标的是 null_resettable：写 nil 不是清空，是让系统按页面的 title
+    // 重新建一个
+    ((UIViewController*)object).tabBarItem = NACRE_OBJECT_OR_NIL(value, UITabBarItem, name);
+    return;
+  }
   if ([object isKindOfClass:UINavigationItem.class] && name == "titleView") {
     ((UINavigationItem*)object).titleView =
         NACRE_OBJECT_OR_NIL(value, UIView, name);
@@ -260,6 +354,11 @@ void ReadSceneObjectArray(id object, const std::string& name,
       refs.push_back({(__bridge void*)vc, "UIViewController"});
     }
   }
+  if ([object isKindOfClass:UITabBarController.class] && name == "viewControllers") {
+    for (UIViewController* vc in ((UITabBarController*)object).viewControllers) {
+      refs.push_back({(__bridge void*)vc, ControllerClassName(vc)});
+    }
+  }
   if ([object isKindOfClass:UIViewController.class] && name == "childViewControllers") {
     for (UIViewController* vc in ((UIViewController*)object).childViewControllers) {
       refs.push_back({(__bridge void*)vc, ControllerClassName(vc)});
@@ -285,6 +384,19 @@ BOOL WriteSceneObjectArray(id object, const std::string& name,
     UINavigationItem* item = (UINavigationItem*)object;
     if (name == "leftBarButtonItems") item.leftBarButtonItems = items;
     else item.rightBarButtonItems = items;
+    return YES;
+  }
+  if ([object isKindOfClass:UITabBarController.class] && name == "viewControllers") {
+    NSMutableArray<UIViewController*>* list = [NSMutableArray array];
+    for (void* ptr : values) {
+      id vc = (__bridge id)ptr;
+      if (![vc isKindOfClass:UIViewController.class]) {
+        *error = "viewControllers only accepts UIViewController";
+        return YES;
+      }
+      [list addObject:vc];
+    }
+    ((UITabBarController*)object).viewControllers = list;
     return YES;
   }
   if ([object isKindOfClass:UINavigationController.class] &&

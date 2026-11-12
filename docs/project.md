@@ -642,7 +642,8 @@ Commit message 格式：
 | — | 修复：自己构造的 `Request` / `Response` 读不出 body；请求体支持二进制 | body 统一存成 `Blob`，发送通道改成交 `Blob` 的句柄；默认 `Content-Type` 照 Web | 已在模拟器验证通过：先加 48 条断言跑出 35 条失败，修完 1272 条断言全过。二进制的字节和 `Blob` 的 `type` 都实测到了服务器。字符串 body 不写 `Content-Type` 时发的值变了（原来是系统填的表单类型，现在是 `text/plain`） |
 | — | 所有权镜像补全（一）：没有父对象的三类 | `check-api.sh` 堵三个盲区；run loop → display link、`application` → `WebSocket`、单例由类持有 | 已在模拟器验证通过：先加 10 条不带监听器的断言跑出 4 条失败，改完 1282 条断言全过 |
 | — | 所有权镜像补全（二）：删掉订阅保活集合 | 加监听器不再改变对象的寿命；导航栈和模态各常驻一个内部事件，系统自己弹栈、用户拖走模态时镜像跟上；包装被重建时打警告 | 已在模拟器验证通过：先加 13 条断言跑出 11 条失败（游离的带监听器的对象不回收），游离对象都被回收。警告用一次性探针验过。系统返回和拖走靠真实触摸：点返回后第二页在第 3 秒被回收、卡片还在，拖走后其余两个在第 11 秒被回收；改完全量 1301 条断言全过。真机（iPhone 14）上探针验过，结论一致；路由进出那一步真机未验证 |
-| — | A4-1 父子控制器 | `addChildViewController` 一组、`childViewControllers`、`additionalSafeAreaInsets` | 已在模拟器验证通过：1332 条断言全过，验收里用它搭了一个自己画 tab 条的界面。实测成环的父子关系 UIKit 不检查、会栈溢出崩掉，运行时在加之前拦成 `TypeError`。真实点击切换还没试 |
+| — | A4-1 父子控制器 | `addChildViewController` 一组、`childViewControllers`、`additionalSafeAreaInsets` | 已在模拟器验证通过：1332 条断言全过，验收里用它搭了一个自己画 tab 条的界面。实测成环的父子关系 UIKit 不检查、会栈溢出崩掉，运行时在加之前拦成 `TypeError`。真实点击切换过，贴着安全区的那行字停在按钮条上方 |
+| — | A4-2 `UITabBarController` | `UITabBarItem`、`UITabBar`（两个颜色）、`didselect`、`tabBarMinimizeBehavior` | 已在模拟器验证通过：1393 条断言全过。实测程序改选中项不派发 `didselect`、`selectedImage` 读回来不是写进去的对象。真实点击切换过，每次都收到 `didselect`；标签栏实际的样子（图标、角标、颜色）没有核对 |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |
@@ -778,7 +779,7 @@ bindgen 做完也解决不了同盾（风控）、mtpush（推送）、Sentry �
 | A1 | **输入框和键盘**：`UITextField` / `UITextView`、first responder | 系统键盘、输入法、光标、粘贴、密码自动填充只能由原生输入控件唤起。没有它任何带表单的 App 起不了步。对应清单第 9 步和 4c |
 | A2 | **本地存储**：`NSUserDefaults`、文件读写、Keychain | JS 没有任何落盘的口子。对应清单第 7 步 |
 | A3 | **任意色值**：`colorWithRed:…`、`colorWithAlphaComponent:`、自定义动态色 | 今天只能取预置常量，品牌色、半透明遮罩、「浅色一个值深色一个值」全造不出来。[方案已定](#待讨论的设计问题)、未实现，改动小 |
-| A4 | **容器控制器**：`UITabBarController`、`addChildViewController:` 一组 | tab 条自绘得出来，但父子控制器关系、生命周期和安全区传递只能原生给。它决定 App 的骨架，越晚补客户迁移越痛 |
+| A4 | ~~**容器控制器**~~ **已做**：`UITabBarController`（经典的 `viewControllers` 接口）、`addChildViewController:` 一组。剩 iOS 18 的 `UITab`、外观定制 | tab 条自绘得出来，但父子控制器关系、生命周期和安全区传递只能原生给。它决定 App 的骨架，越晚补客户迁移越痛 |
 | A5 | ~~**绘图对象**~~ **已做**：`CAGradientLayer`（A5-1）、`CAShapeLayer` + `UIBezierPath`（A5-2）。剩 `CGPath` 和 `mask` / `shadowPath` | 折线图、K 线、饼图、渐变。纯对象，不需要覆写 |
 | A6 | ~~**Core Animation**~~ **已做**：A6-1 核心、A6-2 关键帧/动画组/弹簧、A6-3 CADisplayLink。剩 CATransition、CASpringAnimation 的感知时长初始化器 | `CADisplayLink` 是 target-action，M1a 已经够 |
 | A7 | **手势识别器**：~~点按、长按~~ **已做**（见[事件模型](internals/events.md#a7-的第一片点按和长按)）。剩拖动、捏合、轻扫 | target-action，M1a 够。抢占语义原样暴露 iOS 的三个属性，没有另外设计。delegate 那部分要 M2 |

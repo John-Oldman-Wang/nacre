@@ -42,6 +42,7 @@ Nacre 的 API 分两层：
 | [`UIStackView`](ui-stack-view.md) | 一维排列容器。约束的工厂，不是第二套布局引擎 |
 | [`UIScrollView`](ui-scroll-view.md) | 滚动。事件会合并，数据去对象上读 |
 | [`UINavigationController`](ui-navigation-controller.md) | 页面栈。push / pop，返回按钮靠 `title` |
+| [`UITabBarController`](ui-tab-bar-controller.md) | 底部标签栏。含 `UITabBarItem`、`UITabBar` |
 | [导航条上的东西](ui-bar-button-item.md) | `UINavigationItem` / `UIBarButtonItem`。标题、返回按钮、左右按钮 |
 | [`CALayer`](ca-layer.md) | 圆角、边框、阴影、渐变、形状 |
 | [`UIBezierPath`](ui-bezier-path.md) | 路径：直线、曲线、圆弧、现成的形状 |
@@ -67,7 +68,7 @@ Nacre 的 API 分两层：
 | [`fetch`](fetch.md) | 网络请求。线程分工是实测定下来的 |
 | [`WebSocket`](websocket.md) | 长连接。比 Web 多两样：可以带首部、有协议级 `ping()` |
 | [`UIColor`](ui-color.md) | 颜色。基础色、系统色、语义色 |
-| [`UIViewController`](ui-view-controller.md) | 页面。`view`、`title`、模态呈现 |
+| [`UIViewController`](ui-view-controller.md) | 页面。`view`、`title`、模态呈现、父子控制器 |
 | `NSObject` | ObjC 的根类，所有原生类的基类（继承 `EventTarget`） |
 | `EventTarget` / `Event` | 事件基类，见 [`application`](application.md) 的「继承关系」 |
 | `ErrorEvent` / `PromiseRejectionEvent` | 错误类事件对象，见 [`application`](application.md) 的「事件」 |

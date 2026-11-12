@@ -445,6 +445,16 @@ declare class UIViewController extends UIResponder {
   readonly parentViewController: UIViewController | null;
 
   /**
+   * 这个页面在 tab 条上的那一格：标题、图标、角标。
+   *
+   * 不设的话系统按页面的 `title` 建一个。写 `null` 不是清空，是让系统重新建一个。
+   */
+  get tabBarItem(): UITabBarItem;
+  set tabBarItem(value: UITabBarItem | null);
+  /** 这个页面所在的 tab 控制器。不在任何 tab 控制器里时是 `null`。 */
+  readonly tabBarController: UITabBarController | null;
+
+  /**
    * 子控制器，按加入的顺序。自己写容器（比如自己画 tab 条）时用。
    * 导航控制器、tab 控制器管着的页面也在这里面。
    */
@@ -469,6 +479,111 @@ declare class UIViewController extends UIResponder {
   didMoveToParentViewController(parent: UIViewController | null): void;
   /** 在系统的安全区之外再让出的边距，单位 pt。默认四边都是 0。 */
   additionalSafeAreaInsets: UIEdgeInsets;
+}
+
+/**
+ * tab 条上的一格。挂在页面的 `tabBarItem` 上。
+ *
+ * ```js
+ * page.tabBarItem = new UITabBarItem({
+ *   title: '首页',
+ *   image: UIImage.systemImageNamed('house'),
+ * });
+ * page.tabBarItem.badgeValue = '3';
+ * ```
+ *
+ * `title`、`image`、`isEnabled`、`tag` 继承自 `UIBarItem`。
+ */
+declare class UITabBarItem extends UIBarItem {
+  constructor(options?: {
+    title?: string | null;
+    image?: UIImage | null;
+    selectedImage?: UIImage | null;
+    tag?: number;
+    badgeValue?: string | null;
+    badgeColor?: string | UIColor | null;
+  });
+  /** 选中时换的那张图。`null` 表示选中时仍用 `image`。 */
+  selectedImage: UIImage | null;
+  /** 右上角的角标文字。`null` 是没有角标。 */
+  badgeValue: string | null;
+  /** 角标的底色。读出来是字符串；`null` 是系统默认的红色。 */
+  get badgeColor(): string | null;
+  set badgeColor(value: string | UIColor | null);
+}
+
+/**
+ * tab 条本身，从 `tabBarController.tabBar` 取，不能自己建。
+ *
+ * 只开了两个颜色。它里面有哪几格由 tab 控制器的 `viewControllers` 决定。
+ */
+declare class UITabBar extends UIView {
+  private constructor();
+  /** 选中那一格的颜色。`null` 是跟随系统。 */
+  get tintColor(): string | null;
+  set tintColor(value: string | UIColor | null);
+  /** 没选中的那些格的颜色。`null` 是系统默认。 */
+  get unselectedItemTintColor(): string | null;
+  set unselectedItemTintColor(value: string | UIColor | null);
+}
+
+/** `didselect` 事件。 */
+interface UITabBarControllerEvent extends Event {
+  /** 用户点中的那一页。 */
+  readonly viewController: UIViewController;
+}
+
+type TabEventName =
+  UITabBarControllerEventType | UIPresentationEventType | (string & {});
+
+/**
+ * 底部标签栏。每个页面占一格，点哪一格显示哪一页。
+ *
+ * ```js
+ * const tabs = new UITabBarController();
+ * tabs.viewControllers = [home, market, profile];
+ * win.rootViewController = tabs;
+ * ```
+ *
+ * 每一格长什么样由**页面自己的** `tabBarItem` 决定。
+ * 不用自己保持引用：它持有它的每个页面。
+ */
+declare class UITabBarController extends UIViewController {
+  constructor();
+
+  /** 各个页面，顺序就是 tab 条上从左到右的顺序。读出来是快照，改它用赋值或 `setViewControllers`。 */
+  get viewControllers(): readonly UIViewController[];
+  set viewControllers(value: readonly UIViewController[] | null);
+  /** 同上，可以带动画。 */
+  setViewControllers(
+    viewControllers: readonly UIViewController[],
+    options?: { animated?: boolean },
+  ): void;
+
+  /** 选中的是第几个，从 0 数。没有页面、或者选中的是系统的「更多」时是 -1。 */
+  selectedIndex: number;
+  /** 选中的那一页。写入的必须是 `viewControllers` 里的一个。 */
+  get selectedViewController(): UIViewController | null;
+  set selectedViewController(value: UIViewController);
+
+  /** tab 条。用来改它的颜色。 */
+  readonly tabBar: UITabBar;
+  /** tab 条是不是藏起来了。 */
+  isTabBarHidden: boolean;
+  /** 藏起来或者显示出来，可以带动画。 */
+  setTabBarHidden(hidden: boolean, options?: { animated?: boolean }): void;
+  /** 内容滚动时 tab 条要不要收成一小条。默认 `'automatic'`。 */
+  tabBarMinimizeBehavior: UITabBarMinimizeBehavior;
+
+  /**
+   * `didselect`：用户点了某一格。事件对象上有 `viewController`。
+   * 被模态呈现时，也能监听 `willdismiss` / `diddismiss` / `dismissattempted`。
+   */
+  addEventListener(
+    type: TabEventName,
+    callback: EventListener | null,
+    options?: AddEventListenerOptions,
+  ): void;
 }
 
 // ---------------------------------------------------------------------------

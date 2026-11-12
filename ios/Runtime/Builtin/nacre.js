@@ -4154,6 +4154,16 @@
     get navigationController() { return nativeGetOwned(this, 'navigationController'); }
     get parentViewController() { return nativeGetOwned(this, 'parentViewController'); }
 
+    // ---- 在 tab 条上的样子 ----
+    // 不设的话系统按页面的 title 建一个；写 null 也是让系统重新建一个
+    get tabBarItem() { return nativeGetOwned(this, 'tabBarItem'); }
+    set tabBarItem(value) {
+      nativeSetObject(this, 'tabBarItem', value);
+      // 写 null 之后原生那边是一个新建的，所以按原生的真相重读一次再记边
+      nativeGetOwned(this, 'tabBarItem');
+    }
+    get tabBarController() { return nativeGetOwned(this, 'tabBarController'); }
+
     // ---- 父子控制器：自己写容器用的那一组 ----
     //
     // 加一个子页面是三句，UIKit 只替你做第一句里的 willMove：
@@ -4494,6 +4504,146 @@
     }
   });
 
+  // ---------- tab ----------
+  //
+  // 底部的标签栏。用的是经典的 viewControllers 那一套：iOS 18 的 UITab 要在
+  // 构造时给一个同步返回页面的回调，现在做不了。
+  //
+  // 每个页面在 tab 条上长什么样，由**页面自己的** tabBarItem 决定，不是
+  // tab 控制器上的属性。
+
+  // tab 条上的一格。title / image / isEnabled / tag 继承自 UIBarItem
+  defineNativeClass('UITabBarItem', class UITabBarItem extends UIBarItem {
+    constructor(options) {
+      super();
+      const o = options === undefined || options === null ? {} : options;
+      constructNative(this, new.target, 'UITabBarItem', []);
+      if (has(o, 'title')) this.title = o.title;
+      if (has(o, 'image')) this.image = o.image;
+      if (has(o, 'selectedImage')) this.selectedImage = o.selectedImage;
+      if (has(o, 'tag')) this.tag = o.tag;
+      if (has(o, 'badgeValue')) this.badgeValue = o.badgeValue;
+      if (has(o, 'badgeColor')) this.badgeColor = o.badgeColor;
+    }
+    // 选中时换一张图。不设就用 image
+    get selectedImage() { return nativeGetOwned(this, 'selectedImage'); }
+    set selectedImage(value) { nativeSetOwned(this, 'selectedImage', value); }
+    // 右上角的角标。null 是没有角标，空串是一个不带字的圆点
+    get badgeValue() { requireNative(this, 'badgeValue'); return nativeGet(this, 'badgeValue'); }
+    set badgeValue(value) {
+      requireNative(this, 'badgeValue');
+      nativeSet(this, 'badgeValue', toTextOrNull(value));
+    }
+    get badgeColor() {
+      requireNative(this, 'badgeColor');
+      return colorString(nativeGetOwned(this, 'badgeColor'));
+    }
+    set badgeColor(value) {
+      requireNative(this, 'badgeColor');
+      if (value === null || value === undefined) { nativeSetOwned(this, 'badgeColor', null); return; }
+      const color = colorArg(value, 'badgeColor');
+      if (color === undefined) return;   // 不合法，警告过了，保留旧值
+      nativeSetOwned(this, 'badgeColor', color);
+    }
+  });
+
+  // tab 条本身。只开了两个颜色：它里面有什么由 tab 控制器管，头文件原话是
+  // 直接改它的内容会抛异常
+  defineNativeClass('UITabBar', class UITabBar extends UIView {
+    constructor() {
+      super();
+      nativeOnly(new.target);
+    }
+    // 选中那一格的颜色。null 是跟随系统（默认是蓝色）
+    get tintColor() {
+      requireNative(this, 'tintColor');
+      return colorString(nativeGetOwned(this, 'tintColor'));
+    }
+    set tintColor(value) {
+      requireNative(this, 'tintColor');
+      if (value === null || value === undefined) { nativeSetOwned(this, 'tintColor', null); return; }
+      const color = colorArg(value, 'tintColor');
+      if (color === undefined) return;
+      nativeSetOwned(this, 'tintColor', color);
+    }
+    // 没选中的那些格的颜色
+    get unselectedItemTintColor() {
+      requireNative(this, 'unselectedItemTintColor');
+      return colorString(nativeGetOwned(this, 'unselectedItemTintColor'));
+    }
+    set unselectedItemTintColor(value) {
+      requireNative(this, 'unselectedItemTintColor');
+      if (value === null || value === undefined) {
+        nativeSetOwned(this, 'unselectedItemTintColor', null);
+        return;
+      }
+      const color = colorArg(value, 'unselectedItemTintColor');
+      if (color === undefined) return;
+      nativeSetOwned(this, 'unselectedItemTintColor', color);
+    }
+  });
+
+  defineNativeClass('UITabBarController',
+                    class UITabBarController extends UIViewController {
+    constructor() {
+      super();
+      constructNative(this, new.target, 'UITabBarController', []);
+    }
+
+    // 事件在 UITabBarControllerDelegate 上，和导航同构
+    [kSubscribe](type, on) { subscribeNative(this, type, on); }
+
+    // 持有边：tab 控制器拿着它的每个页面。每次写完按原生的真相整层重建，
+    // 和导航栈一个做法。系统不会自己往里加减页面（用户在「更多」里只能
+    // 调顺序），所以不用常驻一个内部事件
+    get viewControllers() {
+      return ownAll(this, 'viewControllers', nativeGetObjectArray(this, 'viewControllers'));
+    }
+    set viewControllers(value) {
+      nativeSetObjectArray(this, 'viewControllers', value);
+      ownAll(this, 'viewControllers', nativeGetObjectArray(this, 'viewControllers'));
+    }
+    setViewControllers(viewControllers, options) {
+      const o = options || {};
+      nativeCallObjectArray(this, 'setViewControllers:animated:',
+                            [...Array.from(viewControllers || []), !!o.animated]);
+      ownAll(this, 'viewControllers', nativeGetObjectArray(this, 'viewControllers'));
+    }
+
+    // 第几个。没有页面、或者选中的是系统的「更多」时是 -1
+    get selectedIndex() { requireNative(this, 'selectedIndex'); return nativeGet(this, 'selectedIndex'); }
+    set selectedIndex(value) {
+      requireNative(this, 'selectedIndex');
+      nativeSet(this, 'selectedIndex', toInteger(value, 'selectedIndex'));
+    }
+    // 选中的那一页。它本来就在 viewControllers 里，所以这里不另记持有边
+    get selectedViewController() { return nativeGetObject(this, 'selectedViewController'); }
+    set selectedViewController(value) { nativeSetObject(this, 'selectedViewController', value); }
+
+    get tabBar() { return nativeGetOwned(this, 'tabBar'); }
+    get isTabBarHidden() {
+      requireNative(this, 'isTabBarHidden');
+      return nativeGet(this, 'isTabBarHidden');
+    }
+    set isTabBarHidden(value) {
+      requireNative(this, 'isTabBarHidden');
+      nativeSet(this, 'isTabBarHidden', toBoolean(value));
+    }
+    setTabBarHidden(hidden, options) {
+      const o = options || {};
+      nativeCall(this, 'setTabBarHidden:animated:', [toBoolean(hidden), !!o.animated]);
+    }
+    // 内容往下滚时 tab 条要不要收成一小条（iOS 26 加的）
+    get tabBarMinimizeBehavior() {
+      requireNative(this, 'tabBarMinimizeBehavior');
+      return nativeGet(this, 'tabBarMinimizeBehavior');
+    }
+    set tabBarMinimizeBehavior(value) {
+      requireNative(this, 'tabBarMinimizeBehavior');
+      nativeSet(this, 'tabBarMinimizeBehavior', value);
+    }
+  });
+
   // 带原生对象负载的事件，字段名按类型定。
   //
   // 「事件带不带数据」的判据是**那个信息在对象上读不读得到**：滚动的位置在
@@ -4503,7 +4653,8 @@
   // 事件负载挂在哪个字段上。值可以是原生对象（willshow 带 viewController）
   // 也可以是普通 JSON 值（动画的 stop 带一个布尔）——sink 一视同仁
   const objectEventField = {
-    willshow: 'viewController', didshow: 'viewController', stop: 'finished',
+    willshow: 'viewController', didshow: 'viewController', didselect: 'viewController',
+    stop: 'finished',
     tick: 'frame', message: 'data', error: 'message',
   };
 

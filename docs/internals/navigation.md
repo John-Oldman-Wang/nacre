@@ -350,6 +350,64 @@ Thread stack size exceeded due to excessive recursion
 
 `transitionFromViewController:…` 的动画块是同步执行的，卡在 M1b。`beginAppearanceTransition:` 一组没有意义——它们的作用是触发子页面的 `viewWillAppear:`，而那是覆写点，JS 现在听不到。
 
+## `UITabBarController`
+
+和导航控制器同构：一个管着一组页面的容器，事件在委托上，持有边按原生的真相整层重建。下面只记不一样的地方。
+
+### 用经典的 `viewControllers`，不用 iOS 18 的 `UITab`
+
+头文件里现在有两套接口。新的那套（`tabs`、`UITab`、`UITabGroup`、侧边栏）做不了：
+
+```objc
+- (instancetype)initWithTitle:(NSString *)title image:… identifier:…
+       viewControllerProvider:(UIViewController * (^)(__kindof UITab *))viewControllerProvider;
+```
+
+`viewControllerProvider` 是一个要当场返回页面的块，卡在 M1b。而且侧边栏是 iPad 的形态，我们只支持 iPhone。经典的 `viewControllers` 没有被废弃，够用。
+
+iOS 26 给经典接口也加了东西，那些直接给了：`tabBarMinimizeBehavior`、`isTabBarHidden` / `setTabBarHidden:animated:`（后者是 iOS 18 加的）。我们最低就是 iOS 26，不用写版本保护。
+
+### `selectedIndex` 的 `NSNotFound` 翻成 `-1`
+
+没有页面、或者选中的是系统的「更多」时，原生给 `NSNotFound`，也就是 `NSIntegerMax`。那个数超出了 JS 的 number 能精确表示的范围，原样过桥读到的是一个不相等的近似值，没法拿来比较。所以在原生层翻成 `-1`，和 `indexOf` 的惯例一致。
+
+### 持有边：不需要内部事件
+
+| 原生 | JS 侧 |
+| --- | --- |
+| tab 控制器 → `viewControllers` | 每次写入之后按原生的真相 `ownAll` 一遍 |
+| 页面 → `tabBarItem` → `image` / `selectedImage` | 属性边 |
+| tab 控制器 → `tabBar` | 属性边（读的时候记） |
+| `selectedViewController` | 不记。它本来就在 `viewControllers` 里 |
+
+导航栈要常驻一个 `@stack`，是因为用户点返回会让系统自己把页面弹掉。tab 这边系统不会自己增删页面：用户在「更多」里能做的只是调顺序，集合不变，持有关系不受影响。
+
+`tabBarItem` 的写入多一步：头文件标的是 `null_resettable`，写 `nil` 不是清空，是让系统按页面的 `title` 重新建一个。所以写完要按原生的真相重读一次再记边，不能直接把 `null` 记进去。
+
+### 订阅：事件名先按名字分，再按类落下去
+
+tab 控制器也是页面，能被模态呈现。导航控制器在这里留过一个坑（它那一支把模态的事件名直接拒了，所以被呈现的导航控制器收不到 `diddismiss`）。tab 这一支从一开始就不这么写：
+
+1. 是 `didselect` → 装 tab 的委托，返回
+2. 是模态那三个，或者内部的 `@dismissed` → 不处理，往下落到页面那一支
+3. 都不是 → 报错，**把两类名字都列出来**：`expected one of: didselect / willdismiss / diddismiss / dismissattempted`
+
+这就是「订阅按事件名分流」那条 TODO 要的做法，只是先在一个类上做了。
+
+### 三条实测
+
+- **程序改 `selectedIndex` 不派发 `didselect`。** 连改两次，一次都没收到。委托方法只在用户点标签时调用。所以「选中项变了」这件事对自己的代码没有通知——按「只有自己能改的值不需要通知」算是合理的，文档里写明了
+- **`selectedImage` 读回来不是写进去的那个对象。** 同一个 `UIImage` 写给 `image` 和 `selectedImage`，前者读回来 `===` 成立，后者不成立；两次读 `selectedImage` 得到的是同一个，尺寸也和写进去的一样。看起来是 UIKit 在写入时另存了一份。读一律走原生，所以照实给，没有拿镜像里那个去顶替
+- 默认值：`tabBar.tintColor` 是 `'systemBlue'`，`unselectedItemTintColor` 和 `badgeColor` 是 `null`；系统自动建的 `tabBarItem.title` 就是页面的 `title`
+
+### `tintColor` 先只开在 `UITabBar` 上
+
+`tintColor` 是 `UIView` 的属性，整个运行时都还没有。这次只在 `UITabBar` 这个子类上开了它和 `unselectedItemTintColor`——品牌色的标签栏是刚需，而给所有视图加 `tintColor` 牵涉它沿视图树继承、`tintColorDidChange` 这些，是另一件事。以后挪到 `UIView` 上，对已有的代码是兼容的。
+
+### 没做的
+
+「让不让切过去」（`shouldSelectViewController:`）要同步返回，卡在 M1b。「更多」和编辑排序、`UITabBarAppearance`、`bottomAccessory` 都没碰。
+
 ---
 
 ← 返回[实现原理](README.md) ・ [包装机制](wrapper.md) ・ [API 文档](../api/ui-navigation-controller.md)

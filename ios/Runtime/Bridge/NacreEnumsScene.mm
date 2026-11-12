@@ -27,6 +27,32 @@ NACRE_ENUM_MAP(ModalTransitionStyle, UIModalTransitionStyle,
                @"crossDissolve": @(UIModalTransitionStyleCrossDissolve),
                @"partialCurl": @(UIModalTransitionStylePartialCurl))
 
+// tab 条在滚动时要不要收起来（iOS 26 加的）
+NACRE_ENUM_MAP(TabBarMinimizeBehavior, UITabBarMinimizeBehavior,
+               @"automatic": @(UITabBarMinimizeBehaviorAutomatic),
+               @"never": @(UITabBarMinimizeBehaviorNever),
+               @"onScrollDown": @(UITabBarMinimizeBehaviorOnScrollDown),
+               @"onScrollUp": @(UITabBarMinimizeBehaviorOnScrollUp))
+
+// UITabBarController 的事件名，同样派生自 delegate 方法名
+static NSArray<NSString*>* TabEventNamesList(void) {
+  static NSArray<NSString*>* names;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{ names = @[ @"didselect" ]; });
+  return names;
+}
+
+BOOL IsTabEventName(NSString* name) {
+  return [name isKindOfClass:NSString.class] &&
+         [TabEventNamesList() containsObject:name];
+}
+
+// tab 控制器也是页面，能被模态呈现，所以模态那三个它也认
+NSString* NamesForTabEvent(void) {
+  return [[TabEventNamesList() componentsJoinedByString:@" / "]
+      stringByAppendingFormat:@" / %@", NamesForPresentationEvent()];
+}
+
 // UINavigationController 的事件名。和滚动一样派生自 delegate 方法名，
 // 所以全小写。区别是这两条**带数据**——「哪个页面」在那一刻从 nav 上读不到
 // （willShow 时 topViewController 还没换过去），所以原生送什么就给什么。

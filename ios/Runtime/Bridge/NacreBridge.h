@@ -367,6 +367,7 @@ NSString* NamesForTextContentType(void);
 NACRE_ENUM_DECL(StackDistribution, UIStackViewDistribution)
 NACRE_ENUM_DECL(ModalPresentationStyle, UIModalPresentationStyle)
 NACRE_ENUM_DECL(ModalTransitionStyle, UIModalTransitionStyle)
+NACRE_ENUM_DECL(TabBarMinimizeBehavior, UITabBarMinimizeBehavior)
 NACRE_ENUM_DECL(BarButtonSystemItem, UIBarButtonSystemItem)
 // 第二个带别名的枚举（done == prominent），同样不走宏，见 NacreEnums.mm
 NACRE_ENUM_DECL(BarButtonItemStyle, UIBarButtonItemStyle)
@@ -406,6 +407,8 @@ BOOL IsBarButtonEventName(NSString* name);
 NSString* NamesForBarButtonEvent(void);
 BOOL IsNavEventName(NSString* name);
 NSString* NamesForNavEvent(void);
+BOOL IsTabEventName(NSString* name);
+NSString* NamesForTabEvent(void);
 BOOL IsScrollEventName(NSString* name);
 NSString* NamesForScrollEvent(void);
 

@@ -48,6 +48,18 @@ id ReadControlProperty(id object, NSString* key) {
       return NameForTextContentType(field.textContentType);
     }
   }
+  if ([object isKindOfClass:UITabBarItem.class]) {
+    UITabBarItem* item = (UITabBarItem*)object;
+    if ([key isEqualToString:@"title"]) {
+      value = item.title;
+    } else if ([key isEqualToString:@"isEnabled"]) {
+      value = @(item.isEnabled);
+    } else if ([key isEqualToString:@"tag"]) {
+      value = @(item.tag);
+    } else if ([key isEqualToString:@"badgeValue"]) {
+      value = item.badgeValue;
+    }
+  }
   if ([object isKindOfClass:UIBarButtonItem.class]) {
     UIBarButtonItem* item = (UIBarButtonItem*)object;
     if ([key isEqualToString:@"style"]) {
@@ -232,6 +244,16 @@ BOOL WriteControlProperty(id object, NSString* key, id value,
       return YES;
     }
   }
+  if ([object isKindOfClass:UITabBarItem.class]) {
+    UITabBarItem* item = (UITabBarItem*)object;
+    auto str = [&](id v) -> NSString* {
+      return [v isKindOfClass:NSString.class] ? (NSString*)v : nil;
+    };
+    if ([key isEqualToString:@"title"]) { item.title = str(value); return YES; }
+    if ([key isEqualToString:@"isEnabled"]) { item.enabled = NACRE_BOOL(value, key); return YES; }
+    if ([key isEqualToString:@"tag"]) { item.tag = NACRE_INT(value, key); return YES; }
+    if ([key isEqualToString:@"badgeValue"]) { item.badgeValue = str(value); return YES; }
+  }
   if ([object isKindOfClass:UIBarButtonItem.class]) {
     UIBarButtonItem* item = (UIBarButtonItem*)object;
     if ([key isEqualToString:@"style"]) {
@@ -301,6 +323,12 @@ BOOL WriteControlProperty(id object, NSString* key, id value,
 
 nacre::NativeObjectRef ReadControlObjectProperty(id object,
                                             const std::string& name) {
+  if ([object isKindOfClass:UITabBarItem.class]) {
+    UITabBarItem* item = (UITabBarItem*)object;
+    if (name == "image") return {(__bridge void*)item.image, "UIImage"};
+    if (name == "selectedImage") return {(__bridge void*)item.selectedImage, "UIImage"};
+    if (name == "badgeColor") return {(__bridge void*)item.badgeColor, "UIColor"};
+  }
   if ([object isKindOfClass:UIBarButtonItem.class]) {
     UIBarButtonItem* item = (UIBarButtonItem*)object;
     if (name == "customView") {
@@ -327,6 +355,17 @@ nacre::NativeObjectRef ReadControlObjectProperty(id object,
 
 void WriteControlObjectProperty(id object, const std::string& name, id value,
                                 std::string* error) {
+  if ([object isKindOfClass:UITabBarItem.class]) {
+    UITabBarItem* item = (UITabBarItem*)object;
+    if (name == "image") {
+      item.image = NACRE_OBJECT_OR_NIL(value, UIImage, name);
+    } else if (name == "selectedImage") {
+      item.selectedImage = NACRE_OBJECT_OR_NIL(value, UIImage, name);
+    } else if (name == "badgeColor") {
+      item.badgeColor = NACRE_OBJECT_OR_NIL(value, UIColor, name);
+    }
+    return;
+  }
   if ([object isKindOfClass:UIBarButtonItem.class]) {
     UIBarButtonItem* item = (UIBarButtonItem*)object;
     if (name == "customView") {
