@@ -12,6 +12,8 @@ CGColor 的代价、和 UIView 重叠的属性怎么取舍、子图层为什么�
 
 **动态色为什么会被定死。** `CGColor` 是解析后的值，没有 `UIColor` 那一层「`UITraitCollection → UIColor` 的函数」。写进去的那一刻就按当前外观解析完了。UIKit 自己的解法是在外观变化时重设一遍，那要等 `UITraitCollection` 暴露出来。和[颜色文档](ui-color.md)里「读出不做成字符串」是同一个根因。
 
+> 后续（2026-11-13）：`UITraitCollection` 暴露了，JS 可以在 `traitchange` 事件里重设。写入时也不再按系统「当前」的外观解析，而是按这个图层所属视图的外观，见[外观特征](traits.md#写入时按哪个外观解析)。「不会自己跟着变」这一点没有变，那是 `CGColor` 的性质。
+
 **`cornerCurve` 的默认值。** `CALayer.h` 写着「Defaults to `kCACornerCurveCircular`」，iOS 26 上实测**裸 `CALayer` 就是 `continuous`**，`UIView.layer` / `UILabel.layer` 也一样。文档和实际不符，以实际为准。
 
 **位掩码的形状。** `maskedCorners` 是第一个位掩码属性，定下了这类属性的写法：JS 侧字符串数组，`NACRE_MASK_MAP` 宏双向拆合，「不是数组」和「名字不认识」报两种不同的错。往后 `autoresizingMask`、`UIControlEvents` 都照这个来。

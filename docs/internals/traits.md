@@ -98,7 +98,21 @@ card.traitCollection.userInterfaceStyle     → 'dark'
 
 `layer.borderColor` 这一类在写入时就把动态色解析成了具体颜色（`CGColor` 里没有「随外观变」这一层），所以切换深浅色之后不会变。有了 `traitchange` 之后的写法是在事件里重设一遍，和原生开发一样。运行时不替 JS 记住写进去的是哪个动态色、也不自动重设——UIKit 自己不这么做，那样行为就和 Apple 的文档对不上了。
 
-写入时按**哪个外观**解析，是另一个问题，见[图层](ca-layer.md)。
+### 写入时按哪个外观解析
+
+原来是直接取 `color.CGColor`。那用的是系统「当前」的外观（`UITraitCollection.currentTraitCollection`），而 JS 的代码不在 UIKit 的布局或绘制回调里跑，那个「当前」和要写的这个图层没有关系。实测：卡片被强制成深色之后写 `layer.borderColor = 'label'`，读回来是 `#000000`，浅色下的值。五种图层颜色都一样。
+
+改成先找到这个图层**所属的视图**，按那个视图的 `traitCollection` 解析（`resolvedColorWithTraitCollection:`），再取 `CGColor`：
+
+| 图层 | 怎么找到视图 |
+| --- | --- |
+| 视图背后的那一层 | 它的 `delegate` 就是那个视图 |
+| 自己建的子图层 | 沿 `superlayer` 往上，直到碰到一个 `delegate` 是视图的 |
+| 一路都没有 | 没有视图可问，仍然取 `color.CGColor` |
+
+改完同一个断言读回来是 `#ffffff`。六个写入点都换了：`borderColor`、`shadowColor`、`backgroundColor`、`CAShapeLayer` 的 `fillColor` / `strokeColor`、`CAGradientLayer` 的 `colors`。
+
+这一条和上面第 1 条实测是连着的：视图刚写了 `overrideUserInterfaceStyle`、还没轮到系统更新时，它的 `traitCollection` 还是旧的，这时写图层颜色解析出来的也是旧外观下的值。所以「在 `traitchange` 里重设」这个写法两头都对得上。
 
 ## 没做的
 

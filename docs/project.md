@@ -645,6 +645,7 @@ Commit message 格式：
 | — | A4-1 父子控制器 | `addChildViewController` 一组、`childViewControllers`、`additionalSafeAreaInsets` | 已在模拟器验证通过：1332 条断言全过，验收里用它搭了一个自己画 tab 条的界面。实测成环的父子关系 UIKit 不检查、会栈溢出崩掉，运行时在加之前拦成 `TypeError`。真实点击切换过，贴着安全区的那行字停在按钮条上方 |
 | — | A4-2 `UITabBarController` | `UITabBarItem`、`UITabBar`（两个颜色）、`didselect`、`tabBarMinimizeBehavior` | 已在模拟器验证通过：1393 条断言全过。实测程序改选中项不派发 `didselect`、`selectedImage` 读回来不是写进去的对象。真实点击切换过，每次都收到 `didselect`；标签栏实际的样子（图标、角标、颜色）没有核对 |
 | — | A9-1 外观特征 | `UITraitCollection`（七项）、`overrideUserInterfaceStyle`、`traitchange` 事件 | 已在模拟器验证通过（iOS 27.2）：1432 条断言全过；用 `simctl` 切换系统的深浅色和文字大小，场景和视图都收到了 `traitchange`。实测写了强制之后立刻读还是旧值、不在窗口里的视图强制不生效。iOS 26 上没验（被键盘场景那条 TODO 挡着） |
+| — | A9-2 图层颜色按所属视图的外观解析 | 六个写入点：边框、阴影、底色、形状图层的填充和描边、渐变的颜色数组 | 已在模拟器验证通过（iOS 27.2）：先加断言跑出 5 条失败（被强制成深色的卡片上写 `label`，读回来是黑色），改完 1436 条通过 |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |
@@ -787,7 +788,7 @@ bindgen 做完也解决不了同盾（风控）、mtpush（推送）、Sentry �
 | A6 | ~~**Core Animation**~~ **已做**：A6-1 核心、A6-2 关键帧/动画组/弹簧、A6-3 CADisplayLink。剩 CATransition、CASpringAnimation 的感知时长初始化器 | `CADisplayLink` 是 target-action，M1a 已经够 |
 | A7 | **手势识别器**：~~点按、长按~~ **已做**（见[事件模型](internals/events.md#a7-的第一片点按和长按)）。剩拖动、捏合、轻扫 | target-action，M1a 够。抢占语义原样暴露 iOS 的三个属性，没有另外设计。delegate 那部分要 M2 |
 | A8 | ~~**事件对象带数据**~~ **已做**：九个 `touch*` 事件带 `location` / `tapCount`。其余事件按 Web 的做法**根本没有这两个字段** | 只能由原生在派发时填 |
-| A9 | ~~**`UITraitCollection`** + `overrideUserInterfaceStyle`~~ **已做**：读七项、强制深浅色、`traitchange`。剩 `updateTraitsIfNeeded`、其余各项、图层颜色按所属视图解析 | 读不到深浅色、收不到外观变化、App 内做不了主题开关。顺带堵上 `layer` 的 `borderColor` / `shadowColor` 切换主题不变色 |
+| A9 | ~~**`UITraitCollection`** + `overrideUserInterfaceStyle`~~ **已做**：读七项、强制深浅色、`traitchange`。剩 `updateTraitsIfNeeded`、其余各项 | 读不到深浅色、收不到外观变化、App 内做不了主题开关。顺带堵上 `layer` 的 `borderColor` / `shadowColor` 切换主题不变色 |
 | A10 | **`UIRefreshControl`** | 依附在滚动视图的原生机制上 |
 | A11 | **`UISheetPresentationController` 的 detents** | 模态的呈现高度由系统控制，下单卡片只能整页 |
 | A12 | ~~**触感反馈**~~ **已做**：`UIImpactFeedbackGenerator` 一组三个类，只给绑定视图的工厂（`init` 已被 Apple 标成将废弃） | 系统能力 |

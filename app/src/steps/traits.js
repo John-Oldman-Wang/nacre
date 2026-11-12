@@ -167,6 +167,39 @@ export function stepTraits(ctx) {
       assert('强制卡片换外观：收到一次 traitchange', seen.join(' | '), original + ' → ' + flipped);
       assert('强制卡片换外观：这时读到的是新的', card.traitCollection.userInterfaceStyle, flipped);
       assert('卡片里的子视图也跟着变了', caption.traitCollection.userInterfaceStyle, flipped);
+
+      // ----- 图层的颜色按哪个外观解析 -----
+      //
+      // 'label' 在浅色下是黑、深色下是白。图层上的颜色在写入那一刻就解析成
+      // 具体的颜色，问题是按谁的外观解析：卡片这时被强制成了 flipped，而
+      // 系统是 original。应该按**卡片自己**的。
+      const expected = flipped === 'dark' ? '#ffffff' : '#000000';
+      card.layer.borderColor = 'label';
+      assert('被强制成另一种外观的视图：它的图层颜色按它自己的外观解析',
+             card.layer.borderColor, expected);
+      // 自己建的子图层没有对应的视图，沿着父图层往上找到卡片
+      const sub = new CALayer();
+      card.layer.addSublayer(sub);
+      sub.backgroundColor = 'label';
+      assert('挂在它下面的子图层：也按它的外观解析', sub.backgroundColor, expected);
+      const shape = new CAShapeLayer();
+      card.layer.addSublayer(shape);
+      shape.strokeColor = 'label';
+      shape.fillColor = 'label';
+      assert('形状图层的描边色', shape.strokeColor, expected);
+      assert('形状图层的填充色', shape.fillColor, expected);
+      const gradient = new CAGradientLayer();
+      card.layer.addSublayer(gradient);
+      gradient.colors = ['label', 'label'];
+      assert('渐变图层的颜色数组', gradient.colors.join(','), expected + ',' + expected);
+      sub.removeFromSuperlayer();
+      shape.removeFromSuperlayer();
+      gradient.removeFromSuperlayer();
+      // 不属于任何视图的图层：没有视图可问，只能按系统当时的外观
+      const orphan = new CALayer();
+      orphan.backgroundColor = 'label';
+      console.log('  实测：不属于任何视图的图层写 label，读回 ' + orphan.backgroundColor +
+                  '（系统是 ' + original + '）');
       card.overrideUserInterfaceStyle = 'unspecified';
       setTimeout(() => {
         assert('改回跟随：又收到一次',
