@@ -165,6 +165,10 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
     if (NavCallMethod(object, sel, NacreArgs{args, &argPtrs}, &navResult, error)) {
       return navResult;
     }
+    // 排在导航后面：导航控制器也是 UIViewController，它自己的方法先认走
+    if (ContainerCallMethod(object, sel, NacreArgs{args, &argPtrs}, &navResult, error)) {
+      return navResult;
+    }
   }
 
   if ([object isKindOfClass:UIScrollView.class]) {

@@ -278,6 +278,62 @@ if (sheet.presentingViewController) {
 
 **效果**：`sheet` 还没弹出时输出 `sheet 没有被模态呈现`。弹出之后输出 `sheet 正在被模态呈现`。
 
+### 把另一个页面嵌进这个页面
+
+要在一个页面里的某一块区域显示另一个页面的内容，把它加成**子控制器**。一共三句，顺序固定：
+
+```js
+const panel = new UIViewController();
+panel.view.backgroundColor = 'systemTeal';
+
+page.addChildViewController(panel);                 // 1. 建立父子关系
+panel.view.frame = new CGRect(20, 120, 280, 160);
+page.view.addSubview(panel.view);                   // 2. 把它的视图放进来
+panel.didMoveToParentViewController(page);          // 3. 告诉它已经放好了
+
+console.log(page.childViewControllers.length);
+console.log(panel.parentViewController === page);
+```
+
+**效果**：`page` 上出现一块青色的矩形，宽 280 pt、高 160 pt。控制台输出 `1` 和 `true`。
+
+只做第 2 句（把 `panel.view` 加成子视图）屏幕上看起来一样，但 `panel` 不知道自己属于谁：它拿不到 `navigationController`，安全区也不会按它所在的位置计算。所以三句都要写。
+
+拿掉它的时候反过来，也是三句：
+
+```js
+panel.willMoveToParentViewController(null);   // 1. 告诉它要离开了
+panel.view.removeFromSuperview();             // 2. 把视图摘掉
+panel.removeFromParentViewController();       // 3. 解除父子关系
+
+console.log(page.childViewControllers.length);
+console.log(panel.parentViewController);
+```
+
+**效果**：青色矩形消失。控制台输出 `0` 和 `null`。
+
+### 给子页面让出一截安全区
+
+父页面在子页面上面盖了东西（比如自己画的一排标签按钮）时，用 `additionalSafeAreaInsets` 告诉子页面这一截不能放内容：
+
+```js
+panel.additionalSafeAreaInsets = new UIEdgeInsets(0, 0, 44, 0);
+
+const label = new UILabel();
+label.text = '贴着安全区的底边';
+label.translatesAutoresizingMaskIntoConstraints = false;
+panel.view.addSubview(label);
+const safe = panel.view.safeAreaLayoutGuide;
+NSLayoutConstraint.activateConstraints([
+  label.centerXAnchor.constraintEqualToAnchor(safe.centerXAnchor),
+  label.bottomAnchor.constraintEqualToAnchor(safe.bottomAnchor, { constant: -8 }),
+]);
+```
+
+**效果**：`panel` 的安全区底边比它的视图底边高 44 pt。那行字的底边离 `panel` 的视图底边 52 pt（44 加上约束里的 8），下面空出来的 44 pt 留给父页面盖东西。
+
+> **注意**：页面还没显示到屏幕上时，`panel.view.safeAreaInsets` 读到的四边都是 0，写了 `additionalSafeAreaInsets` 也一样。页面显示出来、布局过一次之后才是对的（实测）。约束到 `safeAreaLayoutGuide` 的内容不受影响，它会在布局时自动到位。
+
 ## 页面和视图
 
 页面和视图是两种对象，分工不同：
@@ -292,6 +348,29 @@ if (sheet.presentingViewController) {
 
 - **`view` 在第一次读取时才创建。** `new UIViewController()` 之后还没有视图，第一次写 `page.view` 时系统才创建它。
 - **`view` 的大小由系统决定。** 页面是窗口的根页面时，`view` 占满整个窗口。不需要自己设 `frame`。
+
+## 父子控制器
+
+一个页面可以包含别的页面，包含别人的叫父控制器，被包含的叫子控制器。导航栈和底部标签栏就是系统写好的两种父控制器。你也可以自己写，见[把另一个页面嵌进这个页面](#把另一个页面嵌进这个页面)。
+
+父子关系和视图树是两件事，各管各的：
+
+| | 父子控制器 | 视图树 |
+| --- | --- | --- |
+| 建立 | `parent.addChildViewController(child)` | `parent.view.addSubview(child.view)` |
+| 作用 | 子页面知道自己属于谁，安全区、`navigationController` 这些从父页面传下来 | 子页面的内容显示在屏幕上 |
+| 解除 | `child.removeFromParentViewController()` | `child.view.removeFromSuperview()` |
+
+两边都要做，系统不会替你同步。
+
+加入和移除时各有两个通知要发给子页面。系统替你发一半，另一半要自己调：
+
+| 时机 | 通知 | 谁来调 |
+| --- | --- | --- |
+| 加入之前 | `child.willMoveToParentViewController(parent)` | `addChildViewController` 替你调 |
+| 加入之后 | `child.didMoveToParentViewController(parent)` | **自己调** |
+| 移除之前 | `child.willMoveToParentViewController(null)` | **自己调** |
+| 移除之后 | `child.didMoveToParentViewController(null)` | `removeFromParentViewController` 替你调 |
 
 ## 模态呈现
 
@@ -477,9 +556,34 @@ sheet.dismissViewController({ animated: true }).then((closed) => {
 | 属性 | 类型 | 可读 | 可写 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- | --- |
 | `navigationController` | [`UINavigationController`](ui-navigation-controller.md) 或 `null` | 是 | 否 | `null` | 这个页面所在的导航栈。不在任何导航栈里时是 `null` |
-| `parentViewController` | `UIViewController` 或 `null` | 是 | 否 | `null`（**未在模拟器验证**） | 包含这个页面的容器页面。页面在导航栈里时，它就是那个导航控制器 |
+| `parentViewController` | `UIViewController` 或 `null` | 是 | 否 | `null` | 包含这个页面的父控制器。页面在导航栈里时，它就是那个导航控制器。见[父子控制器](#父子控制器) |
 
-这两个属性在页面被推入、弹出导航栈时变化。变化的时刻通过导航控制器的 `willshow`、`didshow` 事件得知，见 [`UINavigationController`](ui-navigation-controller.md)。
+这两个属性在页面被推入、弹出导航栈时变化。变化的时刻通过导航控制器的 `willshow`、`didshow` 事件得知，见 [`UINavigationController`](ui-navigation-controller.md)。`parentViewController` 也会被 `addChildViewController()` 和 `removeFromParentViewController()` 改变。
+
+### 父子控制器
+
+| 属性 | 类型 | 可读 | 可写 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- | --- |
+| `childViewControllers` | `UIViewController` 的数组 | 是 | 否 | 空数组 | 子控制器，按加入的顺序。导航控制器管着的页面也在它的这个数组里 |
+| `additionalSafeAreaInsets` | [`UIEdgeInsets`](structs.md) | 是 | 是 | 四边都是 0 | 在系统的安全区之外再让出的边距，单位 [pt](units.md)。写入之后这个页面的 `view.safeAreaInsets` 和 `safeAreaLayoutGuide` 跟着变 |
+
+- `childViewControllers` 读到的每个元素和当初加进去的是同一个对象，可以用 `===` 比较。
+- 父子关系变了没有事件。它只会被你自己的代码改变。
+- **出错**：`additionalSafeAreaInsets` 写入的不是 `UIEdgeInsets`（或者有这四个字段的对象）抛 `TypeError`。
+
+| 方法 | 参数 | 作用 |
+| --- | --- | --- |
+| `addChildViewController(child)` | 一个 `UIViewController` | 把 `child` 收成子控制器。`child` 已经有父控制器时，先从那边移除 |
+| `removeFromParentViewController()` | 无 | 离开父控制器。没有父控制器时调用没有效果 |
+| `willMoveToParentViewController(parent)` | 一个 `UIViewController` 或 `null` | 通知「即将换父控制器」。`null` 表示即将离开 |
+| `didMoveToParentViewController(parent)` | 一个 `UIViewController` 或 `null` | 通知「已经换好父控制器」 |
+
+四个方法都没有返回值。
+
+- **出错**：
+  - `addChildViewController` 给的不是页面：`TypeError: addChildViewController needs a UIViewController`
+  - 把页面加成它自己的子控制器，或者把它的祖先加成它的子控制器：`TypeError: addChildViewController: a view controller cannot be added as a child of itself or of one of its own descendants`
+  - 后两个方法给的既不是页面也不是 `null`：`TypeError: didMoveToParentViewController needs a UIViewController or null`
 
 ### 事件
 
@@ -530,10 +634,17 @@ sheet.addEventListener('diddismiss', (event) => {
 | `- presentationControllerDidDismiss:` | `vc.addEventListener('diddismiss', …)` |
 | `- presentationControllerDidAttemptToDismiss:` | `vc.addEventListener('dismissattempted', …)` |
 | `- presentationControllerShouldDismiss:` | 用 `vc.isModalInPresentation` 代替 |
+| `[parent addChildViewController:child]` | `parent.addChildViewController(child)` |
+| `[child didMoveToParentViewController:parent]` | `child.didMoveToParentViewController(parent)` |
+| `[child willMoveToParentViewController:nil]` | `child.willMoveToParentViewController(null)` |
+| `[child removeFromParentViewController]` | `child.removeFromParentViewController()` |
+| `parent.childViewControllers` | `parent.childViewControllers` |
+| `vc.additionalSafeAreaInsets = UIEdgeInsetsMake(0, 0, 44, 0)` | `vc.additionalSafeAreaInsets = new UIEdgeInsets(0, 0, 44, 0)` |
 
-有两处和原生不同：
+有三处和原生不同：
 
 - 原生的 `completion` 回调在 JS 里是 Promise。
+- 把页面加成它自己或它后代的子控制器，原生不检查，之后会崩溃。JS 里当场抛 `TypeError`。
 - 原生的三个关闭通知在 `vc.presentationController.delegate` 上。JS 里它们是被弹出页面自己的事件，`UIPresentationController` 没有暴露。
 
 ## 还不能做的
@@ -546,7 +657,8 @@ sheet.addEventListener('diddismiss', (event) => {
 | 半屏高度的卡片、卡片顶部的抓手 | `UISheetPresentationController` 的 `detents` | 未实现 |
 | 气泡式的弹出 | `UIPopoverPresentationController` | 未实现 |
 | 自己写页面切换的动画 | `UIViewControllerAnimatedTransitioning` | 未实现 |
-| 把一个页面嵌进另一个页面 | `addChildViewController:` 一组 | 未实现 |
+| 两个子页面之间带动画地切换 | `transitionFromViewController:toViewController:duration:options:animations:completion:` | 未实现 |
+| 子页面知道自己什么时候出现、什么时候消失 | `viewWillAppear:` 一组、`beginAppearanceTransition:animated:` | 未实现，原因同第一行 |
 | 底部标签栏切换页面 | `UITabBarController` | 未实现 |
 | 弹系统样式的提示框和确认框 | `UIAlertController` | 未实现 |
 | 被模态呈现的导航控制器收到关闭事件 | 同 [事件](#事件) | 未实现。导航控制器只接受导航事件 |

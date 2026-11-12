@@ -648,6 +648,9 @@ struct NacreArgs {
 bool NavCallVoidMethod(id object, const std::string& name);
 bool NavCallMethod(id object, NSString* sel, const NacreArgs& args,
                    std::string* out, std::string* error);
+// 父子控制器那一组（addChildViewController: 等），任何 UIViewController 都认
+bool ContainerCallMethod(id object, NSString* sel, const NacreArgs& args,
+                         std::string* out, std::string* error);
 bool NavCallObjectMethod(id object, const std::string& name, const NacreArgs& args,
                          nacre::NativeObjectRef* out, std::string* error);
 bool NavCallObjectArrayMethod(id object, const std::string& name, const NacreArgs& args,

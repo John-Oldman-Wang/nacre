@@ -6,6 +6,13 @@
 
 namespace nacre_bridge {
 
+// 一个页面在 JS 侧该包成哪个类。包装已经存在时用不上（按指针查得到），
+// 只在第一次给它建包装时决定类型
+static const char* ControllerClassName(UIViewController* vc) {
+  if ([vc isKindOfClass:UINavigationController.class]) return "UINavigationController";
+  return "UIViewController";
+}
+
 id ReadSceneProperty(id object, NSString* key) {
   id value = nil;
   if ([object isKindOfClass:UINavigationController.class]) {
@@ -36,6 +43,8 @@ id ReadSceneProperty(id object, NSString* key) {
       value = NameForModalTransitionStyle(vc.modalTransitionStyle);
     } else if ([key isEqualToString:@"isModalInPresentation"]) {
       value = @(vc.isModalInPresentation);
+    } else if ([key isEqualToString:@"additionalSafeAreaInsets"]) {
+      value = InsetsToJSON(vc.additionalSafeAreaInsets);
     }
   }
   if ([object isKindOfClass:UIScene.class]) {
@@ -98,6 +107,10 @@ BOOL WriteSceneProperty(id object, NSString* key, id value,
   }
   if ([object isKindOfClass:UIViewController.class]) {
     UIViewController* vc = (UIViewController*)object;
+    if ([key isEqualToString:@"additionalSafeAreaInsets"]) {
+      vc.additionalSafeAreaInsets = JSONToInsets(value);
+      return YES;
+    }
     if ([key isEqualToString:@"modalPresentationStyle"]) {
       UIModalPresentationStyle style;
       if (!ModalPresentationStyleFromName(value, &style)) {
@@ -177,7 +190,8 @@ nacre::NativeObjectRef ReadSceneObjectProperty(id object,
       return {(__bridge void*)vc.navigationController, "UINavigationController"};
     }
     if (name == "parentViewController") {
-      return {(__bridge void*)vc.parentViewController, "UIViewController"};
+      UIViewController* parent = vc.parentViewController;
+      return {(__bridge void*)parent, ControllerClassName(parent)};
     }
     if (name == "presentedViewController") {
       return {(__bridge void*)vc.presentedViewController, "UIViewController"};
@@ -244,6 +258,11 @@ void ReadSceneObjectArray(id object, const std::string& name,
       name == "viewControllers") {
     for (UIViewController* vc in ((UINavigationController*)object).viewControllers) {
       refs.push_back({(__bridge void*)vc, "UIViewController"});
+    }
+  }
+  if ([object isKindOfClass:UIViewController.class] && name == "childViewControllers") {
+    for (UIViewController* vc in ((UIViewController*)object).childViewControllers) {
+      refs.push_back({(__bridge void*)vc, ControllerClassName(vc)});
     }
   }
 }

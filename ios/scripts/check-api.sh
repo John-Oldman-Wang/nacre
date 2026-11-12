@@ -366,7 +366,7 @@ for label, a, b in pairs:
 #
 # args.object( 是不经助手、直接取对象参数的写法。它曾经不在这张表里，于是
 # addAnimation:forKey:、addToRunLoop:forMode:、appendPath: 这几个分支没人盯。
-OBJ_ARG_HELPERS = re.compile(r'\b(?:objectArg|viewArg|optionalViewArg|guideArg|colorArg|imageArg|vcArg|layerArg|gestureArg)\s*\(|\bargs\.object\s*\(')
+OBJ_ARG_HELPERS = re.compile(r'\b(?:objectArg|viewArg|optionalViewArg|guideArg|colorArg|imageArg|vcArg|layerArg|gestureArg|optionalControllerArg)\s*\(|\bargs\.object\s*\(')
 # kSyncStack 是导航栈那条边的专用写法：它按原生真相整层 ownAll 一遍，
 # 所以调它就等于记了边
 OWN_MARKERS = re.compile(
@@ -440,6 +440,8 @@ OWNERSHIP_EXEMPT = {
     'setCustomSpacing:afterView:',
     # 解除持有，不是建立持有
     'removeArrangedSubview:',
+    # 只是通知「你要换父控制器了」，持有关系是 addChildViewController: 建的
+    'willMoveToParentViewController:', 'didMoveToParentViewController:',
 }
 
 if obj_arg_sels and JS_METHODS:

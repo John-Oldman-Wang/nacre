@@ -59,6 +59,78 @@ bool NavCallMethod(id object, NSString* sel, const NacreArgs& args,
   return false;
 }
 
+// ---- 父子控制器 ----
+//
+// 取一个可以是 null 的页面参数。给的既不是页面也不是 null 就填报错，
+// 不当成 nil 吞掉
+static bool optionalControllerArg(const NacreArgs& args, size_t i, const char* what,
+                                  UIViewController* __strong* out, std::string* error) {
+  id given = args.object(i);
+  id raw = args.value(i);
+  if ([given isKindOfClass:UIViewController.class]) {
+    *out = (UIViewController*)given;
+    return true;
+  }
+  if (given == nil && (raw == nil || raw == NSNull.null)) {
+    *out = nil;
+    return true;
+  }
+  ObjectTypeError(what, "UIViewController", true, error);
+  return false;
+}
+
+bool ContainerCallMethod(id object, NSString* sel, const NacreArgs& args,
+                         std::string* out, std::string* error) {
+  if (![object isKindOfClass:UIViewController.class]) return false;
+  UIViewController* vc = (UIViewController*)object;
+
+  if ([sel isEqualToString:@"addChildViewController:"]) {
+    id child = args.object(0);
+    if (![child isKindOfClass:UIViewController.class]) {
+      ObjectTypeError("addChildViewController", "UIViewController", false, error);
+      *out = "null";
+      return true;
+    }
+    // 父子关系不能成环：不能把自己、也不能把自己的祖先加成子控制器。
+    // UIKit 不检查这个，照样加进去，之后任何沿着父链往上找的调用（比如读
+    // navigationController）都会无限递归——实测是栈溢出直接崩，不是能接住
+    // 的 ObjC 异常。所以在这里拦
+    for (UIViewController* up = vc; up != nil; up = up.parentViewController) {
+      if (up == child) {
+        *error = "addChildViewController: a view controller cannot be added as a child "
+                 "of itself or of one of its own descendants";
+        *out = "null";
+        return true;
+      }
+    }
+    [vc addChildViewController:(UIViewController*)child];
+    *out = "null";
+    return true;
+  }
+  if ([sel isEqualToString:@"removeFromParentViewController"]) {
+    [vc removeFromParentViewController];
+    *out = "null";
+    return true;
+  }
+  if ([sel isEqualToString:@"willMoveToParentViewController:"]) {
+    UIViewController* parent = nil;
+    if (optionalControllerArg(args, 0, "willMoveToParentViewController", &parent, error)) {
+      [vc willMoveToParentViewController:parent];
+    }
+    *out = "null";
+    return true;
+  }
+  if ([sel isEqualToString:@"didMoveToParentViewController:"]) {
+    UIViewController* parent = nil;
+    if (optionalControllerArg(args, 0, "didMoveToParentViewController", &parent, error)) {
+      [vc didMoveToParentViewController:parent];
+    }
+    *out = "null";
+    return true;
+  }
+  return false;
+}
+
 bool NavCallObjectMethod(id object, const std::string& name, const NacreArgs& args,
                          nacre::NativeObjectRef* out, std::string* error) {
   if (![object isKindOfClass:UINavigationController.class]) return false;

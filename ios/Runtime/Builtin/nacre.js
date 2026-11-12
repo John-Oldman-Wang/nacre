@@ -400,6 +400,11 @@
     if (view == null || view[kHandle] === undefined) return null;
     return nativeGetObject(view, 'superview');
   }
+  // 同一件事，页面那一侧：它现在的父控制器是谁
+  function parentControllerOf(vc) {
+    if (vc == null || vc[kHandle] === undefined) return null;
+    return nativeGetObject(vc, 'parentViewController');
+  }
   // 同一件事，手势识别器那一侧：它现在挂在哪个视图上
   function gestureViewOf(recognizer) {
     if (recognizer == null || recognizer[kHandle] === undefined) return null;
@@ -4148,6 +4153,51 @@
     get navigationItem() { return nativeGetOwned(this, 'navigationItem'); }
     get navigationController() { return nativeGetOwned(this, 'navigationController'); }
     get parentViewController() { return nativeGetOwned(this, 'parentViewController'); }
+
+    // ---- 父子控制器：自己写容器用的那一组 ----
+    //
+    // 加一个子页面是三句，UIKit 只替你做第一句里的 willMove：
+    //
+    //     parent.addChildViewController(child);          // 内部会调 child.willMove(parent)
+    //     parent.view.addSubview(child.view);
+    //     child.didMoveToParentViewController(parent);   // 这句要自己补
+    //
+    // 移除时反过来，willMove(null) 要自己调，didMove(null) 由 remove 代劳。
+    // 持有边照原生：父控制器拿着子控制器
+    get childViewControllers() {
+      return ownAll(this, 'childViewControllers',
+                    nativeGetObjectArray(this, 'childViewControllers'));
+    }
+    addChildViewController(childController) {
+      // 它已经有父控制器的话，UIKit 会先把它从那边摘下来
+      const from = parentControllerOf(childController);
+      nativeCall(this, 'addChildViewController:', [childController]);
+      disown(from, 'childViewControllers', childController);
+      ownOne(this, 'childViewControllers', childController);
+    }
+    removeFromParentViewController() {
+      const from = parentControllerOf(this);
+      nativeCall(this, 'removeFromParentViewController', []);
+      disown(from, 'childViewControllers', this);
+    }
+    // 这两个只是通知，不建立持有。参数是 null 表示「要离开父控制器了」
+    willMoveToParentViewController(parent) {
+      nativeCall(this, 'willMoveToParentViewController:', [parent === undefined ? null : parent]);
+    }
+    didMoveToParentViewController(parent) {
+      nativeCall(this, 'didMoveToParentViewController:', [parent === undefined ? null : parent]);
+    }
+    // 在系统给的安全区之外再让出一圈，单位 pt。自己画了一条 tab 条盖在子页面
+    // 上面时，用它告诉子页面「底下这一截别放东西」
+    get additionalSafeAreaInsets() {
+      requireNative(this, 'additionalSafeAreaInsets');
+      return toInsets(nativeGet(this, 'additionalSafeAreaInsets'));
+    }
+    set additionalSafeAreaInsets(value) {
+      requireNative(this, 'additionalSafeAreaInsets');
+      nativeSet(this, 'additionalSafeAreaInsets',
+                structArg(value, INSETS_FIELDS, 'additionalSafeAreaInsets'));
+    }
   });
 
   // 视图树的根。必须绑定到一个场景——initWithWindowScene: 是唯一未废弃的

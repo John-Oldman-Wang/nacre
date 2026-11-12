@@ -443,6 +443,32 @@ declare class UIViewController extends UIResponder {
   readonly navigationController: UINavigationController | null;
   /** 容器父控制器（导航控制器就是一种容器）。 */
   readonly parentViewController: UIViewController | null;
+
+  /**
+   * 子控制器，按加入的顺序。自己写容器（比如自己画 tab 条）时用。
+   * 导航控制器、tab 控制器管着的页面也在这里面。
+   */
+  readonly childViewControllers: readonly UIViewController[];
+  /**
+   * 把一个页面收成子控制器。**只建立父子关系，不动视图**，完整的三句是：
+   *
+   * ```js
+   * parent.addChildViewController(child);
+   * parent.view.addSubview(child.view);
+   * child.didMoveToParentViewController(parent);
+   * ```
+   *
+   * `child` 已经有父控制器时，会先从那边移除。
+   */
+  addChildViewController(childController: UIViewController): void;
+  /** 离开父控制器。之前要先调 `willMoveToParentViewController(null)`，并把视图摘掉。 */
+  removeFromParentViewController(): void;
+  /** 通知「即将换父控制器」。`null` 表示即将离开。`addChildViewController` 会替你调，移除时要自己调。 */
+  willMoveToParentViewController(parent: UIViewController | null): void;
+  /** 通知「已经换好父控制器」。加入之后要自己调；`removeFromParentViewController` 会替你调 `null` 的那次。 */
+  didMoveToParentViewController(parent: UIViewController | null): void;
+  /** 在系统的安全区之外再让出的边距，单位 pt。默认四边都是 0。 */
+  additionalSafeAreaInsets: UIEdgeInsets;
 }
 
 // ---------------------------------------------------------------------------

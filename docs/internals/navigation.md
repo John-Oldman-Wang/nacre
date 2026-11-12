@@ -306,6 +306,50 @@ ghost.addEventListener('nav-probe', () => {});
 > 还有一个连带：`UINavigationController` 覆写了这个钩子，所以**一个被模态呈现的导航控制器收不到关闭事件**——它那一侧只认导航事件。要修得让订阅**按事件名分流而不是按类分流**。两条都记进 TODO。
 
 
+## 父子控制器
+
+`addChildViewController:` 一组是纯粹的方法和属性，不需要回调，所以直接暴露。任何 `UIViewController` 都认（`ContainerCallMethod`，在方法分发里排在导航那一支后面——导航控制器也是 `UIViewController`，它自己的方法要先认走）。
+
+### 成环会崩，而且接不住
+
+```js
+parent.addChildViewController(parent);
+```
+
+UIKit **不检查**这个，照加不误。之后任何沿着父链往上找的调用都会无限递归，实测崩溃报告是：
+
+```
+Thread stack size exceeded due to excessive recursion
+-[UIViewController _ancestorViewControllerOfClass:allowModalParent:]
+```
+
+这是栈溢出，不是 ObjC 异常，宿主入口那层 `@try` 接不住，App 直接没了。把祖先加成子控制器也是同一个结果。
+
+所以原生层在加之前自己沿父链走一遍，碰到要加的那个对象就填报错。这是校验不是调度，和 `insertSublayer:atIndex:` 拒掉负下标是同一类。
+
+写验收的时候就是这么发现的：那一句本来写的是「实测：把自己加成自己的子控制器 → ？」，想看 UIKit 抛什么。
+
+### 持有边
+
+| 原生 | JS 侧 | 什么时候动 |
+| --- | --- | --- |
+| 父控制器 strong 持有子控制器 | `parent` → `childViewControllers` | `addChildViewController` 记；`removeFromParentViewController` 解除；读 `childViewControllers` 时按原生真相整层重建 |
+| `parentViewController` 是 weak 回边 | 原来就有，`nativeGetOwned` | — |
+
+`addChildViewController` 有一个「先从原来的父控制器那边摘下来」的隐含动作，所以调用前先读一次它现在的父控制器，调完去那边解除。和 `addSubview` 处理「视图换父视图」是同一个写法。
+
+系统不会自己增删子控制器，所以不需要像导航栈那样常驻一个内部事件。
+
+`willMoveToParentViewController:` 和 `didMoveToParentViewController:` 收一个对象参数但不建立持有，登记在 `check-api.sh` 的白名单里。
+
+### `additionalSafeAreaInsets` 什么时候读得出来
+
+实测：页面还没进窗口时，`view.safeAreaInsets` 四边都是 0，写了 `additionalSafeAreaInsets` 也一样。进了窗口、布局过一轮之后是 44（写的就是 44；那个子页面不贴屏幕边，系统那一份是 0）。约束到 `safeAreaLayoutGuide` 的内容不用管这件事，布局时自己到位。
+
+### 没做的
+
+`transitionFromViewController:…` 的动画块是同步执行的，卡在 M1b。`beginAppearanceTransition:` 一组没有意义——它们的作用是触发子页面的 `viewWillAppear:`，而那是覆写点，JS 现在听不到。
+
 ---
 
 ← 返回[实现原理](README.md) ・ [包装机制](wrapper.md) ・ [API 文档](../api/ui-navigation-controller.md)
