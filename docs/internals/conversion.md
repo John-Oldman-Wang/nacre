@@ -217,3 +217,57 @@ ARC 在 ObjC++ 里默认是异常安全的（`-fobjc-arc-exceptions` 对 `.mm` �
 | 之后 | 子视图个数是 0；这个视图和整个运行时照常能用 |
 | 整轮验收里走到这一层的次数 | **1 次**，就是上面故意触发的那次。也就是说现有的一千多条断言里，没有哪个调用是靠它才没崩的 |
 
+## 第 5 步：对象参数不转换，类型不对就抛
+
+Web IDL 对对象的规定最简单：不转换。`el.appendChild(5)` 是 `TypeError`，没有哪个值会被「转成」一个节点。
+
+我们以前在这里是静默的，而且是一条记了很久的待办：
+
+```js
+view.addSubview(UIColor.redColor);                    // 什么都不发生
+NSLayoutConstraint.activateConstraints([1, 2, 3]);    // 同上
+label.font = 'Helvetica';                             // 字体被悄悄清掉
+```
+
+原因各不相同，改法也分三处：
+
+| 在哪 | 以前 | 现在 |
+| --- | --- | --- |
+| 方法的对象参数（`NacreMethods.mm` 的 `viewArg` 一类） | 类型不对返回 nil，调用处写的是 `if (UIView* child = viewArg(0)) …`，整句被跳过 | 拿不到就填报错。**调用处一行没改**——照样跳过，引擎看到报错就抛 |
+| 值是对象的属性（各域的 `Write…ObjectProperty`） | `[value isKindOfClass:X.class] ? value : nil`，类型不对当成 nil 写进去 | `NACRE_OBJECT_OR_NIL(value, X, name)`：null 可以，给了对象就得是那个类 |
+| JS 一侧的 `nativeSetObject` | 不是原生对象的值（字符串、数字）被当成句柄 0 | 当场抛，报错里说收到的是什么 |
+
+写对象属性那条通道原来整条都没有报错出口（注释里写着「类型不对就当 nil 处理，这一条是已知的 TODO」）。第 4 步给宿主接口补的那个 `error` 正好接上，这一步把它一路传到了各域。
+
+### 可空和必填分开
+
+不是所有对象参数都必填：
+
+| | 例子 | null |
+| --- | --- | --- |
+| 必填 | `addSubview(view)`、`addLayoutGuide(guide)`、`insertSubview` 的 `belowSubview` | 抛，报错是 `addSubview needs a UIView` |
+| 可空 | `convertPoint` 的 `toView`（null 表示换算到窗口坐标）、`setImage(null, …)`（清掉这个状态的图）、所有对象属性 | 照常；给错了类才抛，报错多一个 `or null` |
+
+所以取参分了 `viewArg` 和 `optionalViewArg` 两个。`check-api.sh` 的所有权检查认识了后者。
+
+### 咬过一次：先取值、再看属性名
+
+批量替换之后有三处要手工改。它们的写法是先把值按某个类取出来，再看属性名：
+
+```objc
+UIColor* color = [value isKindOfClass:UIColor.class] ? value : nil;   // 先取
+if (name == "borderColor") …
+else if (name == "path") …     // 这个属性的值是 UIBezierPath
+```
+
+以前这没问题——取不到就是 nil，用不上。换成会报错的宏之后，给 `path` 赋一个路径会先在「取颜色」那一行被拒掉。三处（图层的颜色、`UIImageView` 的图、`UILabel` 的颜色）都改成了在各自的分支里取。验收用例里专门有一条防这个：`strokeColor` 给颜色对象不许被 `path` 的检查误伤。
+
+### 实测
+
+26 条断言，全部在模拟器上通过。要点：
+
+- `addSubview` 传别的原生对象、`null`、`5`、不传，四种都是同一句 `addSubview needs a UIView`，子视图个数不变
+- `label.font = 颜色对象` 抛 `font needs a UIFont or null`；`label.font = 'Helvetica'` 抛 `font needs a native object or null, got "Helvetica"`；被拒之后字体还是原来那个
+- `activateConstraints([约束, 视图])` 整批都不激活——不是「激活合法的那几条、跳过其余」
+- 原有的一千多条断言没有一条受影响，也就是说现有代码里没有哪一处是靠「类型不对被悄悄忽略」才跑通的
+

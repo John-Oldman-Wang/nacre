@@ -774,7 +774,7 @@ nacre::NativeObjectRef CreateBlob(
     host.write_object_property = [](void* ptr, const std::string& name, void* value,
                                     std::string* error) {
       Guarded(name.c_str(), error, [&] {
-        WriteNativeObjectProperty((__bridge id)ptr, name, value);
+        WriteNativeObjectProperty((__bridge id)ptr, name, value, error);
       });
     };
     host.construct_native = [](const std::string& className,

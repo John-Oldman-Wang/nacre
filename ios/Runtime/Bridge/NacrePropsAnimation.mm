@@ -457,16 +457,17 @@ nacre::NativeObjectRef ReadAnimationObjectProperty(id object, const std::string&
   return {};
 }
 
-void WriteAnimationObjectProperty(id object, const std::string& name, id value) {
+void WriteAnimationObjectProperty(id object, const std::string& name, id value,
+                                  std::string* error) {
   if ([object isKindOfClass:CAKeyframeAnimation.class] && name == "path") {
     // 取的是 CGPath。给了 path 之后 values 就不起作用了（头文件原话）
-    UIBezierPath* p = [value isKindOfClass:UIBezierPath.class] ? (UIBezierPath*)value : nil;
+    UIBezierPath* p = NACRE_OBJECT_OR_NIL(value, UIBezierPath, name);
     ((CAKeyframeAnimation*)object).path = p.CGPath;
     return;
   }
   if ([object isKindOfClass:CAAnimation.class] && name == "timingFunction") {
     ((CAAnimation*)object).timingFunction =
-        [value isKindOfClass:CAMediaTimingFunction.class] ? value : nil;
+        NACRE_OBJECT_OR_NIL(value, CAMediaTimingFunction, name);
     return;
   }
   if (![object isKindOfClass:CABasicAnimation.class]) return;
@@ -476,6 +477,11 @@ void WriteAnimationObjectProperty(id object, const std::string& name, id value) 
     boxed = (__bridge id)((UIColor*)value).CGColor;
   } else if ([value isKindOfClass:UIBezierPath.class]) {
     boxed = (__bridge id)((UIBezierPath*)value).CGPath;
+  }
+  if (value != nil && boxed == nil &&
+      (name == "fromValue" || name == "toValue" || name == "byValue")) {
+    ObjectTypeError(name, "UIColor or a UIBezierPath", true, error);
+    return;
   }
   if (name == "fromValue") basic.fromValue = boxed;
   else if (name == "toValue") basic.toValue = boxed;

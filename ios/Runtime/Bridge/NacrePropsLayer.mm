@@ -328,25 +328,26 @@ nacre::NativeObjectRef ReadLayerObjectProperty(id object,
   return {};
 }
 
-void WriteLayerObjectProperty(id object, const std::string& name, id value) {
+void WriteLayerObjectProperty(id object, const std::string& name, id value,
+                              std::string* error) {
   if ([object isKindOfClass:CALayer.class]) {
     CALayer* layer = (CALayer*)object;
-    UIColor* color = [value isKindOfClass:UIColor.class] ? (UIColor*)value : nil;
+    // 颜色在各自的分支里取，不能提到前面：path 的值是 UIBezierPath
     if (name == "borderColor") {
-      layer.borderColor = color.CGColor;
+      layer.borderColor = NACRE_OBJECT_OR_NIL(value, UIColor, name).CGColor;
     } else if (name == "shadowColor") {
-      layer.shadowColor = color.CGColor;
+      layer.shadowColor = NACRE_OBJECT_OR_NIL(value, UIColor, name).CGColor;
     } else if (name == "backgroundColor") {
-      layer.backgroundColor = color.CGColor;
+      layer.backgroundColor = NACRE_OBJECT_OR_NIL(value, UIColor, name).CGColor;
     } else if ([layer isKindOfClass:CAShapeLayer.class]) {
       CAShapeLayer* shape = (CAShapeLayer*)layer;
       if (name == "fillColor") {
-        shape.fillColor = color.CGColor;
+        shape.fillColor = NACRE_OBJECT_OR_NIL(value, UIColor, name).CGColor;
       } else if (name == "strokeColor") {
-        shape.strokeColor = color.CGColor;
+        shape.strokeColor = NACRE_OBJECT_OR_NIL(value, UIColor, name).CGColor;
       } else if (name == "path") {
         // 取的是 CGPath。nil 合法，表示什么都不画
-        UIBezierPath* p = [value isKindOfClass:UIBezierPath.class] ? (UIBezierPath*)value : nil;
+        UIBezierPath* p = NACRE_OBJECT_OR_NIL(value, UIBezierPath, name);
         shape.path = p.CGPath;
       }
     }

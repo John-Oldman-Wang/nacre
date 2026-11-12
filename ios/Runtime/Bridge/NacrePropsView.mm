@@ -302,21 +302,21 @@ void ReadViewObjectArray(id object, const std::string& name,
   }
 }
 
-void WriteViewObjectProperty(id object, const std::string& name, id value) {
+void WriteViewObjectProperty(id object, const std::string& name, id value,
+                             std::string* error) {
   if ([object isKindOfClass:UIView.class] && name == "backgroundColor") {
-    ((UIView*)object).backgroundColor = [value isKindOfClass:UIColor.class] ? value : nil;
+    ((UIView*)object).backgroundColor = NACRE_OBJECT_OR_NIL(value, UIColor, name);
   }
 
   if ([object isKindOfClass:UIImageView.class]) {
     UIImageView* iv = (UIImageView*)object;
-    UIImage* image = [value isKindOfClass:UIImage.class] ? (UIImage*)value : nil;
     if (name == "image") {
-      iv.image = image;
+      iv.image = NACRE_OBJECT_OR_NIL(value, UIImage, name);
     } else if (name == "highlightedImage") {
-      iv.highlightedImage = image;
+      iv.highlightedImage = NACRE_OBJECT_OR_NIL(value, UIImage, name);
     } else if (name == "tintColor") {
       // null_resettable：赋 nil 是合法的，表示退回继承来的那个
-      iv.tintColor = [value isKindOfClass:UIColor.class] ? (UIColor*)value : nil;
+      iv.tintColor = NACRE_OBJECT_OR_NIL(value, UIColor, name);
     }
   }
 
@@ -324,23 +324,22 @@ void WriteViewObjectProperty(id object, const std::string& name, id value) {
   if ([object isKindOfClass:UITextField.class]) {
     UITextField* field = (UITextField*)object;
     if (name == "font") {
-      field.font = [value isKindOfClass:UIFont.class] ? (UIFont*)value : nil;
+      field.font = NACRE_OBJECT_OR_NIL(value, UIFont, name);
     } else if (name == "textColor") {
-      field.textColor = [value isKindOfClass:UIColor.class] ? (UIColor*)value : nil;
+      field.textColor = NACRE_OBJECT_OR_NIL(value, UIColor, name);
     }
   }
 
   if ([object isKindOfClass:UILabel.class]) {
     UILabel* label = (UILabel*)object;
-    UIColor* color = [value isKindOfClass:UIColor.class] ? (UIColor*)value : nil;
     if (name == "font") {
-      label.font = [value isKindOfClass:UIFont.class] ? (UIFont*)value : nil;
+      label.font = NACRE_OBJECT_OR_NIL(value, UIFont, name);
     } else if (name == "textColor") {
-      label.textColor = color;
+      label.textColor = NACRE_OBJECT_OR_NIL(value, UIColor, name);
     } else if (name == "shadowColor") {
-      label.shadowColor = color;
+      label.shadowColor = NACRE_OBJECT_OR_NIL(value, UIColor, name);
     } else if (name == "highlightedTextColor") {
-      label.highlightedTextColor = color;
+      label.highlightedTextColor = NACRE_OBJECT_OR_NIL(value, UIColor, name);
     }
   }
 }

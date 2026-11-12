@@ -113,15 +113,16 @@ std::vector<nacre::NativeObjectRef> ReadNativeObjectArrayProperty(
   return refs;
 }
 
-// 对象值的写入。没有错误出口：类型不对就当 nil 处理，这一条是已知的
-// TODO（见 project.md「参数类型不对但有句柄」）。
-void WriteNativeObjectProperty(id object, const std::string& name, void* valuePtr) {
+// 对象值的写入。照 Web IDL：对象不转换，给了对象就得是要求的那个类，
+// 不是就抛（各域用 NACRE_OBJECT_OR_NIL 取值）。null 可以，这些属性都可空。
+void WriteNativeObjectProperty(id object, const std::string& name, void* valuePtr,
+                               std::string* error) {
   id value = (__bridge id)valuePtr;
-  WriteSceneObjectProperty(object, name, value);
-  WriteControlObjectProperty(object, name, value);
-  WriteLayerObjectProperty(object, name, value);
-  WriteAnimationObjectProperty(object, name, value);
-  WriteViewObjectProperty(object, name, value);
+  WriteSceneObjectProperty(object, name, value, error);
+  WriteControlObjectProperty(object, name, value, error);
+  WriteLayerObjectProperty(object, name, value, error);
+  WriteAnimationObjectProperty(object, name, value, error);
+  WriteViewObjectProperty(object, name, value, error);
 }
 
 // 可写的对象数组属性。目前只有导航栈一个，但通道和读那条是镜像关系，

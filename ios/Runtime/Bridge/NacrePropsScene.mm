@@ -212,18 +212,19 @@ nacre::NativeObjectRef ReadSceneObjectProperty(id object,
   return {};
 }
 
-void WriteSceneObjectProperty(id object, const std::string& name, id value) {
+void WriteSceneObjectProperty(id object, const std::string& name, id value,
+                              std::string* error) {
   if ([object isKindOfClass:UINavigationItem.class] && name == "titleView") {
     ((UINavigationItem*)object).titleView =
-        [value isKindOfClass:UIView.class] ? value : nil;
+        NACRE_OBJECT_OR_NIL(value, UIView, name);
     return;
   }
   if ([object isKindOfClass:UIWindow.class]) {
     UIWindow* window = (UIWindow*)object;
     if (name == "rootViewController") {
-      window.rootViewController = [value isKindOfClass:UIViewController.class] ? value : nil;
+      window.rootViewController = NACRE_OBJECT_OR_NIL(value, UIViewController, name);
     } else if (name == "windowScene") {
-      window.windowScene = [value isKindOfClass:UIWindowScene.class] ? value : nil;
+      window.windowScene = NACRE_OBJECT_OR_NIL(value, UIWindowScene, name);
     }
   }
 }

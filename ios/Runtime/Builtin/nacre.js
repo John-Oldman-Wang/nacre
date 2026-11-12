@@ -202,7 +202,14 @@
     const { values, handles } = splitArgs(args, name);
     return native.callAsync(obj[kHandle], name, JSON.stringify(values), handles);
   }
+  // 值是原生对象的属性。照 Web IDL：对象不转换。null / undefined 是「没有」；
+  // 别的值必须是一个原生对象——以前字符串、数字这些会被当成句柄 0，
+  // 原生收到 nil，静默把属性清掉（label.font = 'Helvetica'）
   function nativeSetObject(obj, name, value) {
+    if (value != null && value[kHandle] === undefined) {
+      rejectUnbacked(value, name);
+      throw new TypeError(name + ' needs a native object or null, got ' + describeValue(value));
+    }
     native.setObjProp(obj[kHandle], name, value == null ? 0 : value[kHandle]);
   }
   function nativeCallVoid(obj, name) {

@@ -3,6 +3,7 @@
 //   第 2 步：API 层按类型转换（数、整数、布尔、字符串）
 //   第 3 步：原生层只校验不转换（从这里够不着，验证方式见 internals/conversion.md）
 //   第 4 步：入口的异常保护——UIKit 自己抛的异常也不许终止进程
+//   第 5 步：对象参数不转换，不是要求的那个类就抛
 
 /** @param {import("../main.js").StepContext} ctx */
 export function stepConversion(ctx) {
@@ -245,4 +246,78 @@ export function stepConversion(ctx) {
   const after = new UIView();
   loner.addSubview(after);
   assert('之后照常能用', loner.subviews.length, 1);
+
+  // ===== 第 5 步：对象参数 =====
+  //
+  // Web IDL 对对象的规定是「不转换」：el.appendChild(5) 是 TypeError。
+  // 以前这里类型不对会被当成 nil，整句调用被跳过——什么都不发生，也不报错。
+  console.log('--- 参数转换：对象参数 ---');
+  const owner = /** @type {any} */ (new UIView());
+  const kid = new UIView();
+  const notView = UIFont.systemFontOfSize(12);   // 是原生对象，但不是视图
+  const needsView = 'TypeError: addSubview needs a UIView';
+  assert('addSubview(不是视图的原生对象)', thrown(() => owner.addSubview(notView)), needsView);
+  assert('addSubview(null)', thrown(() => owner.addSubview(null)), needsView);
+  assert('addSubview(5)', thrown(() => owner.addSubview(5)), needsView);
+  assert('addSubview()', thrown(() => owner.addSubview()), needsView);
+  assert('一个都没加进去', owner.subviews.length, 0);
+  owner.addSubview(kid);
+  assert('insertSubview 的 belowSubview 不是视图',
+         thrown(() => owner.insertSubview(new UIView(), { belowSubview: notView })),
+         'TypeError: insertSubview needs a UIView');
+  assert('bringSubviewToFront(不是视图)', thrown(() => owner.bringSubviewToFront(notView)),
+         'TypeError: bringSubviewToFront needs a UIView');
+  assert('isDescendantOfView(不是视图)', thrown(() => owner.isDescendantOfView(notView)),
+         'TypeError: isDescendantOfView needs a UIView');
+  assert('addLayoutGuide(不是 layout guide)', thrown(() => owner.addLayoutGuide(kid)),
+         'TypeError: addLayoutGuide needs a UILayoutGuide');
+  assert('addArrangedSubview(不是视图)',
+         thrown(() => /** @type {any} */ (new UIStackView()).addArrangedSubview(notView)),
+         'TypeError: addArrangedSubview needs a UIView');
+  assert('子视图还是原来那一个', owner.subviews.length, 1);
+
+  // 本来就可以不给的参数：null 照常，给错了类才抛
+  assert('convertPoint 的 toView 是 null：换算到窗口坐标，不抛',
+         thrown(() => owner.convertPoint(new CGPoint(1, 2), { toView: null })), null);
+  assert('convertPoint 的 toView 不是视图',
+         thrown(() => owner.convertPoint(new CGPoint(1, 2), { toView: notView })),
+         'TypeError: convertPoint needs a UIView or null');
+  const pressable = /** @type {any} */ (UIButton.buttonWithType('system'));
+  assert('setImage(null)：清掉这个状态的图，不抛',
+         thrown(() => pressable.setImage(null, { forState: ['normal'] })), null);
+  assert('setImage(不是图)',
+         thrown(() => pressable.setImage(kid, { forState: ['normal'] })),
+         'TypeError: setImage needs a UIImage or null');
+
+  // 值是原生对象的属性
+  const caption = /** @type {any} */ (new UILabel());
+  const fontBefore = caption.font;
+  assert('font = 一个颜色对象',
+         thrown(() => { caption.font = UIColor.systemRedColor; }),
+         'TypeError: font needs a UIFont or null');
+  assert("font = 'Helvetica'：字符串不是原生对象",
+         thrown(() => { caption.font = 'Helvetica'; }),
+         'TypeError: font needs a native object or null, got "Helvetica"');
+  assert('被拒之后字体没变（以前会被静默清掉）', caption.font === fontBefore, true);
+  const picture = /** @type {any} */ (new UIImageView());
+  assert('image = 一个视图', thrown(() => { picture.image = kid; }),
+         'TypeError: image needs a UIImage or null');
+  assert('image = null：照常', thrown(() => { picture.image = null; }), null);
+  const outline = /** @type {any} */ (new CAShapeLayer());
+  assert('path = 一个视图', thrown(() => { outline.path = kid; }),
+         'TypeError: path needs a UIBezierPath or null');
+  assert('strokeColor 给颜色对象：照常（别被 path 的检查误伤）',
+         thrown(() => { outline.strokeColor = UIColor.systemRedColor; }), null);
+
+  // 数组参数：每一项都得是那个类。以前不是的被悄悄过滤掉
+  assert('activateConstraints([1, 2, 3])',
+         thrown(() => /** @type {any} */ (NSLayoutConstraint).activateConstraints([1, 2, 3])),
+         'TypeError: activateConstraints needs a list of NSLayoutConstraint');
+  const real = kid.widthAnchor.constraintEqualToConstant(10);
+  assert('activateConstraints([约束, 视图])：混进一个别的也抛',
+         thrown(() => /** @type {any} */ (NSLayoutConstraint).activateConstraints([real, kid])),
+         'TypeError: activateConstraints needs a list of NSLayoutConstraint');
+  assert('整批都没激活', real.isActive, false);
+  NSLayoutConstraint.activateConstraints([real]);
+  assert('（对照）全是约束时照常', real.isActive, true);
 }

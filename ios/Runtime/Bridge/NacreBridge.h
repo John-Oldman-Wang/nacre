@@ -177,6 +177,23 @@ struct NacreFail {
     [_nv boolValue];                                                         \
   })
 
+// 对象值的取法，给「写对象属性」那条通道用（那几个函数返回 void）。
+// 照 Web IDL：对象不转换。null 可以——这些属性在 ObjC 里都是可空的；
+// 给了对象就得是要求的那个类，不是就填报错并从所在函数返回。
+// 以前的写法是 `[value isKindOfClass:X.class] ? value : nil`：类型不对
+// 被当成 nil，于是 label.font = someColor 静默把字体清掉。
+#define NACRE_OBJECT_OR_NIL(v, Cls, what)                              \
+  ({                                                                   \
+    id _ov = (v);                                                      \
+    if (_ov != nil && ![_ov isKindOfClass:[Cls class]]) {              \
+      nacre_bridge::ObjectTypeError((what), #Cls, true, error);        \
+      return;                                                          \
+    }                                                                  \
+    (Cls*)_ov;                                                         \
+  })
+void ObjectTypeError(const std::string& what, const char* className, bool nullable,
+                     std::string* error);
+
 // ---- 环境快照 ----
 NSString* BackgroundRefreshName(UIBackgroundRefreshStatus status);
 NSString* SceneActivationName(UISceneActivationState state);
@@ -456,7 +473,8 @@ std::string ReadNativeProperty(id object, const std::string& name);
 void WriteNativeProperty(id object, const std::string& name, const std::string& json,
                          std::string* error);
 nacre::NativeObjectRef ReadNativeObjectProperty(id object, const std::string& name);
-void WriteNativeObjectProperty(id object, const std::string& name, void* valuePtr);
+void WriteNativeObjectProperty(id object, const std::string& name, void* valuePtr,
+                               std::string* error);
 std::vector<nacre::NativeObjectRef> ReadNativeObjectArrayProperty(
     id object, const std::string& name);
 void WriteNativeObjectArrayProperty(id object, const std::string& name,
@@ -476,14 +494,16 @@ NSDictionary<NSString*, UIColor*>* NamedColors();
 id ReadSceneProperty(id object, NSString* key);
 BOOL WriteSceneProperty(id object, NSString* key, id value, std::string* error);
 nacre::NativeObjectRef ReadSceneObjectProperty(id object, const std::string& name);
-void WriteSceneObjectProperty(id object, const std::string& name, id value);
+void WriteSceneObjectProperty(id object, const std::string& name, id value,
+                              std::string* error);
 void ReadSceneObjectArray(id object, const std::string& name, std::vector<nacre::NativeObjectRef>& refs);
 BOOL WriteSceneObjectArray(id object, const std::string& name, const std::vector<void*>& values, std::string* error);
 
 id ReadControlProperty(id object, NSString* key);
 BOOL WriteControlProperty(id object, NSString* key, id value, std::string* error);
 nacre::NativeObjectRef ReadControlObjectProperty(id object, const std::string& name);
-void WriteControlObjectProperty(id object, const std::string& name, id value);
+void WriteControlObjectProperty(id object, const std::string& name, id value,
+                                std::string* error);
 
 id ReadLayoutProperty(id object, NSString* key);
 BOOL WriteLayoutProperty(id object, NSString* key, id value, std::string* error);
@@ -492,7 +512,8 @@ nacre::NativeObjectRef ReadLayoutObjectProperty(id object, const std::string& na
 id ReadLayerProperty(id object, NSString* key);
 BOOL WriteLayerProperty(id object, NSString* key, id value, std::string* error);
 nacre::NativeObjectRef ReadLayerObjectProperty(id object, const std::string& name);
-void WriteLayerObjectProperty(id object, const std::string& name, id value);
+void WriteLayerObjectProperty(id object, const std::string& name, id value,
+                              std::string* error);
 void ReadLayerObjectArray(id object, const std::string& name, std::vector<nacre::NativeObjectRef>& refs);
 BOOL WriteLayerObjectArray(id object, const std::string& name, const std::vector<void*>& values, std::string* error);
 
@@ -559,7 +580,8 @@ BOOL WriteDisplayLinkProperty(id object, NSString* key, id value, std::string* e
 id ReadAnimationProperty(id object, NSString* key);
 BOOL WriteAnimationProperty(id object, NSString* key, id value, std::string* error);
 nacre::NativeObjectRef ReadAnimationObjectProperty(id object, const std::string& name);
-void WriteAnimationObjectProperty(id object, const std::string& name, id value);
+void WriteAnimationObjectProperty(id object, const std::string& name, id value,
+                                  std::string* error);
 void ReadAnimationObjectArray(id object, const std::string& name,
                               std::vector<nacre::NativeObjectRef>& refs);
 BOOL WriteAnimationObjectArray(id object, const std::string& name,
@@ -575,7 +597,8 @@ id ReadViewProperty(id object, NSString* key);
 BOOL WriteViewProperty(id object, NSString* key, id value, std::string* error);
 nacre::NativeObjectRef ReadViewObjectProperty(id object, const std::string& name);
 void ReadViewObjectArray(id object, const std::string& name, std::vector<nacre::NativeObjectRef>& refs);
-void WriteViewObjectProperty(id object, const std::string& name, id value);
+void WriteViewObjectProperty(id object, const std::string& name, id value,
+                             std::string* error);
 
 id ReadResourceProperty(id object, NSString* key);
 

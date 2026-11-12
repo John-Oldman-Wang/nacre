@@ -609,8 +609,7 @@ page.view.insertSubview(card, { atIndex: 0 });
 - **出错**：
   - `insertSubview()` 的 `options` 里三个键都没有：`TypeError: insertSubview needs one of { atIndex } / { belowSubview } / { aboveSubview }`
   - 参数是一个还没有绑定场景的窗口（`new UIWindow()` 不传参数得到的对象）：`TypeError: addSubview:: UIWindow has no native object yet, so it cannot be passed as an argument`
-
-> **注意**：参数是别的类型的原生对象时（比如把一个 `CALayer` 传给 `addSubview()`），调用不报错，也不做任何事。类型检查能发现这种错误，运行时不能。
+  - 参数不是视图（别的原生对象、`null`、数字，或者没传）：`TypeError: addSubview needs a UIView`。其他收视图的方法同理，开头换成方法名
 
 ### 手势识别器
 

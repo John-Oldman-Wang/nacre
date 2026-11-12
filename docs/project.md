@@ -617,6 +617,7 @@ Commit message 格式：
 | — | 参数转换 2：API 层按 Web IDL 转 | 七个转换助手，110 个取值器和三十来处方法参数 | 已在模拟器验证通过：1183 条断言全过。`view.alpha = undefined` 以前静默写成 0，现在抛；`systemFontOfSize(NaN)`、`{ atIndex: NaN }` 以前闪退，现在抛。旧断言里只有一条受影响 |
 | — | 参数转换 3：原生层只校验不转换 | 三个取参宏（类型不对就从所在函数返回）、`SafeNumber`、`check-api.sh` 的裸取值检查 | 已在模拟器验证通过：全部断言通过；另用一次性探针绕过 JS 的转换把 31 种脏值直接送到原生，全部报错、不崩、原值不动。探针抓到一处漏网（`unsignedIntValue`），已改 |
 | — | 参数转换 4：入口的异常保护 | `Guarded` 包住 17 个宿主入口，三个入口补了报错出口，异步的接住后拒掉 Promise | 已在模拟器验证通过：1193 条断言全过。`view.addSubview(view)` 以前闪退，现在是能 `catch` 的 TypeError；整轮验收里只有这一次走到保底 |
+| — | 参数转换 5：对象参数类型不对就抛 | `viewArg` 一类填报错、`NACRE_OBJECT_OR_NIL`、写对象属性的通道补上报错出口 | 已在模拟器验证通过：1219 条断言全过。那条记了很久的待办（`addSubview(颜色)` 静默什么都不做）关掉了 |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |
@@ -950,16 +951,7 @@ Web 能双向字符串化是因为 CSSOM 自己留着声明串，我们没有这
 
 **TODO：`check-api.sh` 的标量核对是按名字的并集，不分类。** 做输入框时咬了一次：`textAlignment` 只在 `UILabel` 分支接了原生，`UITextField` 漏了，而名字在集合里所以脚本没报，运行时才抛，连带整个 `sceneconnect` 中断、黑屏。同一家的还有「标量接了不等于对象属性也接了」——那是另一条通道。要改成按类比对，得先让脚本知道每个分支属于哪个类。
 
-**TODO：参数类型不对但有句柄 → 静默忽略。** 和「参数没有原生对象」是同一家，上一步只堵了后者。
-
-```js
-view.addSubview(UIColor.redColor);      // 什么都不发生，不报错
-NSLayoutConstraint.activateConstraints([1, 2, 3]);   // 同上
-```
-
-原生侧是 `if (UIView* child = viewArg(0)) [view addSubview:child];`——`viewArg` 对非 `UIView` 返回 nil，于是整句跳过。**`NacreMethods.mm` 里 10 处这种写法**，加上 `activateConstraints:` 里按 `isKindOfClass:` 过滤的那一处，一共 11 处。
-
-类型声明能挡住大部分（`addSubview(view: UIView)`），但运行时不该沉默。改法是让 `viewArg` 一类的取参函数带 `std::string* error` 出参，拿不到就填错误信息——和枚举写错的处理方式一致。
+**已实现：对象参数类型不对会抛。** 原来 `view.addSubview(UIColor.redColor)`、`NSLayoutConstraint.activateConstraints([1, 2, 3])`、`label.font = 'Helvetica'` 都是什么都不发生也不报错。现在统一按 Web IDL：对象不转换，不是要求的那个类就抛 `TypeError`；本来就可空的参数和属性传 `null` 照常。见[参数转换](internals/conversion.md#第-5-步对象参数不转换类型不对就抛)。
 
 **TODO：`layer` 上的颜色读两次不相等。** `borderColor` / `shadowColor` 在 ObjC 里是 `CGColorRef`，桥上用 `colorWithCGColor:` 包成 `UIColor`，而它**每次新建一个对象**（实测两次指针不同）。于是包装机制「同一个原生指针永远同一个 JS 对象」的保证在这里失效。
 

@@ -170,8 +170,12 @@ bool TransactionCallClassMethod(const std::string& className, NSString* sel,
   }
   if ([sel isEqualToString:@"setAnimationTimingFunction:"]) {
     id fn = args.object(0);
-    [CATransaction setAnimationTimingFunction:
-        [fn isKindOfClass:CAMediaTimingFunction.class] ? fn : nil];
+    if (fn != nil && ![fn isKindOfClass:CAMediaTimingFunction.class]) {
+      ObjectTypeError("setAnimationTimingFunction", "CAMediaTimingFunction", true, error);
+      *out = "null";
+      return true;
+    }
+    [CATransaction setAnimationTimingFunction:fn];
     *out = "null";
     return true;
   }

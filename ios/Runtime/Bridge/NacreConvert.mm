@@ -204,6 +204,12 @@ bool RequireBool(id given, NSString* what, std::string* error) {
   return false;
 }
 
+void ObjectTypeError(const std::string& what, const char* className, bool nullable,
+                     std::string* error) {
+  if (error == nullptr || !error->empty()) return;
+  *error = what + " needs a " + className + (nullable ? " or null" : "");
+}
+
 double SafeNumber(id given) {
   if ([given isKindOfClass:NSNumber.class]) {
     double d = [given doubleValue];

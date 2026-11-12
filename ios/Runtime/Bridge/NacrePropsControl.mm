@@ -325,13 +325,14 @@ nacre::NativeObjectRef ReadControlObjectProperty(id object,
   return {};
 }
 
-void WriteControlObjectProperty(id object, const std::string& name, id value) {
+void WriteControlObjectProperty(id object, const std::string& name, id value,
+                                std::string* error) {
   if ([object isKindOfClass:UIBarButtonItem.class]) {
     UIBarButtonItem* item = (UIBarButtonItem*)object;
     if (name == "customView") {
-      item.customView = [value isKindOfClass:UIView.class] ? value : nil;
+      item.customView = NACRE_OBJECT_OR_NIL(value, UIView, name);
     } else if (name == "image") {
-      item.image = [value isKindOfClass:UIImage.class] ? value : nil;
+      item.image = NACRE_OBJECT_OR_NIL(value, UIImage, name);
     }
   }
 }

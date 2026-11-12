@@ -33,9 +33,23 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
     return i < argPtrs.size() ? (__bridge id)argPtrs[i] : nil;
   };
   auto valueArg = [&](NSUInteger i) -> id { return i < args.count ? args[i] : nil; };
-  auto viewArg = [&](size_t i) -> UIView* {
+  // 对象参数。照 Web IDL：对象不转换，不是要求的那个类就抛——
+  // el.appendChild(5) 是 TypeError。以前这里类型不对返回 nil，调用的地方
+  // 写的是 `if (UIView* child = viewArg(0)) …`，于是整句被跳过、什么都不
+  // 发生也不报错（view.addSubview(someColor)）。
+  // 现在拿不到就填报错；调用的地方不用改，照样跳过，引擎看到报错就抛。
+  NSString* head = [sel componentsSeparatedByString:@":"].firstObject ?: sel;
+  auto typedArg = [&](size_t i, Class cls, bool required) -> id {
     id v = objectArg(i);
-    return [v isKindOfClass:UIView.class] ? (UIView*)v : nil;
+    if ([v isKindOfClass:cls]) return v;
+    if (v == nil && !required) return nil;
+    ObjectTypeError(head.UTF8String, NSStringFromClass(cls).UTF8String, !required, error);
+    return nil;
+  };
+  auto viewArg = [&](size_t i) -> UIView* { return typedArg(i, UIView.class, true); };
+  // 可以不给的那种：convertPoint 的 toView 传 null 表示换算到窗口坐标
+  auto optionalViewArg = [&](size_t i) -> UIView* {
+    return typedArg(i, UIView.class, false);
   };
   // 状态参数：字符串数组 → UIControlState。拿不到就填错误并返回 false
   auto stateArg = [&](NSUInteger i, UIControlState* out) {
@@ -50,8 +64,7 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
     return false;
   };
   auto guideArg = [&](size_t i) -> UILayoutGuide* {
-    id g = objectArg(i);
-    return [g isKindOfClass:UILayoutGuide.class] ? (UILayoutGuide*)g : nil;
+    return typedArg(i, UILayoutGuide.class, true);
   };
 
   // ---- first responder ----
@@ -74,14 +87,9 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
 
   if ([object isKindOfClass:UIButton.class]) {
     UIButton* button = (UIButton*)object;
-    auto colorArg = [&](size_t i) -> UIColor* {
-      id c = i < argPtrs.size() ? (__bridge id)argPtrs[i] : nil;
-      return [c isKindOfClass:UIColor.class] ? (UIColor*)c : nil;
-    };
-    auto imageArg = [&](size_t i) -> UIImage* {
-      id m = i < argPtrs.size() ? (__bridge id)argPtrs[i] : nil;
-      return [m isKindOfClass:UIImage.class] ? (UIImage*)m : nil;
-    };
+    // 按状态设的颜色和图都可以传 null（清掉这个状态的设置）
+    auto colorArg = [&](size_t i) -> UIColor* { return typedArg(i, UIColor.class, false); };
+    auto imageArg = [&](size_t i) -> UIImage* { return typedArg(i, UIImage.class, false); };
     UIControlState state;
     if ([sel isEqualToString:@"setTitle:forState:"]) {
       if (!stateArg(1, &state)) return "null";
@@ -249,13 +257,13 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
     } else if ([sel isEqualToString:@"sizeToFit"]) {
       [view sizeToFit];
     } else if ([sel isEqualToString:@"convertPoint:toView:"]) {
-      result = PointToJSON([view convertPoint:JSONToPoint(valueArg(0)) toView:viewArg(1)]);
+      result = PointToJSON([view convertPoint:JSONToPoint(valueArg(0)) toView:optionalViewArg(1)]);
     } else if ([sel isEqualToString:@"convertPoint:fromView:"]) {
-      result = PointToJSON([view convertPoint:JSONToPoint(valueArg(0)) fromView:viewArg(1)]);
+      result = PointToJSON([view convertPoint:JSONToPoint(valueArg(0)) fromView:optionalViewArg(1)]);
     } else if ([sel isEqualToString:@"convertRect:toView:"]) {
-      result = RectToJSON([view convertRect:JSONToRect(valueArg(0)) toView:viewArg(1)]);
+      result = RectToJSON([view convertRect:JSONToRect(valueArg(0)) toView:optionalViewArg(1)]);
     } else if ([sel isEqualToString:@"convertRect:fromView:"]) {
-      result = RectToJSON([view convertRect:JSONToRect(valueArg(0)) fromView:viewArg(1)]);
+      result = RectToJSON([view convertRect:JSONToRect(valueArg(0)) fromView:optionalViewArg(1)]);
     } else if ([sel isEqualToString:@"setNeedsLayout"]) {
       [view setNeedsLayout];
     } else if ([sel isEqualToString:@"layoutIfNeeded"]) {

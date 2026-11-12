@@ -50,9 +50,16 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
     BOOL activate = [sel isEqualToString:@"activateConstraints:"];
     if (activate || [sel isEqualToString:@"deactivateConstraints:"]) {
       NSMutableArray<NSLayoutConstraint*>* list = [NSMutableArray array];
+      // 数组里每一项都得是约束。以前不是约束的被悄悄过滤掉，
+      // activateConstraints([1, 2, 3]) 什么都不发生也不报错
       for (void* ptr : argPtrs) {
         id c = (__bridge id)ptr;
-        if ([c isKindOfClass:NSLayoutConstraint.class]) [list addObject:c];
+        if (![c isKindOfClass:NSLayoutConstraint.class]) {
+          ObjectTypeError(activate ? "activateConstraints" : "deactivateConstraints",
+                          "list of NSLayoutConstraint", false, error);
+          return {};
+        }
+        [list addObject:c];
       }
       @try {
         if (activate) {
