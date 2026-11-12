@@ -100,6 +100,7 @@ const data = await res.json();
 
 - 枚举写了不认识的值、少传必填的参数、给只读属性赋值，都抛 `TypeError`，报错信息里列出可用的值。
 - 值的类型转不成期望的类型时抛 `TypeError`，见[传进来的值怎么转换](#传进来的值怎么转换)。
+- 系统不接受的调用也抛 `TypeError`，不会让 App 退出。比如把一个视图加成它自己的子视图，报错是 `addSubview: raised NSInvalidArgumentException: Can't add self as subview`，冒号后面是系统给的原因。这类错误出现时，系统那一侧的状态可能已经不一致，应当修掉引起它的代码，不要靠 `try` / `catch` 继续运行。
 - 没被捕获的异常和没被处理的 Promise 拒绝，会输出到控制台，也可以在 [`application`](application.md) 上监听 `error` 和 `unhandledrejection` 事件统一处理。
 
 有一个例外：颜色字符串写错只输出警告，保留原来的颜色。见[颜色](ui-color.md)。

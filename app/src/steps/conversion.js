@@ -2,6 +2,7 @@
 //   第 1 步：options 里值是 undefined 的成员视为没带
 //   第 2 步：API 层按类型转换（数、整数、布尔、字符串）
 //   第 3 步：原生层只校验不转换（从这里够不着，验证方式见 internals/conversion.md）
+//   第 4 步：入口的异常保护——UIKit 自己抛的异常也不许终止进程
 
 /** @param {import("../main.js").StepContext} ctx */
 export function stepConversion(ctx) {
@@ -225,4 +226,23 @@ export function stepConversion(ctx) {
          'TypeError: imageWithData needs a Blob');
   assert('imageNamed(5)：名字按字符串用，找不到是 null，不抛',
          /** @type {any} */ (UIImage).imageNamed(5), null);
+
+  // ===== 第 4 步：入口的异常保护 =====
+  //
+  // 前三步管的是「参数类型」。还有一类异常是 UIKit 自己抛的：参数类型全对，
+  // 但这个调用它不接受。这种以前也是直接闪退。现在引擎调原生的每个入口都
+  // 包了一层，接住之后变成 TypeError。
+  console.log('--- 参数转换：入口的异常保护 ---');
+  const loner = new UIView();
+  // 把视图加成自己的子视图。UIKit 的原话是 Can't add self as subview
+  const caught = thrown(() => loner.addSubview(loner));
+  console.log('  实测：addSubview(自己) → ' + caught);
+  assert('UIKit 抛的异常被接住，变成 TypeError',
+         caught !== null && caught.startsWith('TypeError: addSubview: raised NS'), true);
+  assert('报错里带着 UIKit 给的原因', caught !== null && caught.includes('self'), true);
+  assert('没加进去', loner.subviews.length, 0);
+  // 接住之后这个对象和整个运行时都还能用
+  const after = new UIView();
+  loner.addSubview(after);
+  assert('之后照常能用', loner.subviews.length, 1);
 }

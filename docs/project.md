@@ -616,6 +616,7 @@ Commit message 格式：
 | — | 参数转换 1：options 里 `undefined` 视为没带 | `has(o, key)` 换掉 39 处 `in` 判断，含 Request / Response / Blob | 已在模拟器验证通过：1141 条断言全过。试用反馈里三处闪退（`{ atIndex: undefined }`、`{ scale: undefined }`）都不再发生 |
 | — | 参数转换 2：API 层按 Web IDL 转 | 七个转换助手，110 个取值器和三十来处方法参数 | 已在模拟器验证通过：1183 条断言全过。`view.alpha = undefined` 以前静默写成 0，现在抛；`systemFontOfSize(NaN)`、`{ atIndex: NaN }` 以前闪退，现在抛。旧断言里只有一条受影响 |
 | — | 参数转换 3：原生层只校验不转换 | 三个取参宏（类型不对就从所在函数返回）、`SafeNumber`、`check-api.sh` 的裸取值检查 | 已在模拟器验证通过：全部断言通过；另用一次性探针绕过 JS 的转换把 31 种脏值直接送到原生，全部报错、不崩、原值不动。探针抓到一处漏网（`unsignedIntValue`），已改 |
+| — | 参数转换 4：入口的异常保护 | `Guarded` 包住 17 个宿主入口，三个入口补了报错出口，异步的接住后拒掉 Promise | 已在模拟器验证通过：1193 条断言全过。`view.addSubview(view)` 以前闪退，现在是能 `catch` 的 TypeError；整轮验收里只有这一次走到保底 |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |

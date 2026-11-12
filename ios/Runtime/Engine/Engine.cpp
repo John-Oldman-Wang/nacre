@@ -549,8 +549,10 @@ struct Engine::Impl {
 
     std::vector<void*> args = self->HandlesToPtrs(ctx, info[2]);
 
+    std::string error;
     NativeObjectRef ref = self->host.construct_native(
-        SafeToString(isolate, info[0]), SafeToString(isolate, info[1]), args);
+        SafeToString(isolate, info[0]), SafeToString(isolate, info[1]), args, &error);
+    if (Rejected(isolate, error)) return;
     if (ref.ptr == nullptr) return;
     info.GetReturnValue().Set(self->BindWrapper(info[3].As<v8::Object>(), ref.ptr));
   }
@@ -577,7 +579,9 @@ struct Engine::Impl {
     void* ptr = self->PtrForHandle(info, 0);
     if (!ptr || !self->host.write_object_property || info.Length() < 3) return;
     void* value = self->PtrForHandle(info, 2);
-    self->host.write_object_property(ptr, SafeToString(isolate, info[1]), value);
+    std::string error;
+    self->host.write_object_property(ptr, SafeToString(isolate, info[1]), value, &error);
+    Rejected(isolate, error);
   }
 
   // 带参数的类方法，返回原生对象
@@ -889,7 +893,9 @@ struct Engine::Impl {
     Impl* self = From(isolate);
     void* ptr = self->PtrForHandle(info, 0);
     if (!ptr || !self->host.call_void_method) return;
-    self->host.call_void_method(ptr, SafeToString(isolate, info[1]));
+    std::string error;
+    self->host.call_void_method(ptr, SafeToString(isolate, info[1]), &error);
+    Rejected(isolate, error);
   }
 
   // 异步方法：(handle, name, jsonArgs) -> Promise<boolean>

@@ -52,7 +52,8 @@ struct EngineHost {
       write_property;
   // 属性值本身是原生对象时走这个
   std::function<NativeObjectRef(void* ptr, const std::string& name)> read_object_property;
-  std::function<void(void* ptr, const std::string& name, void* value)> write_object_property;
+  std::function<void(void* ptr, const std::string& name, void* value, std::string* error)>
+      write_object_property;
 
   // 由 JS 发起的构造。
   //
@@ -64,10 +65,11 @@ struct EngineHost {
   // 宿主必须保证返回的对象活到调用方 retain 为止（ARC 下要 CFAutorelease）。
   std::function<NativeObjectRef(const std::string& class_name,
                                 const std::string& args_json,
-                                const std::vector<void*>& args)>
+                                const std::vector<void*>& args, std::string* error)>
       construct_native;
   // 无参无返回值的方法，比如 makeKeyAndVisible
-  std::function<void(void* ptr, const std::string& name)> call_void_method;
+  std::function<void(void* ptr, const std::string& name, std::string* error)>
+      call_void_method;
 
   // 带参数、带返回值的方法。args_json 是 JSON 数组；对象参数在数组里留
   // null，真正的指针按同样的下标放在 arg_ptrs 里。返回值用 JSON 编码，

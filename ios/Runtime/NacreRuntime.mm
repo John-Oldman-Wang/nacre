@@ -67,6 +67,37 @@ using namespace nacre_bridge;
 - (void)installPresentationDelegate:(UIViewController*)vc;
 @end
 
+// ---- 入口保底：ObjC 异常不许穿过宿主接口 ----
+//
+// 引擎调原生的每个入口都包一层。参数类型的问题已经由 NACRE_NUM 那几个宏
+// 在更早的地方拦掉了；这里接的是剩下的——UIKit 自己抛的（把视图加成自己
+// 的子视图、越界的下标……）。接住之后变成 JS 能 catch 的 TypeError，进程
+// 不退。
+//
+// 代价写在明处：异常是 UIKit 内部抛出来的时候，它的状态可能已经不一致了。
+// 所以这是保底，不是修法。每次走到这里都打一行运行时日志，值得回头把那个
+// 调用点单独处理（先查再调，或者像 insertSublayer、pushViewController
+// 那样就地接住并给一句说人话的报错）。
+static std::string DescribeException(const char* where, NSException* e) {
+  NSString* text = [NSString stringWithFormat:@"%s raised %@: %@", where, e.name,
+                                              e.reason ?: @"(no reason)"];
+  WriteRuntimeLog([@"native exception caught, " stringByAppendingString:text]);
+  return text.UTF8String;
+}
+
+// where 只用来写进报错和日志。error 可以是 nullptr（那个入口没有报错出口，
+// 比如读属性），这时只打日志、返回空值。
+template <class Fn>
+static auto Guarded(const char* where, std::string* error, Fn&& fn) -> decltype(fn()) {
+  @try {
+    return fn();
+  } @catch (NSException* e) {
+    std::string text = DescribeException(where, e);
+    if (error != nullptr && error->empty()) *error = text;
+    return decltype(fn())();
+  }
+}
+
 // 控件事件的中转。
 //
 // control 通过关联对象持有它（`addTarget:action:` 自己**不**持有 target，
@@ -725,65 +756,93 @@ nacre::NativeObjectRef CreateBlob(
       return refs;
     };
     host.read_property = [](void* ptr, const std::string& name) {
-      return ReadNativeProperty((__bridge id)ptr, name);
+      return Guarded(name.c_str(), nullptr, [&] {
+        return ReadNativeProperty((__bridge id)ptr, name);
+      });
     };
     host.write_property = [](void* ptr, const std::string& name,
                              const std::string& json, std::string* error) {
-      WriteNativeProperty((__bridge id)ptr, name, json, error);
+      Guarded(name.c_str(), error, [&] {
+        WriteNativeProperty((__bridge id)ptr, name, json, error);
+      });
     };
     host.read_object_property = [](void* ptr, const std::string& name) {
-      return ReadNativeObjectProperty((__bridge id)ptr, name);
+      return Guarded(name.c_str(), nullptr, [&] {
+        return ReadNativeObjectProperty((__bridge id)ptr, name);
+      });
     };
-    host.write_object_property = [](void* ptr, const std::string& name, void* value) {
-      WriteNativeObjectProperty((__bridge id)ptr, name, value);
+    host.write_object_property = [](void* ptr, const std::string& name, void* value,
+                                    std::string* error) {
+      Guarded(name.c_str(), error, [&] {
+        WriteNativeObjectProperty((__bridge id)ptr, name, value);
+      });
     };
     host.construct_native = [](const std::string& className,
                               const std::string& argsJSON,
-                              const std::vector<void*>& args) {
-      return ConstructNative(className, argsJSON, args);
+                              const std::vector<void*>& args, std::string* error) {
+      return Guarded(className.c_str(), error, [&] {
+        return ConstructNative(className, argsJSON, args);
+      });
     };
     host.call_method = [](void* ptr, const std::string& name,
                           const std::string& argsJSON,
                           const std::vector<void*>& argPtrs, std::string* error) {
-      return CallMethod((__bridge id)ptr, name, argsJSON, argPtrs, error);
+      return Guarded(name.c_str(), error, [&] {
+        return CallMethod((__bridge id)ptr, name, argsJSON, argPtrs, error);
+      });
     };
     host.call_object_method = [](void* ptr, const std::string& name,
                                  const std::string& argsJSON,
                                  const std::vector<void*>& argPtrs,
                                  std::string* error) {
-      return CallObjectMethod((__bridge id)ptr, name, argsJSON, argPtrs, error);
+      return Guarded(name.c_str(), error, [&] {
+        return CallObjectMethod((__bridge id)ptr, name, argsJSON, argPtrs, error);
+      });
     };
     host.read_object_array_property = [](void* ptr, const std::string& name) {
-      return ReadNativeObjectArrayProperty((__bridge id)ptr, name);
+      return Guarded(name.c_str(), nullptr, [&] {
+        return ReadNativeObjectArrayProperty((__bridge id)ptr, name);
+      });
     };
     host.write_object_array_property = [](void* ptr, const std::string& name,
                                           const std::vector<void*>& values,
                                           std::string* error) {
-      WriteNativeObjectArrayProperty((__bridge id)ptr, name, values, error);
+      Guarded(name.c_str(), error, [&] {
+        WriteNativeObjectArrayProperty((__bridge id)ptr, name, values, error);
+      });
     };
     host.set_event_subscription = [weakSelf](void* ptr, const std::string& type,
                                              bool on, std::string* error) {
       NacreRuntime* strongSelf = weakSelf;
-      if (strongSelf) [strongSelf setSubscription:(__bridge id)ptr type:type on:on error:error];
+      if (!strongSelf) return;
+      Guarded("addEventListener", error, [&] {
+        [strongSelf setSubscription:(__bridge id)ptr type:type on:on error:error];
+      });
     };
     host.call_object_array_method = [](void* ptr, const std::string& name,
                                        const std::string& argsJSON,
                                        const std::vector<void*>& argPtrs,
                                        std::string* error) {
-      return CallObjectArrayMethod((__bridge id)ptr, name, argsJSON, argPtrs, error);
+      return Guarded(name.c_str(), error, [&] {
+        return CallObjectArrayMethod((__bridge id)ptr, name, argsJSON, argPtrs, error);
+      });
     };
     host.call_class_object_method = [](const std::string& className,
                                        const std::string& name,
                                        const std::string& argsJSON,
                                        const std::vector<void*>& argPtrs,
                                        std::string* error) {
-      return CallClassObjectMethod(className, name, argsJSON, argPtrs, error);
+      return Guarded(name.c_str(), error, [&] {
+        return CallClassObjectMethod(className, name, argsJSON, argPtrs, error);
+      });
     };
     host.call_class_method = [](const std::string& className, const std::string& name,
                                 const std::string& argsJSON,
                                 const std::vector<void*>& argPtrs,
                                 std::string* error) {
-      return CallClassMethod(className, name, argsJSON, argPtrs, error);
+      return Guarded(name.c_str(), error, [&] {
+        return CallClassMethod(className, name, argsJSON, argPtrs, error);
+      });
     };
     // WebSocket 的事件出口。那个文件不认识 NacreRuntime，所以在这里塞进去
     WebSocketSetEmitter(^(id task, NSString* type, NSString* json, NacreBlob* blob) {
@@ -803,7 +862,9 @@ nacre::NativeObjectRef CreateBlob(
     });
     host.read_class_object_property = [](const std::string& className,
                                          const std::string& name) {
-      return ReadClassObjectProperty(className, name);
+      return Guarded(name.c_str(), nullptr, [&] {
+        return ReadClassObjectProperty(className, name);
+      });
     };
     host.fetch_start = [weakSelf](const std::string& url, const std::string& options,
                                   int callId) -> int {
@@ -832,7 +893,9 @@ nacre::NativeObjectRef CreateBlob(
     host.create_blob = [](const std::string& partsJSON,
                           const std::vector<std::pair<const void*, size_t>>& buffers,
                           const std::string& type) {
-      return CreateBlob(partsJSON, buffers, type);
+      return Guarded("new Blob", nullptr, [&] {
+        return CreateBlob(partsJSON, buffers, type);
+      });
     };
     host.parse_url = [](const std::string& url, const std::string& base) {
       return ParseURL(url, base);
@@ -852,10 +915,10 @@ nacre::NativeObjectRef CreateBlob(
         if (*engine) task();
       });
     };
-    host.call_void_method = [](void* ptr, const std::string& name) {
-      CallVoidMethod((__bridge id)ptr, name);
+    host.call_void_method = [](void* ptr, const std::string& name, std::string* error) {
+      Guarded(name.c_str(), error, [&] { CallVoidMethod((__bridge id)ptr, name); });
     };
-    host.call_async = [weakSelf](void* ptr, const std::string& name,
+    auto callAsync = [weakSelf](void* ptr, const std::string& name,
                                  const std::string& argsJSON,
                                  const std::vector<void*>& argPtrs, int callId) {
       NacreRuntime* strongSelf = weakSelf;
@@ -983,6 +1046,24 @@ nacre::NativeObjectRef CreateBlob(
         }
       }
       [strongSelf settleCall:callId with:NO];
+    };
+    // 异步入口同样不许让异常穿出去。接住之后把那个 Promise 拒掉——
+    // 不然它会永远挂着，JS 那边连超时都等不到
+    host.call_async = [weakSelf, callAsync](void* ptr, const std::string& name,
+                                            const std::string& argsJSON,
+                                            const std::vector<void*>& argPtrs,
+                                            int callId) {
+      @try {
+        callAsync(ptr, name, argsJSON, argPtrs, callId);
+      } @catch (NSException* e) {
+        std::string text = DescribeException(name.c_str(), e);
+        NacreRuntime* strongSelf = weakSelf;
+        if (!strongSelf) return;
+        auto engine = strongSelf->_engine;
+        [strongSelf postToJS:^{
+          if (*engine) (*engine)->RejectCall(callId, "Error", text, "null");
+        }];
+      }
     };
     *engine = std::make_unique<nacre::Engine>(std::move(host));
     double t2 = NowMs();

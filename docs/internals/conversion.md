@@ -178,3 +178,42 @@ view.alpha = NACRE_NUM(value, key);
 
 `new Blob([...])` 建出来的对象，在一次垃圾回收之后读 `size` 得到 `null`、交给 `imageWithData` 报「不是 Blob」；新建之后立刻用是好的。原因是 `Blob` 的构造函数只把句柄的数值抄到自己身上，引擎登记的那个包装对象成了垃圾，被回收时原生数据跟着放掉了。和参数转换无关，单独处理。
 
+## 第 4 步：入口的异常保护
+
+前三步管的是参数类型。还有一类异常和类型无关：参数全对，但这个调用 UIKit 不接受——`view.addSubview(view)` 就是，UIKit 抛 `NSInvalidArgumentException: Can't add self as subview`。这种以前同样是直接闪退。
+
+### 做法
+
+引擎调原生的口子都集中在 `NacreRuntime.mm` 里的一组 lambda。每个都包进同一个模板函数：
+
+```objc
+template <class Fn>
+static auto Guarded(const char* where, std::string* error, Fn&& fn) -> decltype(fn()) {
+  @try { return fn(); }
+  @catch (NSException* e) { … 填 error、打日志、返回空值 … }
+}
+```
+
+包了 17 个入口：属性读写、对象属性读写、对象数组读写、构造、五种方法调用、类级属性、订阅、建 Blob，以及异步调用。
+
+三个入口原来没有报错出口（写对象属性、构造、无参方法），接住了也没法告诉 JS。给它们的宿主接口各加了一个 `std::string* error`，引擎那边照常走 `Rejected` 抛 `TypeError`。读属性那几个仍然没有报错出口——读几乎不会抛，接住之后打日志、返回空值。
+
+**异步调用单独处理**：它的结果是 Promise，接住异常之后要把那个 Promise 拒掉，否则它会永远挂着。
+
+### 这是保底，不是修法
+
+异常是 UIKit 内部抛出来的时候，它的状态可能已经不一致了——Apple 对 ObjC 异常的定位一直是「程序员错误，不保证之后的状态」。所以：
+
+- 每次走到这里都打一行运行时日志（`native exception caught, …`），不让它悄悄发生
+- 值得回头把那个调用点单独处理：先查再调，或者就地接住并给一句说人话的报错。`insertSublayer`、`pushViewController`、`activateConstraints` 早就是这么做的，它们的 `@try` 留着，报错比这一层给的更具体
+
+ARC 在 ObjC++ 里默认是异常安全的（`-fobjc-arc-exceptions` 对 `.mm` 默认开启），所以接住异常不会让沿途的对象泄漏。这一条是 clang 的文档说的，没有另外验证。
+
+### 实测
+
+| | 结果 |
+| --- | --- |
+| `view.addSubview(view)` | `TypeError: addSubview: raised NSInvalidArgumentException: Can't add self as subview`，JS 能 `catch` |
+| 之后 | 子视图个数是 0；这个视图和整个运行时照常能用 |
+| 整轮验收里走到这一层的次数 | **1 次**，就是上面故意触发的那次。也就是说现有的一千多条断言里，没有哪个调用是靠它才没崩的 |
+
