@@ -96,7 +96,7 @@ export function stepFeedback(ctx) {
     impact.impactOccurredWithIntensity('max');
     console.log('  ✗ 字符串强度居然通过了');
   } catch (err) {
-    console.log('  ✓ 强度不是数被拒:', err.message);
+    console.log('  ✓ 强度转不出数被拒:', err.message);
   }
   try {
     // @ts-expect-error 没有这种通知

@@ -315,6 +315,63 @@
     return o[key] !== undefined;
   }
 
+  // ---- 参数转换：照 Web IDL（project.md 的 API 设计原则第 13 条）----
+  //
+  // API 层宽松接收，在这里转成原生要的那个类型；原生只校验、不转换。
+  // 转换必须在 JS 一侧做：值过了 JSON，NaN / Infinity / undefined 全成了
+  // null，原生已经分不清原来是什么。
+  function describeValue(v) {
+    if (typeof v === 'string') return JSON.stringify(v);
+    if (v !== null && typeof v === 'object') return Array.isArray(v) ? 'an array' : 'an object';
+    if (typeof v === 'function') return 'a function';
+    return String(v);   // undefined / null / NaN / Infinity / true
+  }
+  // 数。Number() 能转出有限数就用——'0.5' 是 0.5，null 是 0，true 是 1，
+  // 和 audio.volume = … 一致。转不出来（undefined、'abc'、{}）才抛
+  function toNumber(v, what) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) {
+      throw new TypeError(what + ' must be a finite number, got ' + describeValue(v));
+    }
+    return n;
+  }
+  // 整数（下标、个数）。向零取整。这里**不学** Web 的老接口——它们把 NaN
+  // 当 0、还按 32 位回绕；Web 自己的新接口也改成抛了
+  function toInteger(v, what) {
+    return Math.trunc(toNumber(v, what)) + 0;   // + 0 把 -0 归成 0
+  }
+  // 布尔。JS 的真假值，所以 'false' 是 true，和 button.disabled 一致
+  function toBoolean(v) {
+    return Boolean(v);
+  }
+  // 不可空的字符串。5 是 '5'，和 setAttribute 一致。null 和 undefined 给
+  // 空串——Web 的普通字符串会得到 'null' / 'undefined' 这两个字面量，那是
+  // 公认的坑；这里学的是 input.value = null 得到 '' 的那一类
+  function toText(v) {
+    return v == null ? '' : String(v);
+  }
+  // 可空的字符串。null 和 undefined 都是「没有」，和 textContent 一致
+  function toTextOrNull(v) {
+    return v == null ? null : String(v);
+  }
+  // 「数，或者一个名字」：spacing 的 'system'、priority 的 'required'。
+  // 看着像数的字符串按数转，其余原样交给原生去认名字
+  function toNumberOrName(v, what) {
+    if (typeof v === 'string') {
+      const n = Number(v);
+      return v.trim() !== '' && Number.isFinite(n) ? n : v;
+    }
+    return toNumber(v, what);
+  }
+  // 可空的数组，元素是数
+  function toNumbersOrNull(v, what) {
+    if (v == null) return null;
+    if (typeof v !== 'object' || typeof v[Symbol.iterator] !== 'function') {
+      throw new TypeError(what + ' must be an array of numbers or null, got ' + describeValue(v));
+    }
+    return Array.from(v, (item, i) => toNumber(item, what + '[' + i + ']'));
+  }
+
   function superviewOf(view) {
     if (view == null || view[kHandle] === undefined) return null;
     return nativeGetObject(view, 'superview');
@@ -500,9 +557,10 @@
     }
     Object.preventExtensions(target);
   }
+  // 结构体构造函数的参数。不给（undefined）按 0，和 Web 的 new DOMPoint()
+  // 一致；给了就按数转，转不出有限数就抛——以前是静默变成 0
   function num(v) {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : 0;
+    return v === undefined ? 0 : toNumber(v, 'a struct field');
   }
 
   const CGPoint = define(globalThis, 'CGPoint', class CGPoint {
@@ -754,7 +812,7 @@
       }
       if (has(o, 'cornerRadius')) {
         return nativeClassCall('UIBezierPath', 'bezierPathWithRoundedRect:cornerRadius:',
-                               [r, o.cornerRadius]);
+                               [r, toNumber(o.cornerRadius, 'cornerRadius')]);
       }
       throw new TypeError('bezierPathWithRoundedRect needs { cornerRadius } ' +
                           'or { byRoundingCorners, cornerRadii }');
@@ -811,7 +869,8 @@
       }
       nativeCall(this, 'addArcWithCenter:radius:startAngle:endAngle:clockwise:', [
         structArg(center, POINT_FIELDS, 'addArcWithCenter'),
-        o.radius, o.startAngle, o.endAngle, o.clockwise,
+        toNumber(o.radius, 'radius'), toNumber(o.startAngle, 'startAngle'),
+        toNumber(o.endAngle, 'endAngle'), toBoolean(o.clockwise),
       ]);
     }
     // 连回这段子路径的起点。填充时开口路径会被当成闭合的，但描边看得出区别
@@ -857,7 +916,7 @@
     }
     set usesEvenOddFillRule(value) {
       requireNative(this, 'usesEvenOddFillRule');
-      nativeSet(this, 'usesEvenOddFillRule', value);
+      nativeSet(this, 'usesEvenOddFillRule', toBoolean(value));
     }
   });
 
@@ -901,7 +960,7 @@
     }
     set zPosition(value) {
       requireNative(this, 'zPosition');
-      nativeSet(this, 'zPosition', value);
+      nativeSet(this, 'zPosition', toNumber(value, 'zPosition'));
     }
 
     // ---- 层级 ----
@@ -920,7 +979,7 @@
       const o = options || {};
       const from = superlayerOf(layer);
       if (has(o, 'atIndex')) {
-        nativeCall(this, 'insertSublayer:atIndex:', [layer, o.atIndex]);
+        nativeCall(this, 'insertSublayer:atIndex:', [layer, toInteger(o.atIndex, 'atIndex')]);
       } else if (has(o, 'above')) {
         nativeCall(this, 'insertSublayer:above:', [layer, o.above]);
       } else if (has(o, 'below')) {
@@ -948,7 +1007,7 @@
     addAnimation(animation, options) {
       const o = options || {};
       nativeCall(this, 'addAnimation:forKey:',
-                 [animation, has(o, 'forKey') ? o.forKey : null]);
+                 [animation, toTextOrNull(o.forKey)]);
       ownOne(this, 'animations', animation);
     }
     removeAllAnimations() {
@@ -958,12 +1017,12 @@
     // 持有边不在这里拆：读回来的是拷贝，认不出原来是哪个对象。
     // 多留一份引用是无害的（所有权镜像一路的取舍），少留才会出错
     removeAnimationForKey(key) {
-      nativeCall(this, 'removeAnimationForKey:', [key]);
+      nativeCall(this, 'removeAnimationForKey:', [toText(key)]);
     }
     // 没有动画时给 []，不是 null
     animationKeys() { return nativeCall(this, 'animationKeys', []); }
     // 给的是**图层持有的那份拷贝**。头文件原话：改它的任何属性都是未定义行为
-    animationForKey(key) { return nativeCallObject(this, 'animationForKey:', [key]); }
+    animationForKey(key) { return nativeCallObject(this, 'animationForKey:', [toText(key)]); }
 
     // ---- 外观 ----
     get opacity() {
@@ -972,7 +1031,7 @@
     }
     set opacity(value) {
       requireNative(this, 'opacity');
-      nativeSet(this, 'opacity', value);
+      nativeSet(this, 'opacity', toNumber(value, 'opacity'));
     }
     get isHidden() {
       requireNative(this, 'isHidden');
@@ -980,7 +1039,7 @@
     }
     set isHidden(value) {
       requireNative(this, 'isHidden');
-      nativeSet(this, 'isHidden', value);
+      nativeSet(this, 'isHidden', toBoolean(value));
     }
     // 子图层超出自己 bounds 的部分裁不裁掉。配 cornerRadius 用
     get masksToBounds() {
@@ -989,7 +1048,7 @@
     }
     set masksToBounds(value) {
       requireNative(this, 'masksToBounds');
-      nativeSet(this, 'masksToBounds', value);
+      nativeSet(this, 'masksToBounds', toBoolean(value));
     }
     // **默认是 1，不是屏幕的 scale**，画出来会糊。实测 view.layer 在
     // 场景接入时**也是 1**，所以它当不了屏幕 scale 的替代品
@@ -999,7 +1058,7 @@
     }
     set contentsScale(value) {
       requireNative(this, 'contentsScale');
-      nativeSet(this, 'contentsScale', value);
+      nativeSet(this, 'contentsScale', toNumber(value, 'contentsScale'));
     }
     get backgroundColor() { return colorString(nativeGetOwned(this, 'backgroundColor')); }
     set backgroundColor(value) { {
@@ -1015,7 +1074,7 @@
     }
     set cornerRadius(value) {
       requireNative(this, 'cornerRadius');
-      nativeSet(this, 'cornerRadius', value);
+      nativeSet(this, 'cornerRadius', toNumber(value, 'cornerRadius'));
     }
     // 'continuous' 是 Apple 自己在用的那种圆角（超椭圆），过渡比正圆弧顺。
     // 图标、卡片都是它；默认是 'circular'
@@ -1045,7 +1104,7 @@
     }
     set borderWidth(value) {
       requireNative(this, 'borderWidth');
-      nativeSet(this, 'borderWidth', value);
+      nativeSet(this, 'borderWidth', toNumber(value, 'borderWidth'));
     }
     // ObjC 这里是 CGColorRef，JS 侧统一用 UIColor。**读出来是新建的对象**，
     // 而且动态色在写入的那一刻就被定死了，详见 ca-layer.md
@@ -1070,7 +1129,7 @@
     }
     set shadowOpacity(value) {
       requireNative(this, 'shadowOpacity');
-      nativeSet(this, 'shadowOpacity', value);
+      nativeSet(this, 'shadowOpacity', toNumber(value, 'shadowOpacity'));
     }
     get shadowRadius() {
       requireNative(this, 'shadowRadius');
@@ -1078,7 +1137,7 @@
     }
     set shadowRadius(value) {
       requireNative(this, 'shadowRadius');
-      nativeSet(this, 'shadowRadius', value);
+      nativeSet(this, 'shadowRadius', toNumber(value, 'shadowRadius'));
     }
     get shadowOffset() {
       requireNative(this, 'shadowOffset');
@@ -1129,7 +1188,7 @@
     }
     set locations(value) {
       requireNative(this, 'locations');
-      nativeSet(this, 'locations', value);
+      nativeSet(this, 'locations', toNumbersOrNull(value, 'locations'));
     }
     // 单位坐标，不是点：(0,0) 是左上角，(1,1) 是右下角。默认从 (0.5,0) 到
     // (0.5,1)，也就是从上到下。radial 时 startPoint 是圆心、endPoint 定半径；
@@ -1222,7 +1281,7 @@
     }
     set lineWidth(value) {
       requireNative(this, 'lineWidth');
-      nativeSet(this, 'lineWidth', value);
+      nativeSet(this, 'lineWidth', toNumber(value, 'lineWidth'));
     }
     // 线头：'butt'（默认，齐根切）/ 'round' / 'square'
     get lineCap() {
@@ -1249,7 +1308,7 @@
     }
     set miterLimit(value) {
       requireNative(this, 'miterLimit');
-      nativeSet(this, 'miterLimit', value);
+      nativeSet(this, 'miterLimit', toNumber(value, 'miterLimit'));
     }
     // 只描路径的一段，0…1。配动画能做「线一点点画出来」，
     // 现在没有动画，直接设也能做进度条
@@ -1259,7 +1318,7 @@
     }
     set strokeStart(value) {
       requireNative(this, 'strokeStart');
-      nativeSet(this, 'strokeStart', value);
+      nativeSet(this, 'strokeStart', toNumber(value, 'strokeStart'));
     }
     get strokeEnd() {
       requireNative(this, 'strokeEnd');
@@ -1267,7 +1326,7 @@
     }
     set strokeEnd(value) {
       requireNative(this, 'strokeEnd');
-      nativeSet(this, 'strokeEnd', value);
+      nativeSet(this, 'strokeEnd', toNumber(value, 'strokeEnd'));
     }
     // 虚线：画多长、空多长，按顺序循环。null 是实线（默认）
     get lineDashPattern() {
@@ -1276,7 +1335,7 @@
     }
     set lineDashPattern(value) {
       requireNative(this, 'lineDashPattern');
-      nativeSet(this, 'lineDashPattern', value);
+      nativeSet(this, 'lineDashPattern', toNumbersOrNull(value, 'lineDashPattern'));
     }
     // 虚线从哪里开始。默认 0
     get lineDashPhase() {
@@ -1285,7 +1344,7 @@
     }
     set lineDashPhase(value) {
       requireNative(this, 'lineDashPhase');
-      nativeSet(this, 'lineDashPhase', value);
+      nativeSet(this, 'lineDashPhase', toNumber(value, 'lineDashPhase'));
     }
   });
 
@@ -1339,8 +1398,8 @@
     ping() { return nativeCallAsync(this, 'ping', []); }
     /** 关。已经在关或关完了再调是空操作，和 Web 一致 */
     close(code, reason) {
-      nativeCall(this, 'close', [code === undefined ? null : code,
-                                 reason === undefined ? null : reason]);
+      nativeCall(this, 'close', [code == null ? null : toInteger(code, 'code'),
+                                 toTextOrNull(reason)]);
     }
 
     get url() { requireNative(this, 'url'); return nativeGet(this, 'url'); }
@@ -1355,7 +1414,7 @@
     }
     set maximumMessageSize(value) {
       requireNative(this, 'maximumMessageSize');
-      nativeSet(this, 'maximumMessageSize', value);
+      nativeSet(this, 'maximumMessageSize', toInteger(value, 'maximumMessageSize'));
     }
   });
 
@@ -1372,12 +1431,13 @@
     }
     static functionWithControlPoints(c1x, c1y, c2x, c2y) {
       return nativeClassCall('CAMediaTimingFunction', 'functionWithControlPoints:',
-                             [c1x, c1y, c2x, c2y]);
+                             [toNumber(c1x, 'c1x'), toNumber(c1y, 'c1y'),
+                              toNumber(c2x, 'c2x'), toNumber(c2y, 'c2y')]);
     }
     // ObjC 那边是出参（float[2]），这里改成返回一个点。0 和 3 是端点
     // （永远是 (0,0) 和 (1,1)），1 和 2 才是控制点
     controlPointAtIndex(index) {
-      return toPoint(nativeCall(this, 'controlPointAtIndex:', [index]));
+      return toPoint(nativeCall(this, 'controlPointAtIndex:', [toInteger(index, 'index')]));
     }
   });
 
@@ -1401,15 +1461,15 @@
     // 秒。**0 不是「不动画」**：加到图层上时 0 会被换成当前事务的
     // animationDuration，没有的话是 0.25 秒
     get duration() { requireNative(this, 'duration'); return nativeGet(this, 'duration'); }
-    set duration(value) { requireNative(this, 'duration'); nativeSet(this, 'duration', value); }
+    set duration(value) { requireNative(this, 'duration'); nativeSet(this, 'duration', toNumber(value, 'duration')); }
     // 相对于父级时间轴的开始时刻。默认 0 = 立刻
     get beginTime() { requireNative(this, 'beginTime'); return nativeGet(this, 'beginTime'); }
-    set beginTime(value) { requireNative(this, 'beginTime'); nativeSet(this, 'beginTime', value); }
+    set beginTime(value) { requireNative(this, 'beginTime'); nativeSet(this, 'beginTime', toNumber(value, 'beginTime')); }
     // 时间流速。2 是两倍快，0 是停住。默认 1
     get speed() { requireNative(this, 'speed'); return nativeGet(this, 'speed'); }
-    set speed(value) { requireNative(this, 'speed'); nativeSet(this, 'speed', value); }
+    set speed(value) { requireNative(this, 'speed'); nativeSet(this, 'speed', toNumber(value, 'speed')); }
     get timeOffset() { requireNative(this, 'timeOffset'); return nativeGet(this, 'timeOffset'); }
-    set timeOffset(value) { requireNative(this, 'timeOffset'); nativeSet(this, 'timeOffset', value); }
+    set timeOffset(value) { requireNative(this, 'timeOffset'); nativeSet(this, 'timeOffset', toNumber(value, 'timeOffset')); }
     // 重复几次。可以是小数（1.5 = 跑一遍半）。要无限循环用 Infinity。
     //
     // **JSON 没有 Infinity**（JSON.stringify 给的是 null），所以它在桥上
@@ -1420,7 +1480,7 @@
     }
     set repeatCount(value) {
       requireNative(this, 'repeatCount');
-      nativeSet(this, 'repeatCount', infinityOut(value));
+      nativeSet(this, 'repeatCount', infinityOut(value, 'repeatCount'));
     }
     get repeatDuration() {
       requireNative(this, 'repeatDuration');
@@ -1428,11 +1488,11 @@
     }
     set repeatDuration(value) {
       requireNative(this, 'repeatDuration');
-      nativeSet(this, 'repeatDuration', infinityOut(value));
+      nativeSet(this, 'repeatDuration', infinityOut(value, 'repeatDuration'));
     }
     // 跑完再倒着跑回来。配 repeatCount 做脉动
     get autoreverses() { requireNative(this, 'autoreverses'); return nativeGet(this, 'autoreverses'); }
-    set autoreverses(value) { requireNative(this, 'autoreverses'); nativeSet(this, 'autoreverses', value); }
+    set autoreverses(value) { requireNative(this, 'autoreverses'); nativeSet(this, 'autoreverses', toBoolean(value)); }
     // 动画的活动区间之外，属性显示成什么。默认 'removed'
     get fillMode() { requireNative(this, 'fillMode'); return nativeGet(this, 'fillMode'); }
     set fillMode(value) { requireNative(this, 'fillMode'); nativeSet(this, 'fillMode', value); }
@@ -1448,7 +1508,7 @@
     }
     set removedOnCompletion(value) {
       requireNative(this, 'removedOnCompletion');
-      nativeSet(this, 'removedOnCompletion', value);
+      nativeSet(this, 'removedOnCompletion', toBoolean(value));
     }
   });
 
@@ -1589,7 +1649,7 @@
 
     // 每帧落在 0…1 的哪一处。null 是均匀分布
     get keyTimes() { requireNative(this, 'keyTimes'); return nativeGet(this, 'keyTimes'); }
-    set keyTimes(value) { requireNative(this, 'keyTimes'); nativeSet(this, 'keyTimes', value); }
+    set keyTimes(value) { requireNative(this, 'keyTimes'); nativeSet(this, 'keyTimes', toNumbersOrNull(value, 'keyTimes')); }
     // 每**段**一条曲线，所以个数是 values.length - 1
     get timingFunctions() {
       return ownAll(this, 'timingFunctions', nativeGetObjectArray(this, 'timingFunctions'));
@@ -1626,7 +1686,7 @@
     }
     set tensionValues(value) {
       requireNative(this, 'tensionValues');
-      nativeSet(this, 'tensionValues', value);
+      nativeSet(this, 'tensionValues', toNumbersOrNull(value, 'tensionValues'));
     }
     get continuityValues() {
       requireNative(this, 'continuityValues');
@@ -1634,10 +1694,10 @@
     }
     set continuityValues(value) {
       requireNative(this, 'continuityValues');
-      nativeSet(this, 'continuityValues', value);
+      nativeSet(this, 'continuityValues', toNumbersOrNull(value, 'continuityValues'));
     }
     get biasValues() { requireNative(this, 'biasValues'); return nativeGet(this, 'biasValues'); }
-    set biasValues(value) { requireNative(this, 'biasValues'); nativeSet(this, 'biasValues', value); }
+    set biasValues(value) { requireNative(this, 'biasValues'); nativeSet(this, 'biasValues', toNumbersOrNull(value, 'biasValues')); }
   });
 
   // 弹簧。它是 CABasicAnimation 的子类，所以 fromValue / toValue 照用，
@@ -1657,13 +1717,13 @@
 
     // 挂在弹簧末端的质量，要大于 0。默认 1。越大越沉、晃得越久
     get mass() { requireNative(this, 'mass'); return nativeGet(this, 'mass'); }
-    set mass(value) { requireNative(this, 'mass'); nativeSet(this, 'mass', value); }
+    set mass(value) { requireNative(this, 'mass'); nativeSet(this, 'mass', toNumber(value, 'mass')); }
     // 劲度系数，要大于 0。默认 100。越大越快
     get stiffness() { requireNative(this, 'stiffness'); return nativeGet(this, 'stiffness'); }
-    set stiffness(value) { requireNative(this, 'stiffness'); nativeSet(this, 'stiffness', value); }
+    set stiffness(value) { requireNative(this, 'stiffness'); nativeSet(this, 'stiffness', toNumber(value, 'stiffness')); }
     // 阻尼，要 >= 0。默认 10。越大越不晃，够大就直接停住不回弹
     get damping() { requireNative(this, 'damping'); return nativeGet(this, 'damping'); }
-    set damping(value) { requireNative(this, 'damping'); nativeSet(this, 'damping', value); }
+    set damping(value) { requireNative(this, 'damping'); nativeSet(this, 'damping', toNumber(value, 'damping')); }
     // 初速度。默认 0 = 静止。正值朝着终点冲，负值反着来
     get initialVelocity() {
       requireNative(this, 'initialVelocity');
@@ -1671,7 +1731,7 @@
     }
     set initialVelocity(value) {
       requireNative(this, 'initialVelocity');
-      nativeSet(this, 'initialVelocity', value);
+      nativeSet(this, 'initialVelocity', toNumber(value, 'initialVelocity'));
     }
     // 允不允许真正的过阻尼。默认 false，那时过阻尼被当成临界阻尼
     get allowsOverdamping() {
@@ -1680,7 +1740,7 @@
     }
     set allowsOverdamping(value) {
       requireNative(this, 'allowsOverdamping');
-      nativeSet(this, 'allowsOverdamping', value);
+      nativeSet(this, 'allowsOverdamping', toBoolean(value));
     }
 
     // 下面三个只读，系统按当前四个参数算出来的。
@@ -1719,7 +1779,7 @@
   // JSON 带不动 Infinity，所以过桥时换成一个字符串。负无穷不处理：
   // 这两个属性都是「次数」和「时长」，负的没有意义
   const infinityIn = (value) => (value === 'infinity' ? Infinity : value);
-  const infinityOut = (value) => (value === Infinity ? 'infinity' : value);
+  const infinityOut = (value, what) => (value === Infinity ? 'infinity' : toNumber(value, what));
 
   // 值走哪条通道，由**值的形状**决定（这件事 JS 自己知道）；
   // 值配不配得上 keyPath，由**原生层**判断（只有它知道那张表）。
@@ -1834,7 +1894,7 @@
     impactOccurred() { nativeCall(this, 'impactOccurred', []); }
     // 0 到 1，1 是这种力度的满强度
     impactOccurredWithIntensity(intensity) {
-      nativeCall(this, 'impactOccurredWithIntensity:', [intensity]);
+      nativeCall(this, 'impactOccurredWithIntensity:', [toNumber(intensity, 'intensity')]);
     }
   });
 
@@ -1883,7 +1943,7 @@
     }
 
     get string() { requireNative(this, 'string'); return nativeGet(this, 'string'); }
-    set string(value) { requireNative(this, 'string'); nativeSet(this, 'string', value); }
+    set string(value) { requireNative(this, 'string'); nativeSet(this, 'string', toTextOrNull(value)); }
     get hasStrings() { requireNative(this, 'hasStrings'); return nativeGet(this, 'hasStrings'); }
     get changeCount() {
       requireNative(this, 'changeCount');
@@ -1949,7 +2009,7 @@
     }
     // 暂停不等于摘掉：还挂在 run loop 上，设回 false 就继续
     get isPaused() { requireNative(this, 'isPaused'); return nativeGet(this, 'isPaused'); }
-    set isPaused(value) { requireNative(this, 'isPaused'); nativeSet(this, 'isPaused', value); }
+    set isPaused(value) { requireNative(this, 'isPaused'); nativeSet(this, 'isPaused', toBoolean(value)); }
     // 想要多少帧率。默认三个 0 = 跟硬件走
     get preferredFrameRateRange() {
       requireNative(this, 'preferredFrameRateRange');
@@ -1979,13 +2039,13 @@
       return nativeClassCallValue('CATransaction', 'disableActions', []);
     }
     static setDisableActions(value) {
-      nativeClassCallValue('CATransaction', 'setDisableActions:', [value]);
+      nativeClassCallValue('CATransaction', 'setDisableActions:', [toBoolean(value)]);
     }
     static animationDuration() {
       return nativeClassCallValue('CATransaction', 'animationDuration', []);
     }
     static setAnimationDuration(value) {
-      nativeClassCallValue('CATransaction', 'setAnimationDuration:', [value]);
+      nativeClassCallValue('CATransaction', 'setAnimationDuration:', [toNumber(value, 'duration')]);
     }
     static animationTimingFunction() {
       return nativeClassCall('CATransaction', 'animationTimingFunction', []);
@@ -2017,8 +2077,14 @@
     const o = options || {};
     let selector = first + ':';
     const args = [other];
-    if (has(o, 'multiplier')) { selector += 'multiplier:'; args.push(o.multiplier); }
-    if (has(o, 'constant')) { selector += 'constant:'; args.push(o.constant); }
+    if (has(o, 'multiplier')) {
+      selector += 'multiplier:';
+      args.push(toNumber(o.multiplier, 'multiplier'));
+    }
+    if (has(o, 'constant')) {
+      selector += 'constant:';
+      args.push(toNumber(o.constant, 'constant'));
+    }
     return constraintOf(nativeCallObject(anchor, selector, args), anchor, other);
   }
   // 按状态设置时的 { forState: [...] }。缺了就抛，不默默当成 normal——
@@ -2044,7 +2110,7 @@
   // multiplier 省略时按 1 ——它是乘法的单位元，省略的含义没有歧义。
   function systemSpacingConstraint(anchor, first, other, options) {
     const o = options || {};
-    const multiplier = has(o, 'multiplier') ? o.multiplier : 1;
+    const multiplier = has(o, 'multiplier') ? toNumber(o.multiplier, 'multiplier') : 1;
     return constraintOf(
       nativeCallObject(anchor, first + ':multiplier:', [other, multiplier]),
       anchor, other);
@@ -2119,13 +2185,13 @@
     constructor() { nativeOnly(new.target); }
 
     constraintEqualToConstant(value) {
-      return nativeCallObject(this, 'constraintEqualToConstant:', [value]);
+      return nativeCallObject(this, 'constraintEqualToConstant:', [toNumber(value, 'constant')]);
     }
     constraintGreaterThanOrEqualToConstant(value) {
-      return nativeCallObject(this, 'constraintGreaterThanOrEqualToConstant:', [value]);
+      return nativeCallObject(this, 'constraintGreaterThanOrEqualToConstant:', [toNumber(value, 'constant')]);
     }
     constraintLessThanOrEqualToConstant(value) {
-      return nativeCallObject(this, 'constraintLessThanOrEqualToConstant:', [value]);
+      return nativeCallObject(this, 'constraintLessThanOrEqualToConstant:', [toNumber(value, 'constant')]);
     }
   });
 
@@ -2135,20 +2201,20 @@
     // 唯一的开关。激活时约束被装到两端的最近公共祖先上——所以**没有公共
     // 祖先就激活不了**，原生那边是抛异常，这里转成 TypeError。
     get isActive() { requireNative(this, 'isActive'); return nativeGet(this, 'isActive'); }
-    set isActive(value) { requireNative(this, 'isActive'); nativeSet(this, 'isActive', value); }
+    set isActive(value) { requireNative(this, 'isActive'); nativeSet(this, 'isActive', toBoolean(value)); }
 
     // 约束里唯一可写的数值，做动画改的就是它
     get constant() { requireNative(this, 'constant'); return nativeGet(this, 'constant'); }
-    set constant(value) { requireNative(this, 'constant'); nativeSet(this, 'constant', value); }
+    set constant(value) { requireNative(this, 'constant'); nativeSet(this, 'constant', toNumber(value, 'constant')); }
 
     // **写接受字符串或数字，读永远返回数字。** UILayoutPriority 是 float，
     // 具名值只有七个，749 这种值没有名字——读出来硬编成字符串只能编一个。
     get priority() { requireNative(this, 'priority'); return nativeGet(this, 'priority'); }
-    set priority(value) { requireNative(this, 'priority'); nativeSet(this, 'priority', value); }
+    set priority(value) { requireNative(this, 'priority'); nativeSet(this, 'priority', toNumberOrName(value, 'priority')); }
 
     // 调试用。UIKit 报约束冲突时会把它打出来
     get identifier() { requireNative(this, 'identifier'); return nativeGet(this, 'identifier'); }
-    set identifier(value) { requireNative(this, 'identifier'); nativeSet(this, 'identifier', value); }
+    set identifier(value) { requireNative(this, 'identifier'); nativeSet(this, 'identifier', toTextOrNull(value)); }
 
     // 建好就定死的部分
     get multiplier() { requireNative(this, 'multiplier'); return nativeGet(this, 'multiplier'); }
@@ -2192,7 +2258,7 @@
       return toRect(nativeGet(this, 'layoutFrame'));
     }
     get identifier() { requireNative(this, 'identifier'); return nativeGet(this, 'identifier'); }
-    set identifier(value) { requireNative(this, 'identifier'); nativeSet(this, 'identifier', value); }
+    set identifier(value) { requireNative(this, 'identifier'); nativeSet(this, 'identifier', toText(value)); }
 
     get leadingAnchor() { return anchorOf(this, 'leadingAnchor'); }
     get trailingAnchor() { return anchorOf(this, 'trailingAnchor'); }
@@ -2224,12 +2290,12 @@
     /** iPad 的浮动/拆分键盘也跟。默认 false */
     get followsUndockedKeyboard() { return nativeGet(this, 'followsUndockedKeyboard'); }
     set followsUndockedKeyboard(value) {
-      nativeSet(this, 'followsUndockedKeyboard', value);
+      nativeSet(this, 'followsUndockedKeyboard', toBoolean(value));
     }
     /** 下滑收键盘时提前多少开始。默认 0 */
     get keyboardDismissPadding() { return nativeGet(this, 'keyboardDismissPadding'); }
     set keyboardDismissPadding(value) {
-      nativeSet(this, 'keyboardDismissPadding', value);
+      nativeSet(this, 'keyboardDismissPadding', toNumber(value, 'keyboardDismissPadding'));
     }
   });
 
@@ -2295,7 +2361,7 @@
     }
     set insetsLayoutMarginsFromSafeArea(value) {
       requireNative(this, 'insetsLayoutMarginsFromSafeArea');
-      nativeSet(this, 'insetsLayoutMarginsFromSafeArea', value);
+      nativeSet(this, 'insetsLayoutMarginsFromSafeArea', toBoolean(value));
     }
     get preservesSuperviewLayoutMargins() {
       requireNative(this, 'preservesSuperviewLayoutMargins');
@@ -2303,7 +2369,7 @@
     }
     set preservesSuperviewLayoutMargins(value) {
       requireNative(this, 'preservesSuperviewLayoutMargins');
-      nativeSet(this, 'preservesSuperviewLayoutMargins', value);
+      nativeSet(this, 'preservesSuperviewLayoutMargins', toBoolean(value));
     }
     sizeThatFits(size) {
       return toSize(nativeCall(this, 'sizeThatFits:',
@@ -2352,7 +2418,7 @@
       const o = options || {};
       const from = superviewOf(view);
       if (has(o, 'atIndex')) {
-        nativeCall(this, 'insertSubview:atIndex:', [view, o.atIndex]);
+        nativeCall(this, 'insertSubview:atIndex:', [view, toInteger(o.atIndex, 'atIndex')]);
       } else if (has(o, 'belowSubview')) {
         nativeCall(this, 'insertSubview:belowSubview:', [view, o.belowSubview]);
       } else if (has(o, 'aboveSubview')) {
@@ -2391,7 +2457,7 @@
     isDescendantOfView(view) {
       return nativeCall(this, 'isDescendantOfView:', [view]);
     }
-    viewWithTag(tag) { return nativeCallObject(this, 'viewWithTag:', [tag]); }
+    viewWithTag(tag) { return nativeCallObject(this, 'viewWithTag:', [toInteger(tag, 'tag')]); }
     setNeedsLayout() { nativeCall(this, 'setNeedsLayout', []); }
     layoutIfNeeded() { nativeCall(this, 'layoutIfNeeded', []); }
     setNeedsDisplay() { nativeCall(this, 'setNeedsDisplay', []); }
@@ -2420,7 +2486,7 @@
     }
     set translatesAutoresizingMaskIntoConstraints(value) {
       requireNative(this, 'translatesAutoresizingMaskIntoConstraints');
-      nativeSet(this, 'translatesAutoresizingMaskIntoConstraints', value);
+      nativeSet(this, 'translatesAutoresizingMaskIntoConstraints', toBoolean(value));
     }
 
     get leadingAnchor() { return anchorOf(this, 'leadingAnchor'); }
@@ -2493,7 +2559,8 @@
       if (!(has(o, 'forAxis'))) {
         throw new TypeError('setContentHuggingPriority needs { forAxis }');
       }
-      nativeCall(this, 'setContentHuggingPriority:forAxis:', [priority, o.forAxis]);
+      nativeCall(this, 'setContentHuggingPriority:forAxis:',
+                 [toNumberOrName(priority, 'priority'), o.forAxis]);
     }
     contentCompressionResistancePriorityForAxis(axis) {
       return nativeCall(this, 'contentCompressionResistancePriorityForAxis:', [axis]);
@@ -2504,7 +2571,7 @@
         throw new TypeError('setContentCompressionResistancePriority needs { forAxis }');
       }
       nativeCall(this, 'setContentCompressionResistancePriority:forAxis:',
-                 [priority, o.forAxis]);
+                 [toNumberOrName(priority, 'priority'), o.forAxis]);
     }
 
     // 按约束算出来该多大。sizeThatFits 问的是 view 自己的意见，
@@ -2552,29 +2619,29 @@
     };
     }
     get alpha() { requireNative(this, 'alpha'); return nativeGet(this, 'alpha'); }
-    set alpha(value) { requireNative(this, 'alpha'); nativeSet(this, 'alpha', value); }
+    set alpha(value) { requireNative(this, 'alpha'); nativeSet(this, 'alpha', toNumber(value, 'alpha')); }
     get isHidden() { requireNative(this, 'isHidden'); return nativeGet(this, 'isHidden'); }
-    set isHidden(value) { requireNative(this, 'isHidden'); nativeSet(this, 'isHidden', value); }
+    set isHidden(value) { requireNative(this, 'isHidden'); nativeSet(this, 'isHidden', toBoolean(value)); }
     get clipsToBounds() {
       requireNative(this, 'clipsToBounds');
       return nativeGet(this, 'clipsToBounds');
     }
     set clipsToBounds(value) {
       requireNative(this, 'clipsToBounds');
-      nativeSet(this, 'clipsToBounds', value);
+      nativeSet(this, 'clipsToBounds', toBoolean(value));
     }
     get isOpaque() { requireNative(this, 'isOpaque'); return nativeGet(this, 'isOpaque'); }
-    set isOpaque(value) { requireNative(this, 'isOpaque'); nativeSet(this, 'isOpaque', value); }
+    set isOpaque(value) { requireNative(this, 'isOpaque'); nativeSet(this, 'isOpaque', toBoolean(value)); }
     get isUserInteractionEnabled() {
       requireNative(this, 'isUserInteractionEnabled');
       return nativeGet(this, 'isUserInteractionEnabled');
     }
     set isUserInteractionEnabled(value) {
       requireNative(this, 'isUserInteractionEnabled');
-      nativeSet(this, 'isUserInteractionEnabled', value);
+      nativeSet(this, 'isUserInteractionEnabled', toBoolean(value));
     }
     get tag() { requireNative(this, 'tag'); return nativeGet(this, 'tag'); }
-    set tag(value) { requireNative(this, 'tag'); nativeSet(this, 'tag', value); }
+    set tag(value) { requireNative(this, 'tag'); nativeSet(this, 'tag', toInteger(value, 'tag')); }
     get contentMode() {
       requireNative(this, 'contentMode');
       return nativeGet(this, 'contentMode');
@@ -2597,30 +2664,32 @@
     static systemFontOfSize(size, options) {
       const o = options || {};
       if (has(o, 'weight')) {
-        return nativeClassCall('UIFont', 'systemFontOfSize:weight:', [size, o.weight]);
+        return nativeClassCall('UIFont', 'systemFontOfSize:weight:',
+                               [toNumber(size, 'size'), o.weight]);
       }
-      return nativeClassCall('UIFont', 'systemFontOfSize:', [size]);
+      return nativeClassCall('UIFont', 'systemFontOfSize:', [toNumber(size, 'size')]);
     }
     static boldSystemFontOfSize(size) {
-      return nativeClassCall('UIFont', 'boldSystemFontOfSize:', [size]);
+      return nativeClassCall('UIFont', 'boldSystemFontOfSize:', [toNumber(size, 'size')]);
     }
     static italicSystemFontOfSize(size) {
-      return nativeClassCall('UIFont', 'italicSystemFontOfSize:', [size]);
+      return nativeClassCall('UIFont', 'italicSystemFontOfSize:', [toNumber(size, 'size')]);
     }
     static monospacedSystemFontOfSize(size, options) {
       const o = options || {};
       return nativeClassCall('UIFont', 'monospacedSystemFontOfSize:weight:',
-                             [size, has(o, 'weight') ? o.weight : 'regular']);
+                             [toNumber(size, 'size'), has(o, 'weight') ? o.weight : 'regular']);
     }
     static monospacedDigitSystemFontOfSize(size, options) {
       const o = options || {};
       return nativeClassCall('UIFont', 'monospacedDigitSystemFontOfSize:weight:',
-                             [size, has(o, 'weight') ? o.weight : 'regular']);
+                             [toNumber(size, 'size'), has(o, 'weight') ? o.weight : 'regular']);
     }
     static fontWithName(name, options) {
       const o = options || {};
       if (!(has(o, 'size'))) throw new TypeError('fontWithName needs { size }');
-      return nativeClassCall('UIFont', 'fontWithName:size:', [name, o.size]);
+      return nativeClassCall('UIFont', 'fontWithName:size:',
+                             [toText(name), toNumber(o.size, 'size')]);
     }
     // 动态字体：跟随系统的「文字大小」设置
     static preferredFontForTextStyle(style) {
@@ -2648,21 +2717,22 @@
     // Asset Catalog 和 bundle 里的普通文件都能命中，认子目录路径
     // （'assets/logo' 可以，但不会递归搜）。@2x/@3x 由系统按屏幕自动选。
     static imageNamed(name) {
-      return nativeClassCall('UIImage', 'imageNamed:', [name]);
+      return nativeClassCall('UIImage', 'imageNamed:', [toText(name)]);
     }
     // SF Symbols，上千个图标，不占包体积
     static systemImageNamed(name) {
-      return nativeClassCall('UIImage', 'systemImageNamed:', [name]);
+      return nativeClassCall('UIImage', 'systemImageNamed:', [toText(name)]);
     }
     // 完整路径，只认真实文件，不碰 Asset Catalog
     static imageWithContentsOfFile(path) {
-      return nativeClassCall('UIImage', 'imageWithContentsOfFile:', [path]);
+      return nativeClassCall('UIImage', 'imageWithContentsOfFile:', [toText(path)]);
     }
     // 吃 Blob：fetch 下来的字节直接变成图，全程不进 V8 堆
     static imageWithData(blob, options) {
       const o = options || {};
       if (has(o, 'scale')) {
-        return nativeClassCall('UIImage', 'imageWithData:scale:', [blob, o.scale]);
+        return nativeClassCall('UIImage', 'imageWithData:scale:',
+                               [blob, toNumber(o.scale, 'scale')]);
       }
       return nativeClassCall('UIImage', 'imageWithData:', [blob]);
     }
@@ -2724,10 +2794,10 @@
     // ---- 状态 ----
     // 关掉之后不接收触摸，子类还会画成灰的
     get isEnabled() { requireNative(this, 'isEnabled'); return nativeGet(this, 'isEnabled'); }
-    set isEnabled(value) { requireNative(this, 'isEnabled'); nativeSet(this, 'isEnabled', value); }
+    set isEnabled(value) { requireNative(this, 'isEnabled'); nativeSet(this, 'isEnabled', toBoolean(value)); }
     // 由 App 自己用，UIKit 不会自动改
     get isSelected() { requireNative(this, 'isSelected'); return nativeGet(this, 'isSelected'); }
-    set isSelected(value) { requireNative(this, 'isSelected'); nativeSet(this, 'isSelected', value); }
+    set isSelected(value) { requireNative(this, 'isSelected'); nativeSet(this, 'isSelected', toBoolean(value)); }
     // 手指按下时 UIKit 自动置上，抬起时清掉
     get isHighlighted() {
       requireNative(this, 'isHighlighted');
@@ -2735,7 +2805,7 @@
     }
     set isHighlighted(value) {
       requireNative(this, 'isHighlighted');
-      nativeSet(this, 'isHighlighted', value);
+      nativeSet(this, 'isHighlighted', toBoolean(value));
     }
     // 只读，由上面三个合成。位掩码，所以是字符串数组；都没置上时是 ['normal']
     get state() { requireNative(this, 'state'); return nativeGet(this, 'state'); }
@@ -2805,7 +2875,8 @@
     // forState 是状态数组，和 control.state 读出来的形状一致。
     // 一般只设 ['normal']，别的状态没设就回退到它
     setTitle(title, options) {
-      nativeCall(this, 'setTitle:forState:', [title, stateOption(options, 'setTitle')]);
+      nativeCall(this, 'setTitle:forState:',
+                 [toTextOrNull(title), stateOption(options, 'setTitle')]);
     }
     setTitleColor(color, options) {
       const state = stateOption(options, 'setTitleColor');
@@ -2861,7 +2932,7 @@
       constructNative(this, new.target, 'UILabel', []);
     }
     get text() { requireNative(this, 'text'); return nativeGet(this, 'text'); }
-    set text(value) { requireNative(this, 'text'); nativeSet(this, 'text', value); }
+    set text(value) { requireNative(this, 'text'); nativeSet(this, 'text', toTextOrNull(value)); }
     get font() { requireNative(this, 'font'); return nativeGetOwned(this, 'font'); }
     set font(value) { requireNative(this, 'font'); nativeSetOwned(this, 'font', value); }
     get textColor() {
@@ -2898,7 +2969,7 @@
     }
     set numberOfLines(value) {
       requireNative(this, 'numberOfLines');
-      nativeSet(this, 'numberOfLines', value);
+      nativeSet(this, 'numberOfLines', toInteger(value, 'numberOfLines'));
     }
     get adjustsFontSizeToFitWidth() {
       requireNative(this, 'adjustsFontSizeToFitWidth');
@@ -2906,7 +2977,7 @@
     }
     set adjustsFontSizeToFitWidth(value) {
       requireNative(this, 'adjustsFontSizeToFitWidth');
-      nativeSet(this, 'adjustsFontSizeToFitWidth', value);
+      nativeSet(this, 'adjustsFontSizeToFitWidth', toBoolean(value));
     }
     get minimumScaleFactor() {
       requireNative(this, 'minimumScaleFactor');
@@ -2914,7 +2985,7 @@
     }
     set minimumScaleFactor(value) {
       requireNative(this, 'minimumScaleFactor');
-      nativeSet(this, 'minimumScaleFactor', value);
+      nativeSet(this, 'minimumScaleFactor', toNumber(value, 'minimumScaleFactor'));
     }
     get baselineAdjustment() {
       requireNative(this, 'baselineAdjustment');
@@ -2930,7 +3001,7 @@
     }
     set isHighlighted(value) {
       requireNative(this, 'isHighlighted');
-      nativeSet(this, 'isHighlighted', value);
+      nativeSet(this, 'isHighlighted', toBoolean(value));
     }
     get highlightedTextColor() {
       requireNative(this, 'highlightedTextColor');
@@ -2947,7 +3018,7 @@
     get isEnabled() { requireNative(this, 'isEnabled'); return nativeGet(this, 'isEnabled'); }
     set isEnabled(value) {
       requireNative(this, 'isEnabled');
-      nativeSet(this, 'isEnabled', value);
+      nativeSet(this, 'isEnabled', toBoolean(value));
     }
     get shadowColor() {
       requireNative(this, 'shadowColor');
@@ -2976,7 +3047,7 @@
     }
     set preferredMaxLayoutWidth(value) {
       requireNative(this, 'preferredMaxLayoutWidth');
-      nativeSet(this, 'preferredMaxLayoutWidth', value);
+      nativeSet(this, 'preferredMaxLayoutWidth', toNumber(value, 'preferredMaxLayoutWidth'));
     }
   });
 
@@ -2995,11 +3066,11 @@
     }
 
     get text() { requireNative(this, 'text'); return nativeGet(this, 'text'); }
-    set text(value) { requireNative(this, 'text'); nativeSet(this, 'text', value); }
+    set text(value) { requireNative(this, 'text'); nativeSet(this, 'text', toText(value)); }
     get placeholder() { requireNative(this, 'placeholder'); return nativeGet(this, 'placeholder'); }
     set placeholder(value) {
       requireNative(this, 'placeholder');
-      nativeSet(this, 'placeholder', value);
+      nativeSet(this, 'placeholder', toTextOrNull(value));
     }
     /** 正在编辑（已经是 first responder 并且键盘起来了） */
     get isEditing() { requireNative(this, 'isEditing'); return nativeGet(this, 'isEditing'); }
@@ -3031,7 +3102,7 @@
     }
     set enablesReturnKeyAutomatically(value) {
       requireNative(this, 'enablesReturnKeyAutomatically');
-      nativeSet(this, 'enablesReturnKeyAutomatically', value);
+      nativeSet(this, 'enablesReturnKeyAutomatically', toBoolean(value));
     }
 
     // ---- 输入行为 ----
@@ -3041,7 +3112,7 @@
     }
     set isSecureTextEntry(value) {
       requireNative(this, 'isSecureTextEntry');
-      nativeSet(this, 'isSecureTextEntry', value);
+      nativeSet(this, 'isSecureTextEntry', toBoolean(value));
     }
     get autocapitalizationType() {
       requireNative(this, 'autocapitalizationType');
@@ -3085,7 +3156,7 @@
     }
     set clearsOnBeginEditing(value) {
       requireNative(this, 'clearsOnBeginEditing');
-      nativeSet(this, 'clearsOnBeginEditing', value);
+      nativeSet(this, 'clearsOnBeginEditing', toBoolean(value));
     }
 
     // ---- 外观 ----
@@ -3117,7 +3188,7 @@
     }
     set adjustsFontSizeToFitWidth(value) {
       requireNative(this, 'adjustsFontSizeToFitWidth');
-      nativeSet(this, 'adjustsFontSizeToFitWidth', value);
+      nativeSet(this, 'adjustsFontSizeToFitWidth', toBoolean(value));
     }
     get minimumFontSize() {
       requireNative(this, 'minimumFontSize');
@@ -3125,7 +3196,7 @@
     }
     set minimumFontSize(value) {
       requireNative(this, 'minimumFontSize');
-      nativeSet(this, 'minimumFontSize', value);
+      nativeSet(this, 'minimumFontSize', toNumber(value, 'minimumFontSize'));
     }
     get font() { requireNative(this, 'font'); return nativeGetOwned(this, 'font'); }
     set font(value) { requireNative(this, 'font'); nativeSetOwned(this, 'font', value); }
@@ -3171,7 +3242,7 @@
     }
     set isHighlighted(value) {
       requireNative(this, 'isHighlighted');
-      nativeSet(this, 'isHighlighted', value);
+      nativeSet(this, 'isHighlighted', toBoolean(value));
     }
     // 模板图（renderingMode 为 alwaysTemplate，SF Symbols 默认如此）按这个颜色上色
     get tintColor() {
@@ -3279,7 +3350,7 @@
     }
     set isScrollEnabled(value) {
       requireNative(this, 'isScrollEnabled');
-      nativeSet(this, 'isScrollEnabled', value);
+      nativeSet(this, 'isScrollEnabled', toBoolean(value));
     }
     get isDirectionalLockEnabled() {
       requireNative(this, 'isDirectionalLockEnabled');
@@ -3287,17 +3358,17 @@
     }
     set isDirectionalLockEnabled(value) {
       requireNative(this, 'isDirectionalLockEnabled');
-      nativeSet(this, 'isDirectionalLockEnabled', value);
+      nativeSet(this, 'isDirectionalLockEnabled', toBoolean(value));
     }
     get bounces() { requireNative(this, 'bounces'); return nativeGet(this, 'bounces'); }
-    set bounces(value) { requireNative(this, 'bounces'); nativeSet(this, 'bounces', value); }
+    set bounces(value) { requireNative(this, 'bounces'); nativeSet(this, 'bounces', toBoolean(value)); }
     get alwaysBounceVertical() {
       requireNative(this, 'alwaysBounceVertical');
       return nativeGet(this, 'alwaysBounceVertical');
     }
     set alwaysBounceVertical(value) {
       requireNative(this, 'alwaysBounceVertical');
-      nativeSet(this, 'alwaysBounceVertical', value);
+      nativeSet(this, 'alwaysBounceVertical', toBoolean(value));
     }
     get alwaysBounceHorizontal() {
       requireNative(this, 'alwaysBounceHorizontal');
@@ -3305,7 +3376,7 @@
     }
     set alwaysBounceHorizontal(value) {
       requireNative(this, 'alwaysBounceHorizontal');
-      nativeSet(this, 'alwaysBounceHorizontal', value);
+      nativeSet(this, 'alwaysBounceHorizontal', toBoolean(value));
     }
     // 翻页：停在 bounds 宽度的整数倍上。Swiper 就靠这个
     get isPagingEnabled() {
@@ -3314,7 +3385,7 @@
     }
     set isPagingEnabled(value) {
       requireNative(this, 'isPagingEnabled');
-      nativeSet(this, 'isPagingEnabled', value);
+      nativeSet(this, 'isPagingEnabled', toBoolean(value));
     }
     // 点状态栏回到顶部。同一时刻只能有一个 scroll view 开着它
     get scrollsToTop() {
@@ -3323,7 +3394,7 @@
     }
     set scrollsToTop(value) {
       requireNative(this, 'scrollsToTop');
-      nativeSet(this, 'scrollsToTop', value);
+      nativeSet(this, 'scrollsToTop', toBoolean(value));
     }
     get delaysContentTouches() {
       requireNative(this, 'delaysContentTouches');
@@ -3331,7 +3402,7 @@
     }
     set delaysContentTouches(value) {
       requireNative(this, 'delaysContentTouches');
-      nativeSet(this, 'delaysContentTouches', value);
+      nativeSet(this, 'delaysContentTouches', toBoolean(value));
     }
     get canCancelContentTouches() {
       requireNative(this, 'canCancelContentTouches');
@@ -3339,7 +3410,7 @@
     }
     set canCancelContentTouches(value) {
       requireNative(this, 'canCancelContentTouches');
-      nativeSet(this, 'canCancelContentTouches', value);
+      nativeSet(this, 'canCancelContentTouches', toBoolean(value));
     }
 
     // ---- 指示条 ----
@@ -3349,7 +3420,7 @@
     }
     set showsVerticalScrollIndicator(value) {
       requireNative(this, 'showsVerticalScrollIndicator');
-      nativeSet(this, 'showsVerticalScrollIndicator', value);
+      nativeSet(this, 'showsVerticalScrollIndicator', toBoolean(value));
     }
     get showsHorizontalScrollIndicator() {
       requireNative(this, 'showsHorizontalScrollIndicator');
@@ -3357,7 +3428,7 @@
     }
     set showsHorizontalScrollIndicator(value) {
       requireNative(this, 'showsHorizontalScrollIndicator');
-      nativeSet(this, 'showsHorizontalScrollIndicator', value);
+      nativeSet(this, 'showsHorizontalScrollIndicator', toBoolean(value));
     }
     get indicatorStyle() {
       requireNative(this, 'indicatorStyle');
@@ -3391,7 +3462,7 @@
     }
     set automaticallyAdjustsScrollIndicatorInsets(value) {
       requireNative(this, 'automaticallyAdjustsScrollIndicatorInsets');
-      nativeSet(this, 'automaticallyAdjustsScrollIndicatorInsets', value);
+      nativeSet(this, 'automaticallyAdjustsScrollIndicatorInsets', toBoolean(value));
     }
     flashScrollIndicators() { nativeCall(this, 'flashScrollIndicators', []); }
 
@@ -3403,7 +3474,7 @@
     }
     set decelerationRate(value) {
       requireNative(this, 'decelerationRate');
-      nativeSet(this, 'decelerationRate', value);
+      nativeSet(this, 'decelerationRate', toNumberOrName(value, 'decelerationRate'));
     }
 
     // ---- 当前状态，只读 ----
@@ -3460,14 +3531,14 @@
     }
     // 数字，或 'system' 要系统标准间距
     get spacing() { requireNative(this, 'spacing'); return nativeGet(this, 'spacing'); }
-    set spacing(value) { requireNative(this, 'spacing'); nativeSet(this, 'spacing', value); }
+    set spacing(value) { requireNative(this, 'spacing'); nativeSet(this, 'spacing', toNumberOrName(value, 'spacing')); }
     get isBaselineRelativeArrangement() {
       requireNative(this, 'isBaselineRelativeArrangement');
       return nativeGet(this, 'isBaselineRelativeArrangement');
     }
     set isBaselineRelativeArrangement(value) {
       requireNative(this, 'isBaselineRelativeArrangement');
-      nativeSet(this, 'isBaselineRelativeArrangement', value);
+      nativeSet(this, 'isBaselineRelativeArrangement', toBoolean(value));
     }
     get isLayoutMarginsRelativeArrangement() {
       requireNative(this, 'isLayoutMarginsRelativeArrangement');
@@ -3475,7 +3546,7 @@
     }
     set isLayoutMarginsRelativeArrangement(value) {
       requireNative(this, 'isLayoutMarginsRelativeArrangement');
-      nativeSet(this, 'isLayoutMarginsRelativeArrangement', value);
+      nativeSet(this, 'isLayoutMarginsRelativeArrangement', toBoolean(value));
     }
 
     // ---- 排列里的子视图 ----
@@ -3502,7 +3573,7 @@
         throw new TypeError('insertArrangedSubview needs { atIndex }');
       }
       const from = superviewOf(view);
-      nativeCall(this, 'insertArrangedSubview:atIndex:', [view, o.atIndex]);
+      nativeCall(this, 'insertArrangedSubview:atIndex:', [view, toInteger(o.atIndex, 'atIndex')]);
       disown(from, 'subviews', view);
       ownOne(this, 'subviews', view);
     }
@@ -3515,7 +3586,8 @@
       if (!(has(o, 'afterView'))) {
         throw new TypeError('setCustomSpacing needs { afterView }');
       }
-      nativeCall(this, 'setCustomSpacing:afterView:', [spacing, o.afterView]);
+      nativeCall(this, 'setCustomSpacing:afterView:',
+                 [toNumberOrName(spacing, 'spacing'), o.afterView]);
     }
     customSpacingAfterView(view) {
       return nativeCall(this, 'customSpacingAfterView:', [view]);
@@ -3566,7 +3638,7 @@
       return nativeGetObject(this, 'view');
     }
     get isEnabled() { requireNative(this, 'isEnabled'); return nativeGet(this, 'isEnabled'); }
-    set isEnabled(value) { requireNative(this, 'isEnabled'); nativeSet(this, 'isEnabled', value); }
+    set isEnabled(value) { requireNative(this, 'isEnabled'); nativeSet(this, 'isEnabled', toBoolean(value)); }
     // 认出手势之后，要不要给视图发 touchesCancelled。默认 true
     get cancelsTouchesInView() {
       requireNative(this, 'cancelsTouchesInView');
@@ -3574,7 +3646,7 @@
     }
     set cancelsTouchesInView(value) {
       requireNative(this, 'cancelsTouchesInView');
-      nativeSet(this, 'cancelsTouchesInView', value);
+      nativeSet(this, 'cancelsTouchesInView', toBoolean(value));
     }
     get delaysTouchesBegan() {
       requireNative(this, 'delaysTouchesBegan');
@@ -3582,7 +3654,7 @@
     }
     set delaysTouchesBegan(value) {
       requireNative(this, 'delaysTouchesBegan');
-      nativeSet(this, 'delaysTouchesBegan', value);
+      nativeSet(this, 'delaysTouchesBegan', toBoolean(value));
     }
     get delaysTouchesEnded() {
       requireNative(this, 'delaysTouchesEnded');
@@ -3590,7 +3662,7 @@
     }
     set delaysTouchesEnded(value) {
       requireNative(this, 'delaysTouchesEnded');
-      nativeSet(this, 'delaysTouchesEnded', value);
+      nativeSet(this, 'delaysTouchesEnded', toBoolean(value));
     }
     get numberOfTouches() {
       requireNative(this, 'numberOfTouches');
@@ -3611,7 +3683,7 @@
     }
     set numberOfTapsRequired(value) {
       requireNative(this, 'numberOfTapsRequired');
-      nativeSet(this, 'numberOfTapsRequired', value);
+      nativeSet(this, 'numberOfTapsRequired', toInteger(value, 'numberOfTapsRequired'));
     }
     // 要几根手指。默认 1
     get numberOfTouchesRequired() {
@@ -3620,7 +3692,7 @@
     }
     set numberOfTouchesRequired(value) {
       requireNative(this, 'numberOfTouchesRequired');
-      nativeSet(this, 'numberOfTouchesRequired', value);
+      nativeSet(this, 'numberOfTouchesRequired', toInteger(value, 'numberOfTouchesRequired'));
     }
   });
 
@@ -3637,7 +3709,7 @@
     }
     set minimumPressDuration(value) {
       requireNative(this, 'minimumPressDuration');
-      nativeSet(this, 'minimumPressDuration', value);
+      nativeSet(this, 'minimumPressDuration', toNumber(value, 'minimumPressDuration'));
     }
     // 认出来之前手指最多能挪多远，点。默认 10。认出来之后不限
     get allowableMovement() {
@@ -3646,7 +3718,7 @@
     }
     set allowableMovement(value) {
       requireNative(this, 'allowableMovement');
-      nativeSet(this, 'allowableMovement', value);
+      nativeSet(this, 'allowableMovement', toNumber(value, 'allowableMovement'));
     }
     // 按住之前要先完整点几下。默认 0
     get numberOfTapsRequired() {
@@ -3655,7 +3727,7 @@
     }
     set numberOfTapsRequired(value) {
       requireNative(this, 'numberOfTapsRequired');
-      nativeSet(this, 'numberOfTapsRequired', value);
+      nativeSet(this, 'numberOfTapsRequired', toInteger(value, 'numberOfTapsRequired'));
     }
     get numberOfTouchesRequired() {
       requireNative(this, 'numberOfTouchesRequired');
@@ -3663,7 +3735,7 @@
     }
     set numberOfTouchesRequired(value) {
       requireNative(this, 'numberOfTouchesRequired');
-      nativeSet(this, 'numberOfTouchesRequired', value);
+      nativeSet(this, 'numberOfTouchesRequired', toInteger(value, 'numberOfTouchesRequired'));
     }
   });
 
@@ -3966,9 +4038,9 @@
 
     // 多任务切换器的卡片上显示的标题
     get title() { return nativeGet(this, 'title'); }
-    set title(value) { nativeSet(this, 'title', value); }
+    set title(value) { nativeSet(this, 'title', toTextOrNull(value)); }
     get subtitle() { return nativeGet(this, 'subtitle'); }
-    set subtitle(value) { nativeSet(this, 'subtitle', value); }
+    set subtitle(value) { nativeSet(this, 'subtitle', toText(value)); }
 
     // 场景级的打开 URL。application.openURL 是 App 级的，两者都有
     openURL(url, options) { return nativeCallAsync(this, 'openURL', [String(url)]); }
@@ -3983,7 +4055,7 @@
     get view() { return nativeGetOwned(this, 'view'); }
     // 导航条上的标题。返回按钮默认取上一页的 title，所以这一个属性就够走通「返回」
     get title() { requireNative(this, 'title'); return nativeGet(this, 'title'); }
-    set title(value) { requireNative(this, 'title'); nativeSet(this, 'title', value); }
+    set title(value) { requireNative(this, 'title'); nativeSet(this, 'title', toTextOrNull(value)); }
     // 两条都是 ObjC 侧的 weak 回边，所以 JS 侧翻成 strong
     // 模态事件（willdismiss / diddismiss / dismissattempted）。
     // 注意 UINavigationController 覆写了这个钩子，所以一个被模态呈现的导航
@@ -4043,7 +4115,7 @@
     }
     set isModalInPresentation(value) {
       requireNative(this, 'isModalInPresentation');
-      nativeSet(this, 'isModalInPresentation', value);
+      nativeSet(this, 'isModalInPresentation', toBoolean(value));
     }
 
     // 这一页在导航条上的配置，VC 自己懒加载的
@@ -4075,7 +4147,7 @@
       }
     }
     get title() { requireNative(this, 'title'); return nativeGet(this, 'title'); }
-    set title(value) { requireNative(this, 'title'); nativeSet(this, 'title', value); }
+    set title(value) { requireNative(this, 'title'); nativeSet(this, 'title', toTextOrNull(value)); }
     get image() { return nativeGetOwned(this, 'image'); }
     set image(value) { nativeSetOwned(this, 'image', value); }
     get isEnabled() {
@@ -4084,10 +4156,10 @@
     }
     set isEnabled(value) {
       requireNative(this, 'isEnabled');
-      nativeSet(this, 'isEnabled', value);
+      nativeSet(this, 'isEnabled', toBoolean(value));
     }
     get tag() { requireNative(this, 'tag'); return nativeGet(this, 'tag'); }
-    set tag(value) { requireNative(this, 'tag'); nativeSet(this, 'tag', value); }
+    set tag(value) { requireNative(this, 'tag'); nativeSet(this, 'tag', toInteger(value, 'tag')); }
   });
 
   // 导航条上的按钮。
@@ -4120,7 +4192,7 @@
     }
     /** 占位用的固定宽度空白 */
     static fixedSpace(width) {
-      return nativeClassCall('UIBarButtonItem', 'fixedSpaceItemOfWidth:', [width]);
+      return nativeClassCall('UIBarButtonItem', 'fixedSpaceItemOfWidth:', [toNumber(width, 'width')]);
     }
 
     [kSubscribe](type, on) {
@@ -4133,9 +4205,9 @@
     get style() { requireNative(this, 'style'); return nativeGet(this, 'style'); }
     set style(value) { requireNative(this, 'style'); nativeSet(this, 'style', value); }
     get width() { requireNative(this, 'width'); return nativeGet(this, 'width'); }
-    set width(value) { requireNative(this, 'width'); nativeSet(this, 'width', value); }
+    set width(value) { requireNative(this, 'width'); nativeSet(this, 'width', toNumber(value, 'width')); }
     get isHidden() { requireNative(this, 'isHidden'); return nativeGet(this, 'isHidden'); }
-    set isHidden(value) { requireNative(this, 'isHidden'); nativeSet(this, 'isHidden', value); }
+    set isHidden(value) { requireNative(this, 'isHidden'); nativeSet(this, 'isHidden', toBoolean(value)); }
     get customView() { return nativeGetOwned(this, 'customView'); }
     set customView(value) { nativeSetOwned(this, 'customView', value); }
   });
@@ -4146,10 +4218,10 @@
       nativeOnly(new.target);
     }
     get title() { requireNative(this, 'title'); return nativeGet(this, 'title'); }
-    set title(value) { requireNative(this, 'title'); nativeSet(this, 'title', value); }
+    set title(value) { requireNative(this, 'title'); nativeSet(this, 'title', toTextOrNull(value)); }
     // iOS 26 新加的副标题
     get subtitle() { requireNative(this, 'subtitle'); return nativeGet(this, 'subtitle'); }
-    set subtitle(value) { requireNative(this, 'subtitle'); nativeSet(this, 'subtitle', value); }
+    set subtitle(value) { requireNative(this, 'subtitle'); nativeSet(this, 'subtitle', toTextOrNull(value)); }
     // 下一页返回按钮上的字。不设就用这一页的 title
     get backButtonTitle() {
       requireNative(this, 'backButtonTitle');
@@ -4157,7 +4229,7 @@
     }
     set backButtonTitle(value) {
       requireNative(this, 'backButtonTitle');
-      nativeSet(this, 'backButtonTitle', value);
+      nativeSet(this, 'backButtonTitle', toTextOrNull(value));
     }
     get hidesBackButton() {
       requireNative(this, 'hidesBackButton');
@@ -4165,7 +4237,7 @@
     }
     set hidesBackButton(value) {
       requireNative(this, 'hidesBackButton');
-      nativeSet(this, 'hidesBackButton', value);
+      nativeSet(this, 'hidesBackButton', toBoolean(value));
     }
     // 放一个自定义 view 当标题。设了它，title 就被忽略
     get titleView() { return nativeGetOwned(this, 'titleView'); }
@@ -4273,7 +4345,7 @@
     }
     set isNavigationBarHidden(value) {
       requireNative(this, 'isNavigationBarHidden');
-      nativeSet(this, 'isNavigationBarHidden', value);
+      nativeSet(this, 'isNavigationBarHidden', toBoolean(value));
     }
     setNavigationBarHidden(hidden, options) {
       const o = options || {};
@@ -4330,7 +4402,7 @@
     }
     set windowLevel(value) {
       requireNative(this, 'windowLevel');
-      nativeSet(this, 'windowLevel', value);
+      nativeSet(this, 'windowLevel', toNumber(value, 'windowLevel'));
     }
 
     get isKeyWindow() {

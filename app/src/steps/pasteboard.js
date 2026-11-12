@@ -72,13 +72,6 @@ export function stepPasteboard(ctx) {
   assert('hasStrings 是布尔', typeof pasteboard.hasStrings, 'boolean');
   assert('changeCount 是数', typeof pasteboard.changeCount, 'number');
   try {
-    // @ts-expect-error 要字符串
-    pasteboard.string = 42;
-    console.log('  ✗ 数字居然写进去了');
-  } catch (err) {
-    console.log('  ✓ 写的不是字符串被拒:', err.message);
-  }
-  try {
     // @ts-expect-error 只读
     pasteboard.changeCount = 0;
     console.log('  ✗ changeCount 居然能写');
@@ -136,6 +129,11 @@ export function stepPasteboard(ctx) {
   assert('写进去读出来', pasteboard.string, text);
   assert('写了之后 hasStrings', pasteboard.hasStrings, true);
   assert('写了之后 changeCount 变大', pasteboard.changeCount > countBefore, true);
+
+  // 写的不是字符串：按 String() 转（project.md 原则 13）
+  // @ts-expect-error 类型定义仍然要字符串，运行时会转
+  pasteboard.string = 42;
+  assert('写数字：转成字符串', pasteboard.string, '42');
 
   // 写 null 原样交给 UIKit。实测它的效果是清空，所以固化成断言
   const countMid = pasteboard.changeCount;

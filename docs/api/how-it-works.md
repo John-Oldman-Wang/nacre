@@ -99,9 +99,38 @@ const data = await res.json();
 运行时的原则是**写错了要让你知道**，不静默失败。
 
 - 枚举写了不认识的值、少传必填的参数、给只读属性赋值，都抛 `TypeError`，报错信息里列出可用的值。
+- 值的类型转不成期望的类型时抛 `TypeError`，见[传进来的值怎么转换](#传进来的值怎么转换)。
 - 没被捕获的异常和没被处理的 Promise 拒绝，会输出到控制台，也可以在 [`application`](application.md) 上监听 `error` 和 `unhandledrejection` 事件统一处理。
 
 有一个例外：颜色字符串写错只输出警告，保留原来的颜色。见[颜色](ui-color.md)。
+
+## 传进来的值怎么转换
+
+给属性赋值、给方法传参数时，值的类型不必完全对。运行时按期望的类型转换，规则和浏览器一致，也就是 `Number()`、`Boolean()`、`String()` 的结果：
+
+| 期望的类型 | 怎么转 | 例子 |
+| --- | --- | --- |
+| 数 | `Number(v)` | `view.alpha = '0.5'` 得到 0.5；`view.alpha = null` 得到 0 |
+| 整数（下标、个数） | `Number(v)` 后去掉小数部分 | `view.tag = 3.9` 得到 3 |
+| 布尔 | 按真假值，和 `if (v)` 的判断相同 | `view.isHidden = 1` 得到 `true`；`view.isHidden = 'false'` 也得到 `true`，因为非空字符串为真 |
+| 字符串 | `String(v)` | `label.text = 5` 得到 `'5'` |
+| options 对象的成员 | 值是 `undefined` 等于没写这个成员 | `{ scale: undefined }` 等于 `{}` |
+
+转不出合法的值时抛 `TypeError`：
+
+```js
+view.alpha = undefined;
+```
+
+**效果**：抛 `TypeError: alpha must be a finite number, got undefined`，`alpha` 保持原来的值。`'abc'`、`NaN`、`Infinity`、对象也是这样。
+
+三点要注意：
+
+- **`null` 赋给数字属性得到 0，不报错。** 这和浏览器里 `audio.volume = null` 相同。要表达「没有值」时不要用 `null`。
+- **`null` 和 `undefined` 赋给字符串属性表示清空。** 属性可以为空时读回来是 `null`（比如 `label.text`），不可以为空时读回来是空字符串（比如输入框的 `text`）。
+- **枚举不转换。** 写了不认识的值直接抛，见[枚举](enums.md)。
+
+类型定义（`@nacre/types`）比运行时严格：`view.alpha = '0.5'` 能运行，但类型检查会报错。这和浏览器的类型定义是同一种做法。
 
 ## 长度的单位
 

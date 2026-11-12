@@ -197,7 +197,9 @@ EventTarget
 | `'soft'` | 发闷，像碰到软的东西 |
 | `'rigid'` | 发脆，像碰到硬的东西 |
 
-- **出错**：`intensity` 不是 0 到 1 之间的数：`TypeError: intensity must be a number between 0 and 1`
+- **出错**：
+  - `intensity` 超出 0 到 1：`TypeError: intensity must be a number between 0 and 1`
+  - `intensity` 转不成数：`TypeError: intensity must be a finite number, got "max"`
 
 ### `UISelectionFeedbackGenerator`
 

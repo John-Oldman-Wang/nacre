@@ -148,7 +148,7 @@ EventTarget
 | `changeCount` | 数 | 是 | 否 | 内容变化的计数，单位是次。只增不减。它的具体数值没有意义，只用来和之前读到的值比较 |
 
 - 自己的代码造成的变化通过 [`change` 事件](#事件)得知。别的 App 造成的变化没有事件，回到前台后比较 `changeCount`。
-- **出错**：给 `string` 写的不是字符串也不是 `null`：`TypeError: string must be a string or null`
+- 给 `string` 写的不是字符串时按 `String()` 转，比如写 `42` 得到 `'42'`。`undefined` 和 `null` 一样是清空。
 
 ### 事件
 

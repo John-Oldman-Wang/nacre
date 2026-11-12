@@ -1,5 +1,6 @@
 // 参数怎么转换：照 Web IDL。这个文件按步骤往下长——
 //   第 1 步：options 里值是 undefined 的成员视为没带
+//   第 2 步：API 层按类型转换（数、整数、布尔、字符串）
 
 /** @param {import("../main.js").StepContext} ctx */
 export function stepConversion(ctx) {
@@ -76,4 +77,129 @@ export function stepConversion(ctx) {
   assert('Response 的 status 是 undefined：默认 200', response.status, 200);
   assert('Response 的 statusText 是 undefined：默认空串', response.statusText, '');
   assert('Blob 的 type 是 undefined：默认空串', new Blob(['a'], { type: undefined }).type, '');
+
+  // ===== 第 2 步：API 层按类型转换 =====
+  //
+  // 规则和 Number() / Boolean() / String() 一致，所以和 Web 的手感一致：
+  // audio.volume = '0.5'、button.disabled = 'false'、el.textContent = 5。
+  // 类型定义仍然是严格的（和 lib.dom 一样），所以下面都要转成 any 才写得出来。
+  console.log('--- 参数转换：按类型转 ---');
+  const view = /** @type {any} */ (new UIView());
+  const label = /** @type {any} */ (new UILabel());
+
+  // ---- 数 ----
+  view.alpha = '0.5';
+  assert("数：'0.5' 是 0.5", view.alpha, 0.5);
+  view.alpha = true;
+  assert('数：true 是 1', view.alpha, 1);
+  view.alpha = null;
+  assert('数：null 是 0（和 audio.volume = null 一样）', view.alpha, 0);
+  view.alpha = 1;
+  assert('数：undefined 转不出来，抛',
+         thrown(() => { view.alpha = undefined; }),
+         'TypeError: alpha must be a finite number, got undefined');
+  assert("数：'abc' 抛", thrown(() => { view.alpha = 'abc'; }),
+         'TypeError: alpha must be a finite number, got "abc"');
+  assert('数：NaN 抛', thrown(() => { view.alpha = NaN; }),
+         'TypeError: alpha must be a finite number, got NaN');
+  assert('数：Infinity 抛', thrown(() => { view.alpha = Infinity; }),
+         'TypeError: alpha must be a finite number, got Infinity');
+  assert('数：对象抛', thrown(() => { view.alpha = {}; }),
+         'TypeError: alpha must be a finite number, got an object');
+  assert('抛了之后原值没动（以前 undefined 会把它静默写成 0）', view.alpha, 1);
+
+  // ---- 整数 ----
+  view.tag = '7';
+  assert("整数：'7' 是 7", view.tag, 7);
+  view.tag = 3.9;
+  assert('整数：3.9 向零取整是 3', view.tag, 3);
+  view.tag = -3.9;
+  assert('整数：-3.9 向零取整是 -3', view.tag, -3);
+  assert('整数：NaN 抛，不学 Web 老接口的「当成 0」', thrown(() => { view.tag = NaN; }),
+         'TypeError: tag must be a finite number, got NaN');
+  label.numberOfLines = '2';
+  assert("整数：numberOfLines = '2'", label.numberOfLines, 2);
+
+  // ---- 布尔：JS 的真假值 ----
+  /** @type {Array<[unknown, boolean]>} */
+  const truthiness = [[1, true], [0, false], ['false', true], ['', false], [null, false],
+                      [undefined, false], [{}, true], [NaN, false]];
+  const wrong = truthiness.filter(([given, expected]) => {
+    view.isHidden = given;
+    return view.isHidden !== expected;
+  });
+  assert("布尔：1 / 0 / 'false' / '' / null / undefined / {} / NaN 都按真假值", wrong.length, 0);
+  view.isHidden = false;
+
+  // ---- 字符串 ----
+  label.text = 5;
+  assert("可空字符串：5 是 '5'（和 textContent 一样）", label.text, '5');
+  label.text = true;
+  assert("可空字符串：true 是 'true'", label.text, 'true');
+  label.text = undefined;
+  assert('可空字符串：undefined 是 null', label.text, null);
+  label.text = 'x';
+  label.text = null;
+  assert('可空字符串：null 是 null', label.text, null);
+  const field = /** @type {any} */ (new UITextField());
+  field.text = 42;
+  assert("不可空字符串：42 是 '42'", field.text, '42');
+  field.text = null;
+  assert("不可空字符串：null 是空串，不是 'null'", field.text, '');
+
+  // ---- 数组 ----
+  const gradient = /** @type {any} */ (new CAGradientLayer());
+  gradient.locations = ['0', 0.5, true];
+  assert('数的数组：元素逐个转', gradient.locations.join(','), '0,0.5,1');
+  gradient.locations = null;
+  assert('数的数组：null 就是 null', gradient.locations, null);
+  assert('数的数组：元素转不出来，点名是第几个',
+         thrown(() => { gradient.locations = [0, 'x']; }),
+         'TypeError: locations[1] must be a finite number, got "x"');
+  assert('数的数组：给的不是数组',
+         thrown(() => { gradient.locations = 5; }),
+         'TypeError: locations must be an array of numbers or null, got 5');
+
+  // ---- 「数，或者一个名字」----
+  const column = /** @type {any} */ (new UIStackView());
+  column.spacing = '12';
+  assert("spacing = '12'：看着像数的字符串按数用", column.spacing, 12);
+  column.spacing = 'system';
+  assert("spacing = 'system'：名字原样交给原生", column.spacing, 'system');
+
+  // ---- 无穷大那个特例还在 ----
+  const anim = /** @type {any} */ (CABasicAnimation.animationWithKeyPath('opacity'));
+  anim.repeatCount = Infinity;
+  assert('repeatCount = Infinity 仍然合法', anim.repeatCount, Infinity);
+  anim.repeatCount = '3';
+  assert("repeatCount = '3'", anim.repeatCount, 3);
+
+  // ---- 方法的参数 ----
+  const sized = /** @type {any} */ (UIFont).systemFontOfSize('17');
+  assert("systemFontOfSize('17')", sized.pointSize, 17);
+  assert('systemFontOfSize(NaN)：以前是闪退',
+         thrown(() => /** @type {any} */ (UIFont).systemFontOfSize(NaN)),
+         'TypeError: size must be a finite number, got NaN');
+  const box = /** @type {any} */ (new UIView());
+  const first = new UIView();
+  const second = new UIView();
+  box.addSubview(first);
+  box.insertSubview(second, { atIndex: '0' });
+  assert("insertSubview 的 atIndex = '0'", box.subviews[0] === second, true);
+  assert('insertSubview 的 atIndex = NaN：以前是闪退',
+         thrown(() => box.insertSubview(new UIView(), { atIndex: NaN })),
+         'TypeError: atIndex must be a finite number, got NaN');
+  assert('没插进去', box.subviews.length, 2);
+  first.tag = 9;
+  assert("viewWithTag('9')", box.viewWithTag('9') === first, true);
+  const titled = /** @type {any} */ (UIButton.buttonWithType('system'));
+  titled.setTitle(5, { forState: ['normal'] });
+  assert("setTitle(5)：标题是 '5'", titled.titleForState('normal'), '5');
+
+  // ---- 结构体的构造函数 ----
+  assert('new CGPoint()：不给的参数是 0', '' + new (/** @type {any} */ (CGPoint))(), 'CGPoint(0, 0)');
+  assert("new CGPoint('3', null)", '' + new (/** @type {any} */ (CGPoint))('3', null), 'CGPoint(3, 0)');
+  assert('new CGPoint(NaN, 0)：以前静默变成 0，现在抛',
+         thrown(() => new CGPoint(NaN, 0)),
+         'TypeError: a struct field must be a finite number, got NaN');
 }

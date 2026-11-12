@@ -170,12 +170,17 @@ export function stepShapes(ctx) {
       assert(key + ' 的错误里列出了可选值', message.includes(expected), true);
     }
   }
+  // 元素按 Number() 转（project.md 原则 13）：'4' 是 4，转不出数的才抛
+  // @ts-expect-error 类型定义仍然只收数字，运行时会转
+  shape.lineDashPattern = ['4', 2];
+  assert("lineDashPattern 的元素给数字字符串：按数用",
+         String(shape.lineDashPattern), '4,2');
   try {
-    // @ts-expect-error 只收数字
-    shape.lineDashPattern = ['4'];
-    console.log('  ✗ 非数字的虚线段居然通过了');
+    // @ts-expect-error 转不出数
+    shape.lineDashPattern = ['dash'];
+    console.log('  ✗ 转不出数的虚线段居然通过了');
   } catch (e) {
-    assert('lineDashPattern 收到非数字就抛', e instanceof TypeError, true);
+    assert('lineDashPattern 的元素转不出数就抛', e instanceof TypeError, true);
   }
 
   // ---- 上屏：一条折线 + 一个扇形 ----

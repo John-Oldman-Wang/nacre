@@ -330,8 +330,11 @@ const press = new UILongPressGestureRecognizer();
 
 **出错**：
 
-- 次数和手指数不是非负整数：`TypeError: numberOfTapsRequired must be a non-negative integer`
-- 时长和距离不是非负的数：`TypeError: minimumPressDuration must be a non-negative number`
+- 次数和手指数是负数：`TypeError: numberOfTapsRequired must be a non-negative integer`
+- 时长和距离是负数：`TypeError: minimumPressDuration must be a non-negative number`
+- 给的值转不成数：`TypeError: minimumPressDuration must be a finite number, got "soon"`
+
+给的是小数时去掉小数部分，给的是数字字符串时按数用，规则见[传进来的值怎么转换](how-it-works.md#传进来的值怎么转换)。
 
 出错时属性保持原来的值。
 

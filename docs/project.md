@@ -90,14 +90,15 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 | 数 | `Number(v)` | 结果不是有限数（`undefined`、`'abc'`、`{}`、`NaN`） |
 | 整数（下标、个数） | `Number(v)` 后向零取整 | 同上 |
 | 布尔 | `Boolean(v)` | 没有 |
-| 字符串 | `String(v)`；属性本身可空时 `null` 和 `undefined` 得到 `null` | 没有 |
+| 字符串 | `String(v)`。`null` 和 `undefined`：属性可空时得到 `null`，不可空时得到空串 | 没有 |
 | 原生对象 | 不转 | 不是要求的那个类 |
 | options 的成员 | 值是 `undefined` 视为没带；整个 options 传 `null` / `undefined` 视为空对象 | 必填的没带 |
 
 所以 `view.alpha = null` 得到 0、`view.isHidden = 'false'` 得到 `true`——和 `audio.volume = null`、`button.disabled = 'false'` 一样。这不是疏漏，是「和 Web 一致」的直接后果。
 
-两处**不照搬**：
+三处**不照搬**：
 
+- **不可空的字符串，`null` 和 `undefined` 给空串。** Web 的普通字符串会得到 `'null'` / `'undefined'` 这两个字面量（`el.setAttribute('x', null)`），那是公认的坑。我们学的是 `input.value = null` 得到 `''` 的那一类
 - **整数不学老 API。** Web 的老接口把 `NaN` 当 0、还按 32 位回绕（`el.tabIndex = 'abc'` 得到 0），那是历史包袱，Web 自己的新接口也改成抛了。`insertSubview(v, { atIndex: NaN })` 插到第 0 位不是任何人想要的
 - **枚举作属性也抛。** Web 是静默忽略（`xhr.responseType = 'foo'` 什么都不发生），我们早就定了一律抛，理由见[枚举](internals/enums.md#为什么不学-css)
 
@@ -613,6 +614,7 @@ Commit message 格式：
 | — | A14 剪贴板 | UIPasteboard 的字符串、通知中心观察者 | 已在模拟器验证通过：1104 条断言全过；实测写 null 是清空、写一次收到 2 次 change。真机上点过：读别的 App 复制的内容会弹系统提示，**那一次同步读卡了主线程 6.6 秒**；别的 App 改剪贴板不发 change |
 | — | A12 触感反馈 | 三个生成器类、绑定视图的工厂、两个枚举 | 已在模拟器验证通过：1125 条断言全过（建得出来、调了不抛、写错会抛）。真机上六个按钮都点过，调用都执行了；震感如何日志里看不到 |
 | — | 参数转换 1：options 里 `undefined` 视为没带 | `has(o, key)` 换掉 39 处 `in` 判断，含 Request / Response / Blob | 已在模拟器验证通过：1141 条断言全过。试用反馈里三处闪退（`{ atIndex: undefined }`、`{ scale: undefined }`）都不再发生 |
+| — | 参数转换 2：API 层按 Web IDL 转 | 七个转换助手，110 个取值器和三十来处方法参数 | 已在模拟器验证通过：1183 条断言全过。`view.alpha = undefined` 以前静默写成 0，现在抛；`systemFontOfSize(NaN)`、`{ atIndex: NaN }` 以前闪退，现在抛。旧断言里只有一条受影响 |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |

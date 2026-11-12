@@ -62,3 +62,48 @@ function has(o, key) { return o[key] !== undefined; }
 **运行时自己用 JS 实现的类是同一个毛病。** `Request`、`Response`、`Blob` 也是 `'method' in o ? String(o.method) : …`，于是 `new Request(url, { method: undefined })` 的方法名是 `"UNDEFINED"`。同一次替换一起改掉了。
 
 这一步只堵了 `undefined` 从 options 进来的那一个口子。`{ atIndex: NaN }`、`{ atIndex: null }` 仍然会走到原生，要等后面两步。
+
+
+## 第 2 步：API 层按类型转换
+
+七个助手，都在 `nacre.js`：
+
+| 助手 | 规则 | 对应 Web IDL 的 |
+| --- | --- | --- |
+| `toNumber(v, what)` | `Number(v)`，不是有限数就抛 | `double` |
+| `toInteger(v, what)` | `toNumber` 后向零取整 | 带 `[EnforceRange]` 的整数 |
+| `toBoolean(v)` | `Boolean(v)` | `boolean` |
+| `toText(v)` | `null` / `undefined` 给空串，其余 `String(v)` | 带 `[LegacyNullToEmptyString]` 的 `DOMString` |
+| `toTextOrNull(v)` | `null` / `undefined` 给 `null`，其余 `String(v)` | `DOMString?` |
+| `toNumberOrName(v, what)` | 看着像数的字符串按数，其余字符串原样，别的走 `toNumber` | 没有对应物 |
+| `toNumbersOrNull(v, what)` | 可迭代对象逐个 `toNumber`，报错点名是第几个 | `sequence<double>?` |
+
+### 怎么知道每个属性该用哪个
+
+取值器是手写的，一共 146 个把 `value` 原样交给原生的。逐个看太容易漏，所以用脚本对：**类型定义里这个属性声明成什么类型，就接哪个助手**——`number` 接 `toNumber`、`boolean` 接 `toBoolean`、`string | null` 接 `toTextOrNull`。整数是从原生那一侧认的（用 `integerValue` 取的那几个：`tag`、`numberOfLines`、`numberOfTapsRequired`、`numberOfTouchesRequired`、`maximumMessageSize`）。
+
+脚本接上了 110 个；剩下 36 个全是枚举（和一个 `userInfo`），不转，继续由原生认名字。方法的参数没有可以对照的表，是逐个看的，三十来处。
+
+### `toNumberOrName` 是我们自己加的
+
+`spacing` 能写 `'system'`、`priority` 能写 `'required'`、`decelerationRate` 能写 `'fast'`——这些属性的类型是「数，或者一个名字」。照 `toNumber` 走会把 `'system'` 拒掉，原样放行又会让 `'12'` 被当成名字去查表（查不到，报「没有这个值」）。所以单独一条：字符串先看它是不是数。
+
+### 不可空的字符串，`null` 给空串
+
+Web IDL 的普通 `DOMString` 遇到 `null` 得到 `"null"`、遇到 `undefined` 得到 `"undefined"`，所以 `el.setAttribute('x', null)` 的结果是字面量 `null`。这是 Web 里公认的坑，没有人是有意这么写的。Web 自己在 `input.value`、`innerHTML` 这些地方加了 `[LegacyNullToEmptyString]` 把它改成空串。我们的不可空字符串一律走后一种。
+
+### 结构体的构造函数
+
+以前 `num()` 把转不出来的值**静默变成 0**——`new CGPoint('a', NaN)` 是 `(0, 0)`。现在不给的参数（`undefined`）是 0，和 `new DOMPoint()` 一致；给了就走 `toNumber`，转不出来就抛。
+
+### 类型定义没有跟着放宽
+
+`@nacre/types` 里 `alpha` 仍然是 `number`。`lib.dom.d.ts` 也是这么做的：`el.hidden = 'x'` 运行时合法，类型检查报错。宽松是给运行时兜底的，不是推荐的写法。
+
+### 上层那几个对象没动
+
+`application.storage`、`fileSystem`、`keychain` 的键和路径有各自的校验（`storageKey`、`filePath`、`keychainKey`），它们不经过上面这条路，也从来不会把没校验过的值交给原生。这一步没有碰它们；它们要不要也放宽是另一件事。
+
+### 连带改掉的断言
+
+前几步按「类型不对就抛」写的四条断言反过来了：点按次数给小数（现在截成整数）、长按时长给数字字符串（现在按数用）、剪贴板写数字（现在转成字符串）、虚线段给 `['4']`（现在是 `[4]`）。最后一条是跑模拟器时才发现的——它是全部一千多条旧断言里唯一受影响的。负的次数、超出 0 到 1 的强度仍然抛——那是取值范围，不归这条规则管。

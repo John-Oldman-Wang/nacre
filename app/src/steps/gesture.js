@@ -73,20 +73,22 @@ export function stepGesture(ctx) {
   } catch (err) {
     console.log('  ✓ 负的次数被拒:', err.message);
   }
+  // 类型按 Web IDL 转（project.md 原则 13）：小数截成整数，数字字符串按数用。
+  // 转不出有限数才抛；负数是取值范围的问题，仍然由原生拒
+  tap.numberOfTapsRequired = 2.9;
+  assert('次数给小数：向零取整', tap.numberOfTapsRequired, 2);
+  tap.numberOfTapsRequired = 1;
+  // @ts-expect-error 类型定义仍然要数字，运行时会转
+  press.minimumPressDuration = '0.4';
+  assert('时长给数字字符串：按数用', press.minimumPressDuration, 0.4);
   try {
-    tap.numberOfTapsRequired = 1.5;
-    console.log('  ✗ 不是整数的次数居然收下了');
+    // @ts-expect-error 转不出数
+    press.minimumPressDuration = 'soon';
+    console.log('  ✗ 转不出数的时长居然收下了');
   } catch (err) {
-    console.log('  ✓ 不是整数的次数被拒:', err.message);
+    console.log('  ✓ 转不出数的时长被拒:', err.message);
   }
-  try {
-    // @ts-expect-error 时长要数字
-    press.minimumPressDuration = '0.5';
-    console.log('  ✗ 字符串时长居然收下了');
-  } catch (err) {
-    console.log('  ✓ 字符串时长被拒:', err.message);
-  }
-  assert('被拒之后原值没动', press.minimumPressDuration, 0.3);
+  assert('被拒之后原值没动', press.minimumPressDuration, 0.4);
   try {
     // @ts-expect-error state 只读
     tap.state = 'ended';
