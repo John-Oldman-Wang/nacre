@@ -7,6 +7,7 @@
 
 import { createRouter } from '../router.js';
 import { makePage } from '../pages.js';
+import { collectGarbage } from '../support.js';
 
 /** @param {import("../main.js").StepContext} ctx */
 export function stepNavigation(ctx) {
@@ -241,11 +242,37 @@ export function stepNavigation(ctx) {
     nav.setNavigationBarHidden(page === vc, { animated: true });
   });
 
+  // 离开导航栈的页面和它上面的按钮有没有被回收。每个按钮都加了监听器、
+  // 没有人去移除——正是原来会一直留着的那种对象。这里只存标签，不存对象
+  /** @type {Map<number, string>} */
+  const alive = new Map();
+  let nextTracked = 0;
+  const pageRegistry = new FinalizationRegistry((/** @type {number} */ id) => { alive.delete(id); });
+  /**
+   * @param {UIViewController} page
+   * @param {string} path
+   */
+  const track = (page, path) => {
+    /** @param {object} target @param {string} label */
+    const add = (target, label) => {
+      const id = nextTracked++;
+      alive.set(id, label);
+      pageRegistry.register(target, id);
+    };
+    add(page, path + ' 的页面');
+    for (const column of page.view.subviews) {
+      for (const child of column.subviews) {
+        if (child instanceof UIButton) add(child, path + ' 的按钮');
+      }
+    }
+    return page;
+  };
+
   /** @type {ReturnType<typeof createRouter>} */
   let router;
   router = createRouter(nav, {
     '/': () => vc,
-    '/list': () => makePage({
+    '/list': () => track(makePage({
       title: '列表',
       color: UIColor.systemIndigoColor,
       heading: '这是第二页\n（列表）',
@@ -255,8 +282,8 @@ export function stepNavigation(ctx) {
         ['打开 #2', () => router.push('/detail/2')],
         ['回首页', () => router.home()],
       ],
-    }),
-    '/detail/:id': (params) => makePage({
+    }), '/list'),
+    '/detail/:id': (params) => track(makePage({
       title: '详情 ' + params.id,
       color: UIColor.systemPinkColor,
       heading: '这是第三页\n详情 #' + params.id,
@@ -265,11 +292,29 @@ export function stepNavigation(ctx) {
         ['返回上一页', () => router.back()],
         ['回首页', () => router.home()],
       ],
-    }),
+    }), '/detail/' + params.id),
   }, '/');
 
+  let lastDepth = 1;
   router.onChange((path, depth) => {
     console.log('  ✓ 路由变了 → ' + path + '（栈深 ' + depth + '）');
+    const shrank = depth < lastDepth;
+    lastDepth = depth;
+    if (!shrank) return;
+    // 栈变浅了：逼一次 GC，看离开的那些有没有被回收
+    collectGarbage().then((ran) => {
+      if (!ran) {
+        console.log('  ! 真实触摸：GC 没跑到，页面有没有被回收这一条未验证');
+      } else if (router.depth !== 1) {
+        console.log('  实测：栈深 ' + router.depth + '，还活着的页面和按钮有 ' + alive.size + ' 个');
+      } else if (alive.size === 0) {
+        console.log('  ✓ 真实触摸：回到首页之后，离开导航栈的页面和按钮全部被回收（共登记过 ' +
+                    nextTracked + ' 个）');
+      } else {
+        console.log('  ✗ 真实触摸：回到首页了，还有 ' + alive.size + ' 个没被回收：' +
+                    [...new Set(alive.values())].join('、'));
+      }
+    });
   });
 
   // 第一页上的入口按钮。右上角那块是空的：色块占 x 40-240 / y 120-290，

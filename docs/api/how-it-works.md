@@ -91,6 +91,8 @@ const data = await res.json();
 
 - **不用手动释放。** 没有任何引用之后，对象会被自动回收。
 - **加进界面的对象不会被回收。** 把视图加到父视图上、把页面交给窗口之后，不需要另外保存引用。
+- **加监听器不会让对象留下来。** 从界面上移除、又没有别处引用的对象会被回收，它的监听器一起消失。所以离开一个页面时，不需要逐个调 `removeEventListener()`。这和浏览器里的 DOM 节点一样。
+- **正在工作的对象不会被回收，即使没有保存引用。** 有两种：还没关闭的 [`WebSocket`](websocket.md)，以及已经加进 run loop、还没调 `invalidate()` 的 [`CADisplayLink`](ca-animation.md)。关闭或失效之后它们和普通对象一样被回收。
 - **同一个原生对象永远对应同一个 JS 对象。** 所以可以用 `===` 比较，比如 `view.superview === parent`。
 - **原生类不能被继承。** `class MyView extends UIView` 在构造时会抛异常。要扩展行为，用组合：写一个函数创建并配置视图。详见[原生类](native-classes.md)。
 

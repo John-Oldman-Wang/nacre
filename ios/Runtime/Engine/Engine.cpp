@@ -396,6 +396,14 @@ struct Engine::Impl {
 
   // 取或建一个原生对象的 JS 包装。同一个原生指针永远返回同一个 JS 对象，
   // 这样 === 和挂在包装上的自定义属性才成立。
+  // 这个原生对象现在有没有活着的包装。派发事件前问一句：没有的话
+  // WrapNative 会现建一个，挂在旧包装上的监听器已经跟着旧包装没了
+  bool HasWrapper(void* ptr) {
+    auto existing = ptr_to_handle.find(ptr);
+    return existing != ptr_to_handle.end() &&
+           wrappers.find(existing->second) != wrappers.end();
+  }
+
   v8::Local<v8::Object> WrapNative(v8::Local<v8::Context> ctx,
                                    const NativeObjectRef& ref) {
     if (ref.ptr == nullptr || wrapper_factory.IsEmpty()) return {};
@@ -1250,13 +1258,18 @@ void Engine::EmitObjectEvent(const NativeObjectRef& target, const std::string& t
 
   v8::Local<v8::Context> ctx = impl_->context.Get(isolate);
   v8::Context::Scope context_scope(ctx);
+  const bool rebuilt = !impl_->HasWrapper(target.ptr);
   v8::Local<v8::Object> wrapper = impl_->WrapNative(ctx, target);
   if (wrapper.IsEmpty()) return;
   {
     v8::TryCatch try_catch(isolate);
-    v8::Local<v8::Value> argv[] = {wrapper, Utf8(isolate, type)};
+    // 四个参数的位置是固定的：包装、事件名、负载（没有就是 undefined）、
+    // 包装是不是为这次派发现建的
+    v8::Local<v8::Value> argv[] = {wrapper, Utf8(isolate, type),
+                                   v8::Undefined(isolate),
+                                   v8::Boolean::New(isolate, rebuilt)};
     if (impl_->object_event_sink.Get(isolate)
-            ->Call(ctx, ctx->Global(), 2, argv)
+            ->Call(ctx, ctx->Global(), 4, argv)
             .IsEmpty()) {
       impl_->ReportException(ctx, try_catch);
     }
@@ -1273,6 +1286,7 @@ void Engine::EmitObjectEventWith(const NativeObjectRef& target,
 
   v8::Local<v8::Context> ctx = impl_->context.Get(isolate);
   v8::Context::Scope context_scope(ctx);
+  const bool rebuilt = !impl_->HasWrapper(target.ptr);
   v8::Local<v8::Object> wrapper = impl_->WrapNative(ctx, target);
   if (wrapper.IsEmpty()) return;
   {
@@ -1281,9 +1295,10 @@ void Engine::EmitObjectEventWith(const NativeObjectRef& target,
     v8::Local<v8::Value> argv[] = {
         wrapper, Utf8(isolate, type),
         extra.IsEmpty() ? v8::Local<v8::Value>(v8::Undefined(isolate))
-                        : v8::Local<v8::Value>(extra)};
+                        : v8::Local<v8::Value>(extra),
+        v8::Boolean::New(isolate, rebuilt)};
     if (impl_->object_event_sink.Get(isolate)
-            ->Call(ctx, ctx->Global(), 3, argv)
+            ->Call(ctx, ctx->Global(), 4, argv)
             .IsEmpty()) {
       impl_->ReportException(ctx, try_catch);
     }
@@ -1301,6 +1316,7 @@ void Engine::EmitObjectEventWithJSON(const NativeObjectRef& target,
 
   v8::Local<v8::Context> ctx = impl_->context.Get(isolate);
   v8::Context::Scope context_scope(ctx);
+  const bool rebuilt = !impl_->HasWrapper(target.ptr);
   v8::Local<v8::Object> wrapper = impl_->WrapNative(ctx, target);
   if (wrapper.IsEmpty()) return;
   {
@@ -1312,9 +1328,10 @@ void Engine::EmitObjectEventWithJSON(const NativeObjectRef& target,
       try_catch.Reset();
       extra = v8::Undefined(isolate);
     }
-    v8::Local<v8::Value> argv[] = {wrapper, Utf8(isolate, type), extra};
+    v8::Local<v8::Value> argv[] = {wrapper, Utf8(isolate, type), extra,
+                                   v8::Boolean::New(isolate, rebuilt)};
     if (impl_->object_event_sink.Get(isolate)
-            ->Call(ctx, ctx->Global(), 3, argv)
+            ->Call(ctx, ctx->Global(), 4, argv)
             .IsEmpty()) {
       impl_->ReportException(ctx, try_catch);
     }

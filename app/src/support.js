@@ -58,6 +58,9 @@ export function collectGarbage(limitMs = 10000) {
       storage.set(tickKey, tick++);
       setTimeout(step, 50);
     };
-    step();
+    // 第一拍也排到下一轮任务里，不在调用方这一轮里跑。调用方常常刚对某个
+    // WeakRef 调过 deref()，目标在那一轮任务里是被保住的；第一拍就逼出 GC
+    // 的话，对照组被回收了、被测的对象没有，之后也不会再有第二次 GC
+    setTimeout(step, 0);
   });
 }

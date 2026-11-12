@@ -301,6 +301,14 @@ static auto Guarded(const char* where, std::string* error, Fn&& fn) -> decltype(
        didShowViewController:(UIViewController*)viewController
                     animated:(BOOL)animated {
   [self emit:@"didshow" from:navigationController with:viewController];
+  // 给运行时自己的：栈可能变了（用户点了返回、左滑返回）。JS 侧据此重建
+  // 「导航控制器持有哪些页面」那条边。不带负载，JS 自己去读栈
+  if ([self.types containsObject:@"@stack"]) {
+    [self.runtime emitEvent:@"@stack"
+                       from:navigationController
+                  className:"UINavigationController"
+                       then:nil];
+  }
 }
 
 @end
@@ -331,6 +339,9 @@ static auto Guarded(const char* where, std::string* error, Fn&& fn) -> decltype(
 }
 - (void)presentationControllerDidDismiss:(UIPresentationController*)pc {
   [self emit:@"diddismiss" from:pc];
+  // 给运行时自己的：这一页被用户拖走了。JS 侧据此放开「呈现它的页面持有它」
+  // 那条边
+  [self emit:@"@dismissed" from:pc];
 }
 // 用户想关但被挡住了（isModalInPresentation 开着）
 - (void)presentationControllerDidAttemptToDismiss:(UIPresentationController*)pc {
@@ -1560,12 +1571,19 @@ nacre::NativeObjectRef CreateBlob(
   if ([object isKindOfClass:UINavigationController.class]) {
     UINavigationController* nav = (UINavigationController*)object;
     NSString* name = @(type.c_str());
-    if (!IsNavEventName(name)) {
+    // @ 开头的两个名字是运行时自己订的，不在对外的事件名表里。
+    // @dismissed 是「被模态呈现的那一页」的事，导航控制器也可能被呈现，
+    // 所以不在这里处理，往下落到模态那一支
+    const BOOL internalStack = [name isEqualToString:@"@stack"];
+    const BOOL internalDismissed = [name isEqualToString:@"@dismissed"];
+    if (!internalStack && !internalDismissed && !IsNavEventName(name)) {
       *error = EnumError(@"addEventListener", name, NamesForNavEvent());
       return;
     }
     NacreNavDelegate* d = objc_getAssociatedObject(nav, kNacreNavDelegateKey);
-    if (on) {
+    if (internalDismissed) {
+      // 交给下面模态那一支
+    } else if (on) {
       if (d == nil) {
         d = [NacreNavDelegate new];
         d.runtime = self;
@@ -1583,14 +1601,14 @@ nacre::NativeObjectRef CreateBlob(
                                  OBJC_ASSOCIATION_RETAIN_NONATOMIC);
       }
     }
-    return;
+    if (!internalDismissed) return;
   }
   // 放在 UINavigationController 之后：它是 UIViewController 的子类，
   // 导航事件先认走，剩下的才轮到模态事件
   if ([object isKindOfClass:UIViewController.class]) {
     UIViewController* vc = (UIViewController*)object;
     NSString* name = @(type.c_str());
-    if (!IsPresentationEventName(name)) {
+    if (![name isEqualToString:@"@dismissed"] && !IsPresentationEventName(name)) {
       *error = EnumError(@"addEventListener", name, NamesForPresentationEvent());
       return;
     }

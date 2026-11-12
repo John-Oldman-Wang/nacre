@@ -70,7 +70,7 @@ TypeError: set keyPath before toValue; the value's type depends on it
 
 动画 **strong 持有** delegate（头文件里 `@property(nullable, strong) id <CAAnimationDelegate> delegate`，和 `UIScrollView.delegate` 的 weak 正好相反）。所以 trampoline 反过来再强持有动画就成环，两头都回收不掉。
 
-所以它是 `weak`。另外还有一层保险：回调里先看 `types` 再碰 `origin`，而 `types` 非空意味着一条闭合的链——**JS 侧还有监听器 ⇒ `subscribed` 攥着那个包装 ⇒ 包装攥着句柄 ⇒ 原生对象活着**。
+所以它是 `weak`。另外还有一层保险：回调里先看 `types` 再碰 `origin`。`origin` 不会在动画还挂着的时候没掉——`addAnimation` 记了「图层持有动画」那条边，图层的包装活着，动画的包装就活着，包装拿着句柄，原生对象就活着。（这条链原来靠的是订阅保活集合，那个集合已经删掉，见[包装机制](wrapper.md#加监听器不改变对象的寿命)。）
 
 （中间一度改成 `unsafe_unretained`，理由是「`weak` 对 `CAAnimation` 不可靠」。那个理由见下，是错的，已经改回来。）
 

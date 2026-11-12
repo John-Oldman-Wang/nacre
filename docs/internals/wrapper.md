@@ -309,6 +309,124 @@ imageForState(state) {
 
 验收在 `app/src/steps/lifetime.js`，**故意都不加监听器**，这样结果不受那个集合干扰。改之前 4 条失败（在 run loop 上的 link 被回收了、打开着的 socket 被回收了），改之后 10 条全过，包括「放开之后要能被回收」的那一半。
 
+## 加监听器不改变对象的寿命
+
+2026-11-12 之前不是这样。`nacre.js` 里有一个模块级的强引用 `Set`（`subscribed`）：某个事件类型的第一个监听器注册时，对象把自己放进去；**只有监听器全部移走才出来**。
+
+当初这么做的理由是对的：包装是弱引用的，监听器存在包装上，包装一被回收重建，监听器就丢了。用一个强集合把它拿住是最直接的办法。
+
+问题是只设计了进，没设计够出。从界面上摘掉、页面被弹出导航栈、`WebSocket` 关了、`CADisplayLink` 失效了、JS 里一个引用都不剩——都不出来。而写 App 的人不会在离开页面时逐个调 `removeEventListener`，Web 上也不需要。所以实际效果是**加过监听器的对象基本都出不来**，连同回调捕获的东西。一份外部审查指出了这一点。
+
+### 判断：这个集合在做镜像已经做了的事
+
+事件到达时要保证的只有一件事：那个包装还活着。逐类核对「谁让它活着」：
+
+| 类 | 原生由谁持有 | JS 侧从 `application` 走得到吗 |
+| --- | --- | --- |
+| `UIControl`、`UIScrollView` | 父视图 | 走得到：`addSubview` 记边，`removeFromSuperview` 解除 |
+| `UIGestureRecognizer` | 所在的视图 | 走得到 |
+| `UIViewController`、`UINavigationController` | 窗口、导航栈、呈现它的页面 | 走得到 |
+| `UIBarButtonItem` | 导航项 | 走得到 |
+| `CAAnimation` | 图层持有拷贝，原件原生不持有 | 走得到：`addAnimation` 记了图层到动画的边 |
+| `CADisplayLink`、`WebSocket`、两个单例 | run loop、网络会话、系统 | **原来走不到**，见上一节，已经补上 |
+
+前五行里，按钮在界面上时所有权镜像本来就拿着它；从树上摘下来、JS 里也没人拿着时，原生对象跟着包装一起释放，系统不可能再给它发事件，这时候回收是对的。集合对它们多出来的唯一效果就是「摘下来之后还不放」。
+
+所以顺序是：**先把镜像补全，再删集合**。删掉之后 11 个类的订阅钩子都只剩一行 `subscribeNative(this, type, on)`，只通知原生，不碰寿命。
+
+### Web 为什么没有这个问题
+
+查过 Chromium 的源码和 V8 的博客，它靠三件事：
+
+| Chrome 的做法 | 出处 | 我们能学吗 |
+| --- | --- | --- |
+| 监听器存在 C++ 对象上，不在 JS 包装上 | `event_target.h`：`EventTargetData` 里的 `EventListenerMap` | **学了也没用。** 回调通常捕获着对象自己，监听器表 → 回调 → 包装 → 原生对象是一个环。Chrome 能回收这个环靠的是下一条 |
+| GC 同时追踪 JS 和 C++ 两边的引用 | V8 博客 *Tracing from JS to the DOM and back again*：「determines liveness by tracing from JavaScript to the C++ implementation of the DOM and back」 | **学不了。** UIKit 是不透明的，没法让它告诉 GC 它持有谁。Apple 自己的 JavaScriptCore 桥也是让开发者手工上报（`addManagedReference:withOwner:`） |
+| 没人引用但还在活动的对象单独保活 | `active_script_wrappable_base.h`：「will be kept alive as long as they have a pending activity」 | **能学**，就是上一节那三类 |
+
+Chrome 走的是 DOM 自己用的那些指针，没有第二份手工抄的引用图，也就不存在「抄漏了一条」。我们的镜像是手工抄的，会漏。所以下面两样不是附带的，是这套做法的安全性所在。
+
+### 安全网一：`check-api.sh` 的所有权检查
+
+见[上面那一节](#这条已经变成机械检查)。删集合之前先堵了三个盲区。
+
+### 安全网二：包装被重建时打警告
+
+集合原来在替镜像的漏边遮着。删掉之后，漏一条边的后果从「挂在包装上的状态丢了」升级成「监听器静默失效」。静默不行，所以：
+
+引擎在派发原生事件前先看这个原生对象有没有活着的包装（`HasWrapper`），把结果作为第四个参数交给事件汇入口。包装是为这次派发现建的，就打一条：
+
+```
+[Nacre] CADisplayLink fired "tick" after its JS wrapper was collected; its listeners
+are gone and this event was dropped. Keep a reference to the object, or report this
+if it is still on screen.
+```
+
+验证方法是一次性的探针：故意去掉 run loop 到 display link 那条边，一个带 `tick` 监听器的 link 被回收之后，每次完整 GC 之后的第一个 tick 都报出了这一条。探针没有留在代码里。
+
+`UIWindow` 和 `WebSocket` 不报。它们的事件原生总是发，不看有没有人订；系统自己的窗口（键盘那一类）JS 从没碰过，第一次发事件时包装当然是新建的——第一版没排除，实测每次启动误报两条 `UIWindow fired "becomevisible"`。
+
+### 系统自己动了持有关系：两个内部事件
+
+镜像原来只在 JS 主动调方法时更新。两种情况它不知道：
+
+| 用户的操作 | 原来的后果 |
+| --- | --- |
+| 点导航条的返回，或者左滑返回 | 被弹出的页面仍被「导航栈」那条边持有，直到下一次 JS 调 push / pop 或者读 `viewControllers` |
+| 把模态页向下拖走 | 被关掉的页面仍被呈现者持有，直到下一次读 `presentedViewController` 或再弹一个 |
+
+`app/src/router.js` 那种写法碰巧不受影响：它监听 `didshow` 时会读 `nav.viewControllers`，那一读就把边修好了。没有这种监听器的 App 就一直留着。
+
+集合删掉之后这会变成最主要的泄漏，所以一起做了。难点是**原生的订阅是惰性的**，没人监听 `didshow` 原生就不发。办法是运行时自己常驻订两个内部事件，名字以 `@` 开头：
+
+| 内部事件 | 什么时候订 | 原生什么时候发 | JS 收到后做什么 |
+| --- | --- | --- | --- |
+| `@stack` | `UINavigationController` 构造时 | `navigationController:didShowViewController:animated:` | `kSyncStack()`：按原生的栈整层重建那条边 |
+| `@dismissed` | `presentViewController` 时，订在被呈现的那一页上 | `presentationControllerDidDismiss:`（只有用户拖走才触发） | 找到呈现者（`presenterOf`），按原生的真相重建它的 `presentedViewController` 那条边 |
+
+- 它们在事件汇入口被截住，**不派发给监听器**。
+- 用户订不了：`subscribeNative` 拒绝 `@` 开头的名字。
+- 原生层没有新增任何调度：它只是多报两个事实，镜像怎么改由 JS 决定。
+- `@dismissed` 在原生的订阅入口里要**跳过导航控制器那一支**，落到模态那一支——被呈现的常常就是一个 `UINavigationController`。对外的事件名没有动，「被模态呈现的导航控制器收不到 `diddismiss`」那条 TODO 还在。
+
+程序调 `dismissViewController()` 那条路也改了：原来是调完立刻在**被调用的那个对象**上清边，而它可以在呈现者上调，也可以在被呈现的页面自己身上调（UIKit 会转给呈现者），后一种情况清错了对象。现在等动画结束，两头都按原生的真相同步一次。
+
+### 验证
+
+`app/src/steps/lifetime.js`，都用 `FinalizationRegistry` 观察，带对照组：
+
+| | 改之前 | 改之后 |
+| --- | --- | --- |
+| 8 种游离的、加了监听器的对象 | 都不回收 | 都回收 |
+| 回调捕获着自己的 `UIControl` | 不回收 | 回收 |
+| 加进去又摘下来的 `UIControl` | 不回收 | 回收 |
+| 失效之后的 display link（监听器没移） | 不回收 | 回收 |
+| 在树上的 `UIControl`，JS 引用丢掉 | 活着，事件照常到 | 活着，事件照常到 |
+
+最后一行是配对的那一半：从父视图把它取回来，`sendActionsForControlEvents` 走一次真的原生派发，监听器被调到了。
+
+系统返回和拖走那两条**要真实触摸**，JS 触发不了。验收里有一个探针：一个放在卡片里的导航控制器，两页，上面一个监听器都没有（有监听器的话，读栈那一下就把边修好了，测不出运行时自己有没有跟上），定时逼 GC 看三个对象什么时候被回收。
+
+模拟器上实测（2026-11-12，日志里每条带「弹出后第几秒」）：
+
+| 操作 | 结果 |
+| --- | --- |
+| 点卡片左上角的返回 | 第二页在第 3 秒被回收，这时卡片还在 |
+| 再把卡片向下拖走 | 导航控制器和第一页在第 11 秒被回收 |
+| 用 router 进一页、再返回，两次 | 离开栈的页面和它上面带监听器的按钮全部被回收（共登记 8 个） |
+
+第一行要成立，得先排除另一种解释：第二页还在屏幕上时包装就被错误地回收了。所以另有一组**自动**断言垫底——同样的结构、不碰它，三个对象经过 GC 都还活着；程序 `dismiss` 之后三个都被回收。两组合起来才说明「点返回那一下自己就放开了第二页」。
+
+被拖走的那个正好是一个 `UINavigationController`，所以 `@dismissed` 在原生订阅入口里绕过导航那一支的路也验到了。
+
+### 写用例时又踩了一次 `deref()`
+
+`collectGarbage()`（`app/src/support.js`）第一版在调用方的那一轮任务里就开始制造压力。调用方刚对一个 `WeakRef` 调过 `deref()`，目标在那一轮里是被保住的；第一拍逼出的 GC 收走了对照组、留下了被测对象，对照组一被回收助手就停手，之后再没有第二次 GC——被测对象「没被回收」，是假的失败。改成第一拍也排到下一轮任务。这和[上面测 Chrome 时](#chrome-在同样的位置不丢)踩的是同一条语义。
+
+### 没做的
+
+图层到动画那条边在动画结束后不解除。长寿的图层反复 `addAnimation` 新的动画对象，那个列表会一直长。要及时解除得给每个动画常驻一个结束通知，不管有没有人监听，那会改变每个动画的原生行为，成本没量过。
+
 ## 又漏过一次：`new Blob()` 只抄了句柄的数值
 
 所有权镜像管的是「JS 包装之间谁拖住谁」。这一次漏的地方更靠下：**一个原生对象有了两个 JS 对象，引擎只认其中一个**。

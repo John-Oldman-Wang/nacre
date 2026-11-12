@@ -13,9 +13,10 @@
   const kSubscribe = Symbol('subscribe');
   // 导航栈动过之后重建持有边，见 UINavigationController
   const kSyncStack = Symbol('syncStack');
-  // 订阅是一条**所有权边**：原生那边登记了对这个对象的兴趣，它的 JS 包装
-  // 就不能死——包装一死，后面来的事件会落到一个新包装上，监听器全丢。
-  const subscribed = new Set();
+  // **加监听器不改变对象的寿命。** 对象活不活只看从 application 出发走不走
+  // 得到它（所有权镜像，见下面 ownership）。这里曾经有一个全局的强引用集合，
+  // 加了监听器的对象全放进去、监听器全部移走才出来——结果是从界面上摘下来
+  // 的按钮、被弹出的页面上的按钮永远不被回收。
 
   function define(obj, name, value) {
     // 和 ECMAScript 内置一致：不可枚举、可写、可配置
@@ -291,6 +292,18 @@
   }
   function nativeGetOwned(obj, name) {
     return own(obj, name, nativeGetObject(obj, name));
+  }
+
+  // 原生类的订阅钩子都走这里：某个事件类型的监听器从无到有、从有到无时
+  // 告诉原生。只管通知，**不碰对象的寿命**。
+  // @ 开头的名字是运行时自己用的内部事件（见事件汇入口），不让用户订
+  function subscribeNative(target, type, on) {
+    requireNative(target, 'addEventListener');
+    if (type.charCodeAt(0) === 64 /* @ */) {
+      throw new TypeError('addEventListener has no value "' + type +
+                          '"; names starting with @ are reserved for the runtime');
+    }
+    native.subscribe(target[kHandle], type, on);
   }
   function nativeSetOwned(obj, name, value) {
     nativeSetObject(obj, name, value);
@@ -1386,12 +1399,7 @@
     static get CLOSING() { return 2; }
     static get CLOSED() { return 3; }
 
-    [kSubscribe](type, on) {
-      requireNative(this, 'addEventListener');
-      native.subscribe(this[kHandle], type, on);
-      if (on) subscribed.add(this);
-      else if (this[kListeners].size === 0) subscribed.delete(this);
-    }
+    [kSubscribe](type, on) { subscribeNative(this, type, on); }
 
     /**
      * 发一条。字符串、Blob、ArrayBuffer 或者 TypedArray。
@@ -1464,12 +1472,7 @@
   const CAAnimation = defineNativeClass('CAAnimation', class CAAnimation extends NSObject {
     constructor() { shellOnly(new.target, CAAnimation, 'CAAnimation'); super(); }
 
-    [kSubscribe](type, on) {
-      requireNative(this, 'addEventListener');
-      native.subscribe(this[kHandle], type, on);
-      if (on) subscribed.add(this);
-      else if (this[kListeners].size === 0) subscribed.delete(this);
-    }
+    [kSubscribe](type, on) { subscribeNative(this, type, on); }
 
     // ---- 时间（来自 CAMediaTiming） ----
     // 秒。**0 不是「不动画」**：加到图层上时 0 会被换成当前事务的
@@ -1952,15 +1955,7 @@
                  nativeClassObject('UIPasteboard', 'generalPasteboard'));
     }
 
-    [kSubscribe](type, on) {
-      requireNative(this, 'addEventListener');
-      native.subscribe(this[kHandle], type, on);
-      if (on) {
-        subscribed.add(this);
-      } else if (this[kListeners].size === 0) {
-        subscribed.delete(this);
-      }
-    }
+    [kSubscribe](type, on) { subscribeNative(this, type, on); }
 
     get string() { requireNative(this, 'string'); return nativeGet(this, 'string'); }
     set string(value) { requireNative(this, 'string'); nativeSet(this, 'string', toTextOrNull(value)); }
@@ -1998,12 +1993,7 @@
       constructNative(this, new.target, 'CADisplayLink', []);
     }
 
-    [kSubscribe](type, on) {
-      requireNative(this, 'addEventListener');
-      native.subscribe(this[kHandle], type, on);
-      if (on) subscribed.add(this);
-      else if (this[kListeners].size === 0) subscribed.delete(this);
-    }
+    [kSubscribe](type, on) { subscribeNative(this, type, on); }
 
     // 'default' 只在平时跑，**滚动时会停**；'common' 滚动时也跑。
     // 这是 display link 最常见的坑
@@ -2885,15 +2875,7 @@
 
     // 惰性订阅：某个类型第一次有监听器时才告诉原生。
     // touchDragInside 在手指移动时每帧都发，没人听还过桥是白费。
-    [kSubscribe](type, on) {
-      requireNative(this, 'addEventListener');
-      native.subscribe(this[kHandle], type, on);
-      if (on) {
-        subscribed.add(this);
-      } else if (this[kListeners].size === 0) {
-        subscribed.delete(this);
-      }
-    }
+    [kSubscribe](type, on) { subscribeNative(this, type, on); }
   });
 
   // 按钮。标题、颜色、图片都是**按状态**设的——同一个按钮在 normal /
@@ -3325,12 +3307,7 @@
     // 事件全在 UIScrollViewDelegate 上，而 delegate 是一个对象不是一组
     // action，所以订阅状态记在原生侧；一个监听器都没有时 delegate 不挂，
     // 一次桥都不过
-    [kSubscribe](type, on) {
-      requireNative(this, 'addEventListener');
-      native.subscribe(this[kHandle], type, on);
-      if (on) subscribed.add(this);
-      else if (this[kListeners].size === 0) subscribed.delete(this);
-    }
+    [kSubscribe](type, on) { subscribeNative(this, type, on); }
 
     // ---- 内容和偏移 ----
     get contentOffset() {
@@ -3661,15 +3638,7 @@
       }
     }
 
-    [kSubscribe](type, on) {
-      requireNative(this, 'addEventListener');
-      native.subscribe(this[kHandle], type, on);
-      if (on) {
-        subscribed.add(this);
-      } else if (this[kListeners].size === 0) {
-        subscribed.delete(this);
-      }
-    }
+    [kSubscribe](type, on) { subscribeNative(this, type, on); }
 
     // 回调里读它，读到的是**回调执行那一刻**的状态，不是事件发生那一刻的。
     // 实测：点按的 ended 回调里是 possible（识别器已经重置），长按的 began
@@ -4090,6 +4059,14 @@
   });
 
   // 页面。可构造——它是我们造的，不是系统给的。
+  // 被呈现的页面 -> 呈现它的页面。原生的 presentingViewController 是弱的
+  // 回边，这里也只用它找到「该去谁身上放开那条持有边」，所以是 WeakMap
+  const presenterOf = new WeakMap();
+  // 按原生的真相重建「它呈现着谁」那条边：还呈现着就留着，没有了就放开
+  function syncPresented(vc) {
+    if (vc != null) nativeGetOwned(vc, 'presentedViewController');
+  }
+
   defineNativeClass('UIViewController', class UIViewController extends UIResponder {
     constructor() {
       super();
@@ -4103,12 +4080,7 @@
     // 模态事件（willdismiss / diddismiss / dismissattempted）。
     // 注意 UINavigationController 覆写了这个钩子，所以一个被模态呈现的导航
     // 控制器收不到这几条——它那一侧只认导航事件，见文档的「还没做」
-    [kSubscribe](type, on) {
-      requireNative(this, 'addEventListener');
-      native.subscribe(this[kHandle], type, on);
-      if (on) subscribed.add(this);
-      else if (this[kListeners].size === 0) subscribed.delete(this);
-    }
+    [kSubscribe](type, on) { subscribeNative(this, type, on); }
 
     // ---- 模态呈现 ----
     // completion 是 block，所以这里是 Promise——异步一律 Promise
@@ -4119,12 +4091,23 @@
       // 原生侧 presentedViewController 是强引用，JS 侧也要有对应的一条。
       // presentViewController: 是同步建立这层关系的，所以这里就记
       own(this, 'presentedViewController', viewController);
+      // 这条边什么时候放开不只由 JS 决定：用户可以把它拖走。常驻订一个
+      // 内部事件，被拖走时放开，不依赖有没有人监听 diddismiss
+      presenterOf.set(viewController, this);
+      native.subscribe(viewController[kHandle], '@dismissed', true);
       return done;
     }
+    // 可以在呈现者上调，也可以在被呈现的那一页自己身上调（UIKit 会转给
+    // 呈现者）。所以关完之后两头都按原生的真相同步一次。
+    // 等动画结束再放：动画期间原生还拿着那一页
     dismissViewController(options) {
       const o = options || {};
       const done = nativeCallAsync(this, 'dismissViewController', [!!o.animated]);
-      own(this, 'presentedViewController', null);
+      const settle = () => {
+        syncPresented(this);
+        syncPresented(presenterOf.get(this));
+      };
+      done.then(settle, settle);
       return done;
     }
     get presentedViewController() {
@@ -4238,12 +4221,7 @@
       return nativeClassCall('UIBarButtonItem', 'fixedSpaceItemOfWidth:', [toNumber(width, 'width')]);
     }
 
-    [kSubscribe](type, on) {
-      requireNative(this, 'addEventListener');
-      native.subscribe(this[kHandle], type, on);
-      if (on) subscribed.add(this);
-      else if (this[kListeners].size === 0) subscribed.delete(this);
-    }
+    [kSubscribe](type, on) { subscribeNative(this, type, on); }
 
     get style() { requireNative(this, 'style'); return nativeGet(this, 'style'); }
     set style(value) { requireNative(this, 'style'); nativeSet(this, 'style', value); }
@@ -4320,15 +4298,13 @@
       constructNative(this, new.target, 'UINavigationController',
                       rootViewController == null ? [] : [rootViewController]);
       this[kSyncStack]();
+      // 栈不只是 JS 在改：用户点返回、左滑返回都直接作用在 UIKit 上。常驻
+      // 订一个内部事件，栈一变就重建持有边，不依赖有没有人监听 didshow
+      native.subscribe(this[kHandle], '@stack', true);
     }
 
     // 事件全在 UINavigationControllerDelegate 上，和滚动同构
-    [kSubscribe](type, on) {
-      requireNative(this, 'addEventListener');
-      native.subscribe(this[kHandle], type, on);
-      if (on) subscribed.add(this);
-      else if (this[kListeners].size === 0) subscribed.delete(this);
-    }
+    [kSubscribe](type, on) { subscribeNative(this, type, on); }
 
     // 栈动过之后重读一次原生真相，把持有边整层重建
     [kSyncStack]() {
@@ -4482,7 +4458,34 @@
   };
 
   // 原生要给某个对象自己派发事件时回调这里（场景的生命周期事件走这条路）
-  native.setObjectEventSink(function (wrapper, type, payload) {
+  const alwaysEmitted = new Set(['UIWindow', 'WebSocket']);
+  native.setObjectEventSink(function (wrapper, type, payload, rebuilt) {
+    // 运行时自己订的两个内部事件：系统自己动了持有关系，镜像要跟上。
+    // 不派发给监听器
+    if (type === '@stack') {
+      // 用户点了返回或者左滑返回：按原生的真相把栈那条边重建一遍
+      wrapper[kSyncStack]();
+      return;
+    }
+    if (type === '@dismissed') {
+      // 用户把模态页拖走了：呈现它的那一页不再持有它
+      const presenter = presenterOf.get(wrapper);
+      presenterOf.delete(wrapper);
+      syncPresented(presenter);
+      return;
+    }
+    // 包装是为这次派发现建的，说明原来那个已经被回收，挂在它上面的监听器
+    // 也没了，这个事件到不了任何人。正常情况下不该发生：原生对象还在发
+    // 事件，就说明有人持有它，镜像里却没有对应的边。打出来，别静默
+    //
+    // 窗口和 WebSocket 除外：它们的事件原生总是发，不看有没有人订。系统
+    // 自己的窗口（键盘那一类）JS 从来没碰过，第一次发事件时包装当然是新建的
+    if (rebuilt && !alwaysEmitted.has(wrapper.constructor.name)) {
+      console.warn('[Nacre] ' + wrapper.constructor.name + ' fired "' + type +
+                   '" after its JS wrapper was collected; its listeners are gone ' +
+                   'and this event was dropped. Keep a reference to the object, ' +
+                   'or report this if it is still on screen.');
+    }
     const event = new Event(type);
     const field = objectEventField[type];
     if (field !== undefined && payload !== undefined) {
@@ -4659,12 +4662,7 @@
 
     // change 事件。原生侧挂的是 NSUserDefaultsDidChangeNotification，
     // 它**只在本进程改**的时候发
-    [kSubscribe](type, on) {
-      requireNative(this, 'addEventListener');
-      native.subscribe(this[kHandle], type, on);
-      if (on) subscribed.add(this);
-      else if (this[kListeners].size === 0) subscribed.delete(this);
-    }
+    [kSubscribe](type, on) { subscribeNative(this, type, on); }
   });
 
   // ---------- 文件读写 ----------
