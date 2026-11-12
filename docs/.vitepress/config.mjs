@@ -84,6 +84,7 @@ export default defineConfig({
             api('UIWindow', 'ui-window'),
             api('UIViewController', 'ui-view-controller'),
             api('UINavigationController', 'ui-navigation-controller'),
+            api('UITabBarController', 'ui-tab-bar-controller'),
             api('导航条上的东西', 'ui-bar-button-item'),
           ],
         },
@@ -106,11 +107,12 @@ export default defineConfig({
           ],
         },
         {
-          text: '控件',
+          text: '控件和手势',
           items: [
             api('UIControl', 'ui-control'),
             api('UIButton', 'ui-button'),
             api('输入框和键盘', 'ui-text-field'),
+            api('手势识别器', 'ui-gesture-recognizer'),
           ],
         },
         {
@@ -122,11 +124,13 @@ export default defineConfig({
           ],
         },
         {
-          text: '网络和定时器',
+          text: '网络和时间',
           items: [
             api('fetch', 'fetch'),
             api('URL / Headers', 'url'),
+            api('WebSocket', 'websocket'),
             api('定时器', 'timers'),
+            api('performance', 'performance'),
           ],
         },
         {
@@ -137,6 +141,15 @@ export default defineConfig({
             api('Keychain', 'keychain'),
           ],
         },
+        {
+          text: '系统能力',
+          items: [
+            api('UIDevice', 'ui-device'),
+            api('UIPasteboard', 'ui-pasteboard'),
+            api('触感反馈', 'ui-feedback-generator'),
+            api('crypto', 'crypto'),
+          ],
+        },
       ],
       '/internals/': [
         {
@@ -145,6 +158,7 @@ export default defineConfig({
             internals('总览', ''),
             internals('运行时', 'runtime'),
             internals('桥的通道', 'bridge'),
+            internals('参数转换', 'conversion'),
             internals('包装机制', 'wrapper'),
             internals('事件模型', 'events'),
             internals('定时器', 'timers'),
@@ -177,6 +191,13 @@ export default defineConfig({
             internals('本地存储', 'storage'),
             internals('文件读写', 'filesystem'),
             internals('Keychain', 'keychain'),
+          ],
+        },
+        {
+          text: '系统能力',
+          items: [
+            internals('设备、剪贴板、触感反馈', 'system'),
+            internals('随机数', 'crypto'),
           ],
         },
       ],

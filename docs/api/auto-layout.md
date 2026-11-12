@@ -903,7 +903,7 @@ NSLayoutConstraint.activateConstraints([
 - **返回**：无。
 - **出错**：某一条约束的两端没有共同祖先时抛 `TypeError`，信息以 `failed to activate constraint:` 开头，后面是 UIKit 给出的原因。
 
-> **注意**：数组里不是约束的元素（数、字符串、别的原生对象）会被跳过，不报错。TypeScript 的类型检查能发现这种错误。
+> **注意**：数组里只要有一个元素不是约束（数、字符串、别的原生对象），就抛 `TypeError`，并且整批都不激活，不会只激活合法的那几条。
 
 #### `NSLayoutConstraint.deactivateConstraints(constraints)`
 

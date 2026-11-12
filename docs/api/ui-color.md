@@ -168,7 +168,7 @@ box1.backgroundColor = 'asset(BrandBlue)';
 
 想让颜色在「增强对比度」设置下也换一个值，只能用这种写法。`light-dark()` 只区分浅色和深色。
 
-> **注意**：Asset Catalog 里没有这个名字时，赋值会抛 `TypeError: cannot build a color from this specification`，而不是输出警告。这一条来自代码，**未在模拟器验证。**
+> **注意**：Asset Catalog 里没有这个名字，也属于「颜色写错了」，按规则应该输出警告、保留原来的颜色，见[写错不抛，打警告](#写错不抛打警告)。**当前版本在这种情况下会抛 `TypeError: cannot build a color from this specification`，这是已知问题。** 修好之前，用 `asset()` 时要自己确认名字存在。这一条来自代码，**未在模拟器验证。**
 
 ### 读出一个颜色
 
@@ -239,6 +239,8 @@ console.log(box1.backgroundColor);
 
 ## 写错不抛，打警告
 
+这条规则和浏览器里给 `element.style.color` 赋值一致：赋一个不合法的颜色不会抛异常，原来的颜色保持不变。这里比浏览器多输出一条警告。
+
 写入不合法的颜色时：
 
 - 不抛错，后面的代码继续执行。
@@ -267,7 +269,7 @@ console.log(box1.backgroundColor);
 - 这条规则只对颜色成立。[枚举](enums.md)写错会当场抛错。
 - 颜色名带 `Color` 后缀（`'systemPinkColor'`）是不合法的。字符串里只能用表里的短名字。
 - [`CAGradientLayer`](ca-layer.md) 的 `colors` 是颜色数组。其中任何一项不合法，整个数组都不写入。
-- `asset(名字)` 的名字在 Asset Catalog 里不存在时会抛 `TypeError`，不属于这条规则，见[用 Asset Catalog 里的颜色](#用-asset-catalog-里的颜色)。
+- 有一处已知问题：`asset(名字)` 的名字在 Asset Catalog 里不存在时，当前版本会抛 `TypeError`，没有按这条规则处理。见[用 Asset Catalog 里的颜色](#用-asset-catalog-里的颜色)。
 
 TypeScript 查不出写错的颜色字符串。颜色的类型是 `string`，内容是否合法只有运行时知道。
 
