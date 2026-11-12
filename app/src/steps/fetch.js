@@ -220,4 +220,176 @@ export function stepFetch(ctx) {
       console.log('--- fetch：以上回归跑完 ---');
     }
   })();
+
+  // ===== 本地 body：自己构造的 Request / Response（回归）=====
+  //
+  // 原来 `new Request(url, { body: 'hello' }).text()` 和 `new Response('hello').text()`
+  // 都被拒绝：读取只认网络请求的 id，自己构造的没有；Response 的构造函数
+  // 干脆没存 body。现在 body 统一存成 Blob，读取和发送都从它走。
+  (async () => {
+    /**
+     * 读取的结果，或者被拒绝的原因。让一条失败不打断后面的断言
+     * @param {() => Promise<unknown>} read
+     */
+    const outcome = async (read) => {
+      try { return await read(); }
+      catch (err) { return 'rejected: ' + /** @type {Error} */ (err).name; }
+    };
+    /** @param {ArrayBuffer} buffer */
+    const bytesOf = (buffer) => Array.from(new Uint8Array(buffer)).join(',');
+    const url = 'https://example.com/';
+
+    try {
+      console.log('--- fetch：本地 body ---');
+
+      // --- Request ---
+      const req = new Request(url, { method: 'POST', body: 'hello' });
+      assert('Request：读之前 bodyUsed', req.bodyUsed, false);
+      assert('Request：text()', await outcome(() => req.text()), 'hello');
+      assert('Request：读之后 bodyUsed', req.bodyUsed, true);
+      assert('Request：第二次读被拒', await outcome(() => req.text()), 'rejected: TypeError');
+      assert('Request：json()',
+             JSON.stringify(await outcome(() => new Request(url, { method: 'POST', body: '{"a":1}' }).json())),
+             '{"a":1}');
+      assert('Request：arrayBuffer() 是 UTF-8 字节',
+             await outcome(async () => bytesOf(await new Request(url, { method: 'POST', body: '你好' }).arrayBuffer())),
+             '228,189,160,229,165,189');
+      assert('Request：blob() 的大小',
+             await outcome(async () => (await new Request(url, { method: 'POST', body: 'hello' }).blob()).size), 5);
+
+      // --- Response ---
+      assert('Response：text()', await outcome(() => new Response('hello').text()), 'hello');
+      assert('Response：json()',
+             JSON.stringify(await outcome(() => new Response('{"ok":true}').json())), '{"ok":true}');
+      assert('Response：arrayBuffer()',
+             await outcome(async () => bytesOf(await new Response('AB').arrayBuffer())), '65,66');
+      assert('Response：blob() 的大小',
+             await outcome(async () => (await new Response('hello').blob()).size), 5);
+      const res = new Response('once');
+      await outcome(() => res.text());
+      assert('Response：读之后 bodyUsed', res.bodyUsed, true);
+      assert('Response：第二次读被拒', await outcome(() => res.arrayBuffer()), 'rejected: TypeError');
+
+      // --- 二进制的 body ---
+      const raw = new Uint8Array([0, 255, 16, 128]);
+      assert('Response：body 是类型数组',
+             await outcome(async () => bytesOf(await new Response(raw).arrayBuffer())), '0,255,16,128');
+      assert('Response：body 是 ArrayBuffer',
+             await outcome(async () => bytesOf(await new Response(raw.buffer).arrayBuffer())), '0,255,16,128');
+      assert('Response：body 是 Blob',
+             await outcome(async () => bytesOf(await new Response(new Blob([raw])).arrayBuffer())), '0,255,16,128');
+      assert('Request：body 是类型数组',
+             await outcome(async () => bytesOf(await new Request(url, { method: 'POST', body: raw }).arrayBuffer())),
+             '0,255,16,128');
+      assert('Request：body 是 Blob，blob() 读回同样的字节',
+             await outcome(async () => {
+               const sent = new Request(url, { method: 'POST', body: new Blob([raw]) });
+               return bytesOf(await (await sent.blob()).arrayBuffer());
+             }), '0,255,16,128');
+
+      // --- 空串：有 body，只是长度为 0 ---
+      const emptyText = new Response('');
+      assert('空串：text()', await outcome(() => emptyText.text()), '');
+      assert('空串：也算读过', emptyText.bodyUsed, true);
+
+      // --- 没有 body：照 Web 给空内容，不算读过，可以重复读 ---
+      const none = new Response();
+      assert('没有 body：text()', await outcome(() => none.text()), '');
+      assert('没有 body：bodyUsed 保持 false', none.bodyUsed, false);
+      assert('没有 body：可以再读一次', await outcome(() => none.text()), '');
+      assert('没有 body：arrayBuffer() 是 0 字节',
+             await outcome(async () => (await new Response(null).arrayBuffer()).byteLength), 0);
+      assert('没有 body：blob() 是空的',
+             await outcome(async () => (await new Response().blob()).size), 0);
+      assert('没有 body：json() 因为解析空串被拒',
+             await outcome(() => new Response().json()), 'rejected: SyntaxError');
+      assert('没有 body：GET 请求的 text()', await outcome(() => new Request(url).text()), '');
+
+      // --- 其它类型按 String() 转 ---
+      assert('数当 body：按 String() 转',
+             await outcome(() => new Response(/** @type {any} */ (42)).text()), '42');
+      assert('URLSearchParams 当 body：得到序列化之后的串',
+             await outcome(() => new Response(new URLSearchParams({ a: '1', b: '2' })).text()), 'a=1&b=2');
+
+      // --- 默认的 Content-Type，照 Web ---
+      assert('字符串 body 的默认 Content-Type',
+             new Response('x').headers.get('content-type'), 'text/plain;charset=UTF-8');
+      assert('自己给了 Content-Type 就不覆盖',
+             new Response('{}', { headers: { 'Content-Type': 'application/json' } }).headers.get('content-type'),
+             'application/json');
+      assert('Blob body 用 Blob 的 type',
+             new Response(new Blob(['x'], { type: 'image/png' })).headers.get('content-type'), 'image/png');
+      assert('没有 type 的 Blob 不加 Content-Type',
+             new Response(new Blob(['x'])).headers.get('content-type'), null);
+      assert('ArrayBuffer body 不加 Content-Type',
+             new Response(raw.buffer).headers.get('content-type'), null);
+      assert('URLSearchParams body 的默认 Content-Type',
+             new Response(new URLSearchParams({ a: '1' })).headers.get('content-type'),
+             'application/x-www-form-urlencoded;charset=UTF-8');
+      assert('没有 body 不加 Content-Type', new Response().headers.get('content-type'), null);
+      assert('Request 同样加默认的 Content-Type',
+             new Request(url, { method: 'POST', body: 'x' }).headers.get('content-type'),
+             'text/plain;charset=UTF-8');
+
+      // --- clone ---
+      const original = new Request(url, { method: 'POST', body: 'twice' });
+      const copy = original.clone();
+      assert('clone：原件读得出', await outcome(() => original.text()), 'twice');
+      assert('clone：副本不受原件影响', copy.bodyUsed, false);
+      assert('clone：副本也读得出', await outcome(() => copy.text()), 'twice');
+      assert('clone：读过之后再 clone 抛（和 Web 一致）',
+             (() => { try { original.clone(); return '没抛'; }
+                      catch (err) { return /** @type {Error} */ (err).name; } })(), 'TypeError');
+
+      // --- 发出去：服务器收到的是什么 ---
+      //
+      // httpbin 的 /post 把收到的 body 回显在 data 里；不是合法 UTF-8 的字节
+      // 回显成 data: URL（base64）。0,255,16,128 的 base64 是 AP8QgA==
+      const base = 'https://httpbin.org';
+      /**
+       * @param {string} label
+       * @param {RequestInit} init
+       * @param {(echo: any) => void} check
+       */
+      const post = async (label, init, check) => {
+        const reply = await fetch(base + '/post', { method: 'POST', ...init });
+        if (!reply.ok) {
+          console.log('  ! ' + label + '：httpbin 回了 ' + reply.status + '，这一条未验证');
+          return;
+        }
+        check(await reply.json());
+      };
+      await post('字符串 body', { body: 'hello' }, (echo) => {
+        assert('发送：字符串 body 到了服务器', echo.data, 'hello');
+        assert('发送：字符串 body 的 Content-Type', echo.headers['Content-Type'], 'text/plain;charset=UTF-8');
+      });
+      await post('类型数组 body',
+                 { body: raw, headers: { 'Content-Type': 'application/octet-stream' } }, (echo) => {
+        assert('发送：类型数组的字节原样到了服务器',
+               echo.data, 'data:application/octet-stream;base64,AP8QgA==');
+      });
+      await post('Blob body', { body: new Blob([raw], { type: 'application/x-nacre' }) }, (echo) => {
+        assert('发送：Blob 的字节原样到了服务器',
+               echo.data, 'data:application/octet-stream;base64,AP8QgA==');
+        assert('发送：Blob 的 type 成了 Content-Type', echo.headers['Content-Type'], 'application/x-nacre');
+      });
+      await post('ArrayBuffer body，不给 Content-Type', { body: raw.buffer }, (echo) => {
+        // Web 在这种情况下不发 Content-Type。这里量一下系统实际发了什么
+        console.log('  ✓ 实测：ArrayBuffer body 不给 Content-Type 时，服务器看到的是',
+                    JSON.stringify(echo.headers['Content-Type']), '，data =', JSON.stringify(echo.data),
+                    '，form =', JSON.stringify(echo.form));
+      });
+      const prepared = new Request(base + '/post', { method: 'POST', body: 'via request' });
+      const viaRequest = await fetch(prepared);
+      if (viaRequest.ok) {
+        assert('发送：fetch(Request 对象) 带上了它的 body', (await viaRequest.json()).data, 'via request');
+      } else {
+        console.log('  ! fetch(Request 对象)：httpbin 回了 ' + viaRequest.status + '，这一条未验证');
+      }
+    } catch (err) {
+      console.log('  ✗ 「本地 body」用例整体出错:', err && /** @type {Error} */ (err).message);
+    } finally {
+      console.log('--- fetch：本地 body 跑完 ---');
+    }
+  })();
 }

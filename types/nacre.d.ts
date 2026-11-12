@@ -148,10 +148,19 @@ declare class Headers {
 //
 // 也没有 ReadableStream：body 整个下完才兑现。流式第一版不做。
 
+/**
+ * 能当请求体或响应体的值。字符串按 UTF-8 发送；`Blob`、`ArrayBuffer`、类型
+ * 数组的字节原样发送；`URLSearchParams` 发它序列化之后的串。
+ *
+ * 没有 `FormData` 和 `ReadableStream`。
+ */
+type BodyInit = string | Blob | ArrayBuffer | ArrayBufferView | URLSearchParams;
+
 interface RequestInit {
   method?: string;
   headers?: HeadersInit;
-  body?: string | null;
+  /** 没给 `Content-Type` 首部时，按 body 的种类补一个默认的。 */
+  body?: BodyInit | null;
   /** 中止信号。一中止就取消在途的请求，Promise 以 AbortError 拒绝。 */
   signal?: AbortSignal | null;
 }
@@ -219,7 +228,8 @@ interface Body {
 }
 
 declare class Response {
-  constructor(body?: null, init?: { status?: number; statusText?: string; headers?: HeadersInit });
+  constructor(body?: BodyInit | null,
+              init?: { status?: number; statusText?: string; headers?: HeadersInit });
   readonly status: number;
   readonly statusText: string;
   readonly url: string;
@@ -243,6 +253,7 @@ declare class Request {
   readonly url: string;
   readonly method: string;
   readonly headers: Headers;
+  /** 一份独立的副本，body 也读得出来。body 已经读过时抛 `TypeError`。 */
   clone(): Request;
 }
 

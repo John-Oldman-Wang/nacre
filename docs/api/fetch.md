@@ -11,7 +11,7 @@ status: partial
 
 - **URL 必须是完整的。** 要写成 `https://…`。这里没有「当前页面地址」，所以 `fetch('/api/items')` 这种相对地址会失败。
 - **没有跨域限制。** 没有 CORS，没有同源策略，可以请求任何服务器。`mode`、`credentials` 这些选项不存在。
-- **请求体只能是字符串。** 发 JSON 要先 `JSON.stringify()`。不能直接发 `FormData`、`Blob` 或二进制数据。
+- **请求体不能是 `FormData`。** 字符串、`Blob`、`ArrayBuffer`、类型数组都可以直接发。普通对象要先 `JSON.stringify()`。
 - **不能边下载边读。** 没有 `res.body` 这个流。响应内容要等全部下载完才能读到。
 - **不能控制重定向和缓存。** 重定向由系统自动跟随，缓存用系统的默认行为。
 
@@ -92,7 +92,40 @@ console.log(echo.json.name);
 
 **结果**：输出 `nacre`。这个测试地址会把收到的内容原样返回。
 
-`body` 只接受字符串，对象要先用 `JSON.stringify()` 转换。字符串里的中文按 UTF-8 发送。
+普通对象不能直接当 `body`，要先用 `JSON.stringify()` 转成字符串。字符串里的中文按 UTF-8 发送。
+
+`body` 能接受哪些值见[成员说明](#fetch)。
+
+### 上传二进制数据
+
+`body` 可以是类型数组、`ArrayBuffer` 或 [`Blob`](#blob)，字节原样发送。
+
+```js
+const bytes = new Uint8Array([0, 255, 16, 128]);
+const res = await fetch('https://httpbin.org/post', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/octet-stream' },
+  body: bytes,
+});
+const echo = await res.json();
+console.log(echo.data);
+```
+
+**结果**：输出 `data:application/octet-stream;base64,AP8QgA==`。四个字节原样到了服务器。这个测试地址把二进制内容用 base64 回显。
+
+> **注意**：`body` 是类型数组或 `ArrayBuffer` 时，要自己写 `Content-Type`。不写的话系统会填上 `application/x-www-form-urlencoded`，服务器会把这些字节当成表单来解析（实测）。
+
+`body` 是 `Blob` 时，`Blob` 的 `type` 会成为 `Content-Type`，不用另外写：
+
+```js
+const bytes = new Uint8Array([0, 255, 16, 128]);
+const blob = new Blob([bytes], { type: 'application/octet-stream' });
+const res = await fetch('https://httpbin.org/post', { method: 'POST', body: blob });
+const echo = await res.json();
+console.log(echo.headers['Content-Type']);
+```
+
+**结果**：输出 `application/octet-stream`。
 
 ### 带上自定义请求头
 
@@ -310,8 +343,21 @@ fetch(input, init)
 | --- | --- | --- | --- |
 | `method` | 字符串 | `'GET'` | 请求方法：`'GET'`、`'POST'`、`'PUT'`、`'DELETE'` 等 |
 | `headers` | 普通对象或 [`Headers`](url.md) | 无 | 请求头 |
-| `body` | 字符串或 `null` | `null` | 请求体。非字符串的值会被转成字符串 |
+| `body` | 见下表，或 `null` | `null` | 请求体。`null` 表示没有请求体 |
 | `signal` | `AbortSignal` 或 `null` | `null` | 用来取消请求 |
+
+`body` 可以是下面这些值。没有写 `Content-Type` 请求头时，按 `body` 的种类补一个默认的：
+
+| `body` 的值 | 发送的内容 | 默认的 `Content-Type` |
+| --- | --- | --- |
+| 字符串 | 按 UTF-8 编码的文字 | `text/plain;charset=UTF-8` |
+| [`Blob`](#blob) | `Blob` 里的字节 | `Blob` 的 `type`。`type` 是空串时不补 |
+| `ArrayBuffer`、类型数组 | 这些字节 | 不补 |
+| [`URLSearchParams`](url.md) | 它序列化之后的字符串，形如 `a=1&b=2` | `application/x-www-form-urlencoded;charset=UTF-8` |
+| 其它值（数、布尔、普通对象） | 按 `String()` 转成的字符串。普通对象会变成 `[object Object]` | `text/plain;charset=UTF-8` |
+
+- 自己写了 `Content-Type` 时，不会被默认值覆盖。
+- 表里「不补」的情况下，系统会自己填上 `application/x-www-form-urlencoded`（实测）。所以发二进制数据时要自己写 `Content-Type`。
 
 - **返回**：`Promise`，完成时得到 `Response`。
 - **出错**：见[两种失败](#两种失败)。
@@ -342,6 +388,44 @@ fetch(input, init)
 
 `url` 在重定向后是最终地址、`json()` 遇到非法 JSON 被拒绝，这两点**未在模拟器验证**。
 
+`Response` 也可以自己创建，用来在测试里代替一次真实的请求：
+
+```js
+const res = new Response('{"ok":true}', {
+  status: 201,
+  headers: { 'Content-Type': 'application/json' },
+});
+console.log(res.status);
+const data = await res.json();
+console.log(data.ok);
+```
+
+**结果**：输出 `201` 和 `true`。这段代码没有作为一个整体在模拟器运行过。
+
+```js
+new Response()
+new Response(body)
+new Response(body, init)
+```
+
+| 参数 | 类型 | 默认值 | 含义 |
+| --- | --- | --- | --- |
+| `body` | 和 [`fetch()` 的 `body`](#fetch) 相同，或 `null` | `null` | 响应的内容。`null` 表示没有内容 |
+| `init.status` | 数字 | `200` | 状态码 |
+| `init.statusText` | 字符串 | `''` | 状态码对应的文字 |
+| `init.headers` | 普通对象或 [`Headers`](url.md) | 无 | 响应头。没有写 `Content-Type` 时按 `body` 的种类补默认值，规则和 `fetch()` 的 `body` 相同 |
+
+没有内容的 `Response`（`body` 是 `null`，或者没给）读取时的结果：
+
+| 方法 | 结果 |
+| --- | --- |
+| `text()` | 空串 `''` |
+| `arrayBuffer()` | 长度为 0 字节的 `ArrayBuffer` |
+| `blob()` | `size` 为 0 的 `Blob` |
+| `json()` | 被拒绝，`SyntaxError`。空串不是合法的 JSON |
+
+这种情况下 `bodyUsed` 保持 `false`，可以重复读。空串 `''` 不算「没有内容」：它是一份长度为 0 的内容，读过一次之后 `bodyUsed` 是 `true`。
+
 ### `Request`
 
 把一次请求的地址和选项打包成一个对象。直接给 `fetch()` 传地址和选项就够用，很少需要它。
@@ -356,11 +440,24 @@ const res = await fetch(req);
 | `url` | 字符串 | 是 | 否 | 请求的地址 |
 | `method` | 字符串 | 是 | 否 | 请求方法 |
 | `headers` | [`Headers`](url.md) | 是 | 否 | 请求头 |
-| `clone()` | 方法 | — | — | 返回一份副本 |
+| `clone()` | 方法 | — | — | 返回一份独立的副本。副本的请求体也能读、也能发送 |
 
-`Request` 也有 `bodyUsed` 和四个读取方法，用法和 `Response` 相同。
+`Request` 也有 `bodyUsed` 和四个读取方法，读出来的是构造时给的 `body`：
 
-构造时地址不是完整的 URL 会抛 `TypeError`，信息以 `Invalid URL:` 开头。
+```js
+const req = new Request('https://httpbin.org/post', { method: 'POST', body: 'hello' });
+console.log(await req.text());
+console.log(req.bodyUsed);
+```
+
+**结果**：输出 `hello` 和 `true`。
+
+- 没有请求体的 `Request`（比如 `GET` 请求）读取时的结果和[没有内容的 `Response`](#response) 相同。
+- 第一个参数可以是另一个 `Request`，新的对象沿用它的地址、方法、请求头和请求体。`init` 里给了的字段以 `init` 为准。
+- **出错**：
+  - 地址不是完整的 URL：`TypeError`，信息以 `Invalid URL:` 开头
+  - 请求体已经读过之后调 `clone()`：`TypeError: Cannot clone a Request whose body has already been read`
+  - 第一个参数是请求体已经读过的 `Request`，并且 `init` 里没有给新的 `body`：`TypeError: Cannot construct a Request from a Request whose body has already been read`
 
 ### `Blob`
 
@@ -433,7 +530,10 @@ controller.abort();
 | `res.json()`、`res.text()`、`res.arrayBuffer()`、`res.blob()` | 相同 |
 | `AbortController`、`AbortSignal.timeout()` | 相同 |
 | 取消时抛出 `DOMException` | 抛出 `name` 为 `'AbortError'` 的 `Error`。没有 `DOMException` 这个类 |
-| `init.body` 可以是 `FormData`、`Blob`、`ArrayBuffer` | 只能是字符串 |
+| `init.body` 可以是字符串、`Blob`、`ArrayBuffer`、类型数组、`URLSearchParams` | 相同 |
+| `init.body` 可以是 `FormData`、`ReadableStream` | 没有 |
+| `body` 是 `ArrayBuffer` 且没写 `Content-Type` 时，不发这个请求头 | 系统会填上 `application/x-www-form-urlencoded` |
+| `new Response(body, init)`、`new Request(input, init)` | 相同 |
 | `res.body`（流） | 没有 |
 | `res.formData()`、`res.clone()` | 没有 |
 | `init.mode`、`init.credentials`、`init.cache`、`init.redirect` | 没有 |
@@ -443,12 +543,11 @@ controller.abort();
 
 | 想做的事 | 状态 |
 | --- | --- |
-| 上传文件或二进制数据（请求体用 `Blob`、`ArrayBuffer`、`FormData`） | 未实现 |
+| 用表单的方式上传文件（请求体用 `FormData`） | 未实现。二进制数据可以直接当 `body` 发送，见[上传二进制数据](#上传二进制数据) |
 | 边下载边处理，或显示下载进度 | 未实现。内容要全部下载完才能读到 |
 | 用几个 `Blob` 拼成一个新的 `Blob` | 未实现 |
 | 禁止自动跟随重定向，或得知是否发生过重定向 | 未实现 |
 | 控制缓存策略 | 未实现 |
-| 实时双向通信（WebSocket） | 未实现 |
 
 ## 参见
 

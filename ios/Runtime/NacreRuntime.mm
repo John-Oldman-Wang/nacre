@@ -420,6 +420,7 @@ static const void* kNacrePresentationDelegateKey = &kNacrePresentationDelegateKe
 
 - (int)fetchStart:(const std::string&)urlText
           options:(const std::string&)optionsJSON
+             body:(id)body
            callId:(int)callId {
   auto engine = _engine;
   NSURL* url = [NSURL URLWithString:@(urlText.c_str())];
@@ -444,9 +445,16 @@ static const void* kNacrePresentationDelegateKey = &kNacrePresentationDelegateKe
       [req addValue:pair[1] forHTTPHeaderField:pair[0]];
     }
   }
-  NSString* bodyText = opts[@"body"];
-  if ([bodyText isKindOfClass:NSString.class]) {
-    req.HTTPBody = [bodyText dataUsingEncoding:NSUTF8StringEncoding];
+  // 请求体只认 Blob：字符串、ArrayBuffer、类型数组在 JS 侧都已经包成了 Blob。
+  // NSData 不可变，直接交给请求，不用拷贝
+  if (body != nil) {
+    if (![body isKindOfClass:NacreBlob.class]) {
+      dispatch_async(dispatch_get_main_queue(), ^{
+        if (*engine) (*engine)->RejectCall(callId, "TypeError", "fetch body must be a Blob");
+      });
+      return 0;
+    }
+    req.HTTPBody = ((NacreBlob*)body).data;
   }
 
   const int requestId = _nextRequestId++;
@@ -883,10 +891,10 @@ nacre::NativeObjectRef CreateBlob(
       });
     };
     host.fetch_start = [weakSelf](const std::string& url, const std::string& options,
-                                  int callId) -> int {
+                                  void* body, int callId) -> int {
       NacreRuntime* strongSelf = weakSelf;
       if (!strongSelf) return 0;
-      return [strongSelf fetchStart:url options:options callId:callId];
+      return [strongSelf fetchStart:url options:options body:(__bridge id)body callId:callId];
     };
     host.fetch_read_body = [weakSelf](int requestId, const std::string& kind,
                                       int callId) {

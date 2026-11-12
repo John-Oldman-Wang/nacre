@@ -125,6 +125,64 @@ const text = await fetch(url).then((res) => res.text());
 - 清理回调要等一次**完整** GC，只制造小对象触发不了。用例里每拍分配 96 MB 的类型数组（记在堆外内存上），实测 3 秒左右出一次完整回收。阈值具体是多少没有单独量
 - 清理回调是 V8 平台队列里的任务，执行它的 `PumpMessageLoop` 全仓库只有一处调用：`postToJS` 的末尾，也就是原生事件进来的那一轮之后。定时器唤醒和 fetch 的结算都不经过 `postToJS`。用例里靠每拍写一次本地存储触发 `change` 事件来带它。**推论（读代码得出，未实测）**：一个只跑定时器和网络请求、没有其它原生事件的 App，`Response` 的释放会一直攒着
 
+
+## 本地 body：统一存成 Blob
+
+自己构造的 `Request` / `Response` 的 body 不在原生那条请求记录里（它们没有请求 id），所以要另外存。存法只有一种：**一个 `Blob`，或者 `null`**。
+
+```
+构造函数收到的 body ──extractBody──▶ [Blob 或 null, 默认的 Content-Type 或 null]
+
+  null / undefined              → null
+  Blob                          → 原样（type 非空时当默认 Content-Type）
+  ArrayBuffer / 类型数组         → new Blob([字节])
+  URLSearchParams               → new Blob([String(它)])，form-urlencoded
+  其它一切                       → new Blob([String(它)])，text/plain
+```
+
+这是 Web 的「extract a body」那张表，少了 `FormData` 和 `ReadableStream` 两行。「其它一切按 `String()` 转」也是它的规定，和[参数转换](conversion.md)的字符串那一行是同一条规则。
+
+统一成 `Blob` 之后三件事都只剩一条路：
+
+| | 怎么做 |
+| --- | --- |
+| 读 | `text()` / `arrayBuffer()` 转给那个 `Blob` 自己的方法；`blob()` 直接把它交出去（`Blob` 不可变） |
+| 发 | `fetchStart` 多收一个参数：`Blob` 的句柄。原生层取它的 `NSData` 直接当 `HTTPBody`，不拷贝。原来 body 是塞在 options 的 JSON 里的字符串，那条路删了 |
+| 复制 | `clone()` 和 `new Request(request)` 共用同一个 `Blob` |
+
+原生层只认 `Blob`：给的不是就拒绝（`fetch body must be a Blob`）。转换全在 JS 一侧，这也是参数转换那套分工。
+
+### 这是修出来的（2026-11-12）
+
+外部审查指出 `new Request(url, { body: 'hello' }).text()` 和 `new Response('hello').text()` 都被拒绝：读取只认请求 id，自己构造的是 0；`Response` 的构造函数根本没存 body。加了 48 条断言，修之前失败 35 条。
+
+顺带量到修之前的发送行为，都是静默的错：
+
+| `body` | 修之前服务器收到的 |
+| --- | --- |
+| `new Uint8Array([0, 255, 16, 128])` | 文字 `0,255,16,128` |
+| `ArrayBuffer` | 文字 `[object ArrayBuffer]` |
+| `Blob` | 文字 `[object Blob]`（读代码得出，没有单独量） |
+
+### 没有 body 时照 Web 给空内容
+
+`new Response().text()` 得到 `''`，`bodyUsed` 保持 `false`。原来是拒绝 `This object has no body`，并且先把 `bodyUsed` 置成了 `true`——一个从来没有内容的对象显示「读过了」。
+
+### 默认的 Content-Type，以及一个改不掉的差异
+
+Web 规定没写 `Content-Type` 时按 body 的种类补默认值，字符串是 `text/plain;charset=UTF-8`。这一条照做了，在 JS 侧往 `Headers` 里补。
+
+**这改变了已有的行为**：原来字符串 body 不写 `Content-Type` 时，发出去的是 `application/x-www-form-urlencoded`。那不是我们选的，是 `NSURLSession` 在有 `HTTPBody` 而没有 `Content-Type` 时自己填的（实测：`httpbin` 把 `hello` 解析成了一个表单字段，`data` 是空的）。
+
+同一个机制留下一处和 Web 不一样的地方：`ArrayBuffer` 和类型数组在 Web 上不发 `Content-Type`，而我们拦不住系统去填那个表单类型。实测服务器真的把四个字节当表单解析了。所以文档里要求发二进制时自己写 `Content-Type`。没有替用户补一个 `application/octet-stream`——那是又发明一条 Web 没有的规则。
+
+### 两处比 Web 宽
+
+- **带 body 的 `Request` 可以用于多次 `fetch`。** Web 上 `fetch(req)` 会把 `req` 的 body 标成读过，第二次就抛。我们的 body 是不可变的 `Blob`，共用没有代价，所以没有标。**未在模拟器验证**（验收里只发了一次）
+- **`GET` / `HEAD` 带 body 不抛。** Web 在构造 `Request` 时就拒绝。这个原来就没检查，这次没有动
+
+读过之后的 `clone()` 和 `new Request(读过的)` 是照 Web 抛的。
+
 ---
 
 ← 返回 [API 文档](README.md)

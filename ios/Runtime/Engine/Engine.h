@@ -147,11 +147,12 @@ struct EngineHost {
       create_blob;
 
   // ---- 网络 ----
-  // 发起一个请求。options_json 带 method / headers / body 等；
+  // 发起一个请求。options_json 带 method / headers；body 是请求体那个原生
+  // 对象（宿主自己的 Blob），没有请求体时是空指针。
   // headers 到达时宿主调 SettleJSON(call_id, ...)，失败时 RejectCall。
   // 返回一个 id，用来取消和读 body。
   std::function<int(const std::string& url, const std::string& options_json,
-                    int call_id)>
+                    void* body, int call_id)>
       fetch_start;
   // 读某个请求的 body。kind 是 'text' / 'arrayBuffer' / 'blob'，
   // 宿主在 body 下载完（并在后台处理完）之后兑现 call_id。

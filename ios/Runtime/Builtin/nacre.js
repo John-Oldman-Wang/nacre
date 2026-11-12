@@ -5201,7 +5201,7 @@
   // 对视频切片这类场景的意义：fetch 一个切片拿到 Blob，交给播放器，
   // 字节从头到尾不进 V8 堆。
 
-  defineNativeClass('Blob', class Blob extends NSObject {
+  const Blob = defineNativeClass('Blob', class Blob extends NSObject {
     constructor(parts, options) {
       super();
       const list = parts === undefined || parts === null ? [] : Array.from(parts);
@@ -5307,7 +5307,9 @@
   // 没有 ReadableStream：body 整个下完才兑现。流式是一整套规范，第一版不做。
 
   const kRequestId = Symbol('fetch.requestId');
-  const kBodyText = Symbol('request.bodyText');
+  // 自己构造的 Request / Response 的 body：一个 Blob，或者 null（没有 body）。
+  // 从网络来的 Response 不走这里，它的 body 在原生那条请求记录里
+  const kBody = Symbol('fetch.body');
   const kBodyUsed = Symbol('fetch.bodyUsed');
   const kResponseInit = Symbol('fetch.responseInit');
 
@@ -5329,9 +5331,9 @@
       // Web 规范：body 只能读一次。读过第二次要抛，不能静默给空的
       return Promise.reject(new TypeError('Body has already been read'));
     }
-    target[kBodyUsed] = true;
     const id = target[kRequestId];
-    if (!id) return Promise.reject(new TypeError('This object has no body'));
+    if (!id) return readLocalBody(target, kind);
+    target[kBodyUsed] = true;
     const result = native.fetchReadBody(id, kind);
     reading.add(target);
     const done = () => { reading.delete(target); };
@@ -5339,6 +5341,36 @@
     // 未处理的拒绝。交给调用方的仍然是 result 本身
     result.then(done, done);
     return result;
+  }
+
+  // 自己构造的 Request / Response：body 就在手边的那个 Blob 里
+  function readLocalBody(target, kind) {
+    const body = target[kBody];
+    if (body === null) {
+      // 没有 body：照 Web 给空内容，而且不算读过，可以再读
+      if (kind === 'text') return Promise.resolve('');
+      if (kind === 'blob') return Promise.resolve(new Blob([]));
+      return Promise.resolve(new ArrayBuffer(0));
+    }
+    target[kBodyUsed] = true;
+    // Blob 不可变，blob() 直接给同一个
+    if (kind === 'blob') return Promise.resolve(body);
+    return kind === 'text' ? body.text() : body.arrayBuffer();
+  }
+
+  // 构造函数收到的 body → [Blob 或 null, 默认的 Content-Type 或 null]。
+  // 照 Web 的「extract a body」：Blob 和字节原样收，其余一律按 String() 转
+  // 成 UTF-8 的文字。统一存成 Blob，读取和发送就都只有一条路。
+  function extractBody(value) {
+    if (value === undefined || value === null) return [null, null];
+    if (value instanceof Blob) return [value, value.type === '' ? null : value.type];
+    if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) {
+      return [new Blob([value]), null];
+    }
+    if (value instanceof URLSearchParams) {
+      return [new Blob([String(value)]), 'application/x-www-form-urlencoded;charset=UTF-8'];
+    }
+    return [new Blob([String(value)]), 'text/plain;charset=UTF-8'];
   }
 
   class Body {
@@ -5355,11 +5387,18 @@
       const o = init === undefined || init === null ? {} : init;
       this[kRequestId] = 0;
       this[kBodyUsed] = false;
+      const [blob, contentType] = extractBody(body);
+      this[kBody] = blob;
+      const headers = new Headers(o.headers);
+      // 自己没给 Content-Type 才补默认的
+      if (contentType !== null && !headers.has('content-type')) {
+        headers.set('Content-Type', contentType);
+      }
       this[kResponseInit] = {
         status: has(o, 'status') ? Number(o.status) : 200,
         statusText: has(o, 'statusText') ? String(o.statusText) : '',
         url: '',
-        headers: new Headers(o.headers),
+        headers,
       };
     }
     get status() { return this[kResponseInit].status; }
@@ -5385,15 +5424,29 @@
                       .toUpperCase();
       this.headers = new Headers(
         has(o, 'headers') ? o.headers : fromRequest ? input.headers : undefined);
-      const body = has(o, 'body') ? o.body : fromRequest ? input[kBodyText] : undefined;
-      this[kBodyText] = body === undefined || body === null ? null : String(body);
+      if (has(o, 'body')) {
+        const [blob, contentType] = extractBody(o.body);
+        this[kBody] = blob;
+        if (contentType !== null && !this.headers.has('content-type')) {
+          this.headers.set('Content-Type', contentType);
+        }
+      } else if (fromRequest) {
+        if (input[kBodyUsed]) {
+          throw new TypeError('Cannot construct a Request from a Request whose body has already been read');
+        }
+        // Blob 不可变，两个 Request 共用同一个。首部上面已经从 input 抄过来了
+        this[kBody] = input[kBody];
+      } else {
+        this[kBody] = null;
+      }
       // 不 Object.freeze：bodyUsed 是读 body 时才置上的，冻了就写不进去。
       // Web 的 Request 用内部槽存这个状态，我们用 Symbol 属性，所以不能冻。
     }
     clone() {
-      return new Request(this.url, {
-        method: this.method, headers: this.headers, body: this[kBodyText],
-      });
+      if (this[kBodyUsed]) {
+        throw new TypeError('Cannot clone a Request whose body has already been read');
+      }
+      return new Request(this);
     }
   });
 
@@ -5407,10 +5460,11 @@
     const options = {
       method: req.method,
       headers: headerPairs,
-      body: req[kBodyText],
     };
-
-    const [promise, requestId] = native.fetchStart(req.url, JSON.stringify(options));
+    // body 不走 JSON：交过去的是 Blob 的句柄，字节不进 V8 堆、也不用转码
+    const body = req[kBody];
+    const [promise, requestId] = native.fetchStart(
+        req.url, JSON.stringify(options), body === null ? 0 : body[kHandle]);
 
     // 取消：signal 一中止就叫原生层 cancel，NSURLSessionTask 会以
     // NSURLErrorCancelled 结束，原生层把它映射成 AbortError

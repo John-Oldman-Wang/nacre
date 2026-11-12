@@ -664,8 +664,10 @@ struct Engine::Impl {
     const int call_id = self->next_call_id++;
     self->pending_calls[call_id].Reset(isolate, resolver);
 
+    // 第三个参数是请求体那个 Blob 的句柄，没有 body 时是 0（查不到，得到空指针）
     const int request_id = self->host.fetch_start(
-        SafeToString(isolate, info[0]), SafeToString(isolate, info[1]), call_id);
+        SafeToString(isolate, info[0]), SafeToString(isolate, info[1]),
+        self->PtrForHandle(info, 2), call_id);
     // 返回 [promise, requestId]：JS 侧要拿 requestId 去读 body 和取消
     v8::Local<v8::Array> pair = v8::Array::New(isolate, 2);
     pair->Set(ctx, 0, resolver->GetPromise()).Check();
