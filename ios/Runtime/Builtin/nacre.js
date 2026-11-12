@@ -1784,6 +1784,35 @@
     }
   });
 
+  // 系统剪贴板。只有类级的单例 generalPasteboard，现在只管字符串。
+  //
+  // 读 string 是真的去取内容——内容来自别的 App 时系统可能先问用户，
+  // 所以另外给了两个不取内容的查询：hasStrings 和 changeCount
+  defineNativeClass('UIPasteboard', class UIPasteboard extends NSObject {
+    constructor() { nativeOnly(new.target); }
+    static get generalPasteboard() {
+      return nativeClassObject('UIPasteboard', 'generalPasteboard');
+    }
+
+    [kSubscribe](type, on) {
+      requireNative(this, 'addEventListener');
+      native.subscribe(this[kHandle], type, on);
+      if (on) {
+        subscribed.add(this);
+      } else if (this[kListeners].size === 0) {
+        subscribed.delete(this);
+      }
+    }
+
+    get string() { requireNative(this, 'string'); return nativeGet(this, 'string'); }
+    set string(value) { requireNative(this, 'string'); nativeSet(this, 'string', value); }
+    get hasStrings() { requireNative(this, 'hasStrings'); return nativeGet(this, 'hasStrings'); }
+    get changeCount() {
+      requireNative(this, 'changeCount');
+      return nativeGet(this, 'changeCount');
+    }
+  });
+
   // 和屏幕刷新同步的回调。
   //
   // ```js

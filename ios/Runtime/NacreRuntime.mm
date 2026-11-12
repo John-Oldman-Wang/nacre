@@ -1329,6 +1329,14 @@ nacre::NativeObjectRef CreateBlob(
     };
     if (GestureSetSubscription(object, @(type.c_str()), on, emit, error)) return;
   }
+  // 剪贴板。同样只塞一个事件出口
+  {
+    __weak NacreRuntime* weakSelf = self;
+    NacrePasteboardEmit emit = ^(UIPasteboard* pasteboard, NSString* name) {
+      [weakSelf emitEvent:name from:pasteboard className:"UIPasteboard" then:nil];
+    };
+    if (PasteboardSetSubscription(object, @(type.c_str()), on, emit, error)) return;
+  }
   if ([object isKindOfClass:NSUserDefaults.class]) {
     NSUserDefaults* defaults = (NSUserDefaults*)object;
     if (type != "change") {

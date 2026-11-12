@@ -51,6 +51,7 @@ Nacre 的 API 分两层：
 | [手势识别器](ui-gesture-recognizer.md) | 点按和长按。加在任意视图上，事件名是手势的阶段 |
 | [输入框和键盘](ui-text-field.md) | `UITextField`、first responder、键盘避让只要一条约束 |
 | [`UIDevice`](ui-device.md) | 设备和系统的信息。系统版本是字符串，比较前先转成数 |
+| [`UIPasteboard`](ui-pasteboard.md) | 剪贴板。读写文字是同步属性；读内容可能引出系统提示 |
 | [本地存储](storage.md) | `application.storage`。存什么、什么时候落盘、变化通知的边界 |
 | [文件读写](filesystem.md) | `application.fileSystem`。全是 Promise，四个目录，错误怎么分类 |
 | [Keychain](keychain.md) | `application.keychain`。令牌和密码，accessible 决定能不能跟着换手机 |

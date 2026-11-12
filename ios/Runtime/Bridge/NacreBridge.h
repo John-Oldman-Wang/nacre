@@ -79,6 +79,9 @@ extern const void* kNacreDisplayLinkTargetKey;
 @property(class, readonly) NacreKeychain* shared;
 @end
 
+// 剪贴板的事件出口。和手势同一个路子
+typedef void (^NacrePasteboardEmit)(UIPasteboard* pasteboard, NSString* type);
+
 // 手势的事件出口。NacreGesture.mm 不认识 NacreRuntime，订阅时由它塞进来
 typedef void (^NacreGestureEmit)(UIGestureRecognizer* recognizer, NSString* type,
                                  NSString* json);
@@ -454,6 +457,14 @@ NACRE_ENUM_DECL(UserInterfaceIdiom, UIUserInterfaceIdiom)
 nacre::NativeObjectRef DeviceClassObject(const std::string& className,
                                          const std::string& name);
 id ReadDeviceProperty(id object, NSString* key);
+
+// ---- 剪贴板 ----
+nacre::NativeObjectRef PasteboardClassObject(const std::string& className,
+                                             const std::string& name);
+id ReadPasteboardProperty(id object, NSString* key);
+BOOL WritePasteboardProperty(id object, NSString* key, id value, std::string* error);
+bool PasteboardSetSubscription(id object, NSString* type, BOOL on, NacrePasteboardEmit emit,
+                               std::string* error);
 
 // ---- 密码学 ----
 bool FillRandom(void* bytes, size_t length);

@@ -24,6 +24,7 @@ std::string ReadNativeProperty(id object, const std::string& name) {
   if (value == nil) value = ReadWebSocketProperty(object, key);
   if (value == nil) value = ReadGestureProperty(object, key);
   if (value == nil) value = ReadDeviceProperty(object, key);
+  if (value == nil) value = ReadPasteboardProperty(object, key);
   if (value == nil) value = ReadScrollProperty(object, key);
   if (value == nil) value = ReadViewProperty(object, key);
   if (value == nil) value = ReadResourceProperty(object, key);
@@ -50,6 +51,7 @@ void WriteNativeProperty(id object, const std::string& name, const std::string& 
   if (WriteDisplayLinkProperty(object, key, value, error)) return;
   if (WriteWebSocketProperty(object, key, value, error)) return;
   if (WriteGestureProperty(object, key, value, error)) return;
+  if (WritePasteboardProperty(object, key, value, error)) return;
   if (WriteScrollProperty(object, key, value, error)) return;
   if (WriteViewProperty(object, key, value, error)) return;
   // 注意：走正常的 JS 路径到不了这里。JS 侧的属性是一个个显式定义的

@@ -37,3 +37,36 @@
 | `systemVersion` | `27.2` |
 | `localizedModel` | `iPhone`（系统语言是英文） |
 | `UIDevice.currentDevice` 读两次 | 同一个包装 |
+
+## `UIPasteboard`
+
+### 读写是同步属性，没有做成 Promise
+
+Web 的 `navigator.clipboard.readText()` 是 Promise，原因是浏览器要在中间插一道权限判断。iOS 上 `string` 就是个同步属性——系统要问用户的时候，是它自己把调用卡住。原则 4 说的是「异步 API 返回 Promise」，不是「把同步的东西包成异步」；原则 9 说 iOS 独有的机制按 iOS 的事实来。所以原样暴露成属性。
+
+代价要写在明处：**读 `string` 可能卡住主线程等用户点提示**。文档里的建议是只在用户明确要粘贴时读，另外给了两个不取内容的查询（`hasStrings`、`changeCount`）。
+
+### 写 `null` 原样交给 UIKit
+
+ObjC 的 `string` 是 `nullable`，写 nil 是什么效果头文件没说。没有替它发明「清空」的语义，原样传下去再量：实测是**清空**（`string` 读到 nil、`hasStrings` 变 NO、`changeCount` 加了）。验收用例把它固化成了断言。
+
+### `change` 事件
+
+监听的是 `UIPasteboardChangedNotification`，按发送者过滤（`object:` 传这个剪贴板）。惰性订阅：有监听器时才往通知中心登记，观察者通过关联对象挂在剪贴板上。
+
+事件**不带数据**：变了之后的内容在 `string` 上读得到，计数在 `changeCount` 上读得到，判据还是「回头读不读得到」。
+
+### 验收用例只在模拟器上自动读写
+
+自动的读写断言在真机上不跑，两个原因：会把用户剪贴板里的东西冲掉；读别的 App 复制的内容可能弹系统提示，卡住启动。分清模拟器和真机用的是 `application.info.DTPlatformName`（`iphonesimulator` / `iphoneos`）——这是 Xcode 打进 Info.plist 的事实，不用为此加任何能力。真机上靠屏幕右上面板里的「复制」「粘贴」两个按钮手动触发。
+
+### 实测
+
+| | 结果（iPhone Air 模拟器） |
+| --- | --- |
+| 写进去读出来 | 同一段文字 |
+| 写 `null` | 清空 |
+| 自己写，收不收得到 `change` | 收得到 |
+| 连续写两次（一次字符串、一次 `null`） | 收到 **4** 次 `change`，不是 2 次。四次回调里读到的 `changeCount` 是同一个值——事件延后一轮才到，那时两次写入都已经完成 |
+
+没验的（要真机）：复制之后到别的 App 里粘贴；读别的 App 复制的内容时系统弹不弹提示；别的 App 改剪贴板时发不发 `change`。

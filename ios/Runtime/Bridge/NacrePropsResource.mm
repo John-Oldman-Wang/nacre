@@ -252,6 +252,8 @@ nacre::NativeObjectRef ReadClassObjectProperty(const std::string& className,
   }
   nacre::NativeObjectRef device = DeviceClassObject(className, name);
   if (!device.class_name.empty()) return device;
+  nacre::NativeObjectRef pasteboard = PasteboardClassObject(className, name);
+  if (!pasteboard.class_name.empty()) return pasteboard;
   nacre::NativeObjectRef storage = StorageClassObject(className, name);
   if (!storage.class_name.empty()) return storage;
   nacre::NativeObjectRef files = FileSystemClassObject(className, name);

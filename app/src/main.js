@@ -34,6 +34,7 @@ import { stepTimers } from './steps/timers.js';
 import { stepPerformance } from './steps/performance.js';
 import { stepCrypto } from './steps/crypto.js';
 import { stepDevice } from './steps/device.js';
+import { stepPasteboard } from './steps/pasteboard.js';
 import { stepAutolayout } from './steps/autolayout.js';  // 含 CALayer
 import { stepControl } from './steps/control.js';
 import { stepButton } from './steps/button.js';
@@ -60,6 +61,7 @@ import { stepOwnership } from './steps/ownership.js';
  * @property {UIWindow} win 窗口，同上。timers 那段要在它上面挂 becomekey
  * @property {UINavigationController} [nav] 导航控制器，GC 那一步要用它验栈的持有边
  * @property {UIViewController} [modalPage] 可以拖走的那张卡片，由 stepModal 建
+ * @property {UIStackView} [systemPanel] 屏幕右上那块「系统能力」面板，各步往里加一排按钮
  */
 
 application.addEventListener('sceneconnect', (e) => {
@@ -94,6 +96,7 @@ application.addEventListener('sceneconnect', (e) => {
   stepKeyframe(ctx);
   stepDisplayLink(ctx);
   stepGesture(ctx);
+  stepPasteboard(ctx);
   stepNavigation(ctx);
   stepModal(ctx);
   stepOwnership(ctx);
