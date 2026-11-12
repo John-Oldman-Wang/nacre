@@ -55,6 +55,46 @@ export function stepControl(ctx) {
       console.log('  ✓ 不认识的事件名被拒:', err.message.slice(0, 48) + '…');
     }
 
+    // 订阅失败不能留下半截状态（回归）。原来是先登记监听器、再去订阅，原生
+    // 一拒绝，登记的那条还在：同一个回调第二次注册被当成重复，静默返回；
+    // 换一个回调也因为「这个类型已经有人听了」不再去问原生。
+    {
+      const probe = new UIControl();
+      let reached = false;
+      const handler = () => { reached = true; };
+      /** @param {() => void} callback */
+      const tryAdd = (callback) => {
+        try {
+          // @ts-expect-error 没有这个控件事件
+          probe.addEventListener('mousedown', callback);
+          return '没抛';
+        } catch (err) {
+          return err instanceof TypeError ? 'TypeError' : String(err);
+        }
+      };
+      assert('非法事件名：第一次注册抛', tryAdd(handler), 'TypeError');
+      assert('非法事件名：同一个回调再注册，照样抛', tryAdd(handler), 'TypeError');
+      assert('非法事件名：换一个回调注册，照样抛', tryAdd(() => {}), 'TypeError');
+      probe.dispatchEvent(new Event('mousedown'));
+      assert('非法事件名：没有留下监听器', reached, false);
+
+      // 失败过之后，合法的注册、去重、移除、once 照常
+      let ups = 0;
+      const onProbeUp = () => { ups++; };
+      probe.addEventListener('touchUpInside', onProbeUp);
+      probe.addEventListener('touchUpInside', onProbeUp);
+      probe.dispatchEvent(new Event('touchUpInside'));
+      assert('失败之后：合法事件重复注册只算一次', ups, 1);
+      probe.removeEventListener('touchUpInside', onProbeUp);
+      probe.dispatchEvent(new Event('touchUpInside'));
+      assert('失败之后：移除了就不再收到', ups, 1);
+      let downs = 0;
+      probe.addEventListener('touchDown', () => { downs++; }, { once: true });
+      probe.dispatchEvent(new Event('touchDown'));
+      probe.dispatchEvent(new Event('touchDown'));
+      assert('失败之后：once 只收到一次', downs, 1);
+    }
+
     /** @type {string[]} */ const fired = [];
     const onUp = (/** @type {Event} */ e) => {
       fired.push(e.type);

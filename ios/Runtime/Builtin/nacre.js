@@ -80,14 +80,18 @@
       const once = typeof options === 'object' && options !== null ? Boolean(options.once) : false;
       let list = this[kListeners].get(t);
       if (list === undefined) {
+        // 这个类型从无到有：**先**告诉原生「我要听了」，成了再登记。
+        // 原生会拒绝它不认识的事件名（抛 TypeError）。先登记的话，抛了之后
+        // 那一条还留在表里：同一个回调再注册被当成重复、换一个回调也不再去
+        // 问原生，两种都静默通过；而且这个键让监听器表永远不为空。
+        // 订阅是同步的，不会回调进 JS，所以中间没有重入。
+        this[kSubscribe](t, true);
         list = [];
         this[kListeners].set(t, list);
       }
       // 同一个 (type, callback) 只注册一次，和标准一致
       for (const entry of list) if (entry.callback === callback) return;
       list.push({ callback, once });
-      // 这个类型从无到有：告诉原生「我要听了」
-      if (list.length === 1) this[kSubscribe](t, true);
     }
 
     removeEventListener(type, callback) {
