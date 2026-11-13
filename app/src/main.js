@@ -72,7 +72,20 @@ import { stepTraits } from './steps/traits.js';
  * @property {import("./waterfall.js").Waterfall["dock"]} dock 让瀑布的底边接在某个视图上面
  */
 
+// sceneconnect 一共来了几次。这个 App 只有一个场景，所以只该来一次。
+// iOS 26 上它来过两次：验收启动时会自动聚焦一个输入框，键盘弹出的那一刻
+// 系统接入了一个放键盘窗口的内部场景，运行时把它也转了过来，整套验收
+// 跑了两遍、互相踩存储
+let sceneConnects = 0;
+
 application.addEventListener('sceneconnect', (e) => {
+  sceneConnects++;
+  if (sceneConnects === 1) {
+    setTimeout(() => {
+      assert('sceneconnect 只来了一次（键盘的内部场景不算数）', sceneConnects, 1);
+      assert('application.scenes 里也只有一个', application.scenes.length, 1);
+    }, 6000);
+  }
   // vc 要等 stepWindow 建出来，所以这里断言式地转一下型
   const ctx = /** @type {StepContext} */ ({ scene: e.scene, assert });
 

@@ -398,6 +398,21 @@ static const void* kNacreAnimationDelegateKey = &kNacreAnimationDelegateKey;
 // 记在 VC 上而不是 presentationController 上，因为后者要等呈现时才存在
 static const void* kNacrePresentationDelegateKey = &kNacrePresentationDelegateKey;
 
+// 这个场景该不该交给 JS。只认**公开角色**的窗口场景：App 自己的，和外接
+// 显示器的。
+//
+// 系统还会接入一些内部场景，它们也是 UIWindowScene，也发同样的通知。
+// iOS 26 上实测到一个：键盘第一次弹出时接入 _UIKeyboardWindowScene，会话
+// 角色是 _UIScreenBasedSceneSession。原来只判断「是不是 UIWindowScene」，
+// 它就被当成 sceneconnect 转给了 JS——main.js 通常在那个事件里建窗口和
+// 页面，于是在键盘的场景上又建了一套。iOS 27 上没有出现这个场景。
+static BOOL IsAppFacingScene(UIScene* scene) {
+  if (![scene isKindOfClass:UIWindowScene.class]) return NO;
+  UISceneSessionRole role = scene.session.role;
+  return [role isEqualToString:UIWindowSceneSessionRoleApplication] ||
+         [role isEqualToString:UIWindowSceneSessionRoleExternalDisplayNonInteractive];
+}
+
 @implementation NacreRuntime {
   BOOL _started;
   // JS 跑在主线程，所以这些都只在主线程上创建、使用和销毁
@@ -816,7 +831,7 @@ nacre::NativeObjectRef CreateBlob(
     host.app_scenes = []() {
       std::vector<nacre::NativeObjectRef> refs;
       for (UIScene* scene in UIApplication.sharedApplication.connectedScenes) {
-        if (![scene isKindOfClass:UIWindowScene.class]) continue;
+        if (!IsAppFacingScene(scene)) continue;
         refs.push_back({(__bridge void*)scene, "UIWindowScene"});
       }
       return refs;
@@ -1273,7 +1288,7 @@ nacre::NativeObjectRef CreateBlob(
                      queue:NSOperationQueue.mainQueue
                 usingBlock:^(NSNotification* note) {
                   UIScene* scene = note.object;
-                  if (![scene isKindOfClass:UIWindowScene.class]) return;
+                  if (!IsAppFacingScene(scene)) return;
                   NacreRuntime* strongSelf = weakSelf;
                   if (!strongSelf) return;
                   std::string eventType = type.UTF8String;
@@ -1303,7 +1318,7 @@ nacre::NativeObjectRef CreateBlob(
                      queue:NSOperationQueue.mainQueue
                 usingBlock:^(NSNotification* note) {
                   UIScene* scene = note.object;
-                  if (![scene isKindOfClass:UIWindowScene.class]) return;
+                  if (!IsAppFacingScene(scene)) return;
                   NacreRuntime* strongSelf = weakSelf;
                   if (!strongSelf) return;
                   std::string eventType = type.UTF8String;
