@@ -642,6 +642,9 @@ std::string CallClassMethod(const std::string& className, const std::string& nam
   if (TransactionCallClassMethod(className, sel, NacreArgs{args, &argPtrs}, &out, error)) {
     return out;
   }
+  if (WebViewCallClassMethod(className, sel, NacreArgs{args, &argPtrs}, &out, error)) {
+    return out;
+  }
   *error = [NSString stringWithFormat:@"%s has no class method %@",
                                       className.c_str(), sel].UTF8String;
   return "null";

@@ -625,6 +625,256 @@ export function stepWebView(ctx) {
     local.removeFromSuperview();
     localContents.close();
 
+    // ----- 执行脚本、预加载脚本、网页和 App 互发消息 -----
+    //
+    // 预加载脚本是包里的 JS/assets/web/preload.js。同样加进界面但隐藏
+    const bridge = new WebView({ webPreferences: { preload: 'JS/assets/web/preload.js' } });
+    const bridged = bridge.webContents;
+    bridge.isHidden = true;
+    bridge.frame = new CGRect(0, 0, 200, 100);
+    host.addSubview(bridge);
+    /** 一个 Promise 是怎么结束的：兑现给值本身，拒绝给「名字: 说明」
+     * @param {Promise<any>} promise */
+    const settled = (promise) => promise.then(
+      (value) => value, (err) => 'REJECTED ' + err.name + ': ' + err.message);
+    /** @param {string} code */
+    const run1 = (code) => settled(bridged.executeJavaScript(code));
+    // 网页：最前面一段脚本记下「我执行的时候预加载脚本暴露的东西在不在」；
+    // 里面一个 <iframe>，看预加载脚本进没进去，并且试着直接往通道里塞消息
+    const frameScript =
+      "parent.frameApp = typeof window.app; " +
+      "try { window.webkit.messageHandlers.nacreIPC.postMessage(JSON.stringify(" +
+      "{ kind: 'send', channel: 'from-frame', args: [] })).catch(function () {}); " +
+      "parent.frameChannel = 'reachable'; } catch (e) { parent.frameChannel = 'none'; }";
+    /** @param {string} [head] */
+    const bridgePage = (head = '') => 'data:text/html;charset=utf-8,' + encodeURIComponent(
+      '<!doctype html>' + head + '<title>bridge</title>' +
+      '<script>window.earlyApp = typeof window.app; ' +
+      'window.earlyRenderer = typeof ipcRenderer;</script>' +
+      '<body>hi<iframe srcdoc="&lt;script&gt;' + frameScript + '&lt;/script&gt;"></iframe>');
+
+    // 还没加载任何网页时也能执行（那时是一张空白文档）
+    assert('executeJavaScript：还没加载时也能执行', await run1('1 + 1'), 2);
+    await bridged.loadURL(bridgePage());
+    await sleep(300);
+
+    // 结果：JSON 装得下的都带得回来
+    assert('executeJavaScript：数', await run1('6 * 7'), 42);
+    assert('executeJavaScript：字符串', await run1('"a" + "b"'), 'ab');
+    assert('executeJavaScript：布尔', await run1('1 < 2'), true);
+    assert('executeJavaScript：null', await run1('null'), null);
+    assert('executeJavaScript：undefined', await run1('undefined'), undefined);
+    assert('executeJavaScript：数组', JSON.stringify(await run1('[1, "a", null]')), '[1,"a",null]');
+    assert('executeJavaScript：对象（undefined 的成员没有了）',
+           JSON.stringify(await run1('({ a: 1, b: [2], u: undefined })')), '{"a":1,"b":[2]}');
+    assert('executeJavaScript：日期变成字符串', await run1('new Date(0)'), '1970-01-01T00:00:00.000Z');
+    assert('executeJavaScript：NaN 变成 null', await run1('NaN'), null);
+    assert('executeJavaScript：无穷大也变成 null', await run1('1 / 0'), null);
+    console.log('  实测：数组里的 undefined 带回来是 ' + JSON.stringify(await run1('[1, undefined, 3]')));
+    // 表达式：Promise 会等
+    assert('executeJavaScript：结果是 Promise 就等它', await run1('Promise.resolve(42)'), 42);
+    assert('executeJavaScript：结尾带分号也算表达式', await run1('Promise.resolve(43);'), 43);
+    assert('executeJavaScript：过一会儿才兑现的 Promise',
+           await run1('new Promise((done) => setTimeout(() => done("later"), 200))'), 'later');
+    assert('executeJavaScript：表达式里可以写 await', await run1('await Promise.resolve(5)'), 5);
+    assert('executeJavaScript：结尾有行注释', await run1('1 + 2 // 注释'), 3);
+    assert('executeJavaScript：被拒绝的 Promise，这边也拒绝',
+           await run1('Promise.reject(new Error("no"))'), 'REJECTED Error: Error: no');
+    // 多条语句：取最后那个值
+    assert('executeJavaScript：多条语句取最后的值', await run1('var a = 1; a + 1'), 2);
+    assert('executeJavaScript：改了网页再返回值', await run1('document.title = "改过"; 5'), 5);
+    assert('executeJavaScript：网页确实被改了', await titled('改过', bridged), '改过');
+    assert('executeJavaScript：函数声明进了网页的全局',
+           await run1('function declared() { return 9; }') === undefined &&
+           await run1('declared()'), 9);
+    // 出错
+    assert('executeJavaScript：网页里抛了就拒绝，带着原文',
+           await run1('throw new Error("boom")'), 'REJECTED Error: Error: boom');
+    const syntaxFailure = await run1('this is not (javascript');
+    assert('executeJavaScript：语法错也拒绝', String(syntaxFailure).startsWith('REJECTED Error: SyntaxError'), true);
+    assert('executeJavaScript：结果是函数，带不回来',
+           String(await run1('(function () {})')).startsWith('REJECTED TypeError: executeJavaScript'), true);
+    assert('executeJavaScript：结果是 DOM 节点，带不回来',
+           String(await run1('document.body')).startsWith('REJECTED TypeError: executeJavaScript'), true);
+    assert('executeJavaScript：多条语句的结果是 Promise，不等，带不回来',
+           String(await run1('var p = Promise.resolve(1); p')).startsWith('REJECTED TypeError: executeJavaScript'), true);
+
+    // 预加载脚本
+    assert('预加载脚本暴露的对象在网页里', await run1('typeof window.app'), 'object');
+    assert('预加载脚本暴露的值', await run1('window.app.version'), '1.0');
+    assert('预加载脚本在网页自己的脚本之前执行', await run1('window.earlyApp'), 'object');
+    assert('预加载脚本执行时还没有 <body>', await run1('window.preloadSawBody'), false);
+    assert('ipcRenderer 不是网页里的全局', await run1('window.earlyRenderer + "," + typeof contextBridge'),
+           'undefined,undefined');
+    assert('预加载脚本不进 <iframe>', await run1('window.frameApp'), 'undefined');
+    assert('已经有的名字不能再暴露（改不掉）',
+           await run1('try { window.app = 1; } catch (e) {} typeof window.app'), 'object');
+
+    // 网页 → App：单向
+    /** @type {WebContentsIpcMessageEvent[]} */
+    let messages = [];
+    bridged.addEventListener('ipc-message', (e) => { messages.push(e); });
+    await run1('window.app.say("hi")');
+    for (let i = 0; i < 20 && messages.length === 0; i++) await sleep(50);
+    assert('ipcRenderer.send：App 收到一次 ipc-message', messages.length, 1);
+    assert('ipc-message 带着频道名', messages.length > 0 && messages[0].channel, 'say');
+    assert('ipc-message 带着参数', messages.length > 0 && JSON.stringify(messages[0].args), '["hi",{"at":1}]');
+    assert('ipc-message 的 target 是 webContents', messages.length > 0 && messages[0].target === bridged, true);
+    assert('<iframe> 里够得着通道', await run1('window.frameChannel'), 'reachable');
+    assert('但 <iframe> 里塞进来的消息不收',
+           messages.some((m) => m.channel === 'from-frame'), false);
+    assert('ipcRenderer.send 带了函数：网页里当场抛',
+           await run1('try { window.app.sayFunction(); "没抛"; } catch (e) { e.name; }'), 'TypeError');
+
+    // App → 网页
+    bridged.send('to-page', 1, { x: [2] });
+    bridged.send('only-once', 'a');
+    bridged.send('only-once', 'b');
+    bridged.send('nobody-listens', 0);
+    await sleep(200);
+    assert('contents.send：网页的 ipcRenderer.on 收到了，once 只收一次',
+           await run1('JSON.stringify(window.received)'), '[[1,{"x":[2]}],["once","a"]]');
+    assert('contents.send 带了函数：当场抛',
+           thrown(() => bridged.send('to-page', () => 1)), 'TypeError: send: functions cannot be sent');
+    // 预加载脚本里 off 掉的那个监听没收到东西（上面那条的结果里没有它）；
+    // removeAllListeners 之后整个频道都不收了
+    await run1('window.app.mute()');
+    bridged.send('to-page', 9, 9);
+    await sleep(200);
+    assert('ipcRenderer.removeAllListeners 之后不再收到', await run1('window.received.length'), 2);
+
+    // 请求-响应
+    const ipc = bridged.ipc;
+    assert('读两次 ipc 是同一个对象', bridged.ipc === ipc, true);
+    let senderWasContents = false;
+    ipc.handle('ask', async (event, question) => {
+      senderWasContents = event.sender === bridged;
+      if (question === 'boom') throw new Error('故意的');
+      if (question === 'nothing') return undefined;
+      await sleep(50);
+      return { answer: question + '!', list: [1, 2] };
+    });
+    assert('ipcRenderer.invoke：拿到处理函数的返回值',
+           JSON.stringify(await run1('window.app.ask("q")')), '{"answer":"q!","list":[1,2]}');
+    assert('处理函数拿到的 event.sender 是这张网页', senderWasContents, true);
+    assert('处理函数没有返回值：网页那边是 undefined',
+           await run1('window.app.ask("nothing").then((v) => typeof v)'), 'undefined');
+    assert('处理函数抛了：网页那边被拒绝，说明里带着原因',
+           await run1('window.app.ask("boom").catch((e) => e.message)'),
+           "Error invoking remote method 'ask': Error: 故意的");
+    assert('没登记处理函数：网页那边被拒绝',
+           await run1('window.app.askNobody().catch((e) => e.message)'),
+           "Error invoking remote method 'nobody': Error: No handler registered for 'nobody'");
+    assert('同一个频道登记两次：抛',
+           thrown(() => ipc.handle('ask', () => 1)),
+           "Error: Attempted to register a second handler for 'ask'");
+    ipc.removeHandler('ask');
+    assert('removeHandler 之后：又变成没登记',
+           await run1('window.app.ask("q").catch((e) => e.message)'),
+           "Error invoking remote method 'ask': Error: No handler registered for 'ask'");
+    assert('处理函数不是函数：抛',
+           thrown(() => ipc.handle('x', /** @type {any} */ (5))).split(':')[0], 'TypeError');
+
+    // 换一张网页：预加载脚本重新执行一遍
+    await bridged.loadURL(bridgePage());
+    await sleep(200);
+    assert('换了网页，预加载脚本又执行了一遍',
+           await run1('window.app.version + "," + window.received.length'), '1.0,0');
+
+    // 有内容安全策略、禁止一切脚本的网页：App 这边的三样照常能用
+    await bridged.loadURL(bridgePage(
+      '<meta http-equiv="Content-Security-Policy" content="script-src \'none\'">'));
+    await sleep(200);
+    assert('禁止脚本的网页：网页自己的脚本没执行', await run1('typeof window.earlyApp'), 'undefined');
+    assert('禁止脚本的网页：executeJavaScript 照常', await run1('1 + 1'), 2);
+    assert('禁止脚本的网页：Promise 照常等', await run1('Promise.resolve(7)'), 7);
+    assert('禁止脚本的网页：预加载脚本照常执行', await run1('window.app.version'), '1.0');
+    messages = [];
+    await run1('window.app.say("csp")');
+    for (let i = 0; i < 20 && messages.length === 0; i++) await sleep(50);
+    assert('禁止脚本的网页：消息照常', messages.length > 0 && JSON.stringify(messages[0].args), '["csp",{"at":1}]');
+
+    // 预加载脚本本身有问题
+    const preDir = fileSystem.documents + '/acceptance-preload';
+    await fileSystem.makeDirectory(preDir);
+    await fileSystem.writeText(preDir + '/broken.js', 'this is not (javascript');
+    await fileSystem.writeText(preDir + '/throws.js',
+                               'window.beforeThrow = 1; throw new Error("预加载脚本故意抛的");');
+    const brokenText = thrown(() => new WebView({ webPreferences: { preload: preDir + '/broken.js' } }));
+    console.log('  实测：预加载脚本有语法错时 new WebView 抛的是 ' + brokenText.slice(0, 120));
+    assert('预加载脚本有语法错：new WebView 当场抛 SyntaxError', brokenText.split(':')[0], 'SyntaxError');
+    const missingText = thrown(() => new WebView({ webPreferences: { preload: 'JS/assets/web/no-such.js' } }));
+    console.log('  实测：预加载脚本读不到时 new WebView 抛的是 ' + missingText.slice(0, 120));
+    assert('预加载脚本读不到：new WebView 当场抛 TypeError', missingText.split(':')[0], 'TypeError');
+    const faulty = new WebView({ webPreferences: { preload: preDir + '/throws.js' } });
+    faulty.isHidden = true;
+    faulty.frame = new CGRect(0, 0, 10, 10);
+    host.addSubview(faulty);
+    /** @type {WebContentsPreloadErrorEvent[]} */
+    const preloadErrors = [];
+    faulty.webContents.addEventListener('preload-error', (e) => { preloadErrors.push(e); });
+    await faulty.webContents.loadURL(pageURL('预加载脚本会抛'));
+    for (let i = 0; i < 20 && preloadErrors.length === 0; i++) await sleep(50);
+    assert('预加载脚本执行时抛了：派发一次 preload-error', preloadErrors.length, 1);
+    if (preloadErrors.length > 0) {
+      assert('preload-error 带着路径', preloadErrors[0].preloadPath, preDir + '/throws.js');
+      assert('preload-error 带着错误', preloadErrors[0].error instanceof Error &&
+             preloadErrors[0].error.message.includes('预加载脚本故意抛的'), true);
+    }
+    assert('抛之前的那几句执行了，网页照常加载',
+           await settled(faulty.webContents.executeJavaScript('window.beforeThrow + document.title')),
+           '1预加载脚本会抛');
+    await fileSystem.remove(preDir);
+    faulty.removeFromSuperview();
+    faulty.webContents.close();
+
+    // 没配预加载脚本的网页：没有通道
+    assert('没配预加载脚本：网页里没有通道',
+           await settled(contents.executeJavaScript(
+             'typeof (window.webkit && window.webkit.messageHandlers && ' +
+             'window.webkit.messageHandlers.nacreIPC)')), 'undefined');
+
+    // 销毁
+    bridge.removeFromSuperview();
+    bridged.close();
+    assert('销毁之后 executeJavaScript 拒绝',
+           await settled(bridged.executeJavaScript('1')), 'REJECTED TypeError: Object has been destroyed');
+    assert('销毁之后 send 抛', thrown(() => bridged.send('x')), 'TypeError: Object has been destroyed');
+
+    // ----- 存储分区：同名共用，不同名隔离 -----
+    //
+    // 以前只能靠一次性的探针验（要在本机起一个服务）。现在有 executeJavaScript
+    // 和 loadFile，可以常驻：每张网页加载同一个本地文件（来源都是 file://），
+    // 在一张里往 localStorage 写一个这一轮才有的键，到别的网页里去读
+    const storageKey = 'acceptance-' + Date.now();
+    /** @type {WebView[]} */
+    const stores = [];
+    /** 建一张用某个分区的网页，加载好
+     * @param {string} [partition] */
+    const storeIn = async (partition) => {
+      const view = new WebView(partition === undefined ? undefined : { webPreferences: { partition } });
+      stores.push(view);
+      await view.webContents.loadFile('JS/assets/web/other.html');
+      return view.webContents;
+    };
+    /** @param {WebContents} from */
+    const readKey = (from) => settled(from.executeJavaScript(
+      'localStorage.getItem(' + JSON.stringify(storageKey) + ')'));
+    const persistA = await storeIn('persist:acceptance-a');
+    await persistA.executeJavaScript('localStorage.setItem(' + JSON.stringify(storageKey) + ', "A")');
+    assert('分区：写的那张自己读得到', await readKey(persistA), 'A');
+    assert('分区：同名的另一张网页读得到', await readKey(await storeIn('persist:acceptance-a')), 'A');
+    assert('分区：不同名的读不到', await readKey(await storeIn('persist:acceptance-b')), null);
+    assert('分区：不写分区的（默认那一份）读不到', await readKey(await storeIn()), null);
+    const memoryA = await storeIn('acceptance-mem');
+    assert('分区：只在内存里的那一种也读不到落盘分区的', await readKey(memoryA), null);
+    await memoryA.executeJavaScript('localStorage.setItem(' + JSON.stringify(storageKey) + ', "M")');
+    assert('分区：内存分区，同名的另一张读得到', await readKey(await storeIn('acceptance-mem')), 'M');
+    assert('分区：内存分区，不同名的读不到', await readKey(await storeIn('acceptance-mem-2')), null);
+    assert('分区：落盘分区里的值没被内存分区的写入影响', await readKey(persistA), 'A');
+    await persistA.executeJavaScript('localStorage.removeItem(' + JSON.stringify(storageKey) + ')');
+    for (const view of stores) view.webContents.close();
+
     // ----- 网页感知得到什么：大小、深浅色、显示隐藏、安全区 -----
     //
     // 一张把这些都写进标题的网页：宽度 | 深浅色 | 安全区上 | 安全区下 |

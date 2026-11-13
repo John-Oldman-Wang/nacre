@@ -267,6 +267,121 @@ await contents.loadFile(dir + '/notice.html');
 - 屏幕上显示「公告」。
 - 网页能用相对路径引用同一个目录和它的子目录下的文件。目录以外的文件引用不到：真机上那张图片加载不出来。模拟器不受这条限制，在模拟器上能加载不代表真机上可以。
 
+### 读网页里的内容
+
+`executeJavaScript` 在网页里执行一段代码，把结果带回来。
+
+```js
+const title = await contents.executeJavaScript('document.title');
+const count = await contents.executeJavaScript('document.querySelectorAll("a").length');
+const status = await contents.executeJavaScript('fetch("/api/ping").then((r) => r.status)');
+console.log(title, count, status);
+```
+
+**效果**
+
+- 控制台输出网页的标题、链接的个数和那次请求的状态码。
+- 第三句的结果是 Promise，会等它兑现再带回来。
+- 网页里抛了异常，这边的 Promise 被拒绝：`executeJavaScript('throw new Error("boom")')` 的错误说明是 `Error: boom`。
+
+代码是**一个表达式**时，结果是 Promise 会等。写成多条语句（`var a = 1; a + 1`）时取最后那个值，但不等 Promise。要在多条语句里用 `await`，包成一个立即执行的异步函数：
+
+```js
+const text = await contents.executeJavaScript(`(async () => {
+  const response = await fetch('/api/user');
+  return (await response.json()).name;
+})()`);
+```
+
+**效果**
+
+- `text` 是接口返回的 `name`。
+
+结果按 JSON 传回来，见[值怎么传](#值怎么传)。
+
+### 让网页调用 App 的功能
+
+网页要让 App 做事（分享、关闭页面、取登录状态），分两步：用**预加载脚本**在网页里放一个对象，网页调这个对象；对象的方法把消息发给 App。
+
+预加载脚本是一个单独的 JS 文件，和 App 一起打包：
+
+```js
+// JS/web/preload.js
+contextBridge.exposeInMainWorld('app', {
+  share: (id) => ipcRenderer.send('share', id),
+});
+```
+
+App 这边建 `WebView` 时指定它，并监听消息：
+
+```js
+const web = new WebView({ webPreferences: { preload: 'JS/web/preload.js' } });
+web.webContents.addEventListener('ipc-message', (e) => {
+  if (e.channel === 'share') console.log('网页要分享', e.args[0]);
+});
+```
+
+网页里：
+
+```html
+<button onclick="app.share(42)">分享</button>
+```
+
+**效果**
+
+- 网页调 `app.share(42)` 时（比如用户点了那个按钮），App 的控制台输出 `网页要分享 42`。
+- 网页里 `typeof app` 是 `'object'`。网页自己的第一段脚本执行时它就已经在了。
+- `ipcRenderer` 和 `contextBridge` 只有预加载脚本能用，网页里 `typeof ipcRenderer` 是 `'undefined'`。
+
+> **注意**：网页里的任何脚本（包括它引入的第三方脚本）都能调 `app.share`，也能绕过它直接发消息。`ipc-message` 里收到的内容一律当成不可信的输入来检查。不要给不信任的网页配预加载脚本。
+
+### 让网页向 App 要一个结果
+
+网页要等 App 给回一个值时，预加载脚本用 `ipcRenderer.invoke`，App 这边用 `ipc.handle` 登记处理函数。
+
+```js
+// JS/web/preload.js
+contextBridge.exposeInMainWorld('app', {
+  getUser: () => ipcRenderer.invoke('get-user'),
+});
+```
+
+```js
+web.webContents.ipc.handle('get-user', async () => {
+  return { name: application.storage.get('name') };
+});
+```
+
+网页里：
+
+```js
+const user = await app.getUser();
+```
+
+**效果**
+
+- 网页里的 `user` 是处理函数返回的那个对象。处理函数可以是异步的，网页会一直等到它返回。
+- 处理函数抛了异常，网页那边的 Promise 被拒绝，说明是 `Error invoking remote method 'get-user': Error: …`。
+- App 没登记这个频道时，网页那边同样被拒绝，说明是 `Error invoking remote method 'get-user': Error: No handler registered for 'get-user'`。
+
+### App 主动通知网页
+
+```js
+// JS/web/preload.js
+ipcRenderer.on('theme', (event, name) => {
+  document.documentElement.dataset.theme = name;
+});
+```
+
+```js
+web.webContents.send('theme', 'dark');
+```
+
+**效果**
+
+- 网页的 `<html>` 上多了 `data-theme="dark"`。
+- 网页还没加载、或者没配预加载脚本时，这条消息没人收，直接丢掉，不报错。所以要在 `did-finish-load` 之后再发。
+
 ### 先加载，要用的时候再显示
 
 `WebView` 不加进界面也能加载。提前建好几张，要显示哪张就把哪张加进界面。
@@ -426,6 +541,45 @@ NSLayoutConstraint.activateConstraints([
 
 用户点一下链接，到跳转真正开始，中间要等监听器执行完。监听器里不要做耗时的事。
 
+### 预加载脚本
+
+预加载脚本是建 `WebView` 时用 `webPreferences.preload` 指定的一个 JS 文件。
+
+| | |
+| --- | --- |
+| 什么时候执行 | 每张网页开始加载时，在网页自己的任何脚本之前。那时还没有 `<body>` |
+| 在哪里执行 | 只在主文档里。`<iframe>` 里不执行 |
+| 换了网页 | 重新执行一遍 |
+| 能用什么 | 网页里能用的一切（`document`、`window`），外加 `ipcRenderer` 和 `contextBridge` 两个名字 |
+| 网页禁止了脚本（内容安全策略） | 照常执行。受限的只是网页自己的脚本 |
+
+它和网页的脚本在**同一个环境**里：预加载脚本往 `window` 上挂的东西，网页看得到也改得了。这相当于 Electron 的 `contextIsolation: false`，和 Electron 的默认值相反。
+
+预加载脚本里能用的两个名字：
+
+| 名字 | 用法 | 作用 |
+| --- | --- | --- |
+| `ipcRenderer.send(channel, ...args)` | | 给 App 发一条消息。App 收到 `ipc-message` 事件 |
+| `ipcRenderer.invoke(channel, ...args)` | 返回 Promise | 向 App 要一个结果。App 用 `ipc.handle` 应答 |
+| `ipcRenderer.on(channel, listener)` | `listener(event, ...args)` | 收 App 用 `contents.send` 发来的消息 |
+| `ipcRenderer.once(channel, listener)` | | 同上，只收一次 |
+| `ipcRenderer.off(channel, listener)` | 也叫 `removeListener` | 不再收 |
+| `ipcRenderer.removeAllListeners(channel)` | `channel` 可以不给 | 去掉一个频道（或全部频道）的监听 |
+| `contextBridge.exposeInMainWorld(key, api)` | | 把 `api` 挂到网页的 `window[key]` 上，网页改不掉这个名字。名字已经被占用时抛 |
+
+### 值怎么传
+
+`executeJavaScript` 的结果、消息的参数、`invoke` 的返回值，都按 JSON 传。
+
+| 值 | 传过去之后 |
+| --- | --- |
+| 数、字符串、布尔、`null`、数组、普通对象 | 原样 |
+| `undefined` | 单独一个值时还是 `undefined`；在对象里的那个成员没有了；在数组里变成 `null` |
+| 日期 | 字符串，比如 `'1970-01-01T00:00:00.000Z'` |
+| `NaN`、`Infinity` | `null` |
+| 函数 | 消息里带了函数当场抛 `TypeError`；`executeJavaScript` 的结果是函数时被拒绝 |
+| DOM 节点 | `executeJavaScript` 的结果是 DOM 节点时被拒绝 |
+
 ### 本地网页的限制
 
 用 `loadFile` 加载的网页，地址是 `file://` 开头的。它和从服务器加载的网页有几处不同。
@@ -483,8 +637,16 @@ new WebView({ webPreferences: { partition: 'persist:main' } });
 | 参数 | 类型 | 默认值 | 含义 |
 | --- | --- | --- | --- |
 | `options.webPreferences.partition` | `string` | `''` | 用哪个[存储分区](#存储分区) |
+| `options.webPreferences.preload` | `string` | 无 | [预加载脚本](#预加载脚本)的路径。相对路径从 App 包的根开始，`/` 开头的是绝对路径 |
 
 `options` 和 `webPreferences` 都可以不传。`WebView` 不能被继承。
+
+指定了 `preload` 时，`new WebView` 可能抛：
+
+| 情况 | 抛什么 |
+| --- | --- |
+| 文件读不到 | `TypeError: preload: cannot read JS/web/preload.js as UTF-8 text` |
+| 脚本有语法错 | `SyntaxError: preload JS/web/preload.js: …`，后面是具体的语法错误 |
 
 | 属性 | 类型 | 可读 | 可写 | 含义 |
 | --- | --- | --- | --- | --- |
@@ -500,6 +662,8 @@ new WebView({ webPreferences: { partition: 'persist:main' } });
 | --- | --- | --- |
 | `loadURL(url)` | `Promise<void>` | 加载一个地址。见下 |
 | `loadFile(filePath, options)` | `Promise<void>` | 加载一个本地的网页文件。见下 |
+| `executeJavaScript(code)` | `Promise<any>` | 在网页里执行一段代码，兑现它的结果。见下 |
+| `send(channel, ...args)` | 无 | 给网页的预加载脚本发一条消息。参数里有函数时抛 `TypeError: send: functions cannot be sent` |
 | `getURL()` | `string` | 当前网页的地址。还没加载过是空串 |
 | `getTitle()` | `string` | 当前网页的标题。没有标题是空串 |
 | `isLoading()` | `boolean` | 是不是正在加载 |
@@ -512,6 +676,7 @@ new WebView({ webPreferences: { partition: 'persist:main' } });
 | 属性 | 类型 | 可读 | 可写 | 含义 |
 | --- | --- | --- | --- | --- |
 | `navigationHistory` | `NavigationHistory` | 是 | 否 | 后退和前进。每次读是同一个对象 |
+| `ipc` | `WebContentsIPC` | 是 | 否 | 应答网页的 `ipcRenderer.invoke`。每次读是同一个对象 |
 
 `getURL()`、`getTitle()`、`isLoading()` 的值变化时分别有事件通知：`did-navigate`、`page-title-updated`、`did-start-loading` 和 `did-stop-loading`。
 
@@ -556,6 +721,32 @@ new WebView({ webPreferences: { partition: 'persist:main' } });
 
 > **注意**：最后一种情况（以及用 `loadURL` 加载一个不能显示的文件，比如压缩包）在 iOS 27 上要等 4 秒多才报失败，iOS 26 上是立刻。
 
+#### `executeJavaScript(code)`
+
+| 情况 | 结果 |
+| --- | --- |
+| 代码是一个表达式 | 兑现它的值。值是 Promise 时等它；它被拒绝，这边也被拒绝 |
+| 代码是多条语句 | 兑现最后一个表达式的值，不等 Promise |
+| 网页里抛了异常，或者代码有语法错 | 以 `Error` 拒绝，`message` 是网页那边的原文，比如 `Error: boom`、`SyntaxError: …` |
+| 结果传不回来（函数、DOM 节点、多条语句得到的 Promise） | 以 `TypeError` 拒绝：`executeJavaScript: the result cannot be passed back; it is a function, a DOM node, or a Promise produced by multi-statement code` |
+
+三种开头的代码按多条语句处理：`{`（语句块）、`function`、`class`（声明，名字会进网页的全局）。结尾的分号不影响判断，`'foo();'` 算表达式。
+
+还没加载任何网页时也能执行，那时是一张空白文档。网页禁止了脚本（内容安全策略）时照常能执行。
+
+### `WebContentsIPC`
+
+从 `webContents.ipc` 得到。
+
+| 方法 | 含义 |
+| --- | --- |
+| `handle(channel, listener)` | 登记一个频道的处理函数。`listener(event, ...args)` 的返回值（或它返回的 Promise 兑现的值）就是网页那边 `ipcRenderer.invoke` 的结果。`event.sender` 是发来请求的 `webContents` |
+| `removeHandler(channel)` | 去掉一个频道的处理函数。没登记过也不报错 |
+
+一个频道只能登记一个处理函数。重复登记抛 `Error: Attempted to register a second handler for 'get-user'`。
+
+网页销毁时还没答复的请求，网页那边全部被拒绝。
+
 ### `NavigationHistory`
 
 从 `webContents.navigationHistory` 得到。
@@ -574,7 +765,7 @@ new WebView({ webPreferences: { partition: 'persist:main' } });
 在 `webContents` 上用 `addEventListener` 监听。事件名写错会抛 `TypeError`，报错里列出全部可用的名字：
 
 ```
-addEventListener has no value "did-finsh-load"; expected one of: will-navigate / did-start-loading / did-stop-loading / did-finish-load / did-fail-load / did-navigate / page-title-updated / render-process-gone / destroyed
+addEventListener has no value "did-finsh-load"; expected one of: will-navigate / did-start-loading / did-stop-loading / did-finish-load / did-fail-load / did-navigate / page-title-updated / ipc-message / preload-error / render-process-gone / destroyed
 ```
 
 | 事件 | 什么时候派发 | 事件对象上的字段 |
@@ -586,6 +777,8 @@ addEventListener has no value "did-finsh-load"; expected one of: will-navigate /
 | `did-finish-load` | 加载完 | 无 |
 | `did-fail-load` | 加载失败 | `errorCode`、`errorDescription`、`validatedURL`、`isMainFrame` |
 | `page-title-updated` | 标题变了 | `title` |
+| `ipc-message` | 网页的预加载脚本调了 `ipcRenderer.send` | `channel`、`args` |
+| `preload-error` | 预加载脚本执行时抛了异常。网页照常加载 | `preloadPath`、`error` |
 | `render-process-gone` | 网页的进程不在了（崩溃，或者被系统结束） | 无 |
 | `destroyed` | 被 `close()` 销毁 | 无 |
 
@@ -603,6 +796,10 @@ addEventListener has no value "did-finsh-load"; expected one of: will-navigate /
 | `validatedURL` | `string` | 加载失败的那个地址 |
 | `isMainFrame` | `boolean` | 总是 `true`。网页里 `<iframe>` 的跳转和加载失败不会派发这两个事件 |
 | `title` | `string` | 新的标题 |
+| `channel` | `string` | 频道名 |
+| `args` | 数组 | 跟在频道名后面的那些参数 |
+| `preloadPath` | `string` | 建 `WebView` 时给的预加载脚本路径 |
+| `error` | `Error` | 预加载脚本抛出来的错误 |
 
 `navigationType` 的取值：
 
@@ -629,6 +826,11 @@ addEventListener has no value "did-finsh-load"; expected one of: will-navigate /
 | `did-navigate` 的 `httpStatusText` | 没有 | 系统不提供 |
 | `render-process-gone` 的 `details.reason` | 没有 | 系统不说原因 |
 | `did-fail-load` 的 `errorCode`（`-105` 等） | `errorCode`（`-1003` 等） | 数不同 |
+| `contents.executeJavaScript(code)` | 相同 | 多条语句的代码不等 Promise；结果按 JSON 传 |
+| `webPreferences.preload` | 相同 | 相对路径的起点是 App 包。不隔离，相当于 `contextIsolation: false` |
+| `ipcRenderer.send` / `invoke` / `on`、`contextBridge.exposeInMainWorld` | 相同 | 是预加载脚本里直接能用的名字，不用 `require('electron')` |
+| `contents.on('ipc-message', (event, channel, ...args) => …)` | `contents.addEventListener('ipc-message', (e) => …)` | `e.channel`、`e.args` |
+| `contents.send(channel, ...args)`、`contents.ipc.handle(channel, listener)` | 相同 | |
 | `contents.loadFile(filePath, { query, search, hash })` | 相同 | 相对路径的起点是 App 包。本地网页的限制比 Electron 多，见[本地网页的限制](#本地网页的限制) |
 | `contents.navigationHistory.goBack()` | 相同 | |
 | `contents.close()` / `isDestroyed()` / `'destroyed'` | 相同 | |
@@ -648,6 +850,9 @@ addEventListener has no value "did-finsh-load"; expected one of: will-navigate /
 | `[webView reload]` | `contents.reload()` |
 | `webView.canGoBack` / `canGoForward` | `contents.navigationHistory.canGoBack()` / `canGoForward()` |
 | `[webView goBack]` / `[webView goForward]` | `contents.navigationHistory.goBack()` / `goForward()` |
+| `[webView evaluateJavaScript:completionHandler:]`、`callAsyncJavaScript:…` | `contents.executeJavaScript(code)` |
+| `WKUserScript`（文档开始时注入，只进主文档） | `webPreferences.preload` |
+| `WKScriptMessageHandlerWithReply` | 预加载脚本里的 `ipcRenderer`；App 这边的 `ipc-message` 事件和 `ipc.handle` |
 | `webView:decidePolicyForNavigationAction:decisionHandler:` | `will-navigate` 事件，`decisionHandler(.cancel)` 对应 `e.preventDefault()` |
 | `navigationAction.navigationType` | 事件的 `navigationType` |
 | `webView:didCommitNavigation:` | `did-navigate` 事件 |
@@ -662,9 +867,11 @@ addEventListener has no value "did-finsh-load"; expected one of: will-navigate /
 | --- | --- |
 | 拦住服务器重定向 | Electron 的 `will-redirect` |
 | 拦住 `<iframe>` 里的跳转 | Electron 的 `will-frame-navigate` |
-| 在网页里执行一段脚本、读网页里的值 | Electron 的 `executeJavaScript`；`evaluateJavaScript:` |
-| 每张网页加载前先注入一段脚本 | Electron 的 `preload`；`WKUserScript` |
-| 网页和 App 互相发消息 | Electron 的 `ipc-message`；`WKScriptMessageHandler` |
+| 让预加载脚本和网页的脚本互相隔离 | Electron 的 `contextIsolation`；`WKContentWorld` |
+| 在 `<iframe>` 里也执行预加载脚本 | Electron 的 `nodeIntegrationInSubFrames`；`WKUserScript` 的 `forMainFrameOnly` |
+| 网页同步地向 App 要一个结果 | Electron 的 `ipcRenderer.sendSync` |
+| 在 App 这边看到网页的 `console` 输出 | Electron 的 `console-message` |
+| 预加载脚本的类型定义（`ipcRenderer`、`contextBridge`） | |
 | 读写、删除 cookie，清掉某个分区的数据 | Electron 的 `session.cookies`、`clearStorageData`；`WKHTTPCookieStore`、`WKWebsiteDataStore` |
 | 从本地加载用到模块脚本、用 `fetch` 读本地文件的网页 | Electron 的 `protocol.handle`；`WKURLSchemeHandler`（让本地文件以自己定的协议提供） |
 | 自己指定本地网页能读哪个目录 | `loadFileURL:allowingReadAccessToURL:` 的第二个参数 |

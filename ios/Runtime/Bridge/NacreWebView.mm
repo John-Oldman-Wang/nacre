@@ -48,8 +48,8 @@ static NSArray<NSString*>* WebContentsEventNamesList(void) {
   dispatch_once(&once, ^{
     names = @[
       @"will-navigate", @"did-start-loading", @"did-stop-loading", @"did-finish-load",
-      @"did-fail-load", @"did-navigate", @"page-title-updated", @"render-process-gone",
-      @"destroyed"
+      @"did-fail-load", @"did-navigate", @"page-title-updated", @"ipc-message",
+      @"preload-error", @"render-process-gone", @"destroyed"
     ];
   });
   return names;
@@ -127,6 +127,18 @@ static void RejectLoadWithError(NacreAsyncDone done, NSError* error) {
              error.code, error.domain);
 }
 
+// 网页和 App 之间那条消息通道在网页里的名字：
+// window.webkit.messageHandlers.nacreIPC。只有配了预加载脚本才注册
+static NSString* const kNacreIPCName = @"nacreIPC";
+
+// 系统的 userContentController **强持有**它的消息处理者，而它自己又被
+// WKWebView 的配置拿着。让 NacreWebContents 直接当处理者就成了环，所以隔
+// 一个只有弱引用的小对象
+@class NacreWebContents;
+@interface NacreWebMessageRelay : NSObject <WKScriptMessageHandlerWithReply>
+@property(nonatomic, weak) NacreWebContents* contents;
+@end
+
 @interface NacreWebContents : NSObject <WKNavigationDelegate>
 // close() 之后是 nil。别的方法都先看它
 @property(nonatomic, strong, nullable) WKWebView* webView;
@@ -145,8 +157,27 @@ static void RejectLoadWithError(NacreAsyncDone done, NSError* error) {
 // 不按「下一个 finish 事件」认：同一张网页上可以连着发起几次加载，后一次
 // 会把前一次顶掉，两者的结果不能串
 @property(nonatomic, strong) NSMapTable<WKNavigation*, NacreAsyncDone>* pending;
+// ipcRenderer.invoke 发来的、还没答复的请求：编号 → 系统给的答复回调
+@property(nonatomic, strong) NSMutableDictionary<NSNumber*, void (^)(id, NSString*)>* replies;
+@property(nonatomic) NSInteger nextReplyId;
 - (instancetype)initWithWebView:(WKWebView*)webView;
 - (void)close;
+- (void)installPreloadScript:(NSString*)script;
+- (void)receiveMessage:(WKScriptMessage*)message reply:(void (^)(id, NSString*))reply;
+- (void)answerInvoke:(NSInteger)replyId ok:(BOOL)ok payload:(id)payload;
+@end
+
+@implementation NacreWebMessageRelay
+- (void)userContentController:(WKUserContentController*)controller
+      didReceiveScriptMessage:(WKScriptMessage*)message
+                 replyHandler:(void (^)(id, NSString*))replyHandler {
+  NacreWebContents* contents = self.contents;
+  if (contents == nil) {
+    replyHandler(nil, @"the WebContents is gone");
+    return;
+  }
+  [contents receiveMessage:message reply:replyHandler];
+}
 @end
 
 @implementation NacreWebContents
@@ -156,6 +187,7 @@ static void RejectLoadWithError(NacreAsyncDone done, NSError* error) {
     _webView = webView;
     _partition = @"";
     _responseCode = -1;
+    _replies = [NSMutableDictionary dictionary];
     _pending = [NSMapTable
         mapTableWithKeyOptions:NSPointerFunctionsStrongMemory |
                                NSPointerFunctionsObjectPointerPersonality
@@ -216,9 +248,93 @@ static void RejectLoadWithError(NacreAsyncDone done, NSError* error) {
   [self stopObserving:webView];
   [webView stopLoading];
   [webView removeFromSuperview];
+  [webView.configuration.userContentController removeAllScriptMessageHandlers];
   self.webView = nil;
   [self rejectPendingExcept:nil name:@"AbortError" message:@"the WebContents was closed"];
+  [self failAllInvokes:@"the WebContents was closed"];
   [self emit:@"destroyed" payload:nil];
+}
+
+// ---- 预加载脚本和消息 ----
+
+// script 是 JS 那边拼好的一整段：通道的两头（ipcRenderer、contextBridge）
+// 加上包在函数里的预加载脚本。文档一开始就注入，只进主文档
+- (void)installPreloadScript:(NSString*)script {
+  WKUserContentController* controller = self.webView.configuration.userContentController;
+  [controller addUserScript:[[WKUserScript alloc]
+                                  initWithSource:script
+                                   injectionTime:WKUserScriptInjectionTimeAtDocumentStart
+                                forMainFrameOnly:YES]];
+  NacreWebMessageRelay* relay = [NacreWebMessageRelay new];
+  relay.contents = self;
+  [controller addScriptMessageHandlerWithReply:relay
+                                  contentWorld:WKContentWorld.pageWorld
+                                          name:kNacreIPCName];
+}
+
+// 网页那头发来一条。内容是一段 JSON 文本：{ kind, channel, args }
+//
+//   send           转成 ipc-message 事件，当场答复（没有返回值）
+//   invoke         记下答复回调，转成内部事件交给 JS；JS 的处理函数有了
+//                  结果再调 answerInvoke
+//   preload-error  预加载脚本执行时抛了，转成 preload-error 事件
+//
+// 通道本身在每个框架里都够得着（系统是这么注册的），但通道的两头只注入了
+// 主文档。<iframe> 里的脚本直接往通道里塞的消息不收——那里面常常是别人的
+// 内容
+- (void)receiveMessage:(WKScriptMessage*)message reply:(void (^)(id, NSString*))reply {
+  if (!message.frameInfo.isMainFrame) {
+    reply(nil, @"messages from subframes are not accepted");
+    return;
+  }
+  id body = message.body;
+  id decoded = [body isKindOfClass:NSString.class]
+                   ? nacre_bridge::DecodeJSON(((NSString*)body).UTF8String ?: "")
+                   : nil;
+  NSDictionary* envelope = [decoded isKindOfClass:NSDictionary.class] ? decoded : nil;
+  id kind = envelope[@"kind"];
+  id channel = envelope[@"channel"];
+  id args = envelope[@"args"];
+  if (![kind isKindOfClass:NSString.class] || ![channel isKindOfClass:NSString.class] ||
+      ![args isKindOfClass:NSArray.class]) {
+    reply(nil, @"malformed message");
+    return;
+  }
+  if ([kind isEqualToString:@"send"]) {
+    [self emit:@"ipc-message" payload:@{@"channel" : channel, @"args" : args}];
+    reply(nil, nil);
+  } else if ([kind isEqualToString:@"invoke"]) {
+    NSInteger replyId = ++self.nextReplyId;
+    self.replies[@(replyId)] = [reply copy];
+    [self emit:@"@ipc-invoke"
+        payload:@{@"id" : @(replyId), @"channel" : channel, @"args" : args}];
+  } else if ([kind isEqualToString:@"preload-error"]) {
+    id text = ((NSArray*)args).firstObject;
+    [self emit:@"preload-error"
+        payload:@{@"message" : [text isKindOfClass:NSString.class] ? text : @""}];
+    reply(nil, nil);
+  } else {
+    reply(nil, @"malformed message");
+  }
+}
+
+// JS 的处理函数有结果了。payload：成功时是结果的 JSON 文本（没有返回值是
+// NSNull），失败时是错误的说明
+- (void)answerInvoke:(NSInteger)replyId ok:(BOOL)ok payload:(id)payload {
+  void (^reply)(id, NSString*) = self.replies[@(replyId)];
+  if (reply == nil) return;   // 已经答过，或者网页已经销毁
+  [self.replies removeObjectForKey:@(replyId)];
+  if (ok) {
+    reply([payload isKindOfClass:NSString.class] ? payload : NSNull.null, nil);
+  } else {
+    reply(nil, [payload isKindOfClass:NSString.class] ? payload : @"the handler failed");
+  }
+}
+
+- (void)failAllInvokes:(NSString*)reason {
+  NSArray* waiting = self.replies.allValues;
+  [self.replies removeAllObjects];
+  for (void (^reply)(id, NSString*) in waiting) reply(nil, reason);
 }
 
 - (void)observeValueForKeyPath:(NSString*)keyPath
@@ -423,6 +539,7 @@ static BOOL OnlyFragmentDiffers(NSString* target, NSString* current) {
   [self rejectPendingExcept:nil
                        name:@"Error"
                     message:@"the page's process is gone"];
+  [self failAllInvokes:@"the page's process is gone"];
   [self emit:@"render-process-gone" payload:nil];
 }
 
@@ -455,7 +572,7 @@ namespace nacre_bridge {
 void WebViewSetEmitter(NacreWebContentsEmit emit) { g_webContentsEmit = [emit copy]; }
 void WebViewSetAsker(NacreWebContentsAsk ask) { g_webContentsAsk = [ask copy]; }
 
-// new WebView({ webPreferences: { partition } })
+// new WebView({ webPreferences: { partition, preload } })
 //
 // 到这里的是 webPreferences 那一层，值已经在 JS 侧转过类型。类型不对就
 // 建不出来（返回空），不猜
@@ -470,6 +587,10 @@ nacre::NativeObjectRef WebViewConstruct(id options) {
   WKWebView* webView = [[WKWebView alloc] initWithFrame:CGRectZero configuration:config];
   NacreWebContents* contents = [[NacreWebContents alloc] initWithWebView:webView];
   contents.partition = partition;
+  // preloadScript 是 JS 那边读了文件、查过语法、拼好的一整段
+  id preloadScript = prefs[@"preloadScript"];
+  if (preloadScript != nil && ![preloadScript isKindOfClass:NSString.class]) return {};
+  if ([preloadScript length] > 0) [contents installPreloadScript:preloadScript];
   NacreWebView* view = [[NacreWebView alloc] initWithContents:contents];
   return {(void*)CFAutorelease(CFBridgingRetain(view)), "WebView"};
 }
@@ -507,13 +628,22 @@ bool WebViewCallMethod(id object, NSString* sel, const NacreArgs& args,
     *out = "null";
     return true;
   }
+  // 答复网页的 invoke。网页已经销毁时什么都不做（那些请求在销毁时已经
+  // 统一答过失败了），所以放在「销毁之后也能调」的这一组
+  if ([sel isEqualToString:@"ipcReply"]) {
+    NSInteger replyId = NACRE_INT(args.value(0), @"id");
+    BOOL ok = NACRE_BOOL(args.value(1), @"ok");
+    [contents answerInvoke:replyId ok:ok payload:args.value(2)];
+    *out = "null";
+    return true;
+  }
 
   static NSSet<NSString*>* known;
   static dispatch_once_t once;
   dispatch_once(&once, ^{
     known = [NSSet setWithArray:@[
       @"getURL", @"getTitle", @"isLoading", @"stop", @"reload", @"isCrashed",
-      @"canGoBack", @"canGoForward", @"goBack", @"goForward"
+      @"canGoBack", @"canGoForward", @"goBack", @"goForward", @"send"
     ]];
   });
   if (![known containsObject:sel]) return false;
@@ -536,6 +666,22 @@ bool WebViewCallMethod(id object, NSString* sel, const NacreArgs& args,
     *out = webView.canGoBack ? "true" : "false";
   } else if ([sel isEqualToString:@"canGoForward"]) {
     *out = webView.canGoForward ? "true" : "false";
+  } else if ([sel isEqualToString:@"send"]) {
+    // contents.send(channel, ...args)。参数已经是 JSON 文本，交给网页里
+    // 那一头去分发。用带参数的调用而不是拼一段代码：频道名和内容都不会
+    // 被当成代码执行。网页里没有那一头（没配预加载脚本，或者文档还没
+    // 开始）时这条消息就丢了，和 Electron 一样
+    id channel = args.value(0);
+    id text = args.value(1);
+    if (![channel isKindOfClass:NSString.class] || ![text isKindOfClass:NSString.class]) {
+      *error = "send needs a channel name and JSON text";
+      return true;
+    }
+    [webView callAsyncJavaScript:@"if (window.__nacreIPCDeliver) window.__nacreIPCDeliver(channel, args);"
+                       arguments:@{@"channel" : channel, @"args" : text}
+                         inFrame:nil
+                  inContentWorld:WKContentWorld.pageWorld
+               completionHandler:nil];
   } else if ([sel isEqualToString:@"stop"]) {
     [webView stopLoading];
     contents.apiNavigationPending = NO;
@@ -576,7 +722,7 @@ static NSURL* ReadAccessRootFor(NSURL* fileURL) {
 bool WebViewCallAsync(id object, const std::string& name, const std::string& argsJSON,
                       const std::vector<void*>& argPtrs, NacreAsyncDone done) {
   if (![object isKindOfClass:NacreWebContents.class]) return false;
-  if (name != "loadURL" && name != "loadFile") return false;
+  if (name != "loadURL" && name != "loadFile" && name != "executeJavaScript") return false;
   NacreWebContents* contents = (NacreWebContents*)object;
   WKWebView* webView = contents.webView;
   if (webView == nil) {
@@ -586,6 +732,16 @@ bool WebViewCallAsync(id object, const std::string& name, const std::string& arg
   id decoded = DecodeJSON(argsJSON);
   NSArray* values = [decoded isKindOfClass:NSArray.class] ? decoded : @[];
   id text = values.count > 0 ? values[0] : nil;
+
+  if (name == "executeJavaScript") {
+    id flag = values.count > 1 ? values[1] : nil;
+    if (![text isKindOfClass:NSString.class] || ![flag isKindOfClass:NSNumber.class]) {
+      RejectLoad(done, @"TypeError", @"executeJavaScript needs the code as a string", 0, @"");
+      return true;
+    }
+    WebExecuteJavaScript(webView, text, [flag boolValue], done);
+    return true;
+  }
 
   NSURL* url = nil;
   if (name == "loadFile") {

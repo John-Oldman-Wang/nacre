@@ -12,6 +12,8 @@ type WebContentsEventType =
   | 'did-fail-load'
   | 'did-navigate'
   | 'page-title-updated'
+  | 'ipc-message'
+  | 'preload-error'
   | 'render-process-gone'
   | 'destroyed';
 
@@ -25,6 +27,16 @@ interface WebPreferences {
    * - `'名字'`：只在内存里，同名的网页共用一份，App 退出就没了
    */
   partition?: string;
+  /**
+   * 预加载脚本的路径。相对路径相对 App 包，绝对路径原样用。
+   *
+   * 这个脚本在每张网页自己的脚本**之前**执行，只在主文档里执行（`<iframe>`
+   * 里不执行）。它能用两个名字：`ipcRenderer`（和 App 互发消息）和
+   * `contextBridge`（把东西挂到网页的 `window` 上）。
+   *
+   * 文件读不到、有语法错时，`new WebView` 当场抛。
+   */
+  preload?: string;
 }
 
 /**
@@ -90,6 +102,56 @@ interface WebContentsDidNavigateEvent extends Event {
   readonly httpResponseCode: number;
 }
 
+/**
+ * `ipc-message` 事件：网页的预加载脚本调了 `ipcRenderer.send(channel, ...args)`。
+ *
+ * 网页里的任何脚本都发得出这种消息，把它当成不可信的输入。
+ */
+interface WebContentsIpcMessageEvent extends Event {
+  /** 频道名。 */
+  readonly channel: string;
+  /** 跟在频道名后面的那些参数。按 JSON 传过来的。 */
+  readonly args: unknown[];
+}
+
+/** `preload-error` 事件：预加载脚本执行时抛了异常。 */
+interface WebContentsPreloadErrorEvent extends Event {
+  /** 建 `WebView` 时给的那个路径。 */
+  readonly preloadPath: string;
+  /** 抛出来的错误。`message` 是网页那边 `String(error)` 的结果。 */
+  readonly error: Error;
+}
+
+/** `ipc.handle` 的处理函数拿到的第一个参数。 */
+interface WebContentsIpcInvokeEvent {
+  /** 发来请求的那张网页。 */
+  readonly sender: WebContents;
+}
+
+/**
+ * 请求-响应式的消息。从 `webContents.ipc` 拿，不能自己建。
+ *
+ * ```js
+ * contents.ipc.handle('get-user', async (event, id) => {
+ *   return { id, name: 'Jack' };
+ * });
+ * // 网页的预加载脚本里：const user = await ipcRenderer.invoke('get-user', 7)
+ * ```
+ */
+interface WebContentsIPC {
+  /**
+   * 登记一个频道的处理函数。它的返回值（或者它返回的 Promise 兑现的值）
+   * 就是网页那边 `ipcRenderer.invoke` 的结果；它抛了，网页那边就被拒绝。
+   * 一个频道只能登记一个，重复登记会抛。
+   */
+  handle(
+    channel: string,
+    listener: (event: WebContentsIpcInvokeEvent, ...args: any[]) => unknown,
+  ): void;
+  /** 去掉一个频道的处理函数。没登记过也不报错。 */
+  removeHandler(channel: string): void;
+}
+
 /** `page-title-updated` 事件。 */
 interface WebContentsPageTitleUpdatedEvent extends Event {
   /** 新的标题。换页的瞬间会先变成空串。 */
@@ -105,6 +167,8 @@ interface WebContentsEventMap {
   'did-fail-load': WebContentsDidFailLoadEvent;
   'did-navigate': WebContentsDidNavigateEvent;
   'page-title-updated': WebContentsPageTitleUpdatedEvent;
+  'ipc-message': WebContentsIpcMessageEvent;
+  'preload-error': WebContentsPreloadErrorEvent;
   'render-process-gone': Event;
   'destroyed': Event;
 }
@@ -177,6 +241,22 @@ declare class WebContents extends NSObject {
       hash?: string;
     },
   ): Promise<void>;
+  /**
+   * 在网页里执行一段代码，兑现它的结果。
+   *
+   * 代码整个是一个表达式时（`'fetch(u).then(r => r.status)'`），结果是
+   * Promise 会等它；是多条语句时取最后那个值，不等 Promise。
+   * 结果按 JSON 传回来：日期变成字符串，函数和 DOM 节点传不回来。
+   * 网页里抛了异常，这个 Promise 就被拒绝。
+   */
+  executeJavaScript(code: string): Promise<any>;
+  /**
+   * 给网页发一条消息，网页的预加载脚本用 `ipcRenderer.on(channel, …)` 收。
+   * 参数按 JSON 传，带了函数会抛。没人收就丢了。
+   */
+  send(channel: string, ...args: unknown[]): void;
+  /** 请求-响应式的消息：`ipc.handle(channel, fn)`。每次读是同一个对象。 */
+  readonly ipc: WebContentsIPC;
   /** 现在这张网页的地址。还没加载过是空串。 */
   getURL(): string;
   /** 网页的标题。没有就是空串。 */

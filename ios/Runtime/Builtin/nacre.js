@@ -3688,6 +3688,189 @@
   // 后退前进。Electron 把这一组从 webContents 挪到了 navigationHistory
   // （原来的 goBack() 那几个标了废弃），这里直接用新的位置。
   // 不注入全局：它只能从 webContents.navigationHistory 拿到
+  // ---- 执行脚本、预加载脚本、消息 ----
+
+  // executeJavaScript 的代码是不是「整个是一个表达式」。是的话原生把它包成
+  // return (…) 去执行，结果是 Promise 会等；不是（多条语句）就按程序执行，
+  // 取最后的值，不等 Promise。为什么分两种见 NacreWebView.mm。
+  //
+  // 判断在**运行时自己的引擎**里做：拿它建一个异步函数，建得出来就是表达式。
+  // 只解析、不执行，网页不参与——有内容安全策略的网页拦不到这里。
+  // 三种开头照 eval 的读法当语句：{ 开头是语句块，function / class 开头是
+  // 声明（包进括号会变成表达式，名字就不进全局了）
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+  function asExpression(code) {
+    // 结尾的分号和空白去掉再试：'fetch(u).then(f);' 是最常见的写法
+    const trimmed = code.replace(/[\s;]+$/, '');
+    const head = trimmed.trimStart();
+    if (head === '' || head[0] === '{' || /^(async\s+function|function|class)\b/.test(head)) {
+      return null;
+    }
+    try {
+      new AsyncFunction('return (' + trimmed + '\n)');
+      return trimmed;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  // 过消息通道的值一律按 JSON 传。JSON.stringify 遇到函数是**悄悄丢掉**，
+  // 所以自己查一遍：带不过去的当场抛，别让对面收到一个少了东西的值
+  function stringifyForIPC(value, what) {
+    return JSON.stringify(value, (key, item) => {
+      if (typeof item === 'function' || typeof item === 'symbol') {
+        throw new TypeError(what + ': ' + (typeof item) + 's cannot be sent');
+      }
+      return item;
+    });
+  }
+
+  // 注入网页的那一段：消息通道在网页里的那一头（ipcRenderer、contextBridge），
+  // 加上包在函数里的预加载脚本。**这段代码跑在网页里，不是跑在这个运行时
+  // 里**，所以写成一段文本；写法保守一些，不依赖网页的任何全局被改过没有。
+  //
+  // 预加载脚本拿到的 ipcRenderer / contextBridge 是函数的参数，不是全局——
+  // 网页自己的脚本够不着它们，只够得着预加载脚本主动暴露出去的东西。
+  // 但这**不是隔离**：预加载脚本和网页在同一个环境里，网页可以改它暴露
+  // 的对象，也可以绕过它直接往通道里塞消息。收到的消息当不可信输入对待
+  const IPC_BOOTSTRAP_HEAD = `(function () {
+  var handler = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.nacreIPC;
+  if (!handler) return;
+  var listeners = new Map();
+  function encode(what, value) {
+    return JSON.stringify(value, function (key, item) {
+      if (typeof item === 'function' || typeof item === 'symbol') {
+        throw new TypeError(what + ': ' + (typeof item) + 's cannot be sent');
+      }
+      return item;
+    });
+  }
+  function post(kind, channel, args) {
+    return handler.postMessage(encode('ipcRenderer.' + kind, { kind: kind, channel: String(channel), args: args }));
+  }
+  function add(channel, listener, once) {
+    if (typeof listener !== 'function') throw new TypeError('The listener must be a function');
+    var name = String(channel);
+    if (!listeners.has(name)) listeners.set(name, []);
+    listeners.get(name).push({ listener: listener, once: once });
+    return ipcRenderer;
+  }
+  function remove(channel, listener) {
+    var list = listeners.get(String(channel));
+    if (!list) return ipcRenderer;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].listener === listener) { list.splice(i, 1); break; }
+    }
+    return ipcRenderer;
+  }
+  var ipcRenderer = {
+    send: function (channel) {
+      post('send', channel, Array.prototype.slice.call(arguments, 1)).catch(function () {});
+    },
+    invoke: function (channel) {
+      return post('invoke', channel, Array.prototype.slice.call(arguments, 1)).then(function (text) {
+        return typeof text === 'string' ? JSON.parse(text) : undefined;
+      });
+    },
+    on: function (channel, listener) { return add(channel, listener, false); },
+    addListener: function (channel, listener) { return add(channel, listener, false); },
+    once: function (channel, listener) { return add(channel, listener, true); },
+    off: remove,
+    removeListener: remove,
+    removeAllListeners: function (channel) {
+      if (channel === undefined) listeners.clear(); else listeners.delete(String(channel));
+      return ipcRenderer;
+    }
+  };
+  var contextBridge = {
+    exposeInMainWorld: function (key, api) {
+      if (key in window) throw new Error('Cannot bind an API on top of an existing property on the window object');
+      Object.defineProperty(window, key, { value: api, enumerable: true, writable: false, configurable: false });
+    }
+  };
+  Object.defineProperty(window, '__nacreIPCDeliver', {
+    value: function (channel, text) {
+      var list = listeners.get(channel);
+      if (!list) return;
+      var args = JSON.parse(text);
+      list.slice().forEach(function (entry) {
+        if (entry.once) remove(channel, entry.listener);
+        try { entry.listener.apply(null, [{ sender: ipcRenderer }].concat(args)); }
+        catch (error) { console.error(error); }
+      });
+    }
+  });
+  try {
+    (function (ipcRenderer, contextBridge) {
+`;
+  const IPC_BOOTSTRAP_TAIL = `
+    })(ipcRenderer, contextBridge);
+  } catch (error) {
+    post('preload-error', '', [String(error)]).catch(function () {});
+  }
+})();`;
+
+  // webContents -> 预加载脚本的路径（preload-error 事件要带上）
+  const preloadPaths = new WeakMap();
+  // webContents -> Map(频道 -> 处理函数)，ipc.handle 登记的
+  const ipcHandlers = new WeakMap();
+  // webContents -> 它的 ipc 对象
+  const ipcObjects = new WeakMap();
+  const ipcOwners = new WeakMap();   // ipc 对象 -> webContents
+
+  // webContents.ipc。Electron 里它是一个只管这张网页的 IpcMain；这里只有
+  // 请求-响应那一半（handle）。单向的消息走 ipc-message 事件
+  class WebContentsIPC {
+    constructor(contents) {
+      if (contents === undefined || contents[kHandle] === undefined) {
+        throw new TypeError('Illegal constructor: this object is created by the runtime, not by new');
+      }
+      ipcOwners.set(this, contents);
+    }
+    /** 登记一个频道的处理函数。网页那边 ipcRenderer.invoke 的结果就是它的返回值 */
+    handle(channel, listener) {
+      if (typeof listener !== 'function') {
+        throw new TypeError('handle: the listener must be a function, got ' + describeValue(listener));
+      }
+      const contents = ipcOwners.get(this);
+      let table = ipcHandlers.get(contents);
+      if (table === undefined) { table = new Map(); ipcHandlers.set(contents, table); }
+      const name = toText(channel);
+      if (table.has(name)) {
+        throw new Error("Attempted to register a second handler for '" + name + "'");
+      }
+      table.set(name, listener);
+    }
+    /** 去掉一个频道的处理函数。没登记过也不报错 */
+    removeHandler(channel) {
+      const table = ipcHandlers.get(ipcOwners.get(this));
+      if (table !== undefined) table.delete(toText(channel));
+    }
+  }
+
+  // 网页那边 invoke 了一次。找到处理函数、等它的结果、答复回去。
+  // **不管走哪条路都要答复**——不答的话网页那边的 Promise 一直挂着
+  function answerInvoke(contents, payload) {
+    const { id, channel, args } = payload;
+    const reply = (ok, value) => {
+      // 等结果的这段时间里网页可能已经销毁了，那时答复没有去处，忽略
+      try { nativeCall(contents, 'ipcReply', [id, ok, value]); } catch (err) { /* 已销毁 */ }
+    };
+    const fail = (err) => reply(false, "Error invoking remote method '" + channel + "': " + err);
+    const table = ipcHandlers.get(contents);
+    const listener = table === undefined ? undefined : table.get(channel);
+    if (listener === undefined) {
+      fail(new Error("No handler registered for '" + channel + "'"));
+      return;
+    }
+    Promise.resolve()
+      .then(() => listener({ sender: contents }, ...args))
+      .then((result) => {
+        reply(true, result === undefined ? null : stringifyForIPC(result, 'ipc.handle'));
+      })
+      .catch(fail);
+  }
+
   const historyContents = new WeakMap();   // NavigationHistory -> WebContents
   class NavigationHistory {
     constructor(contents) {
@@ -3745,6 +3928,35 @@
       loading.catch(() => {});
       return loading;
     }
+    /**
+     * 在网页里执行一段代码，兑现它的结果。
+     *
+     * 代码整个是一个表达式时，结果是 Promise 会等它；是多条语句时取最后
+     * 那个值，不等。结果按 JSON 传回来。网页里抛了就拒绝
+     */
+    executeJavaScript(code) {
+      const text = toText(code);
+      const expression = asExpression(text);
+      return nativeCallAsync(this, 'executeJavaScript',
+                             expression === null ? [text, false] : [expression, true])
+        .then((result) => result.value);
+    }
+    /**
+     * 给网页发一条消息。网页的预加载脚本里 ipcRenderer.on(channel, …) 收。
+     * 参数按 JSON 传；没人收（没配预加载脚本，或者网页还没开始加载）就丢了
+     */
+    send(channel, ...args) {
+      nativeCall(this, 'send', [toText(channel), stringifyForIPC(args, 'send')]);
+    }
+    /** 请求-响应那一半：ipc.handle(channel, fn) */
+    get ipc() {
+      let ipc = ipcObjects.get(this);
+      if (ipc === undefined) {
+        ipc = new WebContentsIPC(this);
+        ipcObjects.set(this, ipc);
+      }
+      return ipc;
+    }
     /** 现在这张网页的地址。还没加载过是空串 */
     getURL() { return nativeCall(this, 'getURL', []); }
     /** 网页的标题。没有就是空串 */
@@ -3781,12 +3993,27 @@
         ? {} : options.webPreferences;
       const checked = {};
       if (has(prefs, 'partition')) checked.partition = toText(prefs.partition);
+      let preloadPath = null;
+      if (has(prefs, 'preload')) {
+        // 读出来、查语法、拼好再交给原生。语法在这里查（用运行时自己的
+        // 引擎建一个函数，只解析不执行）：注入的那一段是一整个脚本，
+        // 预加载脚本有语法错的话它整个不执行，而且**没有任何报错**
+        preloadPath = toText(prefs.preload);
+        const source = nativeClassCallValue('WebView', 'readPreload:', [preloadPath]);
+        try {
+          new Function('ipcRenderer', 'contextBridge', source);
+        } catch (err) {
+          throw new SyntaxError('preload ' + preloadPath + ': ' + (err && err.message));
+        }
+        checked.preloadScript = IPC_BOOTSTRAP_HEAD + source + IPC_BOOTSTRAP_TAIL;
+      }
       constructNative(this, new.target, 'WebView', [checked]);
       // 当场把 webContents 的包装建出来并记上持有。网页一建好原生就开始
       // 发事件，而事件是派发到 webContents 的包装上的——等到第一次读
       // .webContents 才建，就会有事件落在一个没人见过的包装上
       if (this[kHandle] !== undefined) {
-        own(this, 'webContents', nativeGetObject(this, 'webContents'));
+        const contents = own(this, 'webContents', nativeGetObject(this, 'webContents'));
+        if (preloadPath !== null) preloadPaths.set(contents, preloadPath);
       }
     }
 
@@ -4892,9 +5119,19 @@
                    'and this event was dropped. Keep a reference to the object, ' +
                    'or report this if it is still on screen.');
     }
+    if (type === '@ipc-invoke') {
+      // 网页那边 ipcRenderer.invoke 了一次。不是事件，是一次请求：找处理
+      // 函数、答复
+      answerInvoke(wrapper, payload);
+      return false;
+    }
     const event = new Event(type, { cancelable: cancelableNativeEvents.has(type) });
     const field = objectEventField[type];
-    if (wrapper instanceof WebContentsClass) {
+    if (wrapper instanceof WebContentsClass && type === 'preload-error') {
+      // 预加载脚本执行时抛了。照 Electron 给路径和错误
+      defineField(event, 'preloadPath', preloadPaths.get(wrapper) || '');
+      defineField(event, 'error', new Error(payload && payload.message));
+    } else if (wrapper instanceof WebContentsClass) {
       // 网页的事件。负载是一个字典，有什么就挂什么——字段名照搬 Electron，
       // 原生那边已经按事件各自列好了
       if (payload !== undefined && payload !== null && typeof payload === 'object') {

@@ -51,6 +51,8 @@ typedef void (^NacreAsyncDone)(NacreAsyncResult* result);
 // 启动时塞进来——和文件读写的 done 块一个路子。
 // json 为 nil 表示没有负载；blob 非 nil 表示负载是个 Blob（二进制消息）。
 @class NacreBlob;
+// 只在声明里提到它；用到的两个文件自己 #import <WebKit/WebKit.h>
+@class WKWebView;
 typedef void (^NacreWebSocketEmit)(id task, NSString* type, NSString* json,
                                    NacreBlob* blob);
 
@@ -696,6 +698,13 @@ bool WebViewCallMethod(id object, NSString* sel, const NacreArgs& args,
                        std::string* out, std::string* error);
 bool WebViewCallAsync(id object, const std::string& name, const std::string& argsJSON,
                       const std::vector<void*>& argPtrs, NacreAsyncDone done);
+// 在网页里执行一段代码（NacreWebScript.mm）。isExpression 决定走哪个系统
+// 接口，见那边的说明
+void WebExecuteJavaScript(WKWebView* webView, NSString* code, BOOL isExpression,
+                          NacreAsyncDone done);
+// 「返回值不是原生对象的类方法」那条通道上的分支：读预加载脚本的源码
+bool WebViewCallClassMethod(const std::string& className, NSString* sel,
+                            const NacreArgs& args, std::string* out, std::string* error);
 
 // ---- 路径 ----
 bool PathCallMethod(id object, NSString* sel, const NacreArgs& args,
