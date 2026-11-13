@@ -668,6 +668,7 @@ types/
 - **`-Wl,-stack_size,0x800000` 留在 App target 上**，framework 替不了：它写进的是 `LC_MAIN`，而 `LC_MAIN` 只有主可执行文件有。真机上验过，二进制里 `stacksize 8388608`。`ENABLE_DEBUG_DYLIB: NO` 同理。**这两条是宿主必须照做的配置**，要写进交付文档。
 - **App 的 `PRODUCT_MODULE_NAME` 必须和 framework 的模块名区分开**。产物还叫 `Nacre.app`，但模块名设成了 `NacreApp`——不然 App 里的 `import Nacre` 变成导入它自己，Swift 报 `cannot find 'NacreRuntime' in scope`。
 - **内置脚本从运行时自己的包读**：`[NSBundle bundleForClass:NacreRuntime.class]`，不再是 `NSBundle.mainBundle`。`Builtin/nacre.js` 跟着 framework 走。
+- **隐私清单也跟着 framework 走**：`Runtime/PrivacyInfo.xcprivacy` 打进包根。Apple 不许第三方 SDK 靠宿主 App 的清单报自己，所以这一份替不了。里面三类是 `nm` 扫二进制扫出来的——`_mach_absolute_time` 和 `_fstat` 来自 **V8**，我们一行相关代码都没写。详见[隐私清单](internals/privacy-manifest.md)。
 
 先做的是 **dynamic framework**：资源跟着 framework 走，定位是确定的。static 的启动和体积可能更好，但得有数据才能比——这一步量到的见下。
 
@@ -782,6 +783,7 @@ Commit message 格式：
 | — | 交付第 2 步：按交付不交付搬目录 | `app/` → `acceptance/`，`ios/App/`+`ios/JS/` → `acceptance/ios/`，`types/` → `packages/types/`；工程描述拆成两份（运行时的只剩 framework，验收 App 的引它当子工程） | 已验证通过：iPhone Air 上 1749 条、标签和搬之前一字不差；真机 1735 条（另有一条偶发见下）。`ios/` 现在只有运行时 |
 | — | 交付第 3 步：产物 `@nacre/ios` 和参考 CLI | `template/` + `nacre-ios.json` + `bin/nacre-ios.js` + `build-xcframework.sh`；验收和示例的 `ios/` 都改成 CLI 生成 | 已验证通过：验收工程（引源码）iPhone Air 1749 条、真机 1735 条**全过**，标签和上一步一字不差；`examples/hello/`（引预编译的 xcframework）跑起来了。xcframework 25 MB（Release，两个切片）|
 | — | 交付第 4 步：入门指南 | `docs/guides/your-own-app.md`：三个必须的文件 + 一个 `tsconfig.json`，一条命令跑进模拟器 | 已验证通过：在仓库外（和 `nacre/` 并排）照着指南从零建了一个项目，`npm install`、`npm run check`、`run-sim.sh … --runtime=framework` 全部按指南写的那样，模拟器上出现文字、终端打出 `[JS][log]`。类型检查那三条说法（通过、枚举写错的报错原文、去掉 `/// <reference>` 全部 `Cannot find name`）都是跑出来的 |
+| — | 隐私清单 `PrivacyInfo.xcprivacy` | framework 自带一份；三类（UserDefaults、文件时间戳、系统启动时间）靠 `nm` 扫二进制定下来，后两类的符号来自 **V8**；`check-api.sh` 加第 8 节，两路扫（`nm` + `__objc_methname`）核对符号和声明 | 已在模拟器验证通过：1747 条通过、2 条失败（原有的图片下载网络问题），总数 1749 和上一步一字不差。清单在 `Nacre.framework` 包根和嵌进 App 之后都在。四种弄坏法（删一条、多一条、符号表过时、扫空二进制）各报一条，一条噪音都没有。实测宿主 App 的主可执行文件一个 required reason 符号都没碰 |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |

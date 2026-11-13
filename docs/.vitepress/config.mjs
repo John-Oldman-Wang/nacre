@@ -177,6 +177,7 @@ export default defineConfig({
             internals('包装机制', 'wrapper'),
             internals('事件模型', 'events'),
             internals('定时器', 'timers'),
+            internals('隐私清单', 'privacy-manifest'),
           ],
         },
         {

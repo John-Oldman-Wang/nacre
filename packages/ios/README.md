@@ -59,6 +59,16 @@ CLI 读它去配工程。**它是数据不是文档**，因为 CLI 不会读散�
 - `ENABLE_DEBUG_DYLIB: NO`：不关掉的话，上面那条链接器直接报 `-stack_size option can only be used when linking a main executable`。
 - `TARGETED_DEVICE_FAMILY: 1`：只支持 iPhone。
 
+## 隐私清单跟着 xcframework 走
+
+`Nacre.xcframework` 的每个切片里自带一份 `PrivacyInfo.xcprivacy`，声明运行时用到的 required reason API（UserDefaults、文件时间戳、系统启动时间三类）。
+
+**这件事宿主替不了。** Apple 明说第三方 SDK 不能靠宿主 App 的清单来报自己，而且清单必须在那个 dynamic library 自己的包根。所以用户的 App **不需要**为运行时补任何东西——实测过 App 主可执行文件一个 required reason 符号都没碰。
+
+他可能仍要一份自己的清单来声明 `NSPrivacyTracking` 和 `NSPrivacyCollectedDataTypes`，但那说的是他的 App 收集什么数据，和运行时无关。
+
+三类是怎么定的、理由码为什么选那几个、`check-api.sh` 怎么核对，见[隐私清单](../../docs/internals/privacy-manifest.md)。
+
 ## 这个 CLI 是参考实现，不是产品
 
 它存在的理由有两个：

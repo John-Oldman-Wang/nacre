@@ -29,6 +29,7 @@ targets:
           - "Builtin/**"
           - "Nacre.h"
           - "NacreRuntime.h"
+          - "PrivacyInfo.xcprivacy"
         headerVisibility: project
       - path: Runtime/Nacre.h
         headerVisibility: public
@@ -38,6 +39,11 @@ targets:
       # 运行时用 bundleForClass: 找它
       - path: Runtime/Builtin
         type: folder
+        buildPhase: resources
+      # 隐私清单。Apple 要求它在 framework 包的**根**，而且第三方 SDK 不能
+      # 靠宿主 App 的那一份来报自己——所以它必须跟着这个 target 走。
+      # 内容是 nm 实测出来的，check-api.sh 会核对符号和声明对不对得上。
+      - path: Runtime/PrivacyInfo.xcprivacy
         buildPhase: resources
     # 系统框架在这里显式声明。
     #

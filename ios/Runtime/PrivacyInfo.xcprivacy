@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Nacre 运行时的隐私清单。
+
+  Apple 不允许第三方 SDK 靠宿主 App 的清单来报自己用了什么：
+  「Your third-party SDK can't rely on the privacy manifest files for apps
+   that link the third-party SDK ... to report your third-party SDK's use of
+   required reasons API.」
+  所以这一份必须跟着 Nacre.framework 走，放在它的包根。
+
+  下面三条是 nm 实测出来的，不是照着别人抄的。核对办法见
+  ios/scripts/check-api.sh 的「隐私清单」一节：它扫 framework 二进制里的
+  符号，和这个文件对不上就报错。
+
+  没碰的两类（实测二进制里没有对应符号，所以不声明）：
+  - DiskSpace：没有 statfs / volumeAvailable* / systemFreeSize
+  - ActiveKeyboards：没有 activeInputModes
+-->
+<plist version="1.0">
+<dict>
+  <!-- 运行时不做广告追踪，也不往任何域名发数据 -->
+  <key>NSPrivacyTracking</key>
+  <false/>
+  <key>NSPrivacyTrackingDomains</key>
+  <array/>
+
+  <!-- 运行时自己不收集任何数据。宿主 App 收集什么，由宿主自己的清单声明 -->
+  <key>NSPrivacyCollectedDataTypes</key>
+  <array/>
+
+  <key>NSPrivacyAccessedAPITypes</key>
+  <array>
+    <!--
+      UserDefaults。符号：_OBJC_CLASS_$_NSUserDefaults、
+      _NSUserDefaultsDidChangeNotification，来自 Bridge/NacreStorage.mm 和
+      NacreRuntime.mm 里 change 事件的 trampoline。
+
+      C56D.1 =「第三方 SDK 为 app 提供包装函数，只在 app 调用包装函数时才
+      访问」。application.storage 正是这个：运行时自己不往 UserDefaults 存
+      任何东西，一条都没有。
+    -->
+    <dict>
+      <key>NSPrivacyAccessedAPIType</key>
+      <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+      <key>NSPrivacyAccessedAPITypeReasons</key>
+      <array>
+        <string>C56D.1</string>
+      </array>
+    </dict>
+
+    <!--
+      文件时间戳。符号两个来源：_NSFileModificationDate 来自
+      Bridge/NacreFileSystem.mm（application.fileSystem 的 stat），_fstat 来自
+      V8 的 libv8_libbase.a。
+
+      C617.1 =「访问 app container、app group container 或 CloudKit container
+      内文件的时间戳、大小或其他元数据」。fileSystem 只给 documents / caches /
+      applicationSupport / temporary 四个根，全在容器里。
+
+      不用 0A2A.1（SDK 包装函数那条）：它要求「只在 app 调用你的包装函数时才
+      访问」，而 V8 的 fstat 是 SDK 自己在用，不满足。C617.1 两边都盖得住。
+    -->
+    <dict>
+      <key>NSPrivacyAccessedAPIType</key>
+      <string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+      <key>NSPrivacyAccessedAPITypeReasons</key>
+      <array>
+        <string>C617.1</string>
+      </array>
+    </dict>
+
+    <!--
+      系统启动时间。符号：_mach_absolute_time，来自 V8 的 libv8_libbase.a
+      （V8 内部的计时和 GC 调度）。我们自己的 performance.now() 用的是
+      std::steady_clock，它编出来不是这个符号，但用途是同一类。
+
+      35F9.1 =「测量 app 内事件之间经过的时间，或做计算以实现定时器」。
+
+      不用 8FFB.1：那条是「算出的绝对时间戳要发到设备外」，我们不发。
+    -->
+    <dict>
+      <key>NSPrivacyAccessedAPIType</key>
+      <string>NSPrivacyAccessedAPICategorySystemBootTime</string>
+      <key>NSPrivacyAccessedAPITypeReasons</key>
+      <array>
+        <string>35F9.1</string>
+      </array>
+    </dict>
+  </array>
+</dict>
+</plist>

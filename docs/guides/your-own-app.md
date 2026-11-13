@@ -241,6 +241,8 @@ open ios/MyApp.xcodeproj
 
 > **注意**：生成的工程里 `ENABLE_DEBUG_DYLIB` 是关的，这是必须的——运行时要 8MB 的主线程栈，而设置栈大小的链接器参数和 Xcode 的 debug dylib 冲突。不要打开它。
 
+要上架的话还有一件事：App Store 要求声明你的 App 收集什么数据（`PrivacyInfo.xcprivacy` 里的 `NSPrivacyTracking` 和 `NSPrivacyCollectedDataTypes`），这份得你自己写，我们替你填反而是错的。**运行时那部分不用你管**——`Nacre.framework` 自带一份，声明了它自己用到的系统 API。
+
 ## 不用 CLI、自己建 Xcode 工程
 
 也可以把 `Nacre.xcframework` 拖进一个已有的工程。那样有三条**必须自己配**的，漏了会出问题：

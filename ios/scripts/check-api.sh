@@ -505,6 +505,112 @@ else:
         complain('取参', f'原生层对 JS 给的值直接取数，要换成 NACRE_NUM / NACRE_INT / '
                          f'NACRE_BOOL 或 SafeNumber：{raw}')
 
+# ----------------------- 8. 隐私清单和二进制里的符号对不对得上
+#
+# Apple 不许第三方 SDK 靠宿主 App 的清单来报自己用了什么 required reason
+# API，所以 framework 自带一份 PrivacyInfo.xcprivacy。
+#
+# 这一节**扫二进制**，不扫源码——因为「用了哪些」是链接出来的事实：
+# _mach_absolute_time 和 _fstat 都来自 V8 的 libv8_libbase.a，我们一行都
+# 没写。源码里看不出来。
+#
+# 两路扫：C 函数和 ObjC 的类、常量符号走 nm；ObjC 的属性和方法在 nm 里
+# 根本不出现（调用只产生 objc_msgSend 和一个 selector 字符串），走
+# __objc_methname 段。
+import plistlib, subprocess
+
+PRIVACY_MANIFEST = 'ios/Runtime/PrivacyInfo.xcprivacy'
+
+# 照 Apple 的 NSPrivacyAccessedAPIType 页抄的（developer.apple.com →
+# bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/
+# nsprivacyaccessedapitype）。**Apple 明说这张表会变**，所以换 V8、加系统
+# 框架或者 Apple 更新文档之后，要回来核一遍这里。
+PRIVACY_APIS = {
+    'NSPrivacyAccessedAPICategoryFileTimestamp': (
+        ['_NSFileCreationDate', '_NSFileModificationDate',
+         '_NSURLContentModificationDateKey', '_NSURLCreationDateKey',
+         '_stat', '_fstat', '_fstatat', '_lstat'],
+        ['fileModificationDate']),
+    'NSPrivacyAccessedAPICategorySystemBootTime': (
+        ['_mach_absolute_time'], ['systemUptime']),
+    'NSPrivacyAccessedAPICategoryDiskSpace': (
+        ['_NSFileSystemFreeSize', '_NSFileSystemSize',
+         '_NSURLVolumeAvailableCapacityKey',
+         '_NSURLVolumeAvailableCapacityForImportantUsageKey',
+         '_NSURLVolumeAvailableCapacityForOpportunisticUsageKey',
+         '_NSURLVolumeTotalCapacityKey',
+         '_statfs', '_statvfs', '_fstatfs', '_fstatvfs'], []),
+    'NSPrivacyAccessedAPICategoryActiveKeyboards': ([], ['activeInputModes']),
+    'NSPrivacyAccessedAPICategoryUserDefaults': (
+        ['_OBJC_CLASS_$_NSUserDefaults'], []),
+}
+
+# getattrlist 这一组 Apple 同时算进 FileTimestamp 和 DiskSpace，看符号判不出
+# 是哪一种用途，所以不自动归类，撞上了就提出来让人看。
+PRIVACY_AMBIGUOUS = ['_getattrlist', '_getattrlistbulk', '_fgetattrlist',
+                     '_getattrlistat']
+
+def framework_binary():
+    # 哪个构建产物都行，只要是这个 framework。都没有就跳过这一节
+    for pat in ('packages/ios/Nacre.xcframework/*/Nacre.framework/Nacre',
+                'acceptance/ios/build/Build/Products/*/Nacre.framework/Nacre',
+                'examples/*/ios/build/Build/Products/*/Nacre.framework/Nacre'):
+        hits = sorted(glob.glob(pat))
+        if hits:
+            return hits[0]
+    return None
+
+privacy_note = ''
+try:
+    with open(PRIVACY_MANIFEST, 'rb') as f:
+        declared = {e['NSPrivacyAccessedAPIType']
+                    for e in plistlib.load(f).get('NSPrivacyAccessedAPITypes', [])}
+except Exception as e:
+    complain('隐私清单', f'{PRIVACY_MANIFEST} 读不出来：{e}')
+    declared = None
+
+binary = framework_binary() if declared is not None else None
+if declared is None:
+    pass
+elif binary is None:
+    privacy_note = '，隐私清单没查（没有构建产物）'
+else:
+    syms = set(subprocess.run(['nm', '-u', binary],
+                              capture_output=True, text=True).stdout.split())
+    sels = set()
+    methname = subprocess.run(
+        ['otool', '-v', '-s', '__TEXT', '__objc_methname', binary],
+        capture_output=True, text=True).stdout
+    for line in methname.splitlines()[2:]:
+        parts = line.split(None, 1)
+        if len(parts) == 2:
+            sels.add(parts[1].strip())
+    # 这两路各自都要能说出「是我自己失效了」：抽成空集就不是「什么都没用」，
+    # 而是 nm / otool 的输出格式变了，再比下去只会得到一屏假阳性
+    if not syms:
+        complain('脚本', f'nm 从 {binary} 一个未定义符号都没抽到，check-api.sh 要更新')
+    elif not sels:
+        complain('脚本', '__objc_methname 一个 selector 都没抽到，check-api.sh 要更新')
+    else:
+        used = set()
+        for cat, (want_syms, want_sels) in PRIVACY_APIS.items():
+            hit = sorted((set(want_syms) & syms) | (set(want_sels) & sels))
+            if hit:
+                used.add(cat)
+                if cat not in declared:
+                    complain('隐私清单',
+                             f'二进制里有 {hit}，属于 {cat}，'
+                             f'但 {PRIVACY_MANIFEST} 没声明它')
+        for cat in sorted(declared - used):
+            complain('隐私清单',
+                     f'{PRIVACY_MANIFEST} 声明了 {cat}，二进制里却找不到它的符号——'
+                     f'要么那个用法没了该删掉，要么这一节的符号表该补')
+        amb = sorted(set(PRIVACY_AMBIGUOUS) & syms)
+        if amb:
+            complain('隐私清单',
+                     f'{amb} 同时算 FileTimestamp 和 DiskSpace，看符号判不出用途，要人看')
+        privacy_note = f'，隐私清单 {len(used)} 类'
+
 # ------------------------------------------------------------------ 报告
 if problems:
     print('API 三边核对：发现 %d 处不一致\n' % len(problems))
@@ -515,5 +621,5 @@ if problems:
 print('API 三边核对：一致')
 print(f'  类 {len(J)} 个，颜色常量 {len(JS_COLORS or [])} 个，'
       f'标量读写 {len(pairs[0][1])}/{len(pairs[1][1])}，'
-      f'对象读写 {len(pairs[2][1])}/{len(pairs[3][1])}')
+      f'对象读写 {len(pairs[2][1])}/{len(pairs[3][1])}{privacy_note}')
 PY
