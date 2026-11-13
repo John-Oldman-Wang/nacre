@@ -107,7 +107,7 @@ application  →  scenes              （sceneconnect 时 ownOne）
 
 | 继承能干的 | 组合能不能干 |
 | --- | --- |
-| 加字段、加方法、`instanceof` 分派 | ✅ `app/src/pages.js` 的 `makePage()` 正在这么做 |
+| 加字段、加方法、`instanceof` 分派 | ✅ `acceptance/src/pages.js` 的 `makePage()` 正在这么做 |
 | 覆写 `layoutSubviews` / `drawRect:` / `sizeThatFits:` | ❌ 这是 M2 |
 
 支持继承但不支持覆写，用户拿到的是组合已经能给的东西。而**响亮地拒绝**拿到的是：静默失败没了、不一致没了、错误信息准了。
@@ -307,7 +307,7 @@ imageForState(state) {
 
 这一组**原来靠的是订阅保活集合**：加了监听器的对象被一个全局强引用的 `Set` 拿着。所以不加监听器的时候它们其实一直是漏的，只是不加监听器的 display link 和 WebSocket 没什么用，没人撞上。
 
-验收在 `app/src/steps/lifetime.js`，**故意都不加监听器**，这样结果不受那个集合干扰。改之前 4 条失败（在 run loop 上的 link 被回收了、打开着的 socket 被回收了），改之后 10 条全过，包括「放开之后要能被回收」的那一半。
+验收在 `acceptance/src/steps/lifetime.js`，**故意都不加监听器**，这样结果不受那个集合干扰。改之前 4 条失败（在 run loop 上的 link 被回收了、打开着的 socket 被回收了），改之后 10 条全过，包括「放开之后要能被回收」的那一半。
 
 ## 加监听器不改变对象的寿命
 
@@ -375,7 +375,7 @@ if it is still on screen.
 | 点导航条的返回，或者左滑返回 | 被弹出的页面仍被「导航栈」那条边持有，直到下一次 JS 调 push / pop 或者读 `viewControllers` |
 | 把模态页向下拖走 | 被关掉的页面仍被呈现者持有，直到下一次读 `presentedViewController` 或再弹一个 |
 
-`app/src/router.js` 那种写法碰巧不受影响：它监听 `didshow` 时会读 `nav.viewControllers`，那一读就把边修好了。没有这种监听器的 App 就一直留着。
+`acceptance/src/router.js` 那种写法碰巧不受影响：它监听 `didshow` 时会读 `nav.viewControllers`，那一读就把边修好了。没有这种监听器的 App 就一直留着。
 
 集合删掉之后这会变成最主要的泄漏，所以一起做了。难点是**原生的订阅是惰性的**，没人监听 `didshow` 原生就不发。办法是运行时自己常驻订两个内部事件，名字以 `@` 开头：
 
@@ -393,7 +393,7 @@ if it is still on screen.
 
 ### 验证
 
-`app/src/steps/lifetime.js`，都用 `FinalizationRegistry` 观察，带对照组：
+`acceptance/src/steps/lifetime.js`，都用 `FinalizationRegistry` 观察，带对照组：
 
 | | 改之前 | 改之后 |
 | --- | --- | --- |
@@ -421,7 +421,7 @@ if it is still on screen.
 
 ### 写用例时又踩了一次 `deref()`
 
-`collectGarbage()`（`app/src/support.js`）第一版在调用方的那一轮任务里就开始制造压力。调用方刚对一个 `WeakRef` 调过 `deref()`，目标在那一轮里是被保住的；第一拍逼出的 GC 收走了对照组、留下了被测对象，对照组一被回收助手就停手，之后再没有第二次 GC——被测对象「没被回收」，是假的失败。改成第一拍也排到下一轮任务。这和[上面测 Chrome 时](#chrome-在同样的位置不丢)踩的是同一条语义。
+`collectGarbage()`（`acceptance/src/support.js`）第一版在调用方的那一轮任务里就开始制造压力。调用方刚对一个 `WeakRef` 调过 `deref()`，目标在那一轮里是被保住的；第一拍逼出的 GC 收走了对照组、留下了被测对象，对照组一被回收助手就停手，之后再没有第二次 GC——被测对象「没被回收」，是假的失败。改成第一拍也排到下一轮任务。这和[上面测 Chrome 时](#chrome-在同样的位置不丢)踩的是同一条语义。
 
 ### 没做的
 

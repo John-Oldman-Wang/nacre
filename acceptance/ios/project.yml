@@ -1,0 +1,84 @@
+# 验收 App 的工程（XcodeGen）
+#
+# 这个 App 不是交付物：它是运行时的宿主，跑一千七百多条断言。运行时本身
+# 在 ../../ios/，由下面的 projectReferences 引进来。
+#
+# 第 3 步做出 CLI 之后，这个文件会被「模板 + 清单」取代。
+#
+# 生成工程：xcodegen generate
+name: NacreApp
+
+options:
+  bundleIdPrefix: com.orbitlabs
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+
+projectReferences:
+  NacreRuntime:
+    path: ../../ios/Nacre.xcodeproj
+
+targets:
+  # 验收 App。它是运行时的宿主，**不是交付物**——将来 App/ 这几个文件
+  # 会变成模板（packages/ios/template/），由 CLI 铺进生成的工程里。
+  NacreApp:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+      # JS 目录整体作为资源打进 App Bundle（Bundle 内路径为 JS/）
+      - path: JS
+        type: folder
+        buildPhase: resources
+    dependencies:
+      # 引运行时的工程作为子工程。**引的是源码不是预编译产物**：改一行
+      # C++ 重新编一下就生效，不用先打包成 xcframework。用户那边反过来，
+      # 引的是 Nacre.xcframework。
+      - target: NacreRuntime/Nacre
+        embed: true
+        codeSign: true
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Nacre
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UIApplicationSupportsIndirectInputEvents: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default Configuration
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.orbitlabs.nacre.dev
+        # 产物仍然叫 Nacre.app，脚本里的路径不用改
+        PRODUCT_NAME: Nacre
+        # 模块名要和 framework 的 Nacre 区分开，否则 App 里的 import Nacre
+        # 变成导入它自己（Swift 报 cannot find 'NacreRuntime' in scope）
+        PRODUCT_MODULE_NAME: NacreApp
+        # 宿主必须照做的两条，framework 替不了：
+        #
+        # JS 跑在主线程，而真机 iOS 的主线程栈默认只有 1MB，V8 按约 1MB 计算
+        # 栈上限，没有余量。-stack_size 把它写进 LC_MAIN，而 LC_MAIN 只有
+        # **主可执行文件**有，所以这条只能设在 App 上。
+        # 代价：必须关掉 Xcode 的 debug dylib，否则链接器报
+        # "-stack_size option can only be used when linking a main executable"。
+        ENABLE_DEBUG_DYLIB: NO
+        OTHER_LDFLAGS: ["$(inherited)", "-Wl,-stack_size,0x800000"]
+        TARGETED_DEVICE_FAMILY: "1"
+        # App 图标：App/Assets.xcassets/AppIcon.appiconset（浅色、深色、着色三种外观）
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SWIFT_VERSION: "5.0"
+
+settings:
+  base:
+    # 只支持 arm64（真机 + Apple Silicon 模拟器）
+    ARCHS: arm64
+    EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
+    DEAD_CODE_STRIPPING: YES
+    GCC_TREAT_WARNINGS_AS_ERRORS: NO

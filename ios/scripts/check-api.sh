@@ -3,7 +3,7 @@
 #
 #   Runtime/**/*.mm  分发表        ← 真相，决定运行时实际能做什么
 #   nacre.js         取值器和方法  ← 桥，JS 能碰到的东西
-#   types/*.d.ts     类型声明      ← 契约，开发者看到的东西
+#   packages/types/  类型声明      ← 契约，开发者看到的东西
 #
 # 手写绑定的时期，这三份只能分别维护，所以必须有东西盯着它们别漂。
 # 等 bindgen 从 SDK 头文件生成，三份都变成产物，这个脚本就可以退休了。
@@ -21,7 +21,7 @@ js  = open('ios/Runtime/Builtin/nacre.js').read()
 mm  = '\n'.join(open(f).read()
                 for f in sorted(glob.glob('ios/Runtime/**/*.mm', recursive=True)))
 dts = '\n'.join(open(f).read()
-                for f in sorted(glob.glob('types/**/*.d.ts', recursive=True)))
+                for f in sorted(glob.glob('packages/types/**/*.d.ts', recursive=True)))
 
 problems = []
 def complain(section, msg):

@@ -125,7 +125,7 @@ TypeError: Cannot redefine property: Symbol(nativeHandle)
 
 ## 多页面 demo：router 是**用户侧**的东西
 
-做完栈之后在 `app/src/router.js` 写了一个路由器，**它不在运行时里**：
+做完栈之后在 `acceptance/src/router.js` 写了一个路由器，**它不在运行时里**：
 
 ```js
 const router = createRouter(nav, {

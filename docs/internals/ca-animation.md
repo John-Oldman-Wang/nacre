@@ -137,7 +137,7 @@ A6-1 把「值的类型由 keyPath 决定」这件事定在了原生层，`value
 
 ### 顺带咬出来的：验收用例里最后一个写死的延迟
 
-A6-2 多出来的工作量把一条**早就存在的竞态**挤翻了面：`app/src/steps/textfield.js` 里那个 `setTimeout(900)` 之后的 `becomeFirstResponder()` 开始失败。
+A6-2 多出来的工作量把一条**早就存在的竞态**挤翻了面：`acceptance/src/steps/textfield.js` 里那个 `setTimeout(900)` 之后的 `becomeFirstResponder()` 开始失败。
 
 三种写法都试过，实测结果值得记下来——它们是「在忙碌的主线程上赌固定时长」的三种不同死法：
 
@@ -214,7 +214,7 @@ link.addToRunLoop(someViewController, { forMode: 'common' });   // tsc 不报错
 
 ## 实测
 
-（这一节的数字由验收用例打出来，见 `app/src/steps/animation.js`。）
+（这一节的数字由验收用例打出来，见 `acceptance/src/steps/animation.js`。）
 
 ### 隐式动画要等图层渲染过一轮
 

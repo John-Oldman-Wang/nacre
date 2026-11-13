@@ -521,7 +521,7 @@ export function stepWebView(ctx) {
 
     // ----- loadFile：本地的网页文件 -----
     //
-    // 包里有一组验收用的网页（ios/JS/assets/web/）。index.html 加载完之后
+    // 包里有一组验收用的网页（acceptance/ios/JS/assets/web/）。加载完之后
     // 把各项结果写成一段 JSON 放进标题。同样加进界面但隐藏
     const local = new WebView();
     const localContents = local.webContents;

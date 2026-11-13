@@ -121,11 +121,11 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 | UI 框架 | UIKit（不用 SwiftUI 作为渲染目标；需要 SwiftUI 组件时通过 `UIHostingController` 嵌入） |
 | 排版 | iOS 原生方式：Auto Layout 约束、UIStackView、CALayer 属性。**不必须实现 DOM、CSS、flexbox**——运行时不提供它们，但也不挡着谁在 JS 层自己做一套 |
 | 加载模型 | JS 在构建时打进 App Bundle，启动时从本地读取。不通过 HTTP 加载，没有 URL、origin、`location`、`history` |
-| 模块化 | 运行时只负责执行 JS 文件，模块化和打包交给社区工具。**已验证**：`app/` 用 esbuild 打成 iife 产物，在运行时上跑通（`--format=iife` 是硬约束，ESM 产物里的 `import` 会直接抛）|
+| 模块化 | 运行时只负责执行 JS 文件，模块化和打包交给社区工具。**已验证**：`acceptance/` 用 esbuild 打成 iife 产物，在运行时上跑通（`--format=iife` 是硬约束，ESM 产物里的 `import` 会直接抛）|
 | 网络 | `NSURLSession` + delegate 两段式。**delegate 队列只投递，重活派到并发队列**——实测 20 个请求每个做 100ms 重活，直接做 2179ms，派出去 166ms。body 的 `arrayBuffer()` 走 `BackingStore` 零拷贝。详见 [fetch 文档](api/fetch.md) |
 | URL 解析 | `NSURLComponents` + `standardizedURL`，规范化全在原生层做完。和 WHATWG 有五处已知差异，最要紧的是**没有 base**（我们没有 location）。详见 [URL 文档](api/url.md) |
 | 任务调度 | 定时器用「一个最小堆 +（到期时间, 注册序号）排序 + 一个唤醒源」，参考 Chromium 的 MessagePump。一次唤醒最多占用主线程 8ms，超了让出去给渲染。详见 [定时器文档](api/timers.md) |
-| 类型定义 | `types/` 下的 `@nacre/types`，手写，靠 `ios/scripts/check-api.sh` 核对三边一致。还没发布到 npm。类型检查和打包都是 `app/` 的 devDependency，版本钉在它的 `package.json` 里 |
+| 类型定义 | `packages/types/` 下的 `@nacre/types`，手写，靠 `ios/scripts/check-api.sh` 核对三边一致。还没发布到 npm。类型检查和打包都是 `acceptance/` 的 devDependency，版本钉在它的 `package.json` 里 |
 | 工程管理 | XcodeGen：`ios/project.yml` 描述工程，`Nacre.xcodeproj` 由它生成，不提交 |
 | 代码分层 | Swift：启动壳；ObjC++：运行时入口和 iOS 桥接；C++：引擎封装（`Runtime/Engine/` 只依赖 V8，不依赖 iOS） |
 | 生命周期 | 只使用 Scene 生命周期 |
@@ -303,22 +303,22 @@ ObjC 没有 namespace 机制，Apple 用**类名前缀**代替：`NS`（Foundati
 
 `Intl` 比较特殊：TypeScript 的 ES lib 自带它的类型，**没办法从 `lib` 里减掉**，所以类型上看着存在、运行时会抛 `ReferenceError`。这是已知的不对齐，记在 `types/README.md` 里。
 
-## 3.6 `app/`：运行时的第一个客户
+## 3.6 `acceptance/`：验收套件，也是运行时的第一个客户
 
-`app/` 是这个 App 的 JS 源码。它和 `ios/`、`types/` 平级，**不在 `ios/` 里面**——第 4 节的 Android 计划是「同一份业务 JS，按平台分支调用各自的原生能力」，而 `ios/` 的约定是「永远表示运行时源码」，跨平台的 JS 放进去从一开始就错了。
+`acceptance/` 是验收套件的 JS 源码（2026-11-13 之前叫 `app/`）。它和 `ios/` 平级，**不在 `ios/` 里面**——第 4 节的 Android 计划是「同一份业务 JS，按平台分支调用各自的原生能力」，而 `ios/` 的约定是「永远表示运行时源码」，跨平台的 JS 放进去从一开始就错了。
 
 **它按真的 JS 工程结构来，这是有意的。** 这个客户是 JS 开发者，如果我们自己的第一个客户都不走 `package.json` + 依赖 + 打包那一套，「社区工具链能不能对准 Nacre」这件事就验不到。
 
 | | |
 | --- | --- |
-| 打包 | esbuild，`npm run build` → `ios/JS/main.js`。**不用 vite**（dev server、HMR、index.html 对我们全没用），也不用 webpack（经典输出给每个模块包一层 CommonJS 壳，而 esbuild 的 scope hoisting 产物几乎就是源码顺序拼起来——运行时没有 source map，产物越接近源码越好） |
+| 打包 | esbuild，`npm run build` → `acceptance/ios/JS/main.js`。**不用 vite**（dev server、HMR、index.html 对我们全没用），也不用 webpack（经典输出给每个模块包一层 CommonJS 壳，而 esbuild 的 scope hoisting 产物几乎就是源码顺序拼起来——运行时没有 source map，产物越接近源码越好） |
 | 硬约束 | `--format=iife`（运行时编译 classic script，ESM 的 `import` 直接抛）、`--platform=neutral`（不能注入 `process` / `Buffer` 的 polyfill）、不压缩 + `--charset=utf8`（报错行号只能靠人去产物里对） |
-| 类型 | 像真客户一样把 `@nacre/types` 装成依赖（`file:../types`），靠 `src/main.js` 里的 `/// <reference types="@nacre/types" />` 引进来，**不走相对路径 include** |
+| 类型 | 像真客户一样把 `@nacre/types` 装成依赖（`file:../packages/types`），靠 `src/main.js` 里的 `/// <reference types="@nacre/types" />` 引进来，**不走相对路径 include** |
 | 版本 | esbuild 和 typescript 都钉死在 `package.json`，lock 文件提交 |
 
 ### 这件事当场抓到两个问题
 
-**1. `types/package.json` 的 `files` 白名单漏了 `ios/`。** 拆分 `ios.d.ts` 的时候没跟着改，`npm pack --dry-run` 只有 5 个文件——这个包一旦发布，装的人拿到的 `ios.d.ts` 是一串指向空气的 `/// <reference path>`，**一个 iOS 类型都没有**。而 `check-api.sh` 和 `tsc` 都查不出来，因为它们走的是相对路径 include，压根没问过「这个包发出去是什么样」。
+**1. `packages/types/package.json` 的 `files` 白名单漏了 `ios/`。** 拆分 `ios.d.ts` 的时候没跟着改，`npm pack --dry-run` 只有 5 个文件——这个包一旦发布，装的人拿到的 `ios.d.ts` 是一串指向空气的 `/// <reference path>`，**一个 iOS 类型都没有**。而 `check-api.sh` 和 `tsc` 都查不出来，因为它们走的是相对路径 include，压根没问过「这个包发出去是什么样」。
 
 修法是**把 `files` 删掉**：这个包里除了 `.d.ts` 和 README 什么都没有，白名单只会再漂一次。
 
@@ -326,7 +326,7 @@ ObjC 没有 namespace 机制，Apple 用**类名前缀**代替：`NS`（Foundati
 
 ### 一条测不出东西的验收
 
-原本想用「把 `types/package.json` 的 `types` 字段改错，类型检查要报错」来验包的入口。**这条是无效的**——Node/TS 解析在 `types` 指不到时会回落到 `index.d.ts`，所以那个字段不承重，改错了照样过。
+原本想用「把 `packages/types/package.json` 的 `types` 字段改错，类型检查要报错」来验包的入口。**这条是无效的**——Node/TS 解析在 `types` 指不到时会回落到 `index.d.ts`，所以那个字段不承重，改错了照样过。
 
 真能证明的测法是**把 `/// <reference types="@nacre/types" />` 那行去掉**：`UIView`、`UIWindow` 连 `console` 一起全部 `Cannot find name`。这才说明全局确实是通过这个 npm 依赖进来的。
 
@@ -356,6 +356,79 @@ ObjC 没有 namespace 机制，Apple 用**类名前缀**代替：`NS`（Foundati
 
 这套版面本身也是在用运行时：外层是 `UIScrollView` 套 `UIStackView`，上下留白和标题的缩进用的是内边距，没有多套一层视图。
 
+### 它同时是示例和测试套件，这两个角色要分开
+
+定交付物时看清楚的一件事：`acceptance/` 今天装着一千七百多条断言，而对外要交付的是一个**干净的 hello world**。一个目录当不了两个角色——示例交不出去，验收也没法独立演进。
+
+所以改名叫 `acceptance/`（它真正是什么），示例另起 `examples/hello/`。两个都是「一个 Nacre 项目」，形状一样。
+
+## 3.7 交付物：一个给 CLI 用的包
+
+（2026-11-13 定。在这之前，想用 Nacre 的人只能 fork 这个仓库，把验收断言删掉换成自己的代码——**等于没有交付物**。两份试用报告里的人都是靠读我们的 `project.yml` 拼出来的。）
+
+### 交给谁
+
+**不是直接交给写 App 的人，是交给 CLI。** 模型对标 Expo 的 Continuous Native Generation：
+
+| Expo | 我们 |
+| --- | --- |
+| 模板包 `expo-template-bare-minimum`（含 `AppDelegate.swift`） | **启动壳 + 工程配置 ← 我们的产物** |
+| config plugins（JS 函数，改 Info.plist / xcodeproj / Podfile） | CLI 团队 + 第三方 SDK |
+| `app.json` | 用户的 `nacre.config.json` |
+| `npx expo prebuild` 生成 `ios/` | CLI |
+
+CLI 约定一个项目目录，用户在里面写 JS，CLI 从它生成 `ios/`。**我们的产物就是要放进那个 `ios/` 里的东西。**
+
+一个 Nacre 项目长这样，验收和示例都是这个形状：
+
+```
+<project>/
+├─ package.json
+├─ nacre.config.json      App 名字、包名
+├─ src/main.js            JS 入口
+├─ assets/                图片等资源
+└─ ios/                   ← CLI 生成，gitignore
+```
+
+### 产物是 `@nacre/ios`
+
+```
+packages/ios/                 → 发布成 @nacre/ios
+├─ template/                  生成的 ios/ 里那些文件的原本
+├─ nacre-ios.json             机器可读的清单：必须的 build settings、链接参数、资源和打包约定
+├─ Nacre.xcframework/         编译好的运行时，构建产物，不提交
+└─ bin/                       我们自己写的简单 CLI
+```
+
+加上 `@nacre/types`（给用户的 JS 侧）。
+
+**模板和运行时同包同版本发。** 这躲掉了 Expo 的一个已知坑：他们的模板能换但不推荐，因为生成器 `@expo/prebuild-config` 对模板文件有「未文档化的假设」。我们的 CLI 只读清单、不对模板做假设。
+
+**清单必须是机器可读的**——CLI 不会读散文。
+
+**我们这个 CLI 是参考实现，不是产品。** 将来 CLI 团队做他们的，这个退化成「怎么用我们的产物」的活文档。
+
+### 三条从 Expo 学到的
+
+1. **模板是上游的产物，不是 CLI 团队去猜。** 只有我们知道工程必须有 `-Wl,-stack_size,0x800000` 这些，让别人从文档里抄，抄错了是线上崩。
+2. **生成的 `ios/` 随时会被删重建**（Expo 原文：手改了生成目录，下次 `prebuild --clean` 就丢）。所以我们的东西必须能被机械地重新放进去，不能有「装完手动改一下」的步骤。
+3. **不要让 CLI 用正则改启动壳。** Expo 文档自己警告改 AppDelegate 那类 plugin「依赖正则，可能把构建弄坏」，建议「用代码改代码」。这把**宿主扩展点**从「以后再说的能力」提升成交付模型的必要组成：启动壳要设计成不需要被改的，第三方原生 SDK 通过注册机制接进来。
+
+### static 还是 dynamic：等数据
+
+用户不碰集成（CLI 碰），所以「手动集成成本」不再是判据，回到技术指标：启动时间、包大小、符号隔离。先做 dynamic 跑通并量了一轮（见进度表「交付第 1 步」），static 的对比要等真做了 static 才有。
+
+无论哪种，`-Wl,-stack_size,0x800000` 和 `ENABLE_DEBUG_DYLIB: NO` 都得由宿主自己设——framework 包不住，SPM 也禁止从 URL 引入的包用 `unsafeFlags`。**交付面上一定有一份「宿主必须照做的配置」**，它必须写进文档并且被示例工程证明过。
+
+### 四步
+
+| | 做什么 | 验收标准 |
+| --- | --- | --- |
+| 1 | 运行时拆成 framework target，目录不动 | 断言一字不差；拿到大小和启动数据 |
+| 2 | 搬目录成第 5 节那棵树 | 纯机械，断言一字不差 |
+| 3 | `packages/ios/` + 简单 CLI；验收和示例的 `ios/` 都改成 CLI 生成 | **两个工程都不用手改一行就能跑** |
+| 4 | `docs/guides/` 入门文档 | 照着做一遍能跑通 |
+
 ## 4. Android 扩展计划（未开始，仅记录方向）
 
 iOS 的功能清单完成后再开始 Android。以下是目前的方向，开始前需要按 SOP 重新讨论确认：
@@ -378,15 +451,25 @@ nacre/
 ├─ .claude/           AI 协作规则（CLAUDE.md）
 ├─ README.md
 ├─ docs/              项目说明、API 文档、实现原理
-├─ types/             TypeScript 类型定义（@nacre/types），面向使用运行时的开发者
-├─ app/               这个 App 的 JS 源码：运行时的第一个客户
-├─ ios/               iOS 运行时源码 + App
+├─ ios/               iOS 运行时源码（= Nacre.xcframework 的源）
+├─ packages/          发到 npm 的交付物
+│  ├─ types/          TypeScript 类型定义（@nacre/types）
+│  └─ ios/            @nacre/ios：模板 + 清单 + xcframework（第 3 步做）
+├─ acceptance/        验收套件：JS 源码 + 验收 App 的工程
+├─ examples/          示例 App（第 3 步做）
 └─ android/           以后再加
 ```
 
-- **`ios/`、`android/` 永远表示运行时源码，必须提交。**
-- **`types/` 是对外的交付物，不是源码树的一部分**，所以和 `ios/` 平级而不在它里面：它的使用者是拿 Nacre 写 App 的人，不是改运行时的人。必须提交。
-- 以后工具生成的原生工程等产物，放在 `build/` 或 `.nacre/` 下，**不能命名为 `ios/`**，避免和源码混淆。
+这棵树按**交付不交付**分（2026-11-13 定，理由见 [3.7 交付物](#37-交付物一个给-cli-用的包)）：
+
+| | 交付 | 说明 |
+| --- | --- | --- |
+| `ios/`、`packages/` | **是** | 运行时、类型、模板和清单 |
+| `acceptance/`、`docs/internals/`、`docs/project.md` | 否 | 我们自己的 |
+
+- **`ios/`、`android/` 永远表示运行时源码，必须提交。** `ios/` 里**只有运行时**——验收 App 的壳和资源在 `acceptance/ios/`。
+- **`packages/` 下的是对外交付物，不是源码树的一部分**：使用者是拿 Nacre 写 App 的人，不是改运行时的人。必须提交。
+- 以后工具生成的原生工程等产物，放在 `build/` 或 `.nacre/` 下，**不能命名为 `ios/`**，避免和源码混淆。一个例外是 `acceptance/ios/` 和 `examples/*/ios/`：它们是「一个 Nacre 项目里由 CLI 生成的原生工程」，按 CLI 约定的项目结构就叫这个名字，不提交。
 - `.gitignore` 只忽略生成的和下载的内容，**不能忽略任何源码目录**。根目录的 `.gitignore` 里不能出现平台目录名。
 
 ### 文档怎么分
@@ -494,7 +577,7 @@ types/
 **两处暂时不拆，理由写下来免得反复讨论：**
 
 - **`nacre.js`**（2600+ 行，**过线了**）：方案已定、暂时不拆，见下面「[`nacre.js` 怎么拆](#nacrejs-怎么拆方案已定未实现)」
-- ~~**`main.js`**：验收用例，按步骤顺序读下来才有意义，拆开反而难读~~ → **已拆**，见下面「[`app/`：运行时的第一个客户](#36-app运行时的第一个客户)」。顺序没丢，反而从「隐含在文件位置里」变成了 `src/main.js` 里显式的十几行调用
+- ~~**`main.js`**：验收用例，按步骤顺序读下来才有意义，拆开反而难读~~ → **已拆**，见下面「[`acceptance/`：验收套件](#36-acceptance验收套件也是运行时的第一个客户)」。顺序没丢，反而从「隐含在文件位置里」变成了 `src/main.js` 里显式的十几行调用
 
 ### `nacre.js` 怎么拆（方案已定，未实现）
 
@@ -562,19 +645,16 @@ types/
 
 先做的是 **dynamic framework**：资源跟着 framework 走，定位是确定的。static 的启动和体积可能更好，但得有数据才能比——这一步量到的见下。
 
-`ios/` 内部：
+`ios/` 内部（**只有运行时**，验收 App 的壳和资源在 `acceptance/ios/`）：
 
 | 目录 | 内容 | 是否提交 |
 | --- | --- | --- |
 | `project.yml` | XcodeGen 工程描述（两个 target） | 提交 |
 | `.gitignore` | 平台相关的忽略规则（根目录的 `.gitignore` 里不能出现平台目录名，所以放这里） | 提交 |
-| `App/` | `NacreApp` target：启动壳 AppDelegate、SceneDelegate | 提交 |
 | `Runtime/Nacre.h` | framework 的 umbrella header，**公开面** | 提交 |
 | `Runtime/` | `Nacre` target：`NacreRuntime`（ObjC++ 启动壳与接线）、`Bridge/`（能力暴露，按能力域分文件）、`Engine/`（纯 C++）、`Builtin/nacre.js` | 提交 |
-| `JS/assets/` | 图片等资源，整个目录进 App Bundle 的 `JS/` | 提交 |
-| `JS/main.js` | 由 `scripts/build-js.sh` 从 `app/` 打包生成 | 不提交 |
-| `scripts/` | `fetch-v8.sh`（下载 V8）、`run-sim.sh`（一键在模拟器运行） | 提交 |
-| `Nacre.xcodeproj/`、`App/Info.plist` | 由 `project.yml` 生成 | 不提交 |
+| `scripts/` | `fetch-v8.sh`、`build-js.sh`、`check-api.sh`、`run-sim.sh` | 提交 |
+| `Nacre.xcodeproj/` | 由 `project.yml` 生成 | 不提交 |
 | `Vendor/` | 由 `fetch-v8.sh` 下载的 V8 | 不提交 |
 | `build/` | 构建产物 | 不提交 |
 
@@ -595,7 +675,7 @@ types/
    ```
 
    ```bash
-   cd app && npm run check            # 类型检查（tsc 版本钉在 app/package.json）
+   cd acceptance && npm run check     # 类型检查（tsc 版本钉在 acceptance/package.json）
    ```
 
    没有实际运行过的内容，要明确标注"未验证"。
@@ -656,7 +736,7 @@ Commit message 格式：
 | — | 参数转换 4：入口的异常保护 | `Guarded` 包住 17 个宿主入口，三个入口补了报错出口，异步的接住后拒掉 Promise | 已在模拟器验证通过：1193 条断言全过。`view.addSubview(view)` 以前闪退，现在是能 `catch` 的 TypeError；整轮验收里只有这一次走到保底 |
 | — | 参数转换 5：对象参数类型不对就抛 | `viewArg` 一类填报错、`NACRE_OBJECT_OR_NIL`、写对象属性的通道补上报错出口 | 已在模拟器验证通过：1219 条断言全过。那条记了很久的待办（`addSubview(颜色)` 静默什么都不做）关掉了 |
 | — | 修复：`new Blob()` 在 GC 之后丢数据 | `createBlob` 改成把 `this` 绑成包装（`BindWrapper`），和 `construct` 一致 | 已在模拟器验证通过：先加断言跑出失败（GC 后 `size` 是 `null`），修完 1221 条断言全过 |
-| — | 验收界面按区块瀑布排列 | `app/src/waterfall.js`：滚动视图套排列容器，每一步一个带标题的区块 | 已在模拟器验证通过：1221 条断言一条没少（按标签逐条比对），几何相关的数值没变；滚动、点按钮、点手势区块都试过。长按在滚动视图里还没试 |
+| — | 验收界面按区块瀑布排列 | `acceptance/src/waterfall.js`：滚动视图套排列容器，每一步一个带标题的区块 | 已在模拟器验证通过：1221 条断言一条没少（按标签逐条比对），几何相关的数值没变；滚动、点按钮、点手势区块都试过。长按在滚动视图里还没试 |
 | — | 修复：fetch 请求记录的两处生命周期问题 | 读取期间由 JS 拿着 `Response`；记录加 `responded`，响应头没到就结束的当场删；释放时停掉还在跑的下载 | 已在模拟器验证通过：先加用例跑出失败（读取的 Promise 等了 15 秒不结算），修完照常结算。失败请求的滞留用一次性探针验的，没有常驻断言。来源是一份外部审查 |
 | — | 修复：订阅失败后监听器还留在表里 | `addEventListener` 改成原生订阅成功之后再登记 | 已在模拟器验证通过：先加断言跑出 3 条失败（同一个非法事件名第二次注册静默通过），修完 1224 条断言全过 |
 | — | 修复：自己构造的 `Request` / `Response` 读不出 body；请求体支持二进制 | body 统一存成 `Blob`，发送通道改成交 `Blob` 的句柄；默认 `Content-Type` 照 Web | 已在模拟器验证通过：先加 48 条断言跑出 35 条失败，修完 1272 条断言全过。二进制的字节和 `Blob` 的 `type` 都实测到了服务器。字符串 body 不写 `Content-Type` 时发的值变了（原来是系统填的表单类型，现在是 `text/plain`） |
@@ -673,6 +753,7 @@ Commit message 格式：
 | — | A17-3 执行脚本、预加载脚本、网页和 App 互发消息 | `executeJavaScript`、`webPreferences.preload`（`ipcRenderer` / `contextBridge`）、`ipc-message`、`contents.send`、`contents.ipc.handle`；名字照 Electron | 已在模拟器验证通过：iOS 26.0 上 1681 条全过，iOS 27.2 上 1679 条通过（剩 2 条是原有的图片下载网络问题），旧断言一条没少。实测有内容安全策略的网页会拦 `eval`，所以 `executeJavaScript` 分两种执行方式，「是不是表达式」在运行时自己的引擎里判断；预加载脚本不隔离（相当于 `contextIsolation: false`），隔离量过可行、没做。顺带把存储分区的隔离补成了常驻断言。真机（iPhone 14）上跑出一处模拟器查不到的问题：带回来的对象成员顺序变了（系统给的是不保证顺序的字典）。改成表达式方式下由网页先转成 JSON 文本，顺序保住；多条语句那种方式救不了，写进了文档。改完真机上 1669 条全过 |
 | — | A17-4 `session`：网页的 cookie 和清数据 | 全局的 `session`（`defaultSession`、`fromPartition`）、`contents.session`、`ses.cookies.get / set / remove`、`changed` 事件、`ses.clearStorageData`；名字照 Electron | 已验证通过：iPhone Air 模拟器（iOS 27.2）上 1749 条通过（剩 2 条是原有的图片下载网络问题），真机（iPhone 14）上 1735 条全过，旧断言一条没少。系统只有「读全部」，筛选在 JS 里做；`changed` 不带是哪一条变了（系统不说）；按站点清是按域名算的，不分协议和端口 |
 | — | 交付第 1 步：运行时拆成 framework target | `ios/project.yml` 拆成 `Nacre`（framework）和 `NacreApp`（验收 App）；umbrella header；系统框架显式声明；内置脚本改从 framework 自己的包读 | 已验证通过：iPhone Air 上 1749 条、真机 1735 条，断言标签和改之前一字不差。真机二进制里 `stacksize 8388608`，栈设置仍然生效。启动没变慢（真机 1.4/3.2 ms，改之前 1.2/2.7；模拟器冷启动 7.9–9.6 / 11.6–19.2 ms，改之前 6.8–9.7 / 10.6–34.5）。framework 14 MB（Debug 未 strip）。**没量到 dyld 加载 framework 的成本**，它发生在第一行日志之前，要另外埋点；static 的对比等真做了 static 才有 |
+| — | 交付第 2 步：按交付不交付搬目录 | `app/` → `acceptance/`，`ios/App/`+`ios/JS/` → `acceptance/ios/`，`types/` → `packages/types/`；工程描述拆成两份（运行时的只剩 framework，验收 App 的引它当子工程） | 已验证通过：iPhone Air 上 1749 条、标签和搬之前一字不差；真机 1735 条（另有一条偶发见下）。`ios/` 现在只有运行时 |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |
@@ -682,7 +763,7 @@ Commit message 格式：
 | 4a | `UIControl` 的 16 个控件事件 | 订阅通道、target-action | 已在模拟器验证通过：261 条断言全过，含真机点击 |
 | 4b | `UIButton` | `setTitle:forState:`、状态作参数 | 已在模拟器验证通过：按状态设标题/颜色/图，真实点击收到 primaryActionTriggered |
 | 4c | first responder | `becomeFirstResponder` / `resignFirstResponder` | 待讨论，和第 9 步绑一起 |
-| 5a | 页面栈 | UINavigationController、可写的对象数组属性、导航级事件 | 已在模拟器验证通过：真实点返回和左滑返回都走通，GC 回归证明栈的持有边有效；外加一个**写在 JS 里**的 router（`app/src/router.js`），三页跳转实测通过 |
+| 5a | 页面栈 | UINavigationController、可写的对象数组属性、导航级事件 | 已在模拟器验证通过：真实点返回和左滑返回都走通，GC 回归证明栈的持有边有效；外加一个**写在 JS 里**的 router（`acceptance/src/router.js`），三页跳转实测通过 |
 | 5b | 导航条上的东西 | UINavigationItem、UIBarButtonItem、UIBarItem | 已在模拟器验证通过：导航条上真的有「完成」按钮并且点得动；实测 vc.title 和 navigationItem.title 是单向的 |
 | 5c | 模态呈现 | present / dismiss 是 Promise、关闭事件、call_async 补对象参数 | 已在模拟器验证通过：真实向下拖走、锁住后拖只收到 dismissattempted；实测程序 dismiss 不发事件 |
 | — | 页面生命周期（viewDidLoad 等） | **M2**——全是覆写点不是 delegate | 待讨论 |
@@ -997,7 +1078,7 @@ Web 能双向字符串化是因为 CSSOM 自己留着声明串，我们没有这
 
 **已定并实现：原生类一律是 final。** `class X extends UIView {}` 在 `new X()` 时抛 `Illegal constructor`，错误信息里点名子类和基类。详见 [API 文档](api/native-classes.md) 和[实现原理](internals/wrapper.md#原生类为什么定成-final)。
 
-定这条的理由**不是继承危险**——子类字段和 `view.myData` 是同一个机制，包装被回收重建时一起丢，而所有权镜像对两者同样有效。理由是**现在做它没有价值**：加字段、加方法、`instanceof` 分派组合全都能做（`app/src/pages.js` 的 `makePage()` 就是），继承真正多出来的只有「覆写原生方法」，而那是 M2。支持继承但不支持覆写，等于把组合已经能给的东西换个写法。
+定这条的理由**不是继承危险**——子类字段和 `view.myData` 是同一个机制，包装被回收重建时一起丢，而所有权镜像对两者同样有效。理由是**现在做它没有价值**：加字段、加方法、`instanceof` 分派组合全都能做（`acceptance/src/pages.js` 的 `makePage()` 就是），继承真正多出来的只有「覆写原生方法」，而那是 M2。支持继承但不支持覆写，等于把组合已经能给的东西换个写法。
 
 **改之前有一半其实是能继承的**，这才是最坏的地方：`UILabel` / `UIStackView` 这些叶子类完全能用，`UIView` / `UIControl` / `UIButton` / `UIViewController` **构造静默成功**、读属性才抛「还没连接到场景」，而 `tsc` 实测**零报错**。编辑器全绿、构造成功、错误指向几十行外无关的地方。
 
@@ -1033,6 +1114,10 @@ Web 能双向字符串化是因为 CSSOM 自己留着声明串，我们没有这
 
 没确认的：iOS 27 是不再有这个场景，还是只是没触发到。27.2 的模拟器上启动时那个键盘弹不出来。
 
+**TODO：有一条验收断言在真机上不稳。** `网页开着的时候写的：不用刷新就看得到`（`acceptance/src/steps/webview.js` 的 cookie 那一段）：App 写一条 cookie，紧接着读网页里的 `document.cookie`。真机上三次里挂两次，模拟器上没见过挂。
+
+它是写完**立刻**读，而那条 cookie 要先过一趟网页进程。改法是轮询等它出现、给个超时，和验收里别处等异步结果的写法一致。不是搬目录造成的，是写这条断言时赌了时序。
+
 **TODO：`check-api.sh` 的标量核对是按名字的并集，不分类。** 做输入框时咬了一次：`textAlignment` 只在 `UILabel` 分支接了原生，`UITextField` 漏了，而名字在集合里所以脚本没报，运行时才抛，连带整个 `sceneconnect` 中断、黑屏。同一家的还有「标量接了不等于对象属性也接了」——那是另一条通道。要改成按类比对，得先让脚本知道每个分支属于哪个类。
 
 **已实现：对象参数类型不对会抛。** 原来 `view.addSubview(UIColor.redColor)`、`NSLayoutConstraint.activateConstraints([1, 2, 3])`、`label.font = 'Helvetica'` 都是什么都不发生也不报错。现在统一按 Web IDL：对象不转换，不是要求的那个类就抛 `TypeError`；本来就可空的参数和属性传 `null` 照常。见[参数转换](internals/conversion.md#第-5-步对象参数不转换类型不对就抛)。
@@ -1051,7 +1136,7 @@ JS 侧的属性是一个个显式定义的取值器，名字不认识的赋值�
 
 运行时唯一堵得住的办法是 `Object.preventExtensions`，**不采用**：往包装上挂自己的数据（`view.myData = {...}`）是 JS 开发者的常用写法，也是[承诺的一部分](api/native-classes.md)——所有权镜像正是在为它兜底；禁止扩展连 ES 子类的 `this.xxx = ...` 也一起挡掉。
 
-**第一道防线放在类型检查，不在运行时。** 实测（`app/` 的 `tsc`，开着 `checkJs`）：
+**第一道防线放在类型检查，不在运行时。** 实测（`acceptance/` 的 `tsc`，开着 `checkJs`）：
 
 | 写法 | 类型检查 | 运行时 |
 | --- | --- | --- |

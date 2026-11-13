@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# 一键：下载 V8 → 生成工程 → 编译模拟器包 → 安装启动，并在终端显示 console 输出
+# 一键：下载 V8 → 生成两个工程 → 编译模拟器包 → 安装启动，并在终端显示 console 输出
+#
+# 两个工程：ios/ 是运行时（framework），acceptance/ios/ 是验收 App，后者把
+# 前者当子工程引进去。所以要先生成运行时那个。
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 BUNDLE_ID="com.orbitlabs.nacre.dev"
 # 默认使用第一个可用的 iPhone 模拟器；也可以用 NACRE_SIM=<模拟器 UDID> 指定
@@ -10,23 +13,25 @@ DEVICE="${NACRE_SIM:-$(xcrun simctl list devices available | awk '/^-- iOS (2[6-
 
 command -v xcodegen >/dev/null || { echo "请先安装 XcodeGen：brew install xcodegen"; exit 1; }
 
-bash ./scripts/fetch-v8.sh
-# app/ 的 JS 源码 → ios/JS/main.js（产物，不提交）
-bash ./scripts/build-js.sh
-xcodegen generate --quiet
+bash ios/scripts/fetch-v8.sh
+# acceptance/ 的验收 JS → acceptance/ios/JS/main.js（产物，不提交）
+bash ios/scripts/build-js.sh
+(cd ios && xcodegen generate --quiet)
+(cd acceptance/ios && xcodegen generate --quiet)
 
-mkdir -p build
-xcodebuild -project Nacre.xcodeproj -scheme NacreApp -configuration Debug \
+BUILD=acceptance/ios/build
+mkdir -p "$BUILD"
+xcodebuild -project acceptance/ios/NacreApp.xcodeproj -scheme NacreApp -configuration Debug \
   -sdk iphonesimulator -destination "platform=iOS Simulator,id=$DEVICE" \
-  -derivedDataPath build -quiet build 2>&1 | tee build/xcodebuild.log
+  -derivedDataPath "$BUILD" -quiet build 2>&1 | tee "$BUILD/xcodebuild.log"
 
 # 用了比最低支持版本（iOS 26）更新的系统接口、却没加 @available 保护的地方。
 # 编译器对这个只给警告，而一次全量编译有两万多条别的警告（V8 头文件的
 # 可空性标注），这几条淹在里面，从来没人看见过。所以单独捞出来放在最后。
 #
 # 增量编译只重编改过的文件，这里只看得到这次重编到的那些。要看全量：
-# rm -rf build 之后再跑一次。
-AVAILABILITY=$(grep -E '\[-Wunguarded-availability(-new)?\]' build/xcodebuild.log \
+# rm -rf acceptance/ios/build 之后再跑一次。
+AVAILABILITY=$(grep -E '\[-Wunguarded-availability(-new)?\]' "$BUILD/xcodebuild.log" \
                  | sed 's#^.*/ios/##' | sort -u || true)
 if [ -n "$AVAILABILITY" ]; then
   echo
@@ -35,7 +40,7 @@ if [ -n "$AVAILABILITY" ]; then
   echo
 fi
 
-APP="build/Build/Products/Debug-iphonesimulator/Nacre.app"
+APP="$BUILD/Build/Products/Debug-iphonesimulator/Nacre.app"
 xcrun simctl boot "$DEVICE" 2>/dev/null || true
 
 # 打开模拟器窗口。Xcode 26 及以前是 Simulator.app，Xcode 27 起改成 DeviceHub.app

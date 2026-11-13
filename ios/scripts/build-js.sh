@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 把 app/ 下的 JS 源码打包成 ios/JS/main.js。
+# 把 acceptance/ 下的验收 JS 打包成 acceptance/ios/JS/main.js。
 #
 # 为什么是 esbuild 不是 vite / webpack：
 #   - vite 是开发服务器 + 构建工具，dev server、HMR、index.html 这些对我们全没用
@@ -12,11 +12,11 @@
 #   --platform=neutral 不能注入 process / global / Buffer 的 polyfill，一个都没有
 # 外加不压缩——同样是为了行号还能对。
 set -euo pipefail
-cd "$(dirname "$0")/../../app"
+cd "$(dirname "$0")/../../acceptance"
 
 command -v npm >/dev/null || { echo "需要 npm（打包和类型检查都靠它）"; exit 1; }
 # 第一次构建要联网装 esbuild 和 typescript，之后只读 node_modules
 [ -d node_modules ] || npm ci
 
 npm run --silent build
-echo "打包完成：ios/JS/main.js（$(wc -c < ../ios/JS/main.js | tr -d ' ') 字节）"
+echo "打包完成：acceptance/ios/JS/main.js（$(wc -c < ios/JS/main.js | tr -d ' ') 字节）"

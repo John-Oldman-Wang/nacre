@@ -24,11 +24,15 @@ App 端的 JavaScript 运行时：原生 API 完整暴露给 JS，用原生视�
 
 ## 目录
 
-| 目录 | 内容 |
-| --- | --- |
-| `docs/` | [项目说明](docs/project.md)：项目定义、技术选型、目录约定、开发流程、进度 |
-| `ios/` | iOS 运行时源码和验证用的 App |
-| `android/` | 以后支持 Android 时添加 |
+| 目录 | 内容 | 交付？ |
+| --- | --- | --- |
+| `docs/` | [项目说明](docs/project.md)、[API 文档](docs/api/README.md)、[实现原理](docs/internals/README.md) | API 文档交付 |
+| `ios/` | iOS 运行时源码，也就是 `Nacre.xcframework` 的源 | **是** |
+| `packages/types/` | TypeScript 类型定义（`@nacre/types`） | **是** |
+| `packages/ios/` | `@nacre/ios`：模板 + 清单 + xcframework（还没做） | **是** |
+| `acceptance/` | 验收套件：一千七百多条断言，和跑它们的 App | 否 |
+| `examples/` | 示例 App（还没做） | **是** |
+| `android/` | 以后支持 Android 时添加 | |
 
 ## 第一阶段约束
 

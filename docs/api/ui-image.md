@@ -362,7 +362,7 @@ UIImage.imageNamed('logo.png');          // 带扩展名也可以
 
 - 不递归搜索子目录。图片在 `JS/assets/` 里，写 `'logo'` 找不到。
 - `@2x`、`@3x` 的文件在子目录里也会被自动选中。
-- 仓库里放在 `ios/JS/assets/` 的文件，在 App 包里的路径是 `JS/assets/`。
+- 仓库里放在 `acceptance/ios/JS/assets/` 的文件，在 App 包里的路径是 `JS/assets/`。
 
 iOS 还有另一种存放图片的方式，叫 Asset Catalog。它是 Xcode 管理图片的资源库，编译后合并成一个 `Assets.car` 文件。`imageNamed()` 先查 Asset Catalog，再查 App 包里的文件。两边有同名图片时使用 Asset Catalog 里的。
 

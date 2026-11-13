@@ -1,0 +1,9 @@
+# 由 project.yml 生成
+NacreApp.xcodeproj/
+App/Info.plist
+# 由 ios/scripts/build-js.sh 从 acceptance/src 打包生成
+JS/main.js
+# 构建产物
+build/
+DerivedData/
+xcuserdata/

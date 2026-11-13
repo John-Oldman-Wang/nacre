@@ -156,7 +156,7 @@ box2.backgroundColor = 'light-dark(systemBackground, #000)';
 
 ### 用 Asset Catalog 里的颜色
 
-Asset Catalog 是 Xcode 工程里放图片和颜色的资源目录，在这个仓库里是 `ios/App/Assets.xcassets`。在里面添加一个 Color Set（一个有名字的颜色），就可以按名字引用它。一个 Color Set 可以为浅色、深色、高对比度分别配置色值。
+Asset Catalog 是 Xcode 工程里放图片和颜色的资源目录，在这个仓库里是 `acceptance/ios/App/Assets.xcassets`。在里面添加一个 Color Set（一个有名字的颜色），就可以按名字引用它。一个 Color Set 可以为浅色、深色、高对比度分别配置色值。
 
 下面的例子假设已经在 Asset Catalog 里添加了名为 `BrandBlue` 的 Color Set。
 

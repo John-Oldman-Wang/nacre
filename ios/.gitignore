@@ -1,10 +1,7 @@
-# 由 project.yml 生成
-Nacre.xcodeproj/
-App/Info.plist
 # 由 scripts/fetch-v8.sh 下载
 Vendor/
-# 由 scripts/build-js.sh 从 app/ 打包生成
-JS/main.js
+# 由 project.yml 生成
+Nacre.xcodeproj/
 # 构建产物
 build/
 DerivedData/
