@@ -334,7 +334,7 @@ iOS 27.2 模拟器（iPhone Air）和 iOS 26.0 模拟器（iPhone 17）上各跑
 
 ## 没验到的
 
-- 真实触摸里的滚动、点链接、开着拦截开关点链接。验收里的「点链接」是脚本替用户点的。四个按钮（example.com、后退、前进、刷新）真实点过，事件都对。
+- 真实触摸里的滚动（日志里看不出来）。其余都在真机上真实点过：四个按钮（example.com、后退、前进、刷新）事件都对；点网页里的链接派发 `will-navigate`（`linkActivated`），随后四个加载事件依次到；监听器里调了 `preventDefault()` 之后再点，只有 `will-navigate`，后面一个加载事件都没有，网页不动。和脚本替用户点的结果一样。
 - App 退到后台时网页的 `visibilitychange`（裸的 `WKWebView` 上验过，新的 `WebView` 上没重验）。
 
 ## 链接 WebKit

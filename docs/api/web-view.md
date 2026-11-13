@@ -68,7 +68,7 @@ application.addEventListener('sceneconnect', (e) => {
 **效果**
 
 - 屏幕上显示 example.com 的网页。它占满安全区：上边在状态栏下面，下边在底部横条上面。安全区是屏幕上不会被刘海、状态栏和底部横条挡住的那一块，见[安全区](ui-view.md#安全区)。
-- 网页可以滚动，链接可以点（未在模拟器验证）。
+- 链接可以点。网页可以滚动（未验证）。
 - 控制台输出 `到了 https://example.com/ 状态码 200`、`加载完 https://example.com/`、`标题 Example Domain`。后两行谁先谁后不固定。
 
 ## 常见用法
@@ -89,7 +89,7 @@ contents.loadURL('https://example.com/');
 
 - 四个事件各来一次，顺序是 `did-start-loading` → `did-navigate` → `did-stop-loading` → `did-finish-load`。
 - `loadURL` 调用之后立刻读 `contents.isLoading()` 是 `true`，`did-stop-loading` 之后是 `false`。
-- 用户在网页里点链接跳到别的页面，这四个事件同样会来（未在模拟器验证）。
+- 用户在网页里点链接跳到别的页面，这四个事件同样会来。
 
 显示加载指示用 `did-start-loading` 和 `did-stop-loading` 这一对。
 
