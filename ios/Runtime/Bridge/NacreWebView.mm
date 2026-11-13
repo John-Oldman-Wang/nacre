@@ -553,12 +553,30 @@ bool WebViewCallMethod(id object, NSString* sel, const NacreArgs& args,
   return true;
 }
 
-// loadURL：一次性的请求-响应，所以是 Promise（原则 5）。加载完兑现，
-// 失败、被停掉、被别的导航顶掉都拒绝
+// 本地网页能读哪个目录。系统要求加载本地文件时说清楚这一点
+// （loadFileURL:allowingReadAccessToURL:），不在这个目录下面的文件，网页
+// 引用了也加载不出来。
+//
+//   App 包里的文件      整个 App 包。包是 App 自己的东西，没有要防的
+//   别处的文件          文件所在的目录。下载下来的网页只碰得到自己那一包
+//
+// 模拟器**不执行**这条限制（实测只给了文件所在目录，上一级的图片照样加载
+// 出来），所以这个范围定得对不对只有真机上看得出来
+static NSURL* ReadAccessRootFor(NSURL* fileURL) {
+  NSString* path = fileURL.path.stringByStandardizingPath;
+  NSString* bundle = NSBundle.mainBundle.bundlePath.stringByStandardizingPath;
+  if ([path isEqualToString:bundle] || [path hasPrefix:[bundle stringByAppendingString:@"/"]]) {
+    return NSBundle.mainBundle.bundleURL;
+  }
+  return fileURL.URLByDeletingLastPathComponent;
+}
+
+// loadURL / loadFile：一次性的请求-响应，所以是 Promise（原则 5）。加载完
+// 兑现，失败、被停掉、被别的导航顶掉都拒绝
 bool WebViewCallAsync(id object, const std::string& name, const std::string& argsJSON,
                       const std::vector<void*>& argPtrs, NacreAsyncDone done) {
   if (![object isKindOfClass:NacreWebContents.class]) return false;
-  if (name != "loadURL") return false;
+  if (name != "loadURL" && name != "loadFile") return false;
   NacreWebContents* contents = (NacreWebContents*)object;
   WKWebView* webView = contents.webView;
   if (webView == nil) {
@@ -568,17 +586,51 @@ bool WebViewCallAsync(id object, const std::string& name, const std::string& arg
   id decoded = DecodeJSON(argsJSON);
   NSArray* values = [decoded isKindOfClass:NSArray.class] ? decoded : @[];
   id text = values.count > 0 ? values[0] : nil;
-  NSURL* url = [text isKindOfClass:NSString.class] && [text length] > 0
-                   ? [NSURL URLWithString:text]
-                   : nil;
-  if (url == nil || url.scheme.length == 0) {
-    RejectLoad(done, @"TypeError",
-               @"loadURL: invalid URL; it must include the scheme, like https://", 0, @"");
-    return true;
+
+  NSURL* url = nil;
+  if (name == "loadFile") {
+    // loadFile(path, suffix)。相对路径相对 App 包（和 UIImage.imageNamed 的
+    // 'JS/assets/…' 一个起点），绝对路径原样用。suffix 是 JS 那边拼好的
+    // ?… 和 #…，可以是空串
+    if (![text isKindOfClass:NSString.class] || [text length] == 0) {
+      RejectLoad(done, @"TypeError", @"loadFile: the path is empty", 0, @"");
+      return true;
+    }
+    NSString* path = text;
+    if (![path hasPrefix:@"/"]) {
+      path = [NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:path];
+    }
+    NSURL* fileURL = [NSURL fileURLWithPath:path];
+    id suffix = values.count > 1 ? values[1] : nil;
+    if ([suffix isKindOfClass:NSString.class] && [suffix length] > 0) {
+      url = [NSURL URLWithString:[fileURL.absoluteString stringByAppendingString:suffix]];
+      if (url == nil || !url.isFileURL) {
+        RejectLoad(done, @"TypeError", @"loadFile: the search or hash is not valid in a URL",
+                   0, @"");
+        return true;
+      }
+    } else {
+      url = fileURL;
+    }
+  } else {
+    url = [text isKindOfClass:NSString.class] && [text length] > 0
+              ? [NSURL URLWithString:text]
+              : nil;
+    if (url == nil || url.scheme.length == 0) {
+      RejectLoad(done, @"TypeError",
+                 @"loadURL: invalid URL; it must include the scheme, like https://", 0, @"");
+      return true;
+    }
   }
-  WKNavigation* navigation = [webView loadRequest:[NSURLRequest requestWithURL:url]];
+
+  // file: 的地址不管从哪个入口来，都走专门加载本地文件的那个接口——
+  // 它带着「能读哪个目录」。用普通的 loadRequest: 加载本地文件，真机上
+  // 读不到页面引用的别的文件
+  WKNavigation* navigation =
+      url.isFileURL ? [webView loadFileURL:url allowingReadAccessToURL:ReadAccessRootFor(url)]
+                    : [webView loadRequest:[NSURLRequest requestWithURL:url]];
   if (navigation == nil) {
-    RejectLoad(done, @"Error", @"loadURL: the page refused to start loading", 0, @"");
+    RejectLoad(done, @"Error", @"the page refused to start loading", 0, @"");
     return true;
   }
   contents.apiNavigationPending = YES;

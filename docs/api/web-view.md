@@ -230,6 +230,43 @@ contents.addEventListener('will-navigate', async (e) => {
 - 网页先留在原地。`isAllowed` 兑现 `true` 之后才开始跳转。
 - `loadURL` 发起的加载不派发 `will-navigate`，所以不会再进这个监听器。
 
+### 加载打进 App 包里的网页
+
+协议、帮助这类不需要联网的页面，可以把网页文件和 App 一起打包，用 `loadFile` 加载。路径从 App 包的根开始写，和 [`UIImage.imageNamed`](ui-image.md) 的写法一样。
+
+```js
+await contents.loadFile('JS/web/help.html');
+console.log(contents.getURL());
+
+// 带上 ? 和 # 后面的部分
+await contents.loadFile('JS/web/help.html', { query: { topic: 'fees' }, hash: 'refund' });
+```
+
+**效果**
+
+- 不联网也能显示。网页旁边的样式表、脚本、图片用相对路径引用，照常加载。
+- 控制台输出一个 `file:///` 开头、以 `/JS/web/help.html` 结尾的地址。
+- 第二次加载时，网页里 `location.search` 是 `?topic=fees`，`location.hash` 是 `#refund`。
+- 文件不存在时 Promise 以 `NetworkError` 拒绝，`code` 是 `-1100`。
+
+> **注意**：本地网页里 `<script type="module">` 不执行，`fetch` 也读不了本地文件。用到这两样的网页（比如 Vite 默认的打包结果）不能这样加载，见[本地网页的限制](#本地网页的限制)。
+
+### 加载 App 下载下来的网页
+
+`loadFile` 也接受绝对路径。App 把网页下载或写到自己的目录里之后，可以直接加载。
+
+```js
+const dir = application.fileSystem.documents + '/pages';
+await application.fileSystem.makeDirectory(dir);
+await application.fileSystem.writeText(dir + '/notice.html', '<h1>公告</h1>');
+await contents.loadFile(dir + '/notice.html');
+```
+
+**效果**
+
+- 屏幕上显示「公告」。
+- 网页能用相对路径引用同一个目录下的文件。目录以外的文件引用不到（未在真机验证，模拟器上不受这条限制）。
+
 ### 先加载，要用的时候再显示
 
 `WebView` 不加进界面也能加载。提前建好几张，要显示哪张就把哪张加进界面。
@@ -389,6 +426,24 @@ NSLayoutConstraint.activateConstraints([
 
 用户点一下链接，到跳转真正开始，中间要等监听器执行完。监听器里不要做耗时的事。
 
+### 本地网页的限制
+
+用 `loadFile` 加载的网页，地址是 `file://` 开头的。它和从服务器加载的网页有几处不同。
+
+| | 本地网页 |
+| --- | --- |
+| 用相对路径引用样式表、普通脚本、图片 | 可以 |
+| 地址里的 `?` 和 `#` | 可以，网页里读得到 |
+| `localStorage`、cookie | 可以 |
+| `<script type="module">` | **不执行** |
+| `fetch`、`XMLHttpRequest` 读本地文件 | **失败** |
+| 来源（origin） | 所有本地网页都是同一个：`file://`。它们的 `localStorage` 互通 |
+| 能读哪些文件 | 包里的网页：整个 App 包。别处的网页：它所在的目录（未在真机验证） |
+
+本地网页请求 `https://` 的接口不受影响，受限的只是读本地文件。
+
+静态页面和用传统方式（一个普通的 `<script>`）打包的网页适合用 `loadFile`。用到模块脚本的单页应用现在还不能从本地加载。
+
 ### 存储分区
 
 `partition` 决定网页的 cookie、`localStorage` 和缓存存在哪一份里。写法和 Electron 相同。
@@ -444,6 +499,7 @@ new WebView({ webPreferences: { partition: 'persist:main' } });
 | 方法 | 返回值 | 含义 |
 | --- | --- | --- |
 | `loadURL(url)` | `Promise<void>` | 加载一个地址。见下 |
+| `loadFile(filePath, options)` | `Promise<void>` | 加载一个本地的网页文件。见下 |
 | `getURL()` | `string` | 当前网页的地址。还没加载过是空串 |
 | `getTitle()` | `string` | 当前网页的标题。没有标题是空串 |
 | `isLoading()` | `boolean` | 是不是正在加载 |
@@ -463,7 +519,7 @@ new WebView({ webPreferences: { partition: 'persist:main' } });
 
 #### `loadURL(url)`
 
-`url` 必须带协议，比如 `https://`。支持 `https:`、`data:` 和 `about:`（`about:blank` 是一张空白页）。
+`url` 必须带协议，比如 `https://`。支持 `https:`、`file:`、`data:` 和 `about:`（`about:blank` 是一张空白页）。`file:` 的地址和 `loadFile` 效果相同。
 
 返回的 Promise：
 
@@ -480,6 +536,25 @@ new WebView({ webPreferences: { partition: 'persist:main' } });
 拒绝的错误上有两个附加的字段：`code` 是系统的错误码（见 [`did-fail-load`](#事件) 的 `errorCode`），`domain` 是错误的来源，网络层的错误是 `'NSURLErrorDomain'`。`message` 是系统给的说明，语言跟随系统，只适合打日志。
 
 > **注意**：明文的 `http://` 地址会被系统拦截：`loadURL` 以 `NetworkError` 拒绝，`code` 是 `-1022`。用 `https://`。`http://localhost` 不受这条限制，开发时可以用。
+
+#### `loadFile(filePath, options)`
+
+| 参数 | 类型 | 含义 |
+| --- | --- | --- |
+| `filePath` | `string` | 网页文件的路径。相对路径从 App 包的根开始；`/` 开头的是绝对路径 |
+| `options.query` | 对象 | 地址里 `?` 后面的部分，按键值给：`{ a: '1' }` 得到 `?a=1` |
+| `options.search` | `string` | 地址里 `?` 后面的部分，直接给字符串。带不带开头的 `?` 都可以。和 `query` 都给时用它 |
+| `options.hash` | `string` | 地址里 `#` 后面的部分。带不带开头的 `#` 都可以 |
+
+返回的 Promise 和事件与 `loadURL` 相同。不同的只有出错的情况：
+
+| 情况 | 结果 |
+| --- | --- |
+| `filePath` 是空串 | 以 `TypeError` 拒绝：`loadFile: the path is empty` |
+| 文件不存在 | 以 `name` 为 `'NetworkError'` 的错误拒绝，`code` 是 `-1100`，同时派发 `did-fail-load` |
+| 路径是一个目录 | 以 `name` 为 `'Error'` 的错误拒绝，`code` 是 `102`，同时派发 `did-fail-load` |
+
+> **注意**：最后一种情况（以及用 `loadURL` 加载一个不能显示的文件，比如压缩包）在 iOS 27 上要等 4 秒多才报失败，iOS 26 上是立刻。
 
 ### `NavigationHistory`
 
@@ -522,7 +597,7 @@ addEventListener has no value "did-finsh-load"; expected one of: will-navigate /
 | --- | --- | --- |
 | `url` | `string` | `did-navigate`：新的地址。`will-navigate`：要去的地址 |
 | `navigationType` | `string` | 这次跳转是怎么引起的，取值见下 |
-| `httpResponseCode` | `number` | HTTP 状态码。`data:`、`about:` 这类不经过 HTTP 的是 `-1` |
+| `httpResponseCode` | `number` | HTTP 状态码。`data:`、`about:`、本地文件这类不经过 HTTP 的是 `-1`。后退或前进回到一张之前加载过的网页时也是 `-1`：那时没有重新请求服务器 |
 | `errorCode` | `number` | 系统的错误码。常见的：`-1003` 域名解析不了，`-1009` 没有网络，`-1001` 超时，`-1022` 明文 `http://` 被拦截，`-999` 被取消 |
 | `errorDescription` | `string` | 系统给的说明。语言跟随系统，只适合打日志 |
 | `validatedURL` | `string` | 加载失败的那个地址 |
@@ -554,6 +629,7 @@ addEventListener has no value "did-finsh-load"; expected one of: will-navigate /
 | `did-navigate` 的 `httpStatusText` | 没有 | 系统不提供 |
 | `render-process-gone` 的 `details.reason` | 没有 | 系统不说原因 |
 | `did-fail-load` 的 `errorCode`（`-105` 等） | `errorCode`（`-1003` 等） | 数不同 |
+| `contents.loadFile(filePath, { query, search, hash })` | 相同 | 相对路径的起点是 App 包。本地网页的限制比 Electron 多，见[本地网页的限制](#本地网页的限制) |
 | `contents.navigationHistory.goBack()` | 相同 | |
 | `contents.close()` / `isDestroyed()` / `'destroyed'` | 相同 | |
 
@@ -564,6 +640,7 @@ addEventListener has no value "did-finsh-load"; expected one of: will-navigate /
 | `[[WKWebView alloc] initWithFrame:configuration:]` | `new WebView()` |
 | `configuration.websiteDataStore` | `webPreferences.partition` |
 | `[webView loadRequest:]` | `contents.loadURL(url)` |
+| `[webView loadFileURL:allowingReadAccessToURL:]` | `contents.loadFile(filePath)`。可读的目录由运行时按文件的位置定 |
 | `webView.URL` | `contents.getURL()` |
 | `webView.title` | `contents.getTitle()`，`page-title-updated` 事件 |
 | `webView.loading` | `contents.isLoading()`，`did-start-loading` / `did-stop-loading` 事件 |
@@ -589,7 +666,8 @@ addEventListener has no value "did-finsh-load"; expected one of: will-navigate /
 | 每张网页加载前先注入一段脚本 | Electron 的 `preload`；`WKUserScript` |
 | 网页和 App 互相发消息 | Electron 的 `ipc-message`；`WKScriptMessageHandler` |
 | 读写、删除 cookie，清掉某个分区的数据 | Electron 的 `session.cookies`、`clearStorageData`；`WKHTTPCookieStore`、`WKWebsiteDataStore` |
-| 加载打进 App 包里的网页文件 | Electron 的 `loadFile`；`loadFileURL:allowingReadAccessToURL:` |
+| 从本地加载用到模块脚本、用 `fetch` 读本地文件的网页 | Electron 的 `protocol.handle`；`WKURLSchemeHandler`（让本地文件以自己定的协议提供） |
+| 自己指定本地网页能读哪个目录 | `loadFileURL:allowingReadAccessToURL:` 的第二个参数 |
 | 让不在界面里的网页不被放慢 | Electron 的 `backgroundThrottling`。系统没有起作用的公开开关。替代做法见[先加载，要用的时候再显示](#先加载要用的时候再显示) |
 | 处理网页打开新窗口的请求（`window.open`、`target="_blank"`） | Electron 的 `setWindowOpenHandler`；`WKUIDelegate` |
 | 显示网页的 `alert()`、`confirm()`、`prompt()` | `WKUIDelegate` |

@@ -181,16 +181,23 @@ export function stepContainers(ctx) {
   // 安全区真的让出来了吗。子页面不贴屏幕边，系统那一份是 0，剩下的就是
   // additionalSafeAreaInsets 自己
   // 实测：页面还没进窗口时 view.safeAreaInsets 是 0，写了 additionalSafeAreaInsets
-  // 也读不出来；进了窗口、布局过一轮之后才有。所以等一秒再量。
+  // 也读不出来；进了窗口、布局过一轮之后才有。所以等它有了再量——不赌固定
+  // 时长：主线程忙的时候一秒不够（实测读到过 0）。
   // 那行字的底边约束在安全区底边上方 8 pt，所以它离页面底边应该是 44 + 8
-  setTimeout(() => {
+  const insetDeadline = Date.now() + 6000;
+  const measureInset = () => {
     const page = pages[0];
+    if (page.view.safeAreaInsets.bottom !== barHeight && Date.now() < insetDeadline) {
+      setTimeout(measureInset, 100);
+      return;
+    }
     const label = page.view.subviews[0];
     assert('additionalSafeAreaInsets 生效：子页面的安全区底边 = 44',
            page.view.safeAreaInsets.bottom, barHeight);
     assert('additionalSafeAreaInsets 生效：贴着安全区的那行字离页面底边 52 pt',
            page.view.bounds.height - label.frame.y - label.frame.height, barHeight + 8);
-  }, 1000);
+  };
+  setTimeout(measureInset, 300);
 
   // ===== UITabBarController =====
   console.log('--- UITabBarController ---');

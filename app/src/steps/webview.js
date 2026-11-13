@@ -519,6 +519,112 @@ export function stepWebView(ctx) {
     gate.removeFromSuperview();
     gated.close();
 
+    // ----- loadFile：本地的网页文件 -----
+    //
+    // 包里有一组验收用的网页（ios/JS/assets/web/）。index.html 加载完之后
+    // 把各项结果写成一段 JSON 放进标题。同样加进界面但隐藏
+    const local = new WebView();
+    const localContents = local.webContents;
+    local.isHidden = true;
+    local.frame = new CGRect(0, 0, 200, 100);
+    host.addSubview(local);
+    /** @type {WebContentsWillNavigateEvent[]} */
+    let localAsked = [];
+    /** @type {WebContentsDidNavigateEvent[]} */
+    let localNavigations = [];
+    /** @type {number[]} */
+    let localFailures = [];
+    localContents.addEventListener('will-navigate', (e) => { localAsked.push(e); });
+    localContents.addEventListener('did-navigate', (e) => { localNavigations.push(e); });
+    localContents.addEventListener('did-fail-load', (e) => { localFailures.push(e.errorCode); });
+    /** 等 index.html 把结果写进标题，解出来
+     * @returns {Promise<Record<string, any>>} */
+    const localResult = async () => {
+      for (let i = 0; i < 40 && localContents.getTitle()[0] !== '{'; i++) await sleep(100);
+      try { return JSON.parse(localContents.getTitle()); } catch (err) { return {}; }
+    };
+
+    assert('loadFile 返回 Promise，兑现 undefined',
+           await localContents.loadFile('JS/assets/web/index.html'), undefined);
+    let found = await localResult();
+    console.log('  实测：本地网页报上来的结果 ' + JSON.stringify(found));
+    const localURL = localContents.getURL();
+    assert('相对路径相对 App 包：地址是 file:// 开头', localURL.startsWith('file:///'), true);
+    assert('地址落在包里那个文件上', localURL.endsWith('.app/JS/assets/web/index.html'), true);
+    assert('本地网页的 httpResponseCode 是 -1',
+           localNavigations.length > 0 && localNavigations[0].httpResponseCode, -1);
+    assert('旁边的样式表生效了', found.css, '123px');
+    assert('子目录里的普通脚本执行了', found.script, 'yes');
+    assert('子目录里的图片加载出来了', found.sub > 0, true);
+    assert('上一级目录的图片也加载出来了（包里的文件，整个包可读）', found.parent > 0, true);
+    assert('localStorage 能用', typeof found.n, 'number');
+    assert('本地网页的 origin 是 file://', found.origin, 'file://');
+    // 下面三条是本地网页的硬限制，记成断言：哪天系统放开了会红，文档要跟着改
+    assert('限制：<script type="module"> 不执行', found.module, 'no');
+    assert('限制：fetch 读不了本地文件', found.fetch, 'ERR');
+    assert('限制：XMLHttpRequest 也读不了', found.xhr, 'ERR');
+    assert('App 发起的 loadFile 不派发 will-navigate', localAsked.length, 0);
+
+    // options：照 Electron
+    await localContents.loadFile('JS/assets/web/index.html',
+                                 { query: { a: '1', b: 'x y' }, hash: 'top' });
+    found = await localResult();
+    assert('query 拼成地址里 ? 后面的部分', found.search, '?a=1&b=x+y');
+    assert('hash 拼成 # 后面的部分', found.hash, '#top');
+    await localContents.loadFile('JS/assets/web/index.html',
+                                 { search: 'k=v', query: { ignored: '1' }, hash: '#h' });
+    found = await localResult();
+    assert('search 直接给字符串，和 query 都给时用 search', found.search, '?k=v');
+    assert('hash 自己带了 # 也行', found.hash, '#h');
+    const countBefore = found.n;
+
+    // 另一个文件：同一个来源，localStorage 是接着的
+    await localContents.loadFile('JS/assets/web/other.html');
+    for (let i = 0; i < 30 && !localContents.getTitle().startsWith('other'); i++) await sleep(100);
+    assert('所有本地网页是同一个来源：另一个文件里的计数是接着的',
+           localContents.getTitle(), 'other n=' + (countBefore + 1));
+
+    // 出错
+    localFailures = [];
+    /** @type {any} */
+    let missing = null;
+    try { await localContents.loadFile('JS/assets/web/nope.html'); } catch (err) { missing = err; }
+    assert('文件不存在：拒绝，NetworkError', missing && missing.name, 'NetworkError');
+    assert('文件不存在：code 是 -1100', missing && missing.code, -1100);
+    assert('文件不存在：同时派发 did-fail-load', localFailures.join(','), '-1100');
+    assert('路径是空串：拒绝，TypeError', await outcome(localContents.loadFile('')), 'TypeError');
+
+    // loadURL 给 file:// 的地址，走的是同一条路
+    await localContents.loadURL(localURL);
+    found = await localResult();
+    assert('loadURL 给 file:// 地址：一样加载得出来', found.css + ',' + found.script, '123px,yes');
+
+    // 绝对路径：App 自己写到文档目录里的网页
+    const { fileSystem } = application;
+    const packDir = fileSystem.documents + '/acceptance-web';
+    await fileSystem.makeDirectory(packDir);
+    await fileSystem.writeText(packDir + '/a.css', '#box { width: 77px; }');
+    await fileSystem.writeText(packDir + '/page.html',
+      '<!doctype html><title>-</title><link rel="stylesheet" href="a.css"><div id="box"></div>' +
+      '<script>addEventListener("load", () => { document.title = "docs " + ' +
+      'getComputedStyle(document.getElementById("box")).width; });</script>');
+    await localContents.loadFile(packDir + '/page.html');
+    for (let i = 0; i < 30 && !localContents.getTitle().startsWith('docs'); i++) await sleep(100);
+    assert('绝对路径：文档目录里的网页加载得出来，旁边的样式表也生效',
+           localContents.getTitle(), 'docs 77px');
+    await fileSystem.remove(packDir);
+
+    // 本地网页里点链接到另一个本地文件：是网页发起的，照常派发 will-navigate
+    localAsked = [];
+    await localContents.loadFile('JS/assets/web/index.html', { query: { go: '1' } });
+    for (let i = 0; i < 40 && !localContents.getTitle().startsWith('other'); i++) await sleep(100);
+    assert('本地网页里点链接：派发一次 will-navigate', localAsked.length, 1);
+    assert('本地网页里点链接：地址是另一个本地文件',
+           localAsked.length > 0 && localAsked[0].url.endsWith('/JS/assets/web/other.html'), true);
+    assert('本地网页里点链接：跳过去了', localContents.getTitle().startsWith('other'), true);
+    local.removeFromSuperview();
+    localContents.close();
+
     // ----- 网页感知得到什么：大小、深浅色、显示隐藏、安全区 -----
     //
     // 一张把这些都写进标题的网页：宽度 | 深浅色 | 安全区上 | 安全区下 |

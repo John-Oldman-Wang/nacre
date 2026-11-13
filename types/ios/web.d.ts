@@ -156,6 +156,27 @@ declare class WebContents extends NSObject {
    * 不等这个 Promise、只听事件也可以：失败时不会多报一条未处理的拒绝。
    */
   loadURL(url: string): Promise<void>;
+  /**
+   * 加载一个本地的网页文件。
+   *
+   * 相对路径相对 App 包（`'JS/web/help.html'`），绝对路径原样用（比如
+   * `application.fileSystem.documents + '/pkg/index.html'`）。
+   * 返回的 Promise 和 `loadURL` 的一样。
+   *
+   * 本地网页有两条限制：`<script type="module">` 不执行，`fetch` 读不了
+   * 本地文件。
+   */
+  loadFile(
+    filePath: string,
+    options?: {
+      /** 地址里 `?` 后面的部分，按键值给。 */
+      query?: Record<string, string>;
+      /** 地址里 `?` 后面的部分，直接给字符串。和 `query` 都给时用这个。 */
+      search?: string;
+      /** 地址里 `#` 后面的部分。 */
+      hash?: string;
+    },
+  ): Promise<void>;
   /** 现在这张网页的地址。还没加载过是空串。 */
   getURL(): string;
   /** 网页的标题。没有就是空串。 */

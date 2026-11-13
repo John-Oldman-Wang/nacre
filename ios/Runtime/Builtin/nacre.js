@@ -3724,6 +3724,27 @@
       loading.catch(() => {});
       return loading;
     }
+    /**
+     * 加载一个本地的网页文件。相对路径相对 App 包，绝对路径原样用。
+     * options 照 Electron：query（对象）、search（字符串）、hash。两个都给时
+     * search 优先。Promise 和 loadURL 的一样
+     */
+    loadFile(filePath, options) {
+      const o = options == null ? {} : options;
+      let search = '';
+      if (has(o, 'search')) {
+        search = toText(o.search);
+      } else if (has(o, 'query')) {
+        search = new globalThis.URLSearchParams(o.query).toString();
+      }
+      if (search !== '' && search[0] !== '?') search = '?' + search;
+      let hash = has(o, 'hash') ? toText(o.hash) : '';
+      if (hash !== '' && hash[0] !== '#') hash = '#' + hash;
+      const loading = nativeCallAsync(this, 'loadFile', [toText(filePath), search + hash])
+        .then(() => undefined);
+      loading.catch(() => {});
+      return loading;
+    }
     /** 现在这张网页的地址。还没加载过是空串 */
     getURL() { return nativeCall(this, 'getURL', []); }
     /** 网页的标题。没有就是空串 */

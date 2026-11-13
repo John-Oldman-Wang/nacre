@@ -4,7 +4,7 @@
 
 `WebView` 是上层标准，底下是 `WKWebView`。这一篇记它为什么长成这样、原生那边怎么搭的、量到了什么。
 
-分四步做。第 1 步：视图、加载、导航、加载事件、存储分区、销毁。第 2 步：拦截导航（`will-navigate`）。后两步（执行脚本和消息、cookie）还没做。
+分四步做。第 1 步：视图、加载、导航、加载事件、存储分区、销毁。第 2 步：拦截导航（`will-navigate`）。中间插了一步 `loadFile`。后两步（执行脚本和消息、cookie）还没做。
 
 ## 属于哪一层
 
@@ -182,6 +182,57 @@ App 发起的导航不派发 `will-navigate`，也就不会走到第二行。
 
 拒绝的错误分三类：`NSURLErrorDomain` 的 `-999` 是 `AbortError`（和 `fetch` 的取消同名），`NSURLErrorDomain` 的其余是 `NetworkError`，别的域不归类。`code` 和 `domain` 原样带着。
 
+## `loadFile`：本地网页
+
+签名照 Electron：`loadFile(filePath, { query, search, hash })`。相对路径的起点是 App 包的根，和 `UIImage.imageNamed('JS/assets/…')` 一个起点；绝对路径原样用，所以 App 下载到文档目录里的网页也能加载。`?` 和 `#` 那一段在 JS 侧拼好（`query` 走 `URLSearchParams`），原生只管接到文件地址后面。
+
+底下是 `loadFileURL:allowingReadAccessToURL:`。**`loadURL` 收到 `file:` 的地址也走它**，两个入口行为一致。普通的 `loadRequest:` 加载本地文件在模拟器上是通的（实测样式表、脚本都加载出来了），但模拟器不执行沙盒的读权限，真机上是不是也通没有验，所以不依赖它。
+
+### 能读哪个目录
+
+那个接口的第二个参数是「这张网页能读哪个目录」，不在里面的文件网页引用不到。定法：
+
+| 文件在哪 | 可读范围 | 为什么 |
+| --- | --- | --- |
+| App 包里 | 整个 App 包 | 包是 App 自己的东西，没有要防的；网页引用上一级目录的资源是常见写法 |
+| 别处（文档目录等） | 文件所在的目录 | 下载下来的一包网页只碰得到自己 |
+
+**模拟器不执行这条限制**：探针里只给了文件所在目录，上一级目录的图片照样加载出来了。所以这个范围定得对不对，只有真机上看得出来——还没验。
+
+没有做成可以由 JS 指定。Electron 没有这个概念，先按上面的默认走，有人撞到了再加。
+
+### 量出来的限制
+
+iOS 26.0 和 27.2 模拟器上一致。包里放了一组验收用的网页（`ios/JS/assets/web/`），加载完把结果写进标题。
+
+| | 结果 |
+| --- | --- |
+| 相邻的样式表、子目录里的普通脚本和图片 | 加载 |
+| `?a=1#x` | 网页里 `location.search` / `hash` 读得到 |
+| `localStorage`、`document.cookie` | 能用。重启之后还在（走的是默认的存储分区） |
+| `location.origin` | `file://`。**所有本地网页同一个来源**，两个文件的 `localStorage` 计数是接着的 |
+| `<script type="module" src>` | **不执行** |
+| `fetch('data.json')` | **失败**（`Load failed`） |
+| `XMLHttpRequest` | **失败** |
+| 网页里点链接到另一个本地文件 | 派发 `will-navigate`（`linkActivated`），放行后跳过去 |
+| 不存在的文件 | `NSURLErrorDomain` 的 `-1100` |
+| 路径是目录 | 响应的类型是 `application/octet-stream`，不能显示，`WebKitErrorDomain` 的 `102` |
+
+后三条限制都记成了断言（期望它们**失败**）。哪天系统放开了验收会红，文档要跟着改。
+
+模块脚本和 `fetch` 不通，意味着 Vite 这类默认输出模块脚本的打包结果不能用 `loadFile` 加载。两条绕开的路：
+
+| | 结论 |
+| --- | --- |
+| 两个未公开的开关（`allowFileAccessFromFileURLs`、`allowUniversalAccessFromFileURLs`，靠 KVC 设） | 不用。这个项目到现在只用公开接口 |
+| 自定义协议：`WKURLSchemeHandler` 让本地文件以 `app://…` 这样的地址提供，网页有一个正常的来源 | 是正路，对应 Electron 的 `protocol.handle`。单独一步，要另外设计（协议名、目录怎么映射、在哪配置） |
+
+`loadFile` 不会因为将来做了自定义协议而变：它在 Electron 里就是 `file://`，这里也一直是。自定义协议将来用 `loadURL('app://…')` 加载。这样现在存在 `file://` 来源下的数据不会搬家。
+
+### 顺带量到的一条
+
+「不能显示的内容」报失败的速度两个系统不一样。加载一个目录，或者用 `loadURL` 加载一个二进制文件的地址：响应来了之后我们答「不放行」，iOS 26.0 上 `102` 立刻回来，iOS 27.2 上要 4 秒多。Promise 最后都会结算。这是第 1 步就有的行为，只记录。
+
 ## 存储分区
 
 `partition` 的三种写法照 Electron，落到 `WKWebsiteDataStore` 上：
@@ -239,6 +290,7 @@ iOS 27.2 模拟器（iPhone Air）和 iOS 26.0 模拟器（iPhone 17）上各跑
 - 明文 `http://` 被系统拦截，`-1022`。`http://localhost` 不拦。
 - 网页自己用脚本跳到一个 `data:` 地址会失败，`WebKitErrorDomain` 的 `102`。这是 WebKit 的安全限制，`loadURL` 发起的 `data:` 加载不受影响。
 - 404 的网页加载本身算成功，`httpResponseCode` 是 404。
+- 后退回到一张 HTTP 的网页（`httpbin.org/html`），`did-navigate` 的 `httpResponseCode` 是 `-1`：页面是从缓存里恢复的，没有新的响应。这条是真实点「后退」按钮时看到的。
 
 **网页感知到什么**（一张把这些写进标题的网页）
 
@@ -275,9 +327,9 @@ iOS 27.2 模拟器（iPhone Air）和 iOS 26.0 模拟器（iPhone 17）上各跑
 
 ## 没验到的
 
-- 真实触摸：滚动、点链接、开着拦截开关点链接。验收里的「点链接」是脚本替用户点的。
+- 真实触摸里的滚动、点链接、开着拦截开关点链接。验收里的「点链接」是脚本替用户点的。四个按钮（example.com、后退、前进、刷新）真实点过，事件都对。
 - App 退到后台时网页的 `visibilitychange`（裸的 `WKWebView` 上验过，新的 `WebView` 上没重验）。
-- 真机。
+- 真机。其中 `loadFile` 的可读范围**只有**真机验得了。
 
 ## 链接 WebKit
 
