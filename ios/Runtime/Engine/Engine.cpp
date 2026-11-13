@@ -215,6 +215,8 @@ struct Engine::Impl {
   // 不用 V8 的 internal field：那样建对象就得绕过 JS 构造函数，
   // EventTarget 的监听器表就初始化不了。改成给包装对象挂一个句柄 id，
   // C++ 这边用 id 查原生指针。
+  // 内置脚本各 part 之间共享的那个对象。只在装载期间存在，装完就放掉
+  v8::Global<v8::Object> builtin_ctx;
   v8::Global<v8::Function> wrapper_factory;  // 内置 JS 提供：(className, id) -> 包装对象
   v8::Global<v8::Function> object_event_sink;  // 内置 JS 提供：(wrapper, type) -> void
   std::unordered_map<int, void*> handle_to_ptr;
@@ -1081,6 +1083,42 @@ struct Engine::Impl {
     if (try_catch.HasCaught()) try_catch.Reset();
   }
 
+  // 编译并执行一段脚本，成功时返回它的完成值。Evaluate 和 RunBuiltinPart
+  // 共用这一份——严格模式的前置和 line_offset 必须两边一致，分开写迟早漂。
+  //
+  // 所有脚本都跑在严格模式下。V8 没有「强制 strict」的编译选项，所以前置一行
+  // 指令——ECMAScript 规定它必须是脚本的第一条语句，没有别的开启方式。
+  //
+  // 为什么要强制：只读属性写入、写冻结对象，在非严格模式下是**静默失败**，
+  // 严格模式才抛 TypeError；未声明的赋值在非严格模式下会悄悄建一个全局变量。
+  // 这些正是运行时一路在拒绝的那类错，而 ECMAScript 自己的判断就是它们该抛。
+  //
+  // 代价是源码多了一行，所以 ScriptOrigin 的 line_offset 设 -1 抵回来，报错
+  // 行号仍和文件里的行号对得上。
+  v8::MaybeLocal<v8::Value> CompileAndRun(v8::Local<v8::Context> ctx, const Script& script,
+                                          v8::TryCatch& try_catch) {
+    const std::string source_text = "'use strict';\n" + script.source;
+    v8::Local<v8::String> source;
+    if (!v8::String::NewFromUtf8(isolate, source_text.data(), v8::NewStringType::kNormal,
+                                 static_cast<int>(source_text.size()))
+             .ToLocal(&source)) {
+      if (host.log) host.log(LogLevel::Error, "Failed to load " + script.name);
+      return {};
+    }
+    v8::ScriptOrigin origin(V8Str(isolate, script.name.c_str()), -1);
+    v8::Local<v8::Script> compiled;
+    if (!v8::Script::Compile(ctx, source, &origin).ToLocal(&compiled)) {
+      ReportException(ctx, try_catch);
+      return {};
+    }
+    v8::Local<v8::Value> result;
+    if (!compiled->Run(ctx).ToLocal(&result)) {
+      ReportException(ctx, try_catch);
+      return {};
+    }
+    return result;
+  }
+
   void ReportException(v8::Local<v8::Context> ctx, v8::TryCatch& try_catch) {
     // 先把需要的东西全部取出来，之后调用 JS 不会受 TryCatch 状态影响
     v8::Local<v8::Value> exception = try_catch.Exception();
@@ -1181,41 +1219,51 @@ bool Engine::Evaluate(const Script& script) {
   bool ok = false;
   {
     v8::TryCatch try_catch(isolate);
-    // 所有脚本都跑在严格模式下。V8 没有「强制 strict」的编译选项，所以
-    // 前置一行指令——ECMAScript 规定它必须是脚本的第一条语句，没有别的
-    // 开启方式。
-    //
-    // 为什么要强制：只读属性写入、写冻结对象，在非严格模式下是**静默
-    // 失败**，严格模式才抛 TypeError；未声明的赋值在非严格模式下会悄悄
-    // 建一个全局变量。这些正是运行时一路在拒绝的那类错，而 ECMAScript
-    // 自己的判断就是它们该抛。
-    //
-    // 代价是源码多了一行，所以 ScriptOrigin 的 line_offset 设 -1 抵回来，
-    // 报错行号仍和文件里的行号对得上。
-    const std::string source_text = "'use strict';\n" + script.source;
-    v8::Local<v8::String> source;
-    if (!v8::String::NewFromUtf8(isolate, source_text.data(), v8::NewStringType::kNormal,
-                                 static_cast<int>(source_text.size()))
-             .ToLocal(&source)) {
-      if (impl_->host.log) impl_->host.log(LogLevel::Error, "Failed to load " + script.name);
-    } else {
-      v8::ScriptOrigin origin(V8Str(isolate, script.name.c_str()), -1);
-      v8::Local<v8::Script> compiled;
-      v8::Local<v8::Value> result;
-      if (!v8::Script::Compile(ctx, source, &origin).ToLocal(&compiled)) {
-        impl_->ReportException(ctx, try_catch);
-      } else if (!compiled->Run(ctx).ToLocal(&result)) {
-        impl_->ReportException(ctx, try_catch);
-      } else {
-        ok = true;
-      }
-    }
+    ok = !impl_->CompileAndRun(ctx, script, try_catch).IsEmpty();
   }
 
   // 微任务策略是默认的 kAuto：Run 返回时微任务已经跑完，这里可以结算拒绝。
   impl_->ScheduleRejectionFlush();
   return ok;
 }
+
+bool Engine::RunBuiltinPart(const Script& script) {
+  v8::Isolate* isolate = impl_->isolate;
+  v8::Isolate::Scope isolate_scope(isolate);
+  v8::HandleScope handle_scope(isolate);
+  v8::Local<v8::Context> ctx = impl_->context.Get(isolate);
+  v8::Context::Scope context_scope(ctx);
+
+  bool ok = false;
+  {
+    v8::TryCatch try_catch(isolate);
+    v8::Local<v8::Value> fn;
+    if (impl_->CompileAndRun(ctx, script, try_catch).ToLocal(&fn)) {
+      if (!fn->IsFunction()) {
+        if (impl_->host.log) {
+          impl_->host.log(LogLevel::Error,
+                          script.name + " must be a single function expression");
+        }
+      } else {
+        if (impl_->builtin_ctx.IsEmpty()) {
+          impl_->builtin_ctx.Reset(isolate, v8::Object::New(isolate));
+        }
+        v8::Local<v8::Value> args[] = {impl_->builtin_ctx.Get(isolate)};
+        v8::Local<v8::Value> ignored;
+        if (!fn.As<v8::Function>()->Call(ctx, v8::Undefined(isolate), 1, args).ToLocal(&ignored)) {
+          impl_->ReportException(ctx, try_catch);
+        } else {
+          ok = true;
+        }
+      }
+    }
+  }
+
+  impl_->ScheduleRejectionFlush();
+  return ok;
+}
+
+void Engine::FinishBuiltinParts() { impl_->builtin_ctx.Reset(); }
 
 void Engine::EmitAppEvent(const std::string& type) {
   v8::Isolate* isolate = impl_->isolate;

@@ -267,7 +267,7 @@ ObjC 没有 namespace 机制，Apple 用**类名前缀**代替：`NS`（Foundati
 | | 角色 |
 | --- | --- |
 | `NacreRuntime.mm` 的分发表 | 真相，决定运行时实际能做什么 |
-| `nacre.js` 的取值器 | 桥，JS 能碰到的东西 |
+| `Builtin/parts/` 的取值器 | 桥，JS 能碰到的东西 |
 | `types/*.d.ts` | 契约，开发者看到的东西 |
 
 手写绑定的时期这三份只能分别维护，所以必须有东西盯着。`ios/scripts/check-api.sh` 比对类是否齐、成员是否对得上、只读/读写是否一致、枚举可选值是否相同。**脚本本身验证过**：故意删一个属性、把只读改成读写、枚举少一个值，三种都能抓到。
@@ -545,6 +545,8 @@ API 文档的样板是 [`api/ui-button.md`](api/ui-button.md)，实现原理的�
 ```
 ios/Runtime/
 ├─ NacreRuntime.h / .mm   启动壳、事件转发、host 接线、fetch、定时器唤醒
+├─ Builtin/parts/         内置脚本，一个能力域一个 part（00-core … 25-crypto），
+│                         按文件名顺序编译执行，每个是一个函数表达式
 ├─ Bridge/                能力暴露，一个能力域一个 .mm
 │  ├─ NacreBridge.h       内部头：声明、枚举表的两个宏、方法参数包
 │  ├─ NacreConvert.mm     日志、JSON、结构体互转、环境快照
@@ -600,38 +602,26 @@ types/
 
 **剩下的域还没拆**（UIView / UIButton / UIScrollView / UIStackView 还挤在 `NacreMethods.mm` 的 549 行里）。没有急迫性——它在线下了，而且下次谁碰到哪个域就顺手把那个域抽出去，比一次全拆安全。
 
-**两处暂时不拆，理由写下来免得反复讨论：**
+**两处原来暂时不拆，现在都拆了：**
 
-- **`nacre.js`**（2600+ 行，**过线了**）：方案已定、暂时不拆，见下面「[`nacre.js` 怎么拆](#nacrejs-怎么拆方案已定未实现)」
+- ~~**`nacre.js`**（2600+ 行，**过线了**）：方案已定、暂时不拆~~ → **已拆**成 `Builtin/parts/` 下的 26 个 part，见下面「[`nacre.js` 怎么拆](#nacrejs-怎么拆已拆2026-11-14)」
 - ~~**`main.js`**：验收用例，按步骤顺序读下来才有意义，拆开反而难读~~ → **已拆**，见下面「[`acceptance/`：验收套件](#36-acceptance验收套件也是运行时的第一个客户)」。顺序没丢，反而从「隐含在文件位置里」变成了 `src/main.js` 里显式的十几行调用
 
-### `nacre.js` 怎么拆（方案已定，未实现）
+### `nacre.js` 怎么拆（已拆，2026-11-14）
 
-2026-11-09 讨论定的，**当时决定先不拆**——它改的是加载模型而不是挪代码，值得单独走一遍 SOP；而且 JS 开发者对拆不拆毫无感知，优先级低于能看见的能力。
+方案是 2026-11-09 定的（函数包裹），**当时决定先不拆**——它改的是加载模型而不是挪代码，而且 JS 开发者对拆不拆毫无感知。后来「能力要能拆成边缘包」这件事把它从「优先级低」变成了**硬前置**：Keychain 的 JS 代码要拿到 `defineNativeClass`、`nativeCallAsync` 这些，而它们全在那个 IIFE 的闭包里，外面一个都够不着。
 
-难点和 `.mm` 完全不同：`nacre.js` 整个是**一个 IIFE**，内部状态靠闭包里的 Symbol 共享，故意不暴露。量过共享面——17 个内部 Symbol 里**只有 6 个真跨域**（`kTarget`、`kDefaultPrevented`、`kStopImmediate`、`kListeners`、`kSubscribe`、`kHandle`），其余全是单个域自己的（URL 占 5 个、fetch 占 7 个），加上约 25 个桥接助手。共享面不大，所以可拆。
-
-**定的做法是函数包裹**，也就是 Node 给每个模块套 `(function (exports, require, module, …) { … })` 的那一招：
+**做法就是当初定的函数包裹**，每个 part 整个是一个函数表达式；原生侧编译执行拿到函数，用所有 part 共享的 `ctx` 调一次（`Engine::RunBuiltinPart`，约 30 行）：
 
 ```js
-// nacre.js —— 入口，只剩几十行
-(function (native) {
-  const ctx = { native };
-  ctx.kHandle = Symbol('nativeHandle');
-  …                              // 6 个跨域 Symbol + 共享助手
-  __nacre_runParts(ctx);         // 原生按序编译执行每个 part
-})(globalThis.__nacre_native);
-```
-
-```js
-// parts/05-view.js —— 整个文件就是一个函数表达式
+// parts/10-view.js
 (function (ctx) {
-  const { kHandle, nativeGet, requireNative, UIResponder } = ctx;
-  ctx.UIView = ctx.defineNativeClass('UIView', class UIView extends UIResponder { … });
+  'use strict';
+  const { defineNativeClass, nativeGet, structArg, … } = ctx;
+
+  defineNativeClass('UIView', class UIView extends UIResponder { … });
 })
 ```
-
-原生侧对每个 part `Compile(源码, ScriptOrigin(文件名))` → `Run()` 拿到函数 → 用 `ctx` 调一下，约 30 行。
 
 被否掉的两条，理由记下来免得重议：
 
@@ -640,11 +630,37 @@ types/
 | **多脚本按序执行** | 要共享就得去掉 IIFE、让助手变成顶层 `const`（全局词法绑定，不污染属性列表）。但那会**把内部名变成用户的保留字**——`main.js` 顶层重复声明同名 `const` 是 `SyntaxError`，而我们的内部名里有 `define`、`own`、`num`、`env`。报错还指向用户自己那一行，极难查 |
 | **构建期拼接** | 运行时一个字不用改，但**跑的不是你编辑的那个文件**：报错说 `nacre.js:1234`，而那个 `nacre.js` 是生成物，得回查源文件和行号。还多一个构建步骤 |
 
-函数包裹三条都占住了：每个 part 各自正确的文件名和行号、零全局污染、不占用户的标识符，而且**依赖关系从「隐含在文件顺序里」变成显式的**——每个 part 开头那行解构写明了它要什么。
+「半加载状态」不是新增的风险（今天第 1500 行语法错一样会让整个内置脚本死掉），但状态更让人困惑，所以原生侧**任何一个 part 失败都当致命错误、点名是哪个文件、立刻停下**，不往下跑。
 
-「半加载状态」这条**不是新增的风险**：今天第 1500 行语法错一样会让整个内置脚本死掉。区别只是 part 化之后前几个 part 已经装上了，状态更让人困惑。所以原生侧要把**任何一个 part 失败都当致命错误**，日志里点名是哪个文件。
+#### 实际切出来的和当初估的差在哪
 
-切法按已有的域，和 `Bridge/`、`types/ios/` 对齐：`00-core`（桥接助手和所有权镜像）、`01-event`、`02-struct`、`03-layer`、`04-layout`、`05-view`、`06-text-image`、`07-control`、`08-scroll`、`09-scene`、`10-url`、`11-fetch`、`12-timer`，13 个文件，最大的 322 行。
+当初估的是 13 个文件、最大 322 行、「6 个跨域 Symbol + 约 25 个助手」。实际是 **26 个 part、`ctx` 带 84 个名字**。两个原因：文件从 2600 行涨到了 6553；而且要切到**能力粒度**（Keychain 得是单独一个 part 才拆得出去），不能按大类切。
+
+part 的划分和 `Bridge/`、`types/ios/` 的域对齐，文件名的数字前缀就是执行顺序。
+
+**三个让这件事能做成的发现：**
+
+1. **`defineNativeClass` 里有 `define(globalThis, name, cls)`。** 63 个原生类全挂在 `globalThis` 上，所以 `class UIButton extends UIControl` 这种跨 part 的类引用**根本不需要 `ctx`**。否则 `ctx` 会再多一倍，而且要操心类的定义顺序。
+2. **后向依赖只有 4 个名字。** 原文整个是一个 IIFE，靠函数提升跨过去；part 化之后提升没了。按依赖做拓扑排序要挪 **18 个 part** 的位置——那就不是纯重构了。改成：3 个函数（`colorArg` / `colorString` / `filePath`）在用它的 part 开头**转发一道**（`const colorArg = (...a) => ctx.colorArg(...a)`），调用点一个字不用改，而且局部同名参数照常遮蔽它；只有 `application` 不是函数，按行号改了 2 处调用点。**执行顺序和原文完全一致。**
+3. **`'use strict';
+` 的前置带分号**（`Engine` 里本来就是这么拼的），所以 `(function (ctx) {…})` 接得上，part 不用改写法。
+
+**可变变量跨不了 part，这条咬了一次。** `let allowConstruct` 定义在 Application 的助手里，而 `allowConstruct = true` 在 Application 类后面——解构成 `const` 之后赋值当场抛 `TypeError: Assignment to constant variable`，第一次跑验收就死在 `22-application.js`。它只在那个 part 真的去**写**的时候才炸，光看依赖表看不出来。修法是把那段助手并进 Application 那个 part（它们本来就是一伙的，只是行号上被 storage / filesystem / keychain 隔开了），**所以 part 的区间支持多段**；切分脚本里加了一条自检：跨 part 的 `let` / `var` 必须为空。
+
+#### 保证「一行都没改」的办法
+
+不是靠脚本写得多对，而是**把每一行按原行号放回去，和原文逐行比对**——差异必须正好是计划内的那 2 行，多一行都算失败。
+
+切分脚本本身踩了四个坑，全是「安静地给出错误答案」那一类，记下来：
+
+| 坑 | 后果 |
+| --- | --- |
+| 数反引号判断模板字符串 | 第 6047 行的正则 `/[^!#$%&'*+\-.^_`\|~0-9A-Za-z]/` **里有一个反引号**，状态翻转后再没翻回来，508 行被整段吞掉，顶层声明少抽了 43 个 |
+| 不排除字符串字面量 | `nativeClassObject('Keychain', …)` 里的 `'Keychain'` 被当成标识符——而那 45 个类**在 JS 顶层根本没有变量**，导出它会 `ReferenceError` |
+| 不做作用域分析 | `loadFile(filePath, options)` 的**参数名**被当成跨 part 引用 |
+| 正则全文替换 | `'application/x-www-form-urlencoded'` 变成 `'ctx.application/…'`，`define(globalThis, 'application', …)` 的全局名字也被改掉 |
+
+前两个是「抽出来的数不对劲」发现的，后两个是 `node --check` 和人工核对抓到的。结论和 `check-api.sh` 那套是同一条：**每个提取点都要能说出「是我自己失效了」**，而最终的判据只能是拼回去逐行比。
 
 ### 分发链一开始就该写成「认不认领」
 
@@ -667,7 +683,7 @@ types/
 - **系统框架必须在 framework 上显式声明**：UIKit、QuartzCore、CoreGraphics、WebKit、Security。以前不用写——App target 里的 Swift 文件 `import UIKit` 顺带把它们链进来了；运行时里一个 Swift 文件都没有，而 ObjC++ 的 `#import` 不触发自动链接，第一次编 framework 直接撞了一屏 `Undefined symbols`。这张表是交付清单的一部分，用户的工程不用再写。
 - **`-Wl,-stack_size,0x800000` 留在 App target 上**，framework 替不了：它写进的是 `LC_MAIN`，而 `LC_MAIN` 只有主可执行文件有。真机上验过，二进制里 `stacksize 8388608`。`ENABLE_DEBUG_DYLIB: NO` 同理。**这两条是宿主必须照做的配置**，要写进交付文档。
 - **App 的 `PRODUCT_MODULE_NAME` 必须和 framework 的模块名区分开**。产物还叫 `Nacre.app`，但模块名设成了 `NacreApp`——不然 App 里的 `import Nacre` 变成导入它自己，Swift 报 `cannot find 'NacreRuntime' in scope`。
-- **内置脚本从运行时自己的包读**：`[NSBundle bundleForClass:NacreRuntime.class]`，不再是 `NSBundle.mainBundle`。`Builtin/nacre.js` 跟着 framework 走。
+- **内置脚本从运行时自己的包读**：`[NSBundle bundleForClass:NacreRuntime.class]`，不再是 `NSBundle.mainBundle`。`Builtin/parts/` 跟着 framework 走。
 - **隐私清单也跟着 framework 走**：`Runtime/PrivacyInfo.xcprivacy` 打进包根。Apple 不许第三方 SDK 靠宿主 App 的清单报自己，所以这一份替不了。里面三类是 `nm` 扫二进制扫出来的——`_mach_absolute_time` 和 `_fstat` 来自 **V8**，我们一行相关代码都没写。详见[隐私清单](internals/privacy-manifest.md)。
 
 先做的是 **dynamic framework**：资源跟着 framework 走，定位是确定的。static 的启动和体积可能更好，但得有数据才能比——这一步量到的见下。
@@ -679,7 +695,7 @@ types/
 | `project.yml` | XcodeGen 工程描述（两个 target） | 提交 |
 | `.gitignore` | 平台相关的忽略规则（根目录的 `.gitignore` 里不能出现平台目录名，所以放这里） | 提交 |
 | `Runtime/Nacre.h` | framework 的 umbrella header，**公开面** | 提交 |
-| `Runtime/` | `Nacre` target：`NacreRuntime`（ObjC++ 启动壳与接线）、`Bridge/`（能力暴露，按能力域分文件）、`Engine/`（纯 C++）、`Builtin/nacre.js` | 提交 |
+| `Runtime/` | `Nacre` target：`NacreRuntime`（ObjC++ 启动壳与接线）、`Bridge/`（能力暴露，按能力域分文件）、`Engine/`（纯 C++）、`Builtin/parts/`（内置脚本，按能力域分 part） | 提交 |
 | `scripts/` | `fetch-v8.sh`、`build-js.sh`、`build-xcframework.sh`、`check-api.sh`、`run-sim.sh` | 提交 |
 | `Nacre.xcodeproj/` | 由 `project.yml` 生成 | 不提交 |
 | `Vendor/` | 由 `fetch-v8.sh` 下载的 V8 | 不提交 |
@@ -784,6 +800,7 @@ Commit message 格式：
 | — | 交付第 3 步：产物 `@nacre/ios` 和参考 CLI | `template/` + `nacre-ios.json` + `bin/nacre-ios.js` + `build-xcframework.sh`；验收和示例的 `ios/` 都改成 CLI 生成 | 已验证通过：验收工程（引源码）iPhone Air 1749 条、真机 1735 条**全过**，标签和上一步一字不差；`examples/hello/`（引预编译的 xcframework）跑起来了。xcframework 25 MB（Release，两个切片）|
 | — | 交付第 4 步：入门指南 | `docs/guides/your-own-app.md`：三个必须的文件 + 一个 `tsconfig.json`，一条命令跑进模拟器 | 已验证通过：在仓库外（和 `nacre/` 并排）照着指南从零建了一个项目，`npm install`、`npm run check`、`run-sim.sh … --runtime=framework` 全部按指南写的那样，模拟器上出现文字、终端打出 `[JS][log]`。类型检查那三条说法（通过、枚举写错的报错原文、去掉 `/// <reference>` 全部 `Cannot find name`）都是跑出来的 |
 | — | 隐私清单 `PrivacyInfo.xcprivacy` | framework 自带一份；三类（UserDefaults、文件时间戳、系统启动时间）靠 `nm` 扫二进制定下来，后两类的符号来自 **V8**；`check-api.sh` 加第 8 节，两路扫（`nm` + `__objc_methname`）核对符号和声明 | 已在模拟器验证通过：1747 条通过、2 条失败（原有的图片下载网络问题），总数 1749 和上一步一字不差。清单在 `Nacre.framework` 包根和嵌进 App 之后都在。四种弄坏法（删一条、多一条、符号表过时、扫空二进制）各报一条，一条噪音都没有。实测宿主 App 的主可执行文件一个 required reason 符号都没碰 |
+| — | 内置脚本拆成 26 个 part | `Builtin/parts/`，每个整个是一个函数表达式；`Engine::RunBuiltinPart` 编译执行拿到函数、用共享的 `ctx` 调一次；任何一个失败都点名文件立刻停下。能力拆成边缘包的前置 | 已在模拟器验证通过：1749 条通过、2 条失败（原有的图片下载网络问题）；断言标签把实测数字规范化之后和拆之前**一字不差**，只多出两条——那两条上一次是 `! GC 没赶上，这一条未验证`，这次赶上了。正文**只改了 2 行**（那两处真跨 part 的 `application`）。报错行号实测指向 part 文件里的真实行号（`parts/00-core.js:137` 正是 `entry.callback.call(this, event)`）。内置脚本装载 23.0 ms |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |

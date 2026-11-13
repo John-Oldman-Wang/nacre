@@ -207,6 +207,24 @@ class Engine {
   // 执行一段脚本。出现未捕获异常时通过 host.log 输出错误并返回 false
   bool Evaluate(const Script& script);
 
+  // 执行内置脚本的一个 part。
+  //
+  // part 的源码整个是一个函数表达式 `(function (ctx) { … })`：这里编译执行拿到
+  // 那个函数，再用所有 part 共享的 ctx 调一次。第一个 part 调用时建出 ctx。
+  //
+  // 为什么是函数包裹而不是多个脚本按序执行：后者要共享就得让内部助手变成顶层
+  // const（全局词法绑定），那会**把内部名变成用户的保留字**——用户在 main.js
+  // 顶层声明同名 const 直接 SyntaxError，而我们的内部名里有 define、own、num。
+  // 函数包裹三条都占住：每个 part 各自正确的文件名和行号、零全局污染、不占用
+  // 用户的标识符。
+  //
+  // 任何一个 part 失败都是致命的（后面的 part 会在半加载的状态上继续），
+  // 所以调用方要在第一个 false 上停下并点名是哪个文件。
+  bool RunBuiltinPart(const Script& script);
+
+  // 所有 part 跑完，放掉对 ctx 的引用——它只在装载期间需要
+  void FinishBuiltinParts();
+
   // 处理 V8 平台投递的任务（每轮 JS 任务结束后调用）
   void PumpMessageLoop();
 

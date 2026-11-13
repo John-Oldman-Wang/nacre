@@ -50,14 +50,16 @@ V8 启动、线程、审阅问题和验证结果。
 ## 实现说明
 
 - **JS 跑在主线程**，和 UIKit 同线程。理由和代价见[项目说明第 3 节](../project.md)。
-- **上层 API 在内置 JS 里定义**。`EventTarget`、`Event`、`Application` 都写在 `ios/Runtime/Builtin/nacre.js`，由 iOS 层在 `main.js` **之前**执行。不用 C++ 的 `FunctionTemplate`，因为那样每个实例要在 internal field 上挂 C++ 监听器表，里面的 `v8::Global<Function>` 是强引用，必须用 weak callback 在对象被 GC 时手动释放——漏了就是回调永不释放。JS 实现交给 GC 全自动。Node 的 `EventTarget` 同样是 JS 实现的（`node:internal/event_target`）。
-- **脚本名用 `nacre:internal/nacre.js`**，不是文件路径。这样调用栈里一眼能看出哪些帧是运行时内部，和 Node 的 `node:internal/…` 一个做法。实测效果：
+- **上层 API 在内置 JS 里定义**。`EventTarget`、`Event`、`Application` 都写在 `ios/Runtime/Builtin/parts/` 下，由 iOS 层在 `main.js` **之前**执行。内置脚本按能力域拆成了 26 个 part，每个整个是一个函数表达式，运行时按文件名顺序编译执行、拿到函数之后用所有 part 共享的 `ctx` 调一次（`Engine::RunBuiltinPart`）；**任何一个 part 失败都是致命的**——后面的 part 会在半装好的状态上继续跑，错得更远也更难查，所以第一个失败处就点名文件停下。拆法和取舍见[项目说明](../project.md#nacrejs-怎么拆已拆2026-11-14)。不用 C++ 的 `FunctionTemplate`，因为那样每个实例要在 internal field 上挂 C++ 监听器表，里面的 `v8::Global<Function>` 是强引用，必须用 weak callback 在对象被 GC 时手动释放——漏了就是回调永不释放。JS 实现交给 GC 全自动。Node 的 `EventTarget` 同样是 JS 实现的（`node:internal/event_target`）。
+- **脚本名用 `nacre:internal/parts/<文件名>`**，不是文件路径。这样调用栈里一眼能看出哪些帧是运行时内部、又是哪个 part，和 Node 的 `node:internal/…` 一个做法。实测效果：
 
   ```
-  at Application.<anonymous> (main.js:97:51)                     ← 用户代码
-  at Application.dispatchEvent (nacre:internal/nacre.js:95:28)   ← 运行时内部
-  at main.js:99:13                                               ← 用户代码
+  at Application.<anonymous> (main.js:126:11)                           ← 用户代码
+  at Application.dispatchEvent (nacre:internal/parts/00-core.js:137:28) ← 运行时内部
+  at main.js:129:15                                                     ← 用户代码
   ```
+
+  **行号是 part 文件里的真实行号**：`00-core.js` 第 137 行就是 `entry.callback.call(this, event)` 那一句。运行时给每个脚本前置一行 `'use strict';`，`ScriptOrigin` 的 `line_offset` 设 `-1` 抵回来，这条对 part 同样成立。
 
 - **C++ 只提供一个极小的数据桥**。`Engine` 在 Context 上装 `globalThis.__nacre_native`，只有 4 个取值函数（`infoJSON`、`state`、`supportsMultipleScenes`、`setEventSink`）。内置脚本用完**立即 `delete`**，用户代码完全拿不到——实测 `typeof __nacre_native` 为 `undefined`、不在 `globalThis` 上、`getOwnPropertyNames` 也找不到。
 - **环境值走快照**。`info` 启动时抓一次；其余实时值在相关通知到达时重建成一份 JSON，JS 读取时解析。JS 现在和 UIKit 同线程，本可以直接读，保留快照是为了一次拿齐、少几次 UIKit 往返。

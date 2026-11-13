@@ -16,7 +16,7 @@ targets:
   # 运行时。它就是交付物 Nacre.xcframework 的源——凡是这个 target 里的
   # 文件，用户都会拿到；App 那个 target 里的不会。
   #
-  # 先做成 dynamic framework：资源（Builtin/nacre.js）跟着 framework 走，
+  # 先做成 dynamic framework：资源（Builtin/parts/、隐私清单）跟着 framework 走，
   # 定位是确定的。static 的启动和体积可能更好，但两样都没有数据，等这一步
   # 量出来再对比。
   Nacre:

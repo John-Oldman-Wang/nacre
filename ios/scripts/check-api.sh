@@ -2,7 +2,7 @@
 # 核对同一套 API 在三个地方是否一致：
 #
 #   Runtime/**/*.mm  分发表        ← 真相，决定运行时实际能做什么
-#   nacre.js         取值器和方法  ← 桥，JS 能碰到的东西
+#   Builtin/parts/   取值器和方法  ← 桥，JS 能碰到的东西
 #   packages/types/  类型声明      ← 契约，开发者看到的东西
 #
 # 手写绑定的时期，这三份只能分别维护，所以必须有东西盯着它们别漂。
@@ -16,7 +16,14 @@ cd "$(dirname "$0")/../.."
 python3 - "$@" <<'PY'
 import re, sys, glob
 
-js  = open('ios/Runtime/Builtin/nacre.js').read()
+# 内置脚本拆成了 Builtin/parts/ 下的若干个 part（每个是一个函数表达式），
+# 这里按文件名顺序拼起来当一份读——下面所有正则靠的是缩进，而 part 里的
+# 缩进和拆之前一模一样（正文一行都没动）。
+_part_files = sorted(glob.glob('ios/Runtime/Builtin/parts/*.js'))
+if not _part_files:
+    print('API 三边核对：ios/Runtime/Builtin/parts/ 下一个 part 都没有，check-api.sh 要更新')
+    sys.exit(1)
+js  = '\n'.join(open(f).read() for f in _part_files)
 # 能力暴露拆在 Bridge/ 下的几个 .mm 里，拼起来当一份读
 mm  = '\n'.join(open(f).read()
                 for f in sorted(glob.glob('ios/Runtime/**/*.mm', recursive=True)))

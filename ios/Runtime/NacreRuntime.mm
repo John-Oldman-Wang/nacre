@@ -1199,19 +1199,41 @@ nacre::NativeObjectRef CreateBlob(
   [self postToJS:^{
     if (!*engine) return;
     // 内置脚本在**运行时自己的包**里，不在 App 的包里：运行时做成了
-    // framework，Builtin/nacre.js 跟着它走
+    // framework，Builtin/parts/ 跟着它走
     NSBundle* runtimeBundle = [NSBundle bundleForClass:NacreRuntime.class];
-    NSURL* url = [runtimeBundle URLForResource:@"nacre" withExtension:@"js" subdirectory:@"Builtin"];
-    NSString* source = url ? [NSString stringWithContentsOfURL:url encoding:NSUTF8StringEncoding error:nil] : nil;
-    if (!source) {
-      WriteRuntimeLog(@"builtin script Builtin/nacre.js is missing; the upper-layer API is unavailable");
+    // 内置脚本拆成了 Builtin/parts/ 下的若干个 part，每个是一个函数表达式。
+    // **顺序由文件名决定**（00-、01-…），所以这里必须排序：
+    // URLsForResourcesWithExtension: 不保证顺序。
+    NSArray<NSURL*>* parts =
+        [[runtimeBundle URLsForResourcesWithExtension:@"js" subdirectory:@"Builtin/parts"]
+            sortedArrayUsingComparator:^NSComparisonResult(NSURL* a, NSURL* b) {
+              return [a.lastPathComponent compare:b.lastPathComponent];
+            }];
+    if (parts.count == 0) {
+      WriteRuntimeLog(@"builtin scripts Builtin/parts/*.js are missing; "
+                      @"the upper-layer API is unavailable");
       return;
     }
-    // 脚本名用 nacre:internal/ 前缀而不是文件路径：调用栈里一眼能看出是运行时内部，
-    // 和 Node 的 node:internal/... 同样的做法
     double t0 = NowMs();
-    bool ok = (*engine)->Evaluate({"nacre:internal/nacre.js", source.UTF8String});
-    WriteRuntimeLog([NSString stringWithFormat:@"builtin script %@ in %.1f ms", ok ? @"ready" : @"failed", NowMs() - t0]);
+    for (NSURL* url in parts) {
+      NSString* source = [NSString stringWithContentsOfURL:url
+                                                  encoding:NSUTF8StringEncoding
+                                                     error:nil];
+      // 脚本名用 nacre:internal/ 前缀而不是文件路径：调用栈里一眼能看出是运行时
+      // 内部，和 Node 的 node:internal/... 同样的做法
+      NSString* name = [@"nacre:internal/parts/" stringByAppendingString:url.lastPathComponent];
+      // 任何一个 part 失败都当致命错误并**点名是哪个文件**：后面的 part 会在一个
+      // 半装好的状态上继续跑，错得更远也更难查
+      if (!source || !(*engine)->RunBuiltinPart({name.UTF8String, source.UTF8String})) {
+        (*engine)->FinishBuiltinParts();
+        WriteRuntimeLog([NSString stringWithFormat:
+            @"builtin script %@ failed; the upper-layer API is incomplete", name]);
+        return;
+      }
+    }
+    (*engine)->FinishBuiltinParts();
+    WriteRuntimeLog([NSString stringWithFormat:@"builtin script ready in %.1f ms (%lu parts)",
+                                               NowMs() - t0, (unsigned long)parts.count]);
   }];
 
   // 3. 加载并执行 main.js
