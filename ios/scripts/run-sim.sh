@@ -3,6 +3,7 @@
 #
 #   bash ios/scripts/run-sim.sh                                     跑验收套件
 #   bash ios/scripts/run-sim.sh examples/hello --runtime=framework  跑示例
+#   bash ios/scripts/run-sim.sh ~/my-app --runtime=framework        跑仓库外的项目
 #
 # 项目的 ios/ 由 packages/ios 的 CLI 生成，不在版本库里。两种运行时：
 #   source      引运行时的 Xcode 工程（我们自己开发用，改一行 C++ 就生效）
@@ -19,10 +20,12 @@ for arg in "${@:2}"; do
   esac
 done
 [ -f "$PROJECT/nacre.config.json" ] || { echo "$PROJECT 不是一个 Nacre 项目（没有 nacre.config.json）"; exit 1; }
+# 转成绝对路径：项目可以在仓库外面
+PROJECT=$(cd "$PROJECT" && pwd)
 
 # 包名和 App 名从项目配置里读，和 CLI 生成工程时用的是同一份
-BUNDLE_ID=$(node -p "require('./$PROJECT/nacre.config.json').bundleId")
-APP_NAME=$(node -p "require('./$PROJECT/nacre.config.json').name")
+BUNDLE_ID=$(node -p "require('$PROJECT/nacre.config.json').bundleId")
+APP_NAME=$(node -p "require('$PROJECT/nacre.config.json').name")
 
 # 默认使用第一个可用的 iPhone 模拟器；也可以用 NACRE_SIM=<模拟器 UDID> 指定
 DEVICE="${NACRE_SIM:-$(xcrun simctl list devices available | awk '/^-- iOS (2[6-9]|[3-9][0-9])/{f=1;next} /^--/{f=0} f && /iPhone/ {match($0,/\([0-9A-F-]+\)/); print substr($0,RSTART+1,RLENGTH-2); exit}')}"

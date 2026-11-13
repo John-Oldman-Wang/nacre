@@ -31,6 +31,7 @@ function readmeLinksToIndex(md) {
   md.core.ruler.push('readme_links_to_index', (state) => fix(state.tokens));
 }
 
+const guide = (text, file) => ({ text, link: `/guides/${file}` });
 const api = (text, file) => ({ text, link: `/api/${file}` });
 const internals = (text, file) => ({ text, link: `/internals/${file}` });
 
@@ -45,6 +46,7 @@ export default defineConfig({
   // 每个目录的 README.md 当那个目录的首页，GitHub 上照常能看
   rewrites: {
     'README.md': 'index.md',
+    'guides/README.md': 'guides/index.md',
     'api/README.md': 'api/index.md',
     'internals/README.md': 'internals/index.md',
   },
@@ -58,12 +60,22 @@ export default defineConfig({
 
   themeConfig: {
     nav: [
+      { text: '指南', link: '/guides/', activeMatch: '^/guides/' },
       { text: 'API', link: '/api/', activeMatch: '^/api/' },
       { text: '实现原理', link: '/internals/', activeMatch: '^/internals/' },
       { text: '项目说明', link: '/project' },
     ],
 
     sidebar: {
+      '/guides/': [
+        {
+          text: '指南',
+          items: [
+            guide('总览', ''),
+            guide('建一个自己的 App', 'your-own-app'),
+          ],
+        },
+      ],
       '/api/': [
         {
           text: '开始',

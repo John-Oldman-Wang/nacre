@@ -178,7 +178,9 @@ function generate(projectDir, options) {
   fs.writeFileSync(path.join(iosDir, '.gitignore'),
     '# 这个目录整个是 nacre-ios 生成的，删掉重建就行\n*\n');
 
-  console.log('生成好了：' + path.relative(process.cwd(), iosDir) +
+  // 项目可以在任何地方，相对路径一旦变成一串 ../../.. 就不如绝对路径好读
+  const shown = path.relative(process.cwd(), iosDir);
+  console.log('生成好了：' + (shown.startsWith('..') ? iosDir : shown) +
               '（运行时：' + runtime.mode + '）');
   console.log('下一步：打包 JS，然后在那个目录里跑 xcodegen generate');
 }

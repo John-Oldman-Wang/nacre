@@ -427,7 +427,7 @@ packages/ios/                 → 发布成 @nacre/ios
 | 1 | 运行时拆成 framework target，目录不动 | 断言一字不差；拿到大小和启动数据 | 已做 |
 | 2 | 搬目录成第 5 节那棵树 | 纯机械，断言一字不差 | 已做 |
 | 3 | `packages/ios/` + 简单 CLI；验收和示例的 `ios/` 都改成 CLI 生成 | **两个工程都不用手改一行就能跑** | 已做 |
-| 4 | `docs/guides/` 入门文档 | 照着做一遍能跑通 | 待做 |
+| 4 | `docs/guides/` 入门文档 | 照着做一遍能跑通 | 已做 |
 
 ### 第 3 步定下来的形状
 
@@ -781,6 +781,7 @@ Commit message 格式：
 | — | 交付第 1 步：运行时拆成 framework target | `ios/project.yml` 拆成 `Nacre`（framework）和 `NacreApp`（验收 App）；umbrella header；系统框架显式声明；内置脚本改从 framework 自己的包读 | 已验证通过：iPhone Air 上 1749 条、真机 1735 条，断言标签和改之前一字不差。真机二进制里 `stacksize 8388608`，栈设置仍然生效。启动没变慢（真机 1.4/3.2 ms，改之前 1.2/2.7；模拟器冷启动 7.9–9.6 / 11.6–19.2 ms，改之前 6.8–9.7 / 10.6–34.5）。framework 14 MB（Debug 未 strip）。**没量到 dyld 加载 framework 的成本**，它发生在第一行日志之前，要另外埋点；static 的对比等真做了 static 才有 |
 | — | 交付第 2 步：按交付不交付搬目录 | `app/` → `acceptance/`，`ios/App/`+`ios/JS/` → `acceptance/ios/`，`types/` → `packages/types/`；工程描述拆成两份（运行时的只剩 framework，验收 App 的引它当子工程） | 已验证通过：iPhone Air 上 1749 条、标签和搬之前一字不差；真机 1735 条（另有一条偶发见下）。`ios/` 现在只有运行时 |
 | — | 交付第 3 步：产物 `@nacre/ios` 和参考 CLI | `template/` + `nacre-ios.json` + `bin/nacre-ios.js` + `build-xcframework.sh`；验收和示例的 `ios/` 都改成 CLI 生成 | 已验证通过：验收工程（引源码）iPhone Air 1749 条、真机 1735 条**全过**，标签和上一步一字不差；`examples/hello/`（引预编译的 xcframework）跑起来了。xcframework 25 MB（Release，两个切片）|
+| — | 交付第 4 步：入门指南 | `docs/guides/your-own-app.md`：三个必须的文件 + 一个 `tsconfig.json`，一条命令跑进模拟器 | 已验证通过：在仓库外（和 `nacre/` 并排）照着指南从零建了一个项目，`npm install`、`npm run check`、`run-sim.sh … --runtime=framework` 全部按指南写的那样，模拟器上出现文字、终端打出 `[JS][log]`。类型检查那三条说法（通过、枚举写错的报错原文、去掉 `/// <reference>` 全部 `Cannot find name`）都是跑出来的 |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |
