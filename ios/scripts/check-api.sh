@@ -191,7 +191,8 @@ def mm_enum(macro):
                    r'NACRE_ENUM_MAP\(%s,[^,]+,(.*?)\)\n\n' % macro, mm, r'@"(\w+)":')
 
 def dts_union(name):
-    return extract(f'd.ts 的 {name}', r'type %s =\s*(.*?);' % name, dts, r"'([\w]+)'")
+    # 名字里可以有连字符：网页的事件名照搬 Electron（did-finish-load）
+    return extract(f'd.ts 的 {name}', r'type %s =\s*(.*?);' % name, dts, r"'([\w-]+)'")
 
 for macro, tsname in [('TextAlignment', 'NSTextAlignment'),
                       ('LineBreakMode', 'NSLineBreakMode'),
@@ -296,6 +297,9 @@ for tsname, outer, inner in [
      r'BarButtonEventNamesList\(void\).*?names = @\[(.*?)\];', r'@"(\w+)"'),
     ('UIPresentationEventType',
      r'PresentationEventNamesList\(void\).*?names = @\[(.*?)\];', r'@"(\w+)"'),
+    # 网页的事件名带连字符，内层正则和别的事件表不一样
+    ('WebContentsEventType',
+     r'WebContentsEventNamesList\(void\).*?names = @\[(.*?)\];', r'@"([\w-]+)"'),
     ('UIBarButtonItemStyle',
      r'BarButtonItemStylePairs\(void\).*?pairs = @\[(.*?)\];', r'@\[\s*@"(\w+)"'),
 ]:

@@ -147,6 +147,13 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
   }
 
   {
+    std::string webResult;
+    if (WebViewCallMethod(object, sel, NacreArgs{args, &argPtrs}, &webResult, error)) {
+      return webResult;
+    }
+  }
+
+  {
     std::string feedbackResult;
     if (FeedbackCallMethod(object, sel, NacreArgs{args, &argPtrs}, &feedbackResult, error)) {
       return feedbackResult;

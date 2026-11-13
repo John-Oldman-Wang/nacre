@@ -54,6 +54,9 @@ typedef void (^NacreAsyncDone)(NacreAsyncResult* result);
 typedef void (^NacreWebSocketEmit)(id task, NSString* type, NSString* json,
                                    NacreBlob* blob);
 
+// 网页的事件出口，同一个路子。json 为 nil 表示没有负载
+typedef void (^NacreWebContentsEmit)(id contents, NSString* type, NSString* json);
+
 // Keychain 的载体。iOS 上没有「钥匙串对象」这种东西，SecItem* 是一组 C 函数，
 // 所以自己给一个单例当包装表里的那个原生指针。
 // CADisplayLink 的 trampoline。
@@ -675,6 +678,17 @@ bool NavCallObjectArrayMethod(id object, const std::string& name, const NacreArg
 // 和导航同一个形状：一个域一个文件，每个入口返回「认不认领」
 bool LayerCallMethod(id object, NSString* sel, const NacreArgs& args,
                      std::string* out, std::string* error);
+
+// ---- WebView ----
+// 一个域一个文件（NacreWebView.mm），每个入口返回「认不认领」
+void WebViewSetEmitter(NacreWebContentsEmit emit);
+nacre::NativeObjectRef WebViewConstruct(id options);
+nacre::NativeObjectRef ReadWebViewObjectProperty(id object, const std::string& name);
+bool WebContentsSetSubscription(id object, NSString* type, BOOL on, std::string* error);
+bool WebViewCallMethod(id object, NSString* sel, const NacreArgs& args,
+                       std::string* out, std::string* error);
+bool WebViewCallAsync(id object, const std::string& name, const std::string& argsJSON,
+                      const std::vector<void*>& argPtrs, NacreAsyncDone done);
 
 // ---- 路径 ----
 bool PathCallMethod(id object, NSString* sel, const NacreArgs& args,

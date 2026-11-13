@@ -42,6 +42,7 @@
 | [参数转换](conversion.md) | `{ atIndex: undefined }` 为什么会闪退、为什么照 Web IDL、转换为什么必须在 JS 一侧 |
 | [随机数](crypto.md) | 随机源归宿主、填的是视图不是 buffer、为什么照搬 65536 的上限 |
 | [网络](network.md) | fetch 的线程分工、URL 和 WHATWG 的差异 |
+| [WebView](web-view.md) | 为什么照 Electron、为什么套一层壳、`backgroundThrottling` 为什么做了又拿掉、进程数和存储分区的实测 |
 | [运行时](runtime.md) | V8 启动、主线程、严格模式、空闲 GC |
 
 > 还没写的条目会随着对应能力的整理陆续补上——**新增或改动一块能力时，`api/` 和 `internals/` 两份一起写**，规则见[项目说明](../project.md#文档怎么分)。

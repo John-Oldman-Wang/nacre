@@ -941,6 +941,19 @@ nacre::NativeObjectRef CreateBlob(
         [strongSelf emitEvent:type from:task className:"WebSocket" then:nil];
       }
     });
+    // 网页的事件出口，同上
+    WebViewSetEmitter(^(id contents, NSString* type, NSString* json) {
+      NacreRuntime* strongSelf = weakSelf;
+      if (strongSelf == nil) return;
+      if (json != nil) {
+        [strongSelf emitEvent:type
+                         from:contents
+                    className:"WebContents"
+                         json:json.UTF8String];
+      } else {
+        [strongSelf emitEvent:type from:contents className:"WebContents" then:nil];
+      }
+    });
     host.read_class_object_property = [](const std::string& className,
                                          const std::string& name) {
       return Guarded(name.c_str(), nullptr, [&] {
@@ -1052,6 +1065,8 @@ nacre::NativeObjectRef CreateBlob(
         // WebSocket 的 send / ping。它们在**主线程**就完成了调用，
         // 回音在 NSURLSession 的队列上来，所以同样要回主线程兑现
         if (WebSocketCallAsync(object, name, argsJSON, argPtrs, settle)) return;
+        // 网页的 loadURL。结果在主线程上来，兑现走的是同一段
+        if (WebViewCallAsync(object, name, argsJSON, argPtrs, settle)) return;
       }
       if ([object isKindOfClass:UIViewController.class] &&
           name == "presentViewController") {
@@ -1523,6 +1538,8 @@ nacre::NativeObjectRef CreateBlob(
     };
     if (GestureSetSubscription(object, @(type.c_str()), on, emit, error)) return;
   }
+  // 网页。事件原生一直在发，这里只校验名字
+  if (WebContentsSetSubscription(object, @(type.c_str()), on, error)) return;
   // 剪贴板。同样只塞一个事件出口
   {
     __weak NacreRuntime* weakSelf = self;

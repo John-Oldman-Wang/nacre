@@ -35,3 +35,4 @@
 /// <reference path="./ios/filesystem.d.ts" />
 /// <reference path="./ios/keychain.d.ts" />
 /// <reference path="./ios/textinput.d.ts" />
+/// <reference path="./ios/web.d.ts" />

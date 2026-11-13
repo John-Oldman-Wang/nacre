@@ -3672,6 +3672,110 @@
     }
   });
 
+  // ---------- WebView ----------
+  //
+  // 上层标准，和 fetch、WebSocket 一个定位——底下是 WKWebView，但那个类不
+  // 暴露。形状照 Electron：
+  //
+  //   WebView        一个视图。放哪、多大、显示隐藏，用视图自己的写法
+  //   webContents    里面那张网页：加载、导航、事件。方法名和事件名照搬
+  //                  Electron 的 webContents
+  //
+  // 和 Electron 不一样的只有一处：事件用 addEventListener 听，数据挂在事件
+  // 对象上（e.errorCode），不是 on(name, (event, errorCode) => …) 那样按
+  // 位置给参数——和这个运行时里别的事件一致。
+
+  // 后退前进。Electron 把这一组从 webContents 挪到了 navigationHistory
+  // （原来的 goBack() 那几个标了废弃），这里直接用新的位置。
+  // 不注入全局：它只能从 webContents.navigationHistory 拿到
+  const historyContents = new WeakMap();   // NavigationHistory -> WebContents
+  class NavigationHistory {
+    constructor(contents) {
+      if (contents === undefined || contents[kHandle] === undefined) {
+        throw new TypeError('Illegal constructor: NavigationHistory is created ' +
+                            'by the runtime, not by new');
+      }
+      historyContents.set(this, contents);
+    }
+    canGoBack() { return nativeCall(historyContents.get(this), 'canGoBack', []); }
+    canGoForward() { return nativeCall(historyContents.get(this), 'canGoForward', []); }
+    /** 不能后退时是空操作 */
+    goBack() { nativeCall(historyContents.get(this), 'goBack', []); }
+    goForward() { nativeCall(historyContents.get(this), 'goForward', []); }
+  }
+  const contentsHistory = new WeakMap();   // WebContents -> NavigationHistory
+
+  const WebContentsClass = defineNativeClass('WebContents', class WebContents extends NSObject {
+    constructor() { nativeOnly(new.target); }
+
+    // 事件原生一直在发，订阅只是让原生校验一下名字——写错当场报
+    [kSubscribe](type, on) { subscribeNative(this, type, on); }
+
+    /**
+     * 加载一个地址。加载完兑现；失败、被 stop() 停掉、被另一次导航顶掉
+     * 都拒绝。
+     *
+     * 和 Electron 一样先挂了一个空的拒绝处理：很多代码不等这个 Promise、
+     * 只听事件，失败时不该因此多报一条「未处理的拒绝」。自己 await 或者
+     * .catch 的照常拿得到错误
+     */
+    loadURL(url) {
+      const loading = nativeCallAsync(this, 'loadURL', [toText(url)]).then(() => undefined);
+      loading.catch(() => {});
+      return loading;
+    }
+    /** 现在这张网页的地址。还没加载过是空串 */
+    getURL() { return nativeCall(this, 'getURL', []); }
+    /** 网页的标题。没有就是空串 */
+    getTitle() { return nativeCall(this, 'getTitle', []); }
+    isLoading() { return nativeCall(this, 'isLoading', []); }
+    /** 停掉正在进行的加载 */
+    stop() { nativeCall(this, 'stop', []); }
+    reload() { nativeCall(this, 'reload', []); }
+    /**
+     * 销毁这张网页，它的进程跟着退出。之后除了 isDestroyed() 和 close()，
+     * 别的方法都抛。WebView 本身还在，是一个空的视图
+     */
+    close() { nativeCall(this, 'close', []); }
+    isDestroyed() { return nativeCall(this, 'isDestroyed', []); }
+    /** 网页的进程是不是没了。重新加载之后变回 false */
+    isCrashed() { return nativeCall(this, 'isCrashed', []); }
+
+    get navigationHistory() {
+      let history = contentsHistory.get(this);
+      if (history === undefined) {
+        history = new NavigationHistory(this);
+        contentsHistory.set(this, history);
+      }
+      return history;
+    }
+  });
+
+  defineNativeClass('WebView', class WebView extends UIView {
+    constructor(options) {
+      super();
+      // 照 Web IDL：字典参数传 null / undefined 视为空，成员是 undefined
+      // 视为没带；值在这里转好类型，原生只校验
+      const prefs = (options == null || options.webPreferences == null)
+        ? {} : options.webPreferences;
+      const checked = {};
+      if (has(prefs, 'partition')) checked.partition = toText(prefs.partition);
+      constructNative(this, new.target, 'WebView', [checked]);
+      // 当场把 webContents 的包装建出来并记上持有。网页一建好原生就开始
+      // 发事件，而事件是派发到 webContents 的包装上的——等到第一次读
+      // .webContents 才建，就会有事件落在一个没人见过的包装上
+      if (this[kHandle] !== undefined) {
+        own(this, 'webContents', nativeGetObject(this, 'webContents'));
+      }
+    }
+
+    /** 里面那张网页。每次读是同一个对象 */
+    get webContents() {
+      requireNative(this, 'webContents');
+      return nativeGetOwned(this, 'webContents');
+    }
+  });
+
   // ---- 手势识别器 ----
   //
   // iOS 四套事件机制里「平行、抢占」的那一套。它不是视图，是**挂在视图上**的
@@ -4763,7 +4867,13 @@
     }
     const event = new Event(type);
     const field = objectEventField[type];
-    if (field !== undefined && payload !== undefined) {
+    if (wrapper instanceof WebContentsClass) {
+      // 网页的事件。负载是一个字典，有什么就挂什么——字段名照搬 Electron，
+      // 原生那边已经按事件各自列好了
+      if (payload !== undefined && payload !== null && typeof payload === 'object') {
+        for (const key of Object.keys(payload)) defineField(event, key, payload[key]);
+      }
+    } else if (field !== undefined && payload !== undefined) {
       defineField(event, field, payload);
     } else if (payload !== undefined && payload !== null &&
                typeof payload === 'object' && 'wasClean' in payload) {

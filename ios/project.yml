@@ -71,6 +71,10 @@ targets:
           - "$(inherited)"
           - "-Wl,-stack_size,0x800000"
           - "-lc++"
+          # 网页（NacreWebView.mm）。ObjC++ 文件里的 #import 不会自动链接框架，
+          # 而 Swift 那几个文件没有引用它，所以要写明
+          - "-framework"
+          - "WebKit"
           - "-lz"
           # Chromium 的 zlib（V8 的快照校验和反优化数据解压依赖它）
           - "-lzip"

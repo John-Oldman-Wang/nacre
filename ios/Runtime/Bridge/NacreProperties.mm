@@ -95,6 +95,10 @@ nacre::NativeObjectRef ReadNativeObjectProperty(id object, const std::string& na
     if (!ref.class_name.empty()) return ref;
   }
   {
+    nacre::NativeObjectRef ref = ReadWebViewObjectProperty(object, name);
+    if (!ref.class_name.empty()) return ref;
+  }
+  {
     nacre::NativeObjectRef ref = ReadScrollObjectProperty(object, name);
     if (!ref.class_name.empty()) return ref;
   }

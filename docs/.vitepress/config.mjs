@@ -130,6 +130,7 @@ export default defineConfig({
             api('fetch', 'fetch'),
             api('URL / Headers', 'url'),
             api('WebSocket', 'websocket'),
+            api('WebView（网页）', 'web-view'),
             api('定时器', 'timers'),
             api('performance', 'performance'),
           ],
@@ -190,6 +191,7 @@ export default defineConfig({
           text: '网络和存储',
           items: [
             internals('网络', 'network'),
+            internals('WebView', 'web-view'),
             internals('本地存储', 'storage'),
             internals('文件读写', 'filesystem'),
             internals('Keychain', 'keychain'),

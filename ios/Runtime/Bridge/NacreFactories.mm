@@ -379,6 +379,8 @@ nacre::NativeObjectRef ConstructNative(const std::string& className,
   } else if (className == "WebSocket") {
     // 第一个用上 argsJSON 的类：url 是字符串，options 是字典
     return WebSocketConstruct(scalar(0), scalar(1));
+  } else if (className == "WebView") {
+    return WebViewConstruct(scalar(0));
   } else if (className == "CADisplayLink") {
     // ObjC 只有 +displayLinkWithTarget:selector:，而 target / selector 在 JS
     // 里没有对应物，所以运行时自己当 target——和控件事件一个做法。

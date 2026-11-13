@@ -55,6 +55,7 @@ import { stepOwnership } from './steps/ownership.js';
 import { stepLifetime } from './steps/lifetime.js';
 import { stepContainers } from './steps/containers.js';
 import { stepTraits } from './steps/traits.js';
+import { stepWebView } from './steps/webview.js';
 
 /**
  * 各步共享的上下文。跨段共享的东西只有三样，其余全是段内局部。
@@ -124,6 +125,7 @@ application.addEventListener('sceneconnect', (e) => {
   stepModal(ctx);
   stepContainers(ctx);
   stepTraits(ctx);
+  stepWebView(ctx);
   stepOwnership(ctx);
   stepLifetime(ctx);
 

@@ -1,0 +1,432 @@
+// WebView：把网页放进界面。
+//
+// 形状照 Electron：WebView 是视图，webContents 是里面那张网页。
+// 这一步只管加载、导航和事件；拦截导航、执行脚本、cookie 是后面几步。
+//
+// 大部分用 data: 地址，不联网也能跑。要联网的只有两条（HTTP 状态码），
+// 网不通时报未验证。
+
+/** @param {import("../main.js").StepContext} ctx */
+export function stepWebView(ctx) {
+  const { assert } = ctx;
+  const noop = () => {};
+  /** @param {() => void} run */
+  const thrown = (run) => {
+    try { run(); return '没抛'; }
+    catch (err) { return /** @type {Error} */ (err).name + ': ' + /** @type {Error} */ (err).message; }
+  };
+  /** 一个 Promise 是怎么结束的：兑现给 'ok'，拒绝给错误的 name
+   * @param {Promise<unknown>} promise */
+  const outcome = (promise) => promise.then(
+    () => 'ok', (err) => /** @type {Error} */ (err).name);
+  /** @param {number} ms */
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  /** 一张自带标题的小网页
+   * @param {string} title @param {string} [body] */
+  const pageURL = (title, body = '') =>
+    'data:text/html;charset=utf-8,' + encodeURIComponent(
+      '<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">' +
+      '<title>' + title + '</title>' +
+      '<body style="font:17px -apple-system;padding:16px;color:#333">' +
+      '<h3>' + title + '</h3>' + body);
+
+  console.log('--- WebView ---');
+
+  // ===== 建出来是什么 =====
+  const web = new WebView();
+  const contents = web.webContents;
+  assert('WebView 是 UIView', web instanceof UIView, true);
+  assert('webContents 是 WebContents', contents instanceof WebContents, true);
+  assert('读两次 webContents 是同一个对象', web.webContents === contents, true);
+  assert('WebContents 不能自己建',
+         // @ts-expect-error 构造函数是私有的
+         thrown(() => new WebContents()),
+         'TypeError: Illegal constructor: WebContents is created by the runtime, not by new');
+  assert('WebView 不能继承',
+         thrown(() => { class MyWeb extends WebView {} return new MyWeb(); }).split(':')[1],
+         ' Illegal constructor');
+
+  assert('还没加载：getURL() 是空串', contents.getURL(), '');
+  assert('还没加载：getTitle() 是空串', contents.getTitle(), '');
+  assert('还没加载：isLoading() 是 false', contents.isLoading(), false);
+  assert('isDestroyed() 是 false', contents.isDestroyed(), false);
+  assert('isCrashed() 是 false', contents.isCrashed(), false);
+
+  const history = contents.navigationHistory;
+  assert('读两次 navigationHistory 是同一个对象', contents.navigationHistory === history, true);
+  assert('还没加载：不能后退', history.canGoBack(), false);
+  assert('还没加载：不能前进', history.canGoForward(), false);
+
+  // 事件名写错当场抛，并且把能用的列出来
+  // @ts-expect-error 没有这个事件
+  const wrongName = thrown(() => contents.addEventListener('did-finsh-load', noop));
+  assert('事件名写错当场抛', wrongName.split(':')[0], 'TypeError');
+  assert('报错里列出了能用的名字', wrongName.includes('did-finish-load'), true);
+
+  // ===== 选项的转换（照 Web IDL）=====
+  assert('new WebView(null) 等于不传', thrown(() => new WebView(/** @type {any} */ (null))), '没抛');
+  assert('webPreferences 传 null 等于不传',
+         thrown(() => new WebView({ webPreferences: /** @type {any} */ (null) })), '没抛');
+  assert('partition: undefined 视为没带',
+         thrown(() => new WebView({ webPreferences: { partition: undefined } })), '没抛');
+  assert('partition 给数字，按字符串转',
+         thrown(() => new WebView({ webPreferences: { partition: /** @type {any} */ (5) } })),
+         '没抛');
+
+  // ===== 上屏 =====
+  const host = ctx.section('WebView：网页（点下面的按钮）', 300);
+  web.frame = new CGRect(16, 0, 100, 240);
+  web.layer.cornerRadius = 10;
+  web.layer.masksToBounds = true;
+  web.layer.borderWidth = 1;
+  web.layer.borderColor = 'separator';
+  host.addSubview(web);
+  // 宽度跟着区块走：左右各留 16
+  const fit = () => { web.frame = new CGRect(16, 0, Math.max(0, host.bounds.width - 32), 240); };
+  fit();
+  setTimeout(fit, 0);
+  setTimeout(fit, 1000);
+
+  /** @type {[string, () => void][]} */
+  const actions = [
+    ['example.com', () => { contents.loadURL('https://example.com/'); }],
+    ['后退', () => { history.goBack(); }],
+    ['前进', () => { history.goForward(); }],
+    ['刷新', () => { contents.reload(); }],
+  ];
+  actions.forEach(([title, run], index) => {
+    const button = UIButton.buttonWithType('system');
+    button.setTitle(title, { forState: ['normal'] });
+    button.frame = new CGRect(16 + index * 92, 252, 88, 40);
+    button.addEventListener('primaryActionTriggered', () => {
+      console.log('  ✓ 真实触摸：' + title);
+      run();
+    });
+    host.addSubview(button);
+  });
+
+  // ===== 事件 =====
+  /** @type {string[]} */
+  const seen = [];
+  /** @type {WebContentsDidNavigateEvent[]} */
+  const navigations = [];
+  /** @type {WebContentsDidFailLoadEvent[]} */
+  const failures = [];
+  /** @type {string[]} */
+  const titles = [];
+  // 自动跑的那一段结束之后，事件改成打日志——给真实触摸看
+  let live = false;
+  contents.addEventListener('did-start-loading', (e) => {
+    seen.push(e.type);
+    if (live) console.log('  · did-start-loading');
+  });
+  contents.addEventListener('did-stop-loading', (e) => {
+    seen.push(e.type);
+    if (live) console.log('  · did-stop-loading，标题「' + contents.getTitle() + '」');
+  });
+  contents.addEventListener('did-finish-load', (e) => {
+    seen.push(e.type);
+    if (live) console.log('  · did-finish-load ' + contents.getURL().slice(0, 60));
+  });
+  contents.addEventListener('did-navigate', (e) => {
+    seen.push(e.type);
+    navigations.push(e);
+    if (live) console.log('  · did-navigate ' + e.url.slice(0, 60) + '，状态码 ' + e.httpResponseCode);
+  });
+  contents.addEventListener('did-fail-load', (e) => {
+    seen.push(e.type);
+    failures.push(e);
+    if (live) console.log('  · did-fail-load ' + e.errorCode + ' ' + e.errorDescription);
+  });
+  contents.addEventListener('page-title-updated', (e) => {
+    titles.push(e.title);
+    if (live) console.log('  · page-title-updated「' + e.title + '」');
+  });
+  contents.addEventListener('render-process-gone', () => {
+    // 这一条只有网页的进程真的没了才会来。验收里不主动弄死它；从 Mac 上
+    // 把模拟器里那个进程杀掉可以看到这一行
+    console.log('  ✓ 实测：render-process-gone 到了，isCrashed() = ' + contents.isCrashed() +
+                '；重新加载');
+    contents.reload();
+  });
+
+  /** 等下一次某个事件
+   * @param {WebContentsEventType} type @param {WebContents} [from] */
+  const next = (type, from = contents) => new Promise((resolve) => {
+    from.addEventListener(type, () => resolve(undefined), { once: true });
+  });
+
+  // 等标题变成某个值。**不能在 did-finish-load 里直接读标题**：实测刷新
+  // 之后 did-finish-load 先到、标题后到（第一次加载时标题先到）
+  /** @param {string} title @param {WebContents} [from] */
+  const titled = async (title, from = contents) => {
+    for (let i = 0; i < 30 && from.getTitle() !== title; i++) await sleep(100);
+    return from.getTitle();
+  };
+
+  const run = async () => {
+    // ----- 加载一张网页 -----
+    const urlA = pageURL('第一页', '<p>这是 data: 地址里的一张网页。</p>');
+    const urlB = pageURL('第二页', '<p>从第一页过来的。</p>');
+    const loading = contents.loadURL(urlA);
+    assert('loadURL 返回 Promise', loading instanceof Promise, true);
+    console.log('  实测：loadURL 之后立刻读 isLoading() = ' + contents.isLoading());
+    assert('加载完，Promise 兑现的值是 undefined', await loading, undefined);
+    console.log('  实测：Promise 兑现那一刻的标题「' + contents.getTitle() + '」');
+    assert('加载完：getTitle()', await titled('第一页'), '第一页');
+    assert('加载完：getURL() 是那个地址', contents.getURL(), urlA);
+    await sleep(200);   // did-stop-loading 和 did-finish-load 谁先到没有保证
+    assert('加载完：isLoading() 是 false', contents.isLoading(), false);
+    console.log('  实测：一次加载的事件顺序 ' + seen.join(' → '));
+    assert('四个加载事件各来一次',
+           ['did-start-loading', 'did-navigate', 'did-finish-load', 'did-stop-loading']
+             .map((type) => seen.filter((s) => s === type).length).join(','), '1,1,1,1');
+    assert('did-start-loading 在 did-navigate 之前',
+           seen.indexOf('did-start-loading') < seen.indexOf('did-navigate'), true);
+    assert('did-navigate 在 did-finish-load 之前',
+           seen.indexOf('did-navigate') < seen.indexOf('did-finish-load'), true);
+    assert('did-navigate 带着地址', navigations[0].url, urlA);
+    assert('不是 HTTP 的导航，httpResponseCode 是 -1', navigations[0].httpResponseCode, -1);
+    assert('page-title-updated 带着标题', titles.includes('第一页'), true);
+    assert('事件的 target 是 webContents', navigations[0].target === contents, true);
+
+    // ----- 后退和前进 -----
+    await contents.loadURL(urlB);
+    assert('第二页加载完', await titled('第二页'), '第二页');
+    assert('现在能后退', history.canGoBack(), true);
+    assert('还不能前进', history.canGoForward(), false);
+    let arrived = next('did-finish-load');
+    history.goBack();
+    await arrived;
+    assert('后退之后回到第一页', await titled('第一页'), '第一页');
+    assert('后退之后能前进', history.canGoForward(), true);
+    assert('后退到头了，不能再退', history.canGoBack(), false);
+    assert('不能后退时 goBack() 是空操作', thrown(() => history.goBack()), '没抛');
+    arrived = next('did-finish-load');
+    history.goForward();
+    await arrived;
+    assert('前进之后是第二页', await titled('第二页'), '第二页');
+
+    // ----- 重新加载 -----
+    const mark = seen.length;
+    arrived = next('did-finish-load');
+    contents.reload();
+    await arrived;
+    console.log('  实测：reload() 到 did-finish-load 之间的事件 ' + seen.slice(mark).join(' → ') +
+                '；did-finish-load 那一刻的标题「' + contents.getTitle() + '」');
+    assert('reload() 之后还是第二页', await titled('第二页'), '第二页');
+
+    // ----- 地址不对：当场拒绝，不发起加载 -----
+    const before = seen.length;
+    assert('地址没带协议：拒绝，TypeError',
+           await outcome(contents.loadURL('example.com')), 'TypeError');
+    assert('空地址：拒绝，TypeError', await outcome(contents.loadURL('')), 'TypeError');
+    assert('地址不对时没有发起加载（没有新的事件）', seen.length, before);
+
+    // ----- 加载失败 -----
+    failures.length = 0;
+    /** @type {any} */
+    let failure = null;
+    try { await contents.loadURL('https://nacre-does-not-exist.invalid/'); }
+    catch (err) { failure = err; }
+    assert('域名解析不了：Promise 拒绝', failure instanceof Error, true);
+    assert('拒绝的错误 name 是 NetworkError', failure && failure.name, 'NetworkError');
+    assert('错误上有系统的 domain', failure && failure.domain, 'NSURLErrorDomain');
+    console.log('  实测：域名解析不了的 code = ' + (failure && failure.code) +
+                '，message = ' + (failure && failure.message));
+    assert('同时收到一次 did-fail-load', failures.length, 1);
+    if (failures.length > 0) {
+      assert('did-fail-load 的 errorCode 和拒绝的 code 是同一个数',
+             failures[0].errorCode, failure && failure.code);
+      assert('validatedURL 是失败的那个地址',
+             failures[0].validatedURL, 'https://nacre-does-not-exist.invalid/');
+      assert('isMainFrame 是 true', failures[0].isMainFrame, true);
+      assert('errorDescription 是字符串', typeof failures[0].errorDescription, 'string');
+    }
+    assert('失败之后还停在原来那一页', await titled('第二页'), '第二页');
+
+    // ----- 后一次加载顶掉前一次 -----
+    const first = contents.loadURL(urlA);
+    const second = contents.loadURL(urlB);
+    assert('连着加载两次：前一次拒绝，AbortError', await outcome(first), 'AbortError');
+    assert('连着加载两次：后一次兑现', await outcome(second), 'ok');
+    assert('停在后一次的那一页', await titled('第二页'), '第二页');
+
+    // ----- stop() -----
+    failures.length = 0;
+    const stopped = contents.loadURL('https://httpbin.org/delay/5');
+    contents.stop();
+    /** @type {any} */
+    let stopError = null;
+    try { await stopped; } catch (err) { stopError = err; }
+    assert('stop() 停掉的加载：拒绝，AbortError', stopError && stopError.name, 'AbortError');
+    assert('被停掉的 code 是 -999', stopError && stopError.code, -999);
+    await sleep(200);
+    console.log('  实测：被 stop() 停掉时 did-fail-load 来了 ' + failures.length + ' 次' +
+                (failures.length > 0 ? '，errorCode = ' + failures[0].errorCode : ''));
+
+    // ----- 不等 Promise 也不报未处理的拒绝 -----
+    //
+    // 只听事件、不管返回值是常见写法。失败时不该多报一条 unhandledrejection
+    let unhandled = 0;
+    const onUnhandled = () => { unhandled++; };
+    application.addEventListener('unhandledrejection', onUnhandled);
+    contents.loadURL('https://nacre-does-not-exist.invalid/');
+    await next('did-fail-load');
+    await sleep(300);
+    application.removeEventListener('unhandledrejection', onUnhandled);
+    assert('不接 loadURL 的 Promise，失败时也不报未处理的拒绝', unhandled, 0);
+
+    // ----- HTTP 状态码（要联网）-----
+    navigations.length = 0;
+    const online = await outcome(contents.loadURL('https://httpbin.org/status/404'));
+    if (online === 'ok' && navigations.length > 0) {
+      assert('404 的网页：加载本身算成功，状态码在 did-navigate 上',
+             navigations[navigations.length - 1].httpResponseCode, 404);
+      navigations.length = 0;
+      await outcome(contents.loadURL('https://httpbin.org/html'));
+      assert('200 的网页：httpResponseCode 是 200',
+             navigations.length > 0 && navigations[navigations.length - 1].httpResponseCode, 200);
+      console.log('  实测：httpbin.org/html 的标题「' + contents.getTitle() +
+                  '」，地址 ' + contents.getURL());
+    } else {
+      console.log('  ! httpbin.org 连不上（' + online + '），HTTP 状态码那两条未验证');
+    }
+
+    // ----- 网页感知得到什么：大小、深浅色、显示隐藏、安全区 -----
+    //
+    // 一张把这些都写进标题的网页：宽度 | 深浅色 | 安全区上 | 安全区下 |
+    // resize 次数 | visibilitychange 的记录
+    const senseURL = 'data:text/html;charset=utf-8,' + encodeURIComponent(
+      '<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1,' +
+      'viewport-fit=cover"><title>-</title>' +
+      '<div id="p" style="position:fixed;top:0;width:1px;height:env(safe-area-inset-top)"></div>' +
+      '<div id="q" style="position:fixed;bottom:0;width:1px;height:env(safe-area-inset-bottom)"></div>' +
+      '<script>const dark = matchMedia("(prefers-color-scheme: dark)"); let resizes = 0; const vis = [];' +
+      'const show = () => { document.title = [innerWidth, dark.matches ? "dark" : "light", ' +
+      'p.offsetHeight, q.offsetHeight, resizes, vis.join(">")].join("|"); };' +
+      'addEventListener("resize", () => { resizes++; show(); });' +
+      'dark.addEventListener("change", show);' +
+      'document.addEventListener("visibilitychange", () => { vis.push(document.visibilityState); show(); });' +
+      'show();</script>');
+    const sensor = new WebView();
+    const sensed = sensor.webContents;
+    sensor.isHidden = true;    // 不挡住界面。隐藏的视图在网页看来照样是「看得见」
+    sensor.frame = new CGRect(16, 0, 200, 100);
+    host.addSubview(sensor);
+    await sensed.loadURL(senseURL);
+    /** 等标题满足条件，返回拆开的六段
+     * @param {(parts: string[]) => boolean} ready */
+    const sense = async (ready) => {
+      for (let i = 0; i < 30 && !ready(sensed.getTitle().split('|')); i++) await sleep(100);
+      return sensed.getTitle().split('|');
+    };
+    let parts = await sense((p) => p.length === 6);
+    assert('网页的 innerWidth 等于视图的宽（pt）', parts[0], 200);
+    assert('在安全区里面的网页，env(safe-area-inset-top) 是 0', parts[2], 0);
+    const systemStyle = sensor.traitCollection.userInterfaceStyle;
+    assert('网页的 prefers-color-scheme 跟视图的外观一致', parts[1], systemStyle);
+
+    sensor.frame = new CGRect(16, 0, 300, 100);
+    parts = await sense((p) => p[0] === '300');
+    assert('改视图的宽：网页的 innerWidth 跟着变', parts[0], 300);
+    assert('改视图的宽：网页收到 resize', Number(parts[4]) >= 1, true);
+
+    const flippedStyle = systemStyle === 'dark' ? 'light' : 'dark';
+    sensor.overrideUserInterfaceStyle = flippedStyle;
+    parts = await sense((p) => p[1] === flippedStyle);
+    assert('强制视图换外观：网页的 prefers-color-scheme 跟着变', parts[1], flippedStyle);
+    sensor.overrideUserInterfaceStyle = 'unspecified';
+    parts = await sense((p) => p[1] === systemStyle);
+
+    sensor.isHidden = false;
+    await sleep(300);
+    sensor.isHidden = true;
+    await sleep(300);
+    assert('改 isHidden：网页收不到 visibilitychange', sensed.getTitle().split('|')[5], '');
+    sensor.removeFromSuperview();
+    parts = await sense((p) => p[5] === 'hidden');
+    assert('从界面上拿掉：网页收到 visibilitychange，变成 hidden', parts[5], 'hidden');
+    host.addSubview(sensor);
+    parts = await sense((p) => p[5] === 'hidden>visible');
+    assert('加回界面：网页收到 visibilitychange，变回 visible', parts[5], 'hidden>visible');
+
+    // 铺满整个窗口（伸到刘海和底部横条下面）时，安全区的值网页读得到
+    ctx.win.addSubview(sensor);
+    sensor.frame = ctx.win.bounds;
+    const insets = ctx.win.safeAreaInsets;
+    parts = await sense((p) => Number(p[2]) > 0);
+    console.log('  实测：铺满窗口的网页 env(safe-area-inset-top) = ' + parts[2] +
+                'px，bottom = ' + parts[3] + 'px；窗口的安全区 top = ' + insets.top +
+                ' pt，bottom = ' + insets.bottom + ' pt');
+    assert('铺满窗口：env(safe-area-inset-top) 等于窗口安全区的 top', parts[2], insets.top);
+    assert('铺满窗口：env(safe-area-inset-bottom) 等于窗口安全区的 bottom', parts[3], insets.bottom);
+    sensor.removeFromSuperview();
+    sensed.close();
+
+    // ----- 不在界面里的网页：预加载 -----
+    //
+    // 两张网页各自每 100 毫秒把计数和 visibilityState 写进标题。一张不加进
+    // 界面，一张加进界面但隐藏。系统只放慢前一种——网页「看不看得见」按
+    // 它在不在窗口里算，不按 isHidden 算
+    const ticker = pageURL('0',
+      '<script>let n = 0; setInterval(() => { ' +
+      'document.title = (++n) + "/" + document.visibilityState; }, 100);</script>');
+    const detached = new WebView();
+    const hidden = new WebView();
+    hidden.isHidden = true;
+    hidden.frame = new CGRect(0, 0, 10, 10);
+    host.addSubview(hidden);
+    await Promise.all([detached.webContents.loadURL(ticker), hidden.webContents.loadURL(ticker)]);
+    assert('没加进界面的网页也加载得完', detached.webContents.getURL(), ticker);
+    await sleep(3000);
+    const [detachedTicks, detachedState] = detached.webContents.getTitle().split('/');
+    const [hiddenTicks, hiddenState] = hidden.webContents.getTitle().split('/');
+    console.log('  实测：跑 3 秒，100 毫秒的定时器：不在界面里 ' + detachedTicks + ' 次（' +
+                detachedState + '），在界面里但隐藏 ' + hiddenTicks + ' 次（' + hiddenState + '）');
+    assert('不在界面里的网页 visibilityState 是 hidden', detachedState, 'hidden');
+    assert('不在界面里的网页，定时器被放慢了（3 秒不到 15 次）', Number(detachedTicks) < 15, true);
+    assert('在界面里但隐藏的网页 visibilityState 是 visible', hiddenState, 'visible');
+    assert('在界面里但隐藏的网页，定时器照常（3 秒至少 20 次）', Number(hiddenTicks) >= 20, true);
+    hidden.removeFromSuperview();
+
+    // ----- 销毁 -----
+    const doomed = hidden;
+    const doomedContents = doomed.webContents;
+    let destroyedEvents = 0;
+    doomedContents.addEventListener('destroyed', () => { destroyedEvents++; });
+    const cut = doomedContents.loadURL(urlA);
+    doomedContents.close();
+    assert('close() 之后 isDestroyed() 是 true', doomedContents.isDestroyed(), true);
+    assert('close() 时还在加载的那次：拒绝，AbortError', await outcome(cut), 'AbortError');
+    await sleep(100);
+    assert('收到一次 destroyed', destroyedEvents, 1);
+    assert('销毁之后调别的方法抛',
+           thrown(() => doomedContents.getURL()), 'TypeError: Object has been destroyed');
+    assert('销毁之后后退前进也抛',
+           thrown(() => doomedContents.navigationHistory.canGoBack()),
+           'TypeError: Object has been destroyed');
+    assert('销毁之后 loadURL 拒绝，TypeError',
+           await outcome(doomedContents.loadURL(urlA)), 'TypeError');
+    assert('再 close() 一次是空操作', thrown(() => doomedContents.close()), '没抛');
+    await sleep(100);
+    assert('destroyed 不会来第二次', destroyedEvents, 1);
+    assert('WebView 本身还是一个能用的视图',
+           thrown(() => { doomed.frame = new CGRect(0, 0, 10, 10); doomed.alpha = 0.5; }), '没抛');
+    assert('里面已经空了', doomed.subviews.length, 0);
+    detached.webContents.close();
+
+    // ----- 屏幕上那一张回到第一页，留给真实触摸 -----
+    await outcome(contents.loadURL(pageURL('WebView',
+      '<p>这是屏幕上的一张网页，可以滚动、选字。</p>' +
+      '<p><a href="https://example.com/">点这个链接去 example.com</a></p>' +
+      '<p style="height:400px;background:linear-gradient(#e8f0ff,#fff)">往下滚</p>')));
+    live = true;
+    console.log('  ✓ 屏幕上有一张网页和四个按钮：点链接或按钮会打出加载事件');
+    console.log('--- WebView：以上断言跑完 ---');
+  };
+  run().catch((err) => {
+    console.log('  ✗ WebView 这一步中途抛了: ' + (err && err.stack || err));
+    console.log('--- WebView：以上断言跑完 ---');
+  });
+}
