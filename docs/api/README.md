@@ -68,6 +68,7 @@ Nacre 的 API 分两层：
 | [`fetch`](fetch.md) | 网络请求。线程分工是实测定下来的 |
 | [`WebSocket`](websocket.md) | 长连接。比 Web 多两样：可以带首部、有协议级 `ping()` |
 | [`WebView`](web-view.md) | 把网页放进界面。形状照 Electron：视图管摆放，`webContents` 管加载和导航 |
+| [`session`](session.md) | 网页的 cookie 和数据：读、写、删 cookie，按分区或按站点清数据 |
 | [`UIColor`](ui-color.md) | 颜色。基础色、系统色、语义色 |
 | [外观特征](ui-trait-collection.md) | 深色还是浅色、屏幕几倍、文字多大。读取、强制、变化通知 |
 | [`UIViewController`](ui-view-controller.md) | 页面。`view`、`title`、模态呈现、父子控制器 |

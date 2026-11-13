@@ -4,7 +4,7 @@
 
 `WebView` 是上层标准，底下是 `WKWebView`。这一篇记它为什么长成这样、原生那边怎么搭的、量到了什么。
 
-分四步做。第 1 步：视图、加载、导航、加载事件、存储分区、销毁。第 2 步：拦截导航（`will-navigate`）。中间插了一步 `loadFile`。第 3 步：执行脚本、预加载脚本、网页和 App 互发消息。第 4 步（cookie）还没做。
+分四步做。第 1 步：视图、加载、导航、加载事件、存储分区、销毁。第 2 步：拦截导航（`will-navigate`）。中间插了一步 `loadFile`。第 3 步：执行脚本、预加载脚本、网页和 App 互发消息。第 4 步：`session`——cookie 和清数据。
 
 ## 属于哪一层
 
@@ -396,6 +396,71 @@ Electron 是保序的：网页进程用 `v8::ValueSerializer` 把结果序列化
 带回复的消息往返一次约 0.13–0.27 毫秒。
 
 错误的措辞照 Electron：`Error invoking remote method 'x': Error: …`、`No handler registered for 'x'`、`Attempted to register a second handler for 'x'`、`Cannot bind an API on top of an existing property on the window object`。
+
+## `session`：cookie 和清数据
+
+第 4 步。名字照 Electron：`session.defaultSession`、`session.fromPartition`、`contents.session`、`ses.cookies.get / set / remove`、`changed`、`ses.clearStorageData`。原生代码在 `NacreWebSession.mm`；「分区名 → 数据存储」的换算也从 `NacreWebView.mm` 搬到了这里，建网页和 `Session` 用的是同一个函数。
+
+### 对象怎么对应
+
+一个分区一个原生的 `NacreWebSession`（拿着那个分区的 `WKWebsiteDataStore`），按分区名记在一张表里，留到进程结束。JS 的 `Session` 包的就是它。
+
+**同一个分区永远是同一个 `Session` 对象**，JS 那边另有一张「分区名 → `Session`」的表。`contents.session` 不存引用：它问原生「这张网页的分区名是什么」，再去那张表里查。所以 `web.webContents.session === session.fromPartition('persist:x')` 成立，和 Electron 一样。
+
+`Cookies` 是一个纯 JS 的 `EventTarget`，没有对应的原生对象。它的操作都落在 `Session` 上。
+
+要不要全局的 `session`，讨论过：加。「先写登录状态再开网页」和「退出登录时清掉」都不依赖某一张网页，只有 `contents.session` 的话得先建一个 `WebView` 才拿得到。
+
+### 系统只有「读全部」
+
+`WKHTTPCookieStore` 的读只有 `getAllCookies:` 一种。`get(filter)` 的七个条件（`url`、`name`、`domain`、`path`、`secure`、`session`、`httpOnly`）在 JS 里筛，原生不参与。`url` 条件的含义是「这个地址的请求会带上的那些」：域名匹配（`hostOnly` 的只认一模一样的主机）、路径匹配（照 RFC 6265）、`http` 的地址不含 `secure` 的。
+
+`remove(url, name)` 也是先读全部、在 JS 里挑出来，再把 `{ name, domain, path }`（一条 cookie 的身份）交给原生去删。它和 `get` 的 `url` 条件差一处：不看 `secure`。
+
+原生给 JS 的每条 cookie 是个字典，成员顺序不定，JS 按固定的顺序重建一遍。
+
+### `changed`：系统不说是哪一条
+
+`WKHTTPCookieStoreObserver` 只有一个回调 `cookiesDidChangeInCookieStore:`，不带任何细节。Electron 的 `changed` 带 `cookie`、`cause`、`removed`。
+
+能自己补：每次通知时读全部、和上一次的快照比。没做——那是在系统的一个通知上再造一套状态，而且 `cause`（过期、被盖掉、被淘汰）怎么也比不出来。给的是一个不带数据的事件，收到之后自己重新 `get`。
+
+通知是惰性订的：`cookies` 上第一次有监听器时原生才 `addObserver:`，最后一个走了就退掉。原生派发的是内部事件 `@cookies-changed`（派发在 `Session` 上），JS 的事件汇入口再把 `changed` 派发到它的 `cookies` 对象上。
+
+实测一次写入有时通知两次；验收里五次写、一次覆盖、两次删，一共收到 7 次。
+
+### 按站点清
+
+`clearStorageData({ origin })` 的做法：`fetchDataRecordsOfTypes:` 把这个分区的数据记录都取出来，挑出属于这个主机的，再 `removeDataOfTypes:forDataRecords:`。
+
+系统的记录是**按域名**记的，不分协议和端口。记录的名字有时带开头的点——cookie 的记录就是按它的 `domain` 记的，探针里同一个站点有 `.httpbin.org` 和 `httpbin.org` 两条。「属于这个主机」的判断是：去掉开头的点之后，等于主机名，或者是它的上一级域名。
+
+所以清 `a.example.test` 会连 `domain` 是 `.example.test` 的 cookie 一起清掉。这是说得通的：那条 cookie 本来就会被 `a.example.test` 的请求带上。别的站点（`other.test`）的不动。
+
+`localStorage` 这类数据，子域名之间的记录是分开的还是并在主域名下，没有量。
+
+`storages` 的名字到系统数据类型的换算在原生的一张表里（`SessionStorageTable`），`check-api.sh` 拿它和类型定义对。`shadercache` 在 iOS 上没有对应的东西，表里是空的：认这个名字，什么都不清。
+
+### 实测
+
+探针和验收都在 iPhone Air 模拟器（iOS 27.2）上，验收另在真机（iPhone 14，iOS 27.0.1）上跑过。
+
+| | 结果 |
+| --- | --- |
+| 一个网页都没建时读写 | 能。App 启动后第一次读用了 0.6–1.0 秒，之后 20 次读共 3.7 毫秒 |
+| 写进去之后 | 网页的下一次请求就带上；已经打开的网页里 `document.cookie` 不用刷新就看得到 |
+| `httpOnly` 的 | 网页的请求带上了，`document.cookie` 里没有 |
+| 网页的脚本写的、服务器 `Set-Cookie` 写的 | 都读得到，`httpOnly`、`secure`、`sameSite`、过期时间都在 |
+| 没写 SameSite 的 | 读出来是 `none`，和显式写 `None` 分不开。所以读的时候只给得出三种 |
+| 只给 `url` | `domain` 是主机名，不带点 |
+| 给了 `domain` | 读回来带开头的点 |
+| `expirationDate` 给了小数 | 读回来是整数秒 |
+| 不同分区 | 互相读不到；那个分区的网页请求里只有它自己的 |
+| 重启进程之后 | 有过期时间的还在；没有过期时间的没了；内存分区的全没了 |
+| 只清 cookie | `localStorage` 还在；已经打开的网页里 `document.cookie` 当场变空 |
+| 全清 | 已经打开的网页里 `localStorage` 当场变空，不用刷新 |
+
+网页的 cookie 和 `fetch` 的 cookie（`NSHTTPCookieStorage`）是两份，第 1 步的探针量过。
 
 ## 存储分区
 

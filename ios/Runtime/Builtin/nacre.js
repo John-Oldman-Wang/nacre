@@ -3950,6 +3950,8 @@
     send(channel, ...args) {
       nativeCall(this, 'send', [toText(channel), stringifyForIPC(args, 'send')]);
     }
+    /** 这张网页的数据存在哪个 Session 里。同一个分区的网页拿到的是同一个 */
+    get session() { return sessionFor(nativeCall(this, 'getPartition', [])); }
     /** 请求-响应那一半：ipc.handle(channel, fn) */
     get ipc() {
       let ipc = ipcObjects.get(this);
@@ -4025,6 +4027,224 @@
       return nativeGetOwned(this, 'webContents');
     }
   });
+
+  // ---------- Session：cookie 和清数据 ----------
+  //
+  // 网页的数据（cookie、localStorage、缓存）按分区存。一个分区一个 Session，
+  // 形状照 Electron：
+  //
+  //   session.defaultSession / session.fromPartition(name)   不用先建网页
+  //   webContents.session                                    这张网页用的那一份
+  //   ses.cookies.get / set / remove，'changed' 事件
+  //   ses.clearStorageData({ storages, origin })
+  //
+  // 同一个分区永远是同一个 Session 对象（Electron 也是），所以拿它们做 ===
+  // 是可以的。对象留到进程结束。
+  const sessionCache = new Map();          // 分区名 -> Session
+  const sessionCookies = new WeakMap();    // Session -> 它的 Cookies
+  const cookiesOwner = new WeakMap();      // Cookies -> Session
+  function sessionFor(partition) {
+    // 'persist:' 后面什么都没有，等于默认的那一份（原生那边也是这么算的）
+    let key = toText(partition);
+    if (key === 'persist:') key = '';
+    let found = sessionCache.get(key);
+    if (found === undefined) {
+      found = nativeClassCall('Session', 'fromPartition:', [key]);
+      sessionCache.set(key, found);
+    }
+    return found;
+  }
+
+  // http / https 的地址拆成筛 cookie 要用的三样。别的协议不认
+  function cookieURL(text, what) {
+    let url;
+    try {
+      url = new globalThis.URL(text);
+    } catch (err) {
+      throw new TypeError(what + ': the url is invalid');
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      throw new TypeError(what + ': the url must be http or https');
+    }
+    return { host: url.hostname, path: url.pathname || '/', secure: url.protocol === 'https:' };
+  }
+  const withoutDot = (domain) => (domain[0] === '.' ? domain.slice(1) : domain);
+  // 这条 cookie 会不会发给这个主机。hostOnly 的只认一模一样的主机
+  function cookieGoesToHost(cookie, host) {
+    const domain = withoutDot(cookie.domain);
+    return host === domain || (!cookie.hostOnly && host.endsWith('.' + domain));
+  }
+  // 路径的匹配照 RFC 6265：一样，或者是它下面的
+  function cookieCoversPath(cookiePath, urlPath) {
+    if (cookiePath === urlPath) return true;
+    if (!urlPath.startsWith(cookiePath)) return false;
+    return cookiePath.endsWith('/') || urlPath[cookiePath.length] === '/';
+  }
+  // 原生给的那一条是个字典，成员顺序不定。按固定的顺序重建一遍，打印出来
+  // 每次都一样
+  function tidyCookie(raw) {
+    const cookie = {
+      name: raw.name, value: raw.value, domain: raw.domain, hostOnly: raw.hostOnly,
+      path: raw.path, secure: raw.secure, httpOnly: raw.httpOnly, session: raw.session,
+    };
+    if (raw.expirationDate !== undefined) cookie.expirationDate = raw.expirationDate;
+    cookie.sameSite = raw.sameSite;
+    return cookie;
+  }
+  const SAME_SITE_VALUES = ['unspecified', 'no_restriction', 'lax', 'strict'];
+
+  // ses.cookies。它是 EventTarget：'changed' 事件。不注入全局，只能从
+  // session 上拿到。方法都是 async 的，所以参数不对是「返回一个被拒绝的
+  // Promise」而不是当场抛——返回 Promise 的接口都这样
+  class Cookies extends EventTarget {
+    constructor(owner) {
+      super();
+      if (owner === undefined || owner[kHandle] === undefined) {
+        throw new TypeError('Illegal constructor: Cookies is created by the runtime, not by new');
+      }
+      cookiesOwner.set(this, owner);
+    }
+    // 第一次有人听才让原生去订系统的通知，最后一个走了就退掉
+    [kSubscribe](type, on) {
+      if (type !== 'changed') {
+        throw new TypeError('addEventListener has no value "' + type + '"; expected one of: changed');
+      }
+      nativeCall(cookiesOwner.get(this), 'observeCookies', [on]);
+    }
+    /**
+     * 读。系统只有「读全部」这一种读法，filter 里的条件在这里筛。
+     * 条件照 Electron：url、name、domain、path、secure、session、httpOnly
+     */
+    async get(filter) {
+      const f = filter == null ? {} : filter;
+      // url 给了空串等于没给（Electron 的说法：空的就是所有地址）
+      const target = has(f, 'url') && toText(f.url) !== ''
+        ? cookieURL(toText(f.url), 'cookies.get') : null;
+      const raw = await nativeCallAsync(cookiesOwner.get(this), 'cookiesGet', []);
+      return raw.map(tidyCookie).filter((cookie) => {
+        if (target !== null) {
+          // 这个地址的请求会带上的那些：主机对、路径对，secure 的只给 https
+          if (!cookieGoesToHost(cookie, target.host)) return false;
+          if (!cookieCoversPath(cookie.path, target.path)) return false;
+          if (cookie.secure && !target.secure) return false;
+        }
+        if (has(f, 'name') && cookie.name !== toText(f.name)) return false;
+        if (has(f, 'domain')) {
+          // 这个域名的，或者它的子域名的
+          const want = withoutDot(toText(f.domain));
+          const have = withoutDot(cookie.domain);
+          if (have !== want && !have.endsWith('.' + want)) return false;
+        }
+        if (has(f, 'path') && cookie.path !== toText(f.path)) return false;
+        if (has(f, 'secure') && cookie.secure !== toBoolean(f.secure)) return false;
+        if (has(f, 'session') && cookie.session !== toBoolean(f.session)) return false;
+        if (has(f, 'httpOnly') && cookie.httpOnly !== toBoolean(f.httpOnly)) return false;
+        return true;
+      });
+    }
+    /**
+     * 写一条。url 必填，决定这条 cookie 属于谁；同名同域同路径的会被盖掉。
+     * 不给 expirationDate 就是会话 cookie，App 重启就没了
+     */
+    async set(details) {
+      if (details == null || typeof details !== 'object') {
+        throw new TypeError('cookies.set needs a details object, got ' + describeValue(details));
+      }
+      cookieURL(toText(details.url), 'cookies.set');
+      const out = {
+        name: toText(details.name),
+        value: toText(details.value),
+        url: toText(details.url),
+        path: has(details, 'path') && toText(details.path) !== '' ? toText(details.path) : '/',
+        secure: toBoolean(details.secure),
+        httpOnly: toBoolean(details.httpOnly),
+      };
+      if (has(details, 'domain') && toText(details.domain) !== '') {
+        // 给了 domain 就补上开头的点：对子域名也有效。不给就只属于 url 的主机
+        const domain = toText(details.domain);
+        out.domain = domain[0] === '.' ? domain : '.' + domain;
+      }
+      if (has(details, 'expirationDate')) {
+        out.expirationDate = toNumber(details.expirationDate, 'expirationDate');
+      }
+      if (has(details, 'sameSite')) {
+        const sameSite = toText(details.sameSite);
+        if (!SAME_SITE_VALUES.includes(sameSite)) {
+          throw new TypeError('sameSite has no value "' + sameSite + '"; expected one of: ' +
+                              SAME_SITE_VALUES.join(' / '));
+        }
+        // 另外两种在系统那边都是「不写这个属性」
+        if (sameSite === 'lax' || sameSite === 'strict') out.sameSite = sameSite;
+      }
+      await nativeCallAsync(cookiesOwner.get(this), 'cookiesSet', [out]);
+    }
+    /** 删掉这个地址下叫这个名字的 cookie。没有就什么都不发生 */
+    async remove(url, name) {
+      const target = cookieURL(toText(url), 'cookies.remove');
+      const wanted = toText(name);
+      const raw = await nativeCallAsync(cookiesOwner.get(this), 'cookiesGet', []);
+      // 和 get 的 url 条件差一处：这里不看 secure——要删的就是这个地址下的
+      // 那一条，不管它当初是不是只给 https
+      const doomed = raw.filter((cookie) => cookie.name === wanted &&
+                                            cookieGoesToHost(cookie, target.host) &&
+                                            cookieCoversPath(cookie.path, target.path));
+      if (doomed.length === 0) return;
+      await nativeCallAsync(cookiesOwner.get(this), 'cookiesDelete',
+                            [doomed.map((c) => ({ name: c.name, domain: c.domain, path: c.path }))]);
+    }
+  }
+
+  defineNativeClass('Session', class Session extends NSObject {
+    constructor() { nativeOnly(new.target); }
+
+    /** 这个分区的 cookie。每次读是同一个对象 */
+    get cookies() {
+      let jar = sessionCookies.get(this);
+      if (jar === undefined) {
+        jar = new Cookies(this);
+        sessionCookies.set(this, jar);
+      }
+      return jar;
+    }
+    /** 这个分区落不落盘。不带 persist: 的那种分区只在内存里 */
+    isPersistent() { return nativeCall(this, 'isPersistent', []); }
+    /**
+     * 清数据。什么都不给是整个分区全清（连缓存一起）。
+     *   storages   只清这几类：cookies、localstorage、indexdb……
+     *   origin     只清这个站点的。系统是按域名记的，不分协议和端口
+     */
+    async clearStorageData(options) {
+      const o = options == null ? {} : options;
+      let storages = null;
+      if (has(o, 'storages')) {
+        if (o.storages === null || typeof o.storages[Symbol.iterator] !== 'function' ||
+            typeof o.storages === 'string') {
+          throw new TypeError('clearStorageData: storages must be an array, got ' +
+                              describeValue(o.storages));
+        }
+        storages = Array.from(o.storages, (item) => toText(item));
+      }
+      let host = null;
+      if (has(o, 'origin')) {
+        try {
+          host = new globalThis.URL(toText(o.origin)).hostname;
+        } catch (err) {
+          host = '';
+        }
+        if (host === '') throw new TypeError('clearStorageData: the origin is invalid');
+      }
+      await nativeCallAsync(this, 'clearData', [storages, host]);
+    }
+  });
+
+  // 全局的 session。Electron 里它是一个模块（require('electron').session），
+  // 这里和 application、performance 一样是一个全局对象
+  define(globalThis, 'session', Object.freeze({
+    /** 默认的那一份：不写 partition 的网页都用它 */
+    get defaultSession() { return sessionFor(''); },
+    /** 某个分区的那一份。写法和 webPreferences.partition 一样 */
+    fromPartition(partition) { return sessionFor(partition); },
+  }));
 
   // ---- 手势识别器 ----
   //
@@ -5120,6 +5340,13 @@
                    '" after its JS wrapper was collected; its listeners are gone ' +
                    'and this event was dropped. Keep a reference to the object, ' +
                    'or report this if it is still on screen.');
+    }
+    if (type === '@cookies-changed') {
+      // 系统说某个分区的 cookie 变了。事件派发在那个分区的 cookies 对象上，
+      // 不带数据——系统没说是哪一条
+      const jar = sessionCookies.get(wrapper);
+      if (jar !== undefined) jar.dispatchEvent(new Event('changed'));
+      return false;
     }
     if (type === '@ipc-invoke') {
       // 网页那边 ipcRenderer.invoke 了一次。不是事件，是一次请求：找处理

@@ -255,6 +255,8 @@ declare class WebContents extends NSObject {
    * 参数按 JSON 传，带了函数会抛。没人收就丢了。
    */
   send(channel: string, ...args: unknown[]): void;
+  /** 这张网页的数据存在哪个 `Session` 里。同一个分区的网页拿到的是同一个对象。 */
+  readonly session: Session;
   /** 请求-响应式的消息：`ipc.handle(channel, fn)`。每次读是同一个对象。 */
   readonly ipc: WebContentsIPC;
   /** 现在这张网页的地址。还没加载过是空串。 */
@@ -312,3 +314,144 @@ declare class WebView extends UIView {
   /** 里面那张网页。每次读是同一个对象。 */
   readonly webContents: WebContents;
 }
+
+/** `clearStorageData` 的 `storages` 里能写的名字。照 Electron。 */
+type SessionStorageType =
+  | 'cookies'
+  | 'localstorage'
+  | 'indexdb'
+  | 'serviceworkers'
+  | 'cachestorage'
+  | 'filesystem'
+  | 'shadercache';
+
+/** 一条 cookie。字段照 Electron。 */
+interface Cookie {
+  readonly name: string;
+  readonly value: string;
+  /** 它属于哪个域名。以点开头的对子域名也有效。 */
+  readonly domain: string;
+  /** 只发给 `domain` 这一个主机、不发给子域名时是 `true`。 */
+  readonly hostOnly: boolean;
+  readonly path: string;
+  /** 只在 `https` 的请求里带。 */
+  readonly secure: boolean;
+  /** 网页的脚本（`document.cookie`）读不到。 */
+  readonly httpOnly: boolean;
+  /** 没有过期时间。这种 cookie 在 App 重启之后就没了。 */
+  readonly session: boolean;
+  /** 过期时间，从 1970 年起的秒数。`session` 为 `true` 时没有这个字段。 */
+  readonly expirationDate?: number;
+  /**
+   * 跨站请求带不带。读出来只会是这三种：没写 SameSite 的 cookie，系统读出来
+   * 和 `'no_restriction'` 一样。
+   */
+  readonly sameSite: 'no_restriction' | 'lax' | 'strict';
+}
+
+/** `cookies.get` 的筛选条件。都不给就是全部。 */
+interface CookieFilter {
+  /** 只要这个地址的请求会带上的那些。 */
+  url?: string;
+  name?: string;
+  /** 这个域名的，或者它的子域名的。 */
+  domain?: string;
+  /** 路径一模一样的。 */
+  path?: string;
+  secure?: boolean;
+  /** `true` 只要会话 cookie，`false` 只要有过期时间的。 */
+  session?: boolean;
+  httpOnly?: boolean;
+}
+
+/** `cookies.set` 的参数。 */
+interface CookieDetails {
+  /** 这条 cookie 属于哪个地址。必填，要是 `http` 或 `https` 的。 */
+  url: string;
+  /** 默认空串。 */
+  name?: string;
+  /** 默认空串。 */
+  value?: string;
+  /** 给了就对这个域名和它的子域名都有效；不给就只属于 `url` 的主机。 */
+  domain?: string;
+  /** 默认 `'/'`。 */
+  path?: string;
+  /** 默认 `false`。 */
+  secure?: boolean;
+  /** 默认 `false`。 */
+  httpOnly?: boolean;
+  /** 过期时间，从 1970 年起的秒数。不给就是会话 cookie。 */
+  expirationDate?: number;
+  sameSite?: 'unspecified' | 'no_restriction' | 'lax' | 'strict';
+}
+
+/**
+ * 一个分区的 cookie。从 `session.cookies` 拿，不能自己建。
+ *
+ * ```js
+ * const cookies = session.defaultSession.cookies;
+ * await cookies.set({ url: 'https://my.app/', name: 'token', value: 'abc' });
+ * const list = await cookies.get({ url: 'https://my.app/' });
+ * await cookies.remove('https://my.app/', 'token');
+ * ```
+ */
+interface Cookies extends EventTarget {
+  /**
+   * `'changed'`：这个分区的 cookie 有变化（App 写的、网页写的、服务器写的
+   * 都算）。事件上**没有**是哪一条——系统不说，收到之后自己重新 `get`。
+   */
+  addEventListener(
+    type: 'changed',
+    callback: EventListener | null,
+    options?: AddEventListenerOptions,
+  ): void;
+  removeEventListener(type: 'changed', callback: EventListener | null): void;
+  /** 读。条件都不给就是这个分区的全部 cookie。 */
+  get(filter?: CookieFilter): Promise<Cookie[]>;
+  /** 写一条。同名、同域名、同路径的会被盖掉。 */
+  set(details: CookieDetails): Promise<void>;
+  /** 删掉这个地址下叫这个名字的 cookie。没有就什么都不发生。 */
+  remove(url: string, name: string): Promise<void>;
+}
+
+/**
+ * 一个存储分区：网页的 cookie、`localStorage`、缓存存在这里。
+ *
+ * 从全局的 `session` 或者 `webContents.session` 拿，不能自己建。同一个分区
+ * 永远是同一个对象。
+ */
+declare class Session extends NSObject {
+  private constructor();
+  /** 这个分区的 cookie。每次读是同一个对象。 */
+  readonly cookies: Cookies;
+  /** 这个分区落不落盘。不带 `persist:` 的分区只在内存里，返回 `false`。 */
+  isPersistent(): boolean;
+  /**
+   * 清数据。什么都不给是整个分区全清，连缓存一起。
+   *
+   * `origin` 只清这个站点的：系统是按域名记的，不分协议和端口。
+   */
+  clearStorageData(options?: {
+    origin?: string;
+    storages?: SessionStorageType[];
+  }): Promise<void>;
+}
+
+/**
+ * 存储分区的入口。不用先建网页。
+ *
+ * ```js
+ * // 打开网页之前先把登录状态写进去
+ * await session.defaultSession.cookies.set({
+ *   url: 'https://my.app/', name: 'token', value: token, httpOnly: true,
+ * });
+ * // 退出登录时清掉
+ * await session.defaultSession.clearStorageData();
+ * ```
+ */
+declare const session: {
+  /** 默认的那一份：不写 `partition` 的网页都用它。 */
+  readonly defaultSession: Session;
+  /** 某个分区的那一份。写法和 `webPreferences.partition` 一样。 */
+  fromPartition(partition: string): Session;
+};

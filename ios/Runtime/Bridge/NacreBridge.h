@@ -51,8 +51,9 @@ typedef void (^NacreAsyncDone)(NacreAsyncResult* result);
 // 启动时塞进来——和文件读写的 done 块一个路子。
 // json 为 nil 表示没有负载；blob 非 nil 表示负载是个 Blob（二进制消息）。
 @class NacreBlob;
-// 只在声明里提到它；用到的两个文件自己 #import <WebKit/WebKit.h>
+// 只在声明里提到它们；用到的文件自己 #import <WebKit/WebKit.h>
 @class WKWebView;
+@class WKWebsiteDataStore;
 typedef void (^NacreWebSocketEmit)(id task, NSString* type, NSString* json,
                                    NacreBlob* blob);
 
@@ -705,6 +706,17 @@ void WebExecuteJavaScript(WKWebView* webView, NSString* code, BOOL isExpression,
 // 「返回值不是原生对象的类方法」那条通道上的分支：读预加载脚本的源码
 bool WebViewCallClassMethod(const std::string& className, NSString* sel,
                             const NacreArgs& args, std::string* out, std::string* error);
+
+// ---- Session（NacreWebSession.mm）：分区、cookie、清数据 ----
+// 分区名 → 数据存储。WebView 建网页和 Session 用的是同一个换算
+WKWebsiteDataStore* WebStoreForPartition(NSString* partition);
+void WebSessionSetEmitter(NacreWebContentsEmit emit);
+bool WebSessionClassCall(const std::string& className, NSString* sel, NSArray* args,
+                         nacre::NativeObjectRef* out, std::string* error);
+bool WebSessionCallMethod(id object, NSString* sel, const NacreArgs& args,
+                          std::string* out, std::string* error);
+bool WebSessionCallAsync(id object, const std::string& name, const std::string& argsJSON,
+                         const std::vector<void*>& argPtrs, NacreAsyncDone done);
 
 // ---- 路径 ----
 bool PathCallMethod(id object, NSString* sel, const NacreArgs& args,

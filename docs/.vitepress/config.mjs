@@ -131,6 +131,7 @@ export default defineConfig({
             api('URL / Headers', 'url'),
             api('WebSocket', 'websocket'),
             api('WebView（网页）', 'web-view'),
+            api('session（网页的 cookie 和数据）', 'session'),
             api('定时器', 'timers'),
             api('performance', 'performance'),
           ],

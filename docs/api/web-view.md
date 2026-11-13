@@ -612,6 +612,8 @@ NSLayoutConstraint.activateConstraints([
 
 不同分区之间互相看不到数据。`partition` 只能在建 `WebView` 时指定，之后不能改。
 
+分区里的 cookie 可以由 App 读写，数据可以由 App 清掉，见 [`session`](session.md)。
+
 网页的 cookie 和 [`fetch`](fetch.md) 的 cookie 是分开的两份：在网页里登录，不会让 `fetch` 带上登录状态，反过来也一样。
 
 ### 每张网页占多少资源
@@ -679,6 +681,7 @@ new WebView({ webPreferences: { partition: 'persist:main' } });
 | --- | --- | --- | --- | --- |
 | `navigationHistory` | `NavigationHistory` | 是 | 否 | 后退和前进。每次读是同一个对象 |
 | `ipc` | `WebContentsIPC` | 是 | 否 | 应答网页的 `ipcRenderer.invoke`。每次读是同一个对象 |
+| `session` | [`Session`](session.md) | 是 | 否 | 这张网页的数据存在哪个分区里。用它读写 cookie、清数据。同一个分区的网页拿到的是同一个对象 |
 
 `getURL()`、`getTitle()`、`isLoading()` 的值变化时分别有事件通知：`did-navigate`、`page-title-updated`、`did-start-loading` 和 `did-stop-loading`。
 
@@ -833,6 +836,7 @@ addEventListener has no value "did-finsh-load"; expected one of: will-navigate /
 | `ipcRenderer.send` / `invoke` / `on`、`contextBridge.exposeInMainWorld` | 相同 | 是预加载脚本里直接能用的名字，不用 `require('electron')` |
 | `contents.on('ipc-message', (event, channel, ...args) => …)` | `contents.addEventListener('ipc-message', (e) => …)` | `e.channel`、`e.args` |
 | `contents.send(channel, ...args)`、`contents.ipc.handle(channel, listener)` | 相同 | |
+| `contents.session` | 相同 | 见 [`session`](session.md) |
 | `contents.loadFile(filePath, { query, search, hash })` | 相同 | 相对路径的起点是 App 包。本地网页的限制比 Electron 多，见[本地网页的限制](#本地网页的限制) |
 | `contents.navigationHistory.goBack()` | 相同 | |
 | `contents.close()` / `isDestroyed()` / `'destroyed'` | 相同 | |
@@ -874,7 +878,6 @@ addEventListener has no value "did-finsh-load"; expected one of: will-navigate /
 | 网页同步地向 App 要一个结果 | Electron 的 `ipcRenderer.sendSync` |
 | 在 App 这边看到网页的 `console` 输出 | Electron 的 `console-message` |
 | 预加载脚本的类型定义（`ipcRenderer`、`contextBridge`） | |
-| 读写、删除 cookie，清掉某个分区的数据 | Electron 的 `session.cookies`、`clearStorageData`；`WKHTTPCookieStore`、`WKWebsiteDataStore` |
 | 从本地加载用到模块脚本、用 `fetch` 读本地文件的网页 | Electron 的 `protocol.handle`；`WKURLSchemeHandler`（让本地文件以自己定的协议提供） |
 | 自己指定本地网页能读哪个目录 | `loadFileURL:allowingReadAccessToURL:` 的第二个参数 |
 | 让不在界面里的网页不被放慢 | Electron 的 `backgroundThrottling`。系统没有起作用的公开开关。替代做法见[先加载，要用的时候再显示](#先加载要用的时候再显示) |
@@ -894,5 +897,6 @@ addEventListener has no value "did-finsh-load"; expected one of: will-navigate /
 - [视图](ui-view.md)：`WebView` 的摆放、显示隐藏、圆角都用它的成员。
 - [Auto Layout](auto-layout.md)：完整例子里让网页占满安全区用的约束。
 - [外观特征](ui-trait-collection.md)：强制深浅色，网页的 `prefers-color-scheme` 会跟着变。
+- [`session`](session.md)：读写网页的 cookie、清掉网页留下的数据。
 - [`fetch`](fetch.md)：只要数据、不需要显示网页时用它。它的 cookie 和网页的不通。
 - [实现原理](../internals/web-view.md)：为什么分成两个对象、几条实测的数据。

@@ -154,6 +154,13 @@ std::string CallMethod(id object, const std::string& name, const std::string& ar
   }
 
   {
+    std::string sessionResult;
+    if (WebSessionCallMethod(object, sel, NacreArgs{args, &argPtrs}, &sessionResult, error)) {
+      return sessionResult;
+    }
+  }
+
+  {
     std::string feedbackResult;
     if (FeedbackCallMethod(object, sel, NacreArgs{args, &argPtrs}, &feedbackResult, error)) {
       return feedbackResult;

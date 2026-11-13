@@ -20,7 +20,6 @@
 // 这个文件**不认识 NacreRuntime**：事件通过启动时塞进来的 emit 块出去，
 // 和 NacreWebSocket.mm 同一个路子。
 #import "NacreBridge.h"
-#import <CommonCrypto/CommonDigest.h>
 #import <WebKit/WebKit.h>
 
 static NacreWebContentsEmit g_webContentsEmit = nil;
@@ -56,47 +55,6 @@ static NSArray<NSString*>* WebContentsEventNamesList(void) {
 }
 
 static void* kNacreWebContentsKVO = &kNacreWebContentsKVO;
-
-// ---- 存储分区 ----
-//
-// partition 的三种写法照 Electron：
-//   不写 / 空串        默认的存储，落盘
-//   'persist:名字'     落盘，同名的网页共用一份
-//   '名字'             只在内存里，同名的网页共用一份，进程退出就没了
-//
-// 落盘的分区用 dataStoreForIdentifier:，它要一个 UUID 而不是名字。所以从
-// 名字**算**出一个固定的 UUID——同一个名字每次启动都得到同一个，数据才
-// 接得上。不能随机生成再存起来：那就多了一份要自己管的映射表
-static NSUUID* UUIDForPartitionName(NSString* name) {
-  NSData* data = [[@"nacre.partition:" stringByAppendingString:name]
-      dataUsingEncoding:NSUTF8StringEncoding];
-  unsigned char digest[CC_SHA256_DIGEST_LENGTH];
-  CC_SHA256(data.bytes, (CC_LONG)data.length, digest);
-  // UUID 的版本位和变体位。标成第 5 版（由名字派生）
-  digest[6] = (digest[6] & 0x0F) | 0x50;
-  digest[8] = (digest[8] & 0x3F) | 0x80;
-  return [[NSUUID alloc] initWithUUIDBytes:digest];
-}
-
-static WKWebsiteDataStore* StoreForPartition(NSString* partition) {
-  if (partition.length == 0) return WKWebsiteDataStore.defaultDataStore;
-  if ([partition hasPrefix:@"persist:"]) {
-    NSString* name = [partition substringFromIndex:8];
-    if (name.length == 0) return WKWebsiteDataStore.defaultDataStore;
-    return [WKWebsiteDataStore dataStoreForIdentifier:UUIDForPartitionName(name)];
-  }
-  // 内存分区：系统每次给的都是一份新的，「同名共用」要自己记。记到进程
-  // 结束为止——和 Electron 的内存 session 一样长
-  static NSMutableDictionary<NSString*, WKWebsiteDataStore*>* memory;
-  static dispatch_once_t once;
-  dispatch_once(&once, ^{ memory = [NSMutableDictionary dictionary]; });
-  WKWebsiteDataStore* store = memory[partition];
-  if (store == nil) {
-    store = WKWebsiteDataStore.nonPersistentDataStore;
-    memory[partition] = store;
-  }
-  return store;
-}
 
 // ---- 兑现 loadURL 的 Promise ----
 static void ResolveLoad(NacreAsyncDone done) {
@@ -583,7 +541,8 @@ nacre::NativeObjectRef WebViewConstruct(id options) {
   NSString* partition = partitionValue ?: @"";
 
   WKWebViewConfiguration* config = [WKWebViewConfiguration new];
-  config.websiteDataStore = StoreForPartition(partition);
+  // 分区名 → 数据存储的换算在 NacreWebSession.mm，Session 用的是同一个
+  config.websiteDataStore = WebStoreForPartition(partition);
   WKWebView* webView = [[WKWebView alloc] initWithFrame:CGRectZero configuration:config];
   NacreWebContents* contents = [[NacreWebContents alloc] initWithWebView:webView];
   contents.partition = partition;
@@ -626,6 +585,11 @@ bool WebViewCallMethod(id object, NSString* sel, const NacreArgs& args,
   if ([sel isEqualToString:@"close"]) {
     [contents close];
     *out = "null";
+    return true;
+  }
+  // 这张网页用的是哪个分区。contents.session 靠它找到对应的 Session
+  if ([sel isEqualToString:@"getPartition"]) {
+    *out = EncodeJSON(contents.partition ?: @"");
     return true;
   }
   // 答复网页的 invoke。网页已经销毁时什么都不做（那些请求在销毁时已经

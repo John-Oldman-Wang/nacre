@@ -889,6 +889,214 @@ export function stepWebView(ctx) {
     await persistA.executeJavaScript('localStorage.removeItem(' + JSON.stringify(storageKey) + ')');
     for (const view of stores) view.webContents.close();
 
+    // ----- Session：cookie 和清数据 -----
+    //
+    // 用两个专门的分区，不碰默认的那一份。域名都是不存在的（.test），
+    // 读写 cookie 不用联网；最后一小段要联网，网不通报未验证
+    const ses = session.fromPartition('persist:acceptance-cookies');
+    const mem = session.fromPartition('acceptance-cookies-mem');
+    assert('session.defaultSession 每次是同一个对象', session.defaultSession === session.defaultSession, true);
+    assert("fromPartition('') 就是默认的那一份", session.fromPartition('') === session.defaultSession, true);
+    assert("fromPartition('persist:') 也是", session.fromPartition('persist:') === session.defaultSession, true);
+    assert('同一个分区名是同一个对象', session.fromPartition('persist:acceptance-cookies') === ses, true);
+    assert('不同的分区是不同的对象', ses === mem, false);
+    assert('没写分区的网页，session 是默认的那一份', contents.session === session.defaultSession, true);
+    const inPartition = new WebView({ webPreferences: { partition: 'persist:acceptance-cookies' } });
+    const partitioned = inPartition.webContents;
+    assert('写了分区的网页，session 是那个分区的', partitioned.session === ses, true);
+    assert('它是 Session', ses instanceof Session, true);
+    assert('Session 不能自己建',
+           // @ts-expect-error 构造函数是私有的
+           thrown(() => new Session()),
+           'TypeError: Illegal constructor: Session is created by the runtime, not by new');
+    assert('落盘的分区 isPersistent() 是 true', ses.isPersistent(), true);
+    assert('只在内存里的分区是 false', mem.isPersistent(), false);
+    const jar = ses.cookies;
+    assert('读两次 cookies 是同一个对象', ses.cookies === jar, true);
+
+    await ses.clearStorageData({ storages: ['cookies'] });
+    await mem.clearStorageData({ storages: ['cookies'] });
+    assert('清过 cookie 之后读出来是空的', (await jar.get()).length, 0);
+
+    let cookieChanges = 0;
+    const onCookieChange = () => { cookieChanges++; };
+    jar.addEventListener('changed', onCookieChange);
+    // @ts-expect-error cookies 上只有 changed 这一个事件
+    const wrongCookieEvent = thrown(() => jar.addEventListener('change', noop));
+    assert('cookies 上事件名写错当场抛，并列出能用的', wrongCookieEvent,
+           'TypeError: addEventListener has no value "change"; expected one of: changed');
+
+    // ---- 写和读 ----
+    const expiry = Math.floor(Date.now() / 1000) + 3600;
+    await jar.set({ url: 'https://a.example.test/', name: 'host', value: '1' });
+    await jar.set({ url: 'https://a.example.test/', name: 'site', value: '2',
+                    domain: 'example.test', expirationDate: expiry });
+    await jar.set({ url: 'https://a.example.test/', name: 'deep', value: '3', path: '/x' });
+    await jar.set({ url: 'https://a.example.test/', name: 'locked', value: '4',
+                    secure: true, httpOnly: true, sameSite: 'strict', expirationDate: expiry });
+    await jar.set({ url: 'https://other.test/', name: 'host', value: '5' });
+    const allCookies = await jar.get();
+    assert('写了五条，读出来五条', allCookies.length, 5);
+    /** @param {Cookie[]} list */
+    const cookieNames = (list) => list.map((c) => c.name + '@' + c.domain).sort().join(' ');
+    /** @param {string} name @param {string} [domain] */
+    const pick = (name, domain) => allCookies.find(
+      (c) => c.name === name && (domain === undefined || c.domain === domain));
+    const hostCookie = pick('host', 'a.example.test');
+    const siteCookie = pick('site');
+    const lockedCookie = pick('locked');
+    if (hostCookie && siteCookie && lockedCookie) {
+      assert('只给 url：属于那一个主机，hostOnly 是 true',
+             hostCookie.domain + ',' + hostCookie.hostOnly, 'a.example.test,true');
+      assert('没给过期时间：session 是 true，没有 expirationDate 这个字段',
+             hostCookie.session + ',' + ('expirationDate' in hostCookie), 'true,false');
+      assert('path、secure、httpOnly、sameSite 的默认值',
+             [hostCookie.path, hostCookie.secure, hostCookie.httpOnly, hostCookie.sameSite].join(','),
+             '/,false,false,no_restriction');
+      assert('给了 domain：补上开头的点，hostOnly 是 false',
+             siteCookie.domain + ',' + siteCookie.hostOnly, '.example.test,false');
+      assert('给了过期时间：session 是 false，expirationDate 原样读回来',
+             siteCookie.session + ',' + siteCookie.expirationDate, 'false,' + expiry);
+      assert('secure、httpOnly、sameSite 写得进去',
+             [lockedCookie.secure, lockedCookie.httpOnly, lockedCookie.sameSite].join(','),
+             'true,true,strict');
+      assert('字段的顺序是固定的', Object.keys(siteCookie).join(','),
+             'name,value,domain,hostOnly,path,secure,httpOnly,session,expirationDate,sameSite');
+    } else {
+      console.log('  ✗ 写进去的 cookie 没读回来: ' + cookieNames(allCookies));
+    }
+
+    // ---- 筛 ----
+    assert('url 筛：这个地址的请求会带上的（路径不对的 deep 不在）',
+           cookieNames(await jar.get({ url: 'https://a.example.test/' })),
+           'host@a.example.test locked@a.example.test site@.example.test');
+    assert('url 筛：路径在 /x 下面，deep 也带上',
+           cookieNames(await jar.get({ url: 'https://a.example.test/x/y' })),
+           'deep@a.example.test host@a.example.test locked@a.example.test site@.example.test');
+    assert('url 筛：子域名拿得到带点的那条，拿不到只属于别的主机的',
+           cookieNames(await jar.get({ url: 'https://b.example.test/' })), 'site@.example.test');
+    assert('url 筛：http 的地址拿不到 secure 的',
+           cookieNames(await jar.get({ url: 'http://a.example.test/' })),
+           'host@a.example.test site@.example.test');
+    assert('name 筛', cookieNames(await jar.get({ name: 'host' })),
+           'host@a.example.test host@other.test');
+    assert('domain 筛：这个域名和它的子域名',
+           cookieNames(await jar.get({ domain: 'example.test' })),
+           'deep@a.example.test host@a.example.test locked@a.example.test site@.example.test');
+    assert('path 筛：路径一模一样的', cookieNames(await jar.get({ path: '/x' })), 'deep@a.example.test');
+    assert('secure 筛', cookieNames(await jar.get({ secure: true })), 'locked@a.example.test');
+    assert('session 筛：false 是有过期时间的',
+           cookieNames(await jar.get({ session: false })), 'locked@a.example.test site@.example.test');
+    assert('httpOnly 筛', cookieNames(await jar.get({ httpOnly: true })), 'locked@a.example.test');
+    assert('几个条件一起',
+           cookieNames(await jar.get({ url: 'https://a.example.test/', name: 'host' })),
+           'host@a.example.test');
+    assert('条件是 undefined 视为没给',
+           (await jar.get({ url: undefined, name: undefined })).length, 5);
+
+    // ---- 盖掉、删 ----
+    await jar.set({ url: 'https://a.example.test/', name: 'host', value: '改过' });
+    const afterOverwrite = await jar.get({ url: 'https://a.example.test/', name: 'host' });
+    assert('同名同域同路径再写一次：盖掉，不多一条',
+           (await jar.get()).length + ',' + (afterOverwrite[0] && afterOverwrite[0].value), '5,改过');
+    await jar.remove('https://a.example.test/', 'host');
+    assert('remove：这个地址下的那条没了，别的域名同名的还在',
+           cookieNames(await jar.get({ name: 'host' })), 'host@other.test');
+    assert('remove 一条不存在的：不报错',
+           await settled(jar.remove('https://a.example.test/', 'no-such')), undefined);
+
+    // ---- 参数不对：返回被拒绝的 Promise ----
+    assert('set 没给 url', await settled(jar.set(/** @type {any} */ ({ name: 'x' }))),
+           'REJECTED TypeError: cookies.set: the url is invalid');
+    assert('set 的 url 不是 http(s)', await settled(jar.set({ url: 'ftp://a.example.test/', name: 'x' })),
+           'REJECTED TypeError: cookies.set: the url must be http or https');
+    assert('set 传了 null', String(await settled(jar.set(/** @type {any} */ (null)))).startsWith('REJECTED TypeError'), true);
+    assert('sameSite 写错：列出能用的',
+           await settled(jar.set({ url: 'https://a.example.test/', name: 'x', sameSite: /** @type {any} */ ('none') })),
+           'REJECTED TypeError: sameSite has no value "none"; expected one of: unspecified / no_restriction / lax / strict');
+    assert('expirationDate 不是数',
+           String(await settled(jar.set({ url: 'https://a.example.test/', name: 'x', expirationDate: /** @type {any} */ ('abc') }))).startsWith('REJECTED TypeError: expirationDate must be a finite number'), true);
+    assert('get 的 url 不合法', await settled(jar.get({ url: 'nonsense' })),
+           'REJECTED TypeError: cookies.get: the url is invalid');
+    assert('出错的那几次没有写进去东西', (await jar.get()).length, 4);
+
+    // ---- 变化通知 ----
+    for (let i = 0; i < 40 && cookieChanges === 0; i++) await sleep(50);
+    console.log('  实测：上面那些写和删，一共收到 ' + cookieChanges + ' 次 changed');
+    assert('cookie 变了会派发 changed', cookieChanges > 0, true);
+    jar.removeEventListener('changed', onCookieChange);
+    await sleep(300);
+    const changesBefore = cookieChanges;
+    await jar.set({ url: 'https://a.example.test/', name: 'quiet', value: '1' });
+    await sleep(500);
+    assert('摘掉监听器之后不再收到', cookieChanges, changesBefore);
+    await jar.remove('https://a.example.test/', 'quiet');
+
+    // ---- 分区之间不通 ----
+    assert('内存分区里没有这些', (await mem.cookies.get()).length, 0);
+    assert('默认的那一份里也没有',
+           (await session.defaultSession.cookies.get({ domain: 'example.test' })).length, 0);
+    await mem.cookies.set({ url: 'https://a.example.test/', name: 'inmem', value: '1' });
+    assert('内存分区自己能写能读', cookieNames(await mem.cookies.get()), 'inmem@a.example.test');
+    assert('内存分区写的，落盘分区里没有', (await jar.get({ name: 'inmem' })).length, 0);
+
+    // ---- 清数据 ----
+    await partitioned.loadFile('JS/assets/web/other.html');
+    await partitioned.executeJavaScript('localStorage.setItem("acceptance-clear", "1")');
+    // 只清这个站点的 cookie。域名的规矩：这个主机的，和盖得住它的
+    await ses.clearStorageData({ origin: 'https://a.example.test', storages: ['cookies'] });
+    console.log('  实测：按 origin 清掉 a.example.test 的 cookie 之后还剩 ' + cookieNames(await jar.get()));
+    assert('按 origin 清：别的站点的 cookie 还在',
+           (await jar.get({ name: 'host', domain: 'other.test' })).length, 1);
+    assert('按 origin 清：这个主机自己的 cookie 没了',
+           (await jar.get({ domain: 'a.example.test' })).length, 0);
+    await ses.clearStorageData({ storages: ['cookies'] });
+    assert('只清 cookie：cookie 全没了', (await jar.get()).length, 0);
+    assert('只清 cookie：localStorage 还在',
+           await settled(partitioned.executeJavaScript('localStorage.getItem("acceptance-clear")')), '1');
+    assert("写了 'shadercache'（iOS 上没有对应的东西）：不报错",
+           await settled(ses.clearStorageData({ storages: ['shadercache'] })), undefined);
+    assert('storages 里的名字写错：列出能用的',
+           String(await settled(ses.clearStorageData({ storages: [/** @type {any} */ ('bogus')] }))).includes('expected one of'), true);
+    assert('storages 不是数组',
+           String(await settled(ses.clearStorageData({ storages: /** @type {any} */ ('cookies') }))).startsWith('REJECTED TypeError: clearStorageData: storages must be an array'), true);
+    assert('origin 不合法',
+           await settled(ses.clearStorageData({ origin: 'nonsense' })),
+           'REJECTED TypeError: clearStorageData: the origin is invalid');
+    await ses.clearStorageData();
+    assert('全清：已经打开的网页里 localStorage 当场变空',
+           await settled(partitioned.executeJavaScript('localStorage.getItem("acceptance-clear")')), null);
+    await mem.clearStorageData();
+
+    // ---- 网页真的用上了这些 cookie（要联网）----
+    await jar.set({ url: 'https://httpbin.org/', name: 'fromapp', value: 'yes' });
+    await jar.set({ url: 'https://httpbin.org/', name: 'secret', value: 'hidden', httpOnly: true });
+    if (await outcome(partitioned.loadURL('https://httpbin.org/cookies')) === 'ok') {
+      const sent = String(await settled(partitioned.executeJavaScript('document.body.innerText')));
+      assert('网页的请求带上了 App 写的 cookie',
+             sent.includes('"fromapp": "yes"') && sent.includes('"secret": "hidden"'), true);
+      assert('网页的 document.cookie 看得到普通的，看不到 httpOnly 的',
+             await settled(partitioned.executeJavaScript('document.cookie')), 'fromapp=yes');
+      await jar.set({ url: 'https://httpbin.org/', name: 'live', value: '1' });
+      assert('网页开着的时候写的：不用刷新就看得到',
+             String(await settled(partitioned.executeJavaScript('document.cookie'))).includes('live=1'), true);
+      await partitioned.executeJavaScript('document.cookie = "frompage=1; max-age=600; path=/"; 1');
+      await sleep(300);
+      assert('网页自己写的，App 这边读得到', (await jar.get({ name: 'frompage' })).length, 1);
+      if (await outcome(partitioned.loadURL('https://httpbin.org/cookies/set?fromserver=1')) === 'ok') {
+        assert('服务器写的，App 这边读得到', (await jar.get({ name: 'fromserver' })).length, 1);
+      }
+      await partitioned.executeJavaScript('localStorage.setItem("acceptance-site", "1")');
+      await ses.clearStorageData({ origin: 'https://httpbin.org', storages: ['localstorage'] });
+      assert('按 origin 只清 localStorage：那个站点的没了',
+             await settled(partitioned.executeJavaScript('localStorage.getItem("acceptance-site")')), null);
+      assert('按 origin 只清 localStorage：cookie 还在', (await jar.get({ name: 'fromapp' })).length, 1);
+    } else {
+      console.log('  ! httpbin.org 连不上，「网页用上了这些 cookie」那几条未验证');
+    }
+    await ses.clearStorageData();
+    partitioned.close();
+
     // ----- 网页感知得到什么：大小、深浅色、显示隐藏、安全区 -----
     //
     // 一张把这些都写进标题的网页：宽度 | 深浅色 | 安全区上 | 安全区下 |

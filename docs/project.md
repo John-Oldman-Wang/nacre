@@ -651,6 +651,7 @@ Commit message 格式：
 | — | A17-2 `will-navigate`：拦住网页自己发起的跳转 | 第一个能取消的原生事件：引擎的派发函数返回「取消了没有」，原生等这个答复再答系统；按实测分清 App 发起的、网页发起的和服务器重定向 | 已在模拟器验证通过：iOS 26.0 上 1578 条全过，iOS 27.2 上 1576 条通过（剩 2 条是原有的图片下载网络问题），旧断言一条没少。点链接、改 `location`、提交表单、`tel:` 和自定义协议、网页自己刷新和后退各派发一次并拦得住；`loadURL`、后退、前进、`reload()`、重定向、改锚点、`<iframe>` 不派发。实测 iOS 26.0 上 `data:` 网页的锚点读出来是 `%23`，单独认了一种形状。验收里的点链接是脚本替用户点的；真机上真实点过链接，放行和拦住两种都对。顺带把外观特征验收里一个写死 500 毫秒的等待改成了等条件 |
 | — | A17 补一步：`loadFile`（本地的网页文件） | 签名照 Electron；相对路径从 App 包的根开始，绝对路径原样用；`loadURL` 收到 `file:` 地址走同一条路 | 已在模拟器验证通过：iOS 27.2 上 1604 条通过、iOS 26.0 上 1607 条通过（两边各剩 2 条原有的图片下载网络问题），旧断言一条没少。实测本地网页里模块脚本不执行、`fetch` 读不了本地文件、所有本地网页同一个来源——三条限制都记成了断言。可读目录的范围模拟器不执行，只能真机验。真机（iPhone 14，iOS 27.0.1）上 WebView 这三步一起跑过：1596 条全过，可读范围符合预期（包里的读得到上一级，文档目录里的读不到）。顺带把父子控制器验收里一个写死一秒的等待改成了等条件 |
 | — | A17-3 执行脚本、预加载脚本、网页和 App 互发消息 | `executeJavaScript`、`webPreferences.preload`（`ipcRenderer` / `contextBridge`）、`ipc-message`、`contents.send`、`contents.ipc.handle`；名字照 Electron | 已在模拟器验证通过：iOS 26.0 上 1681 条全过，iOS 27.2 上 1679 条通过（剩 2 条是原有的图片下载网络问题），旧断言一条没少。实测有内容安全策略的网页会拦 `eval`，所以 `executeJavaScript` 分两种执行方式，「是不是表达式」在运行时自己的引擎里判断；预加载脚本不隔离（相当于 `contextIsolation: false`），隔离量过可行、没做。顺带把存储分区的隔离补成了常驻断言。真机（iPhone 14）上跑出一处模拟器查不到的问题：带回来的对象成员顺序变了（系统给的是不保证顺序的字典）。改成表达式方式下由网页先转成 JSON 文本，顺序保住；多条语句那种方式救不了，写进了文档。改完真机上 1669 条全过 |
+| — | A17-4 `session`：网页的 cookie 和清数据 | 全局的 `session`（`defaultSession`、`fromPartition`）、`contents.session`、`ses.cookies.get / set / remove`、`changed` 事件、`ses.clearStorageData`；名字照 Electron | 已验证通过：iPhone Air 模拟器（iOS 27.2）上 1749 条通过（剩 2 条是原有的图片下载网络问题），真机（iPhone 14）上 1735 条全过，旧断言一条没少。系统只有「读全部」，筛选在 JS 里做；`changed` 不带是哪一条变了（系统不说）；按站点清是按域名算的，不分协议和端口 |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |
@@ -801,7 +802,7 @@ bindgen 做完也解决不了同盾（风控）、mtpush（推送）、Sentry �
 | A14 | ~~**`UIPasteboard`**~~ **已做**：字符串的读写、`hasStrings`、`changeCount`、`change` 事件。剩图片、网址、多条内容 | 复制地址、订单号 |
 | A15 | ~~**`crypto.getRandomValues`**~~ **已做**，连同 `randomUUID()`。剩 `crypto.subtle` | 随机源必须来自系统。摘要/签名 JS 算得出来，但 jitless 下慢，该走 CommonCrypto |
 | A16 | ~~**WebSocket**~~ **已做**：比 Web 多两样——可以带首部、有协议级 `ping()` | `fetch` 只有请求-响应，实时行情只能轮询 |
-| A17 | ~~**`WKWebView`**~~ **前两步已做**：上层的 `WebView`，形状照 Electron，能拦住网页自己发起的跳转（`will-navigate`），见[实现原理](internals/web-view.md)。也能加载本地的网页文件（`loadFile`）、在网页里执行脚本、和网页互发消息。剩 cookie 一步，以及让本地网页用上模块脚本和 `fetch` 的自定义协议 | 协议、KYC、活动页 |
+| A17 | ~~**`WKWebView`**~~ **已做**：上层的 `WebView`，形状照 Electron——加载和导航、拦住网页自己发起的跳转（`will-navigate`）、加载本地的网页文件（`loadFile`）、在网页里执行脚本、和网页互发消息、读写 cookie 和清数据（[`session`](api/session.md)）。见[实现原理](internals/web-view.md)。剩让本地网页用上模块脚本和 `fetch` 的自定义协议 | 协议、KYC、活动页 |
 | A18 | **生物识别**：LocalAuthentication | 系统能力 |
 | A19 | ~~**`performance.now()`**~~ **已做**：`now()` 和 `timeOrigin`，时钟在引擎的 C++ 里 | `Date.now()` 只有毫秒精度 |
 

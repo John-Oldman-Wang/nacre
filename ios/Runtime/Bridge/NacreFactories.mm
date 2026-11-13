@@ -27,6 +27,11 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
     return false;
   };
 
+  // Session.fromPartition 在 NacreWebSession.mm
+  {
+    nacre::NativeObjectRef made;
+    if (WebSessionClassCall(className, sel, args, &made, error)) return made;
+  }
   // 触感反馈的工厂在 NacreFeedback.mm，它自己说认不认领
   {
     nacre::NativeObjectRef made;

@@ -954,6 +954,10 @@ nacre::NativeObjectRef CreateBlob(
         [strongSelf emitEvent:type from:contents className:"WebContents" then:nil];
       }
     });
+    // Session 的事件出口（cookie 变了）。同一个路子
+    WebSessionSetEmitter(^(id session, NSString* type, NSString* json) {
+      [weakSelf emitEvent:type from:session className:"Session" then:nil];
+    });
     // 能被取消的那一个（will-navigate）：派发完把「取消了没有」交回去。
     // 走 postToJS，所以 answer 一定会被调到；引擎不在了就按没取消算
     WebViewSetAsker(^(id contents, NSString* type, NSString* json,
@@ -1088,6 +1092,8 @@ nacre::NativeObjectRef CreateBlob(
         if (WebSocketCallAsync(object, name, argsJSON, argPtrs, settle)) return;
         // 网页的 loadURL。结果在主线程上来，兑现走的是同一段
         if (WebViewCallAsync(object, name, argsJSON, argPtrs, settle)) return;
+        // Session 的 cookie 读写和清数据
+        if (WebSessionCallAsync(object, name, argsJSON, argPtrs, settle)) return;
       }
       if ([object isKindOfClass:UIViewController.class] &&
           name == "presentViewController") {

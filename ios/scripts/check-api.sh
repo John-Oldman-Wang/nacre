@@ -80,7 +80,8 @@ def js_classes():
         b = braced_body(js, m.end())
         gets = set(re.findall(r'^\s{4}get (\w+)\(', b, re.M))
         sets = set(re.findall(r'^\s{4}set (\w+)\(', b, re.M))
-        meths = {n for s, n, a in re.findall(r'^\s{4}(static )?(\w+)\(([^)]*)\)\s*\{', b, re.M)
+        # 方法前面可以有 async（Session.clearStorageData 是第一个这么写的）
+        meths = {n for s, n, a in re.findall(r'^\s{4}(static )?(?:async )?(\w+)\(([^)]*)\)\s*\{', b, re.M)
                  if n != 'constructor'} - gets - sets
         # static get X() 也算静态成员。原来只认 static X(，所以 ObjC 的
         # @property(class, readonly) 这类在 JS 侧写成静态取值器时看不见
@@ -298,6 +299,9 @@ for tsname, outer, inner in [
      r'BarButtonEventNamesList\(void\).*?names = @\[(.*?)\];', r'@"(\w+)"'),
     ('UIPresentationEventType',
      r'PresentationEventNamesList\(void\).*?names = @\[(.*?)\];', r'@"(\w+)"'),
+    # clearStorageData 能清的几类：原生是「名字 -> 系统的数据类型」的字典
+    ('SessionStorageType', r'SessionStorageTable\(void\).*?table = @\{(.*?)\};',
+     r'@"(\w+)":'),
     # 网页的事件名带连字符，内层正则和别的事件表不一样
     ('WebContentsEventType',
      r'WebContentsEventNamesList\(void\).*?names = @\[(.*?)\];', r'@"([\w-]+)"'),
