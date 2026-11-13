@@ -4838,20 +4838,26 @@
 
   // 原生要给某个对象自己派发事件时回调这里（场景的生命周期事件走这条路）
   const alwaysEmitted = new Set(['UIWindow', 'WebSocket']);
+  //
+  // 返回值：监听器有没有取消这个事件的默认动作。只有下面这张表里的事件
+  // 是 cancelable 的——原生那边把默认动作推迟到了这次派发之后，所以
+  // preventDefault() 真的拦得住。别的原生事件发生时默认动作早就做完了，
+  // 建成不可取消的，preventDefault() 照标准静默无效
+  const cancelableNativeEvents = new Set(['will-navigate']);
   native.setObjectEventSink(function (wrapper, type, payload, rebuilt) {
     // 运行时自己订的两个内部事件：系统自己动了持有关系，镜像要跟上。
     // 不派发给监听器
     if (type === '@stack') {
       // 用户点了返回或者左滑返回：按原生的真相把栈那条边重建一遍
       wrapper[kSyncStack]();
-      return;
+      return false;
     }
     if (type === '@dismissed') {
       // 用户把模态页拖走了：呈现它的那一页不再持有它
       const presenter = presenterOf.get(wrapper);
       presenterOf.delete(wrapper);
       syncPresented(presenter);
-      return;
+      return false;
     }
     // 包装是为这次派发现建的，说明原来那个已经被回收，挂在它上面的监听器
     // 也没了，这个事件到不了任何人。正常情况下不该发生：原生对象还在发
@@ -4865,7 +4871,7 @@
                    'and this event was dropped. Keep a reference to the object, ' +
                    'or report this if it is still on screen.');
     }
-    const event = new Event(type);
+    const event = new Event(type, { cancelable: cancelableNativeEvents.has(type) });
     const field = objectEventField[type];
     if (wrapper instanceof WebContentsClass) {
       // 网页的事件。负载是一个字典，有什么就挂什么——字段名照搬 Electron，
@@ -4903,6 +4909,7 @@
     if (wrapper instanceof WebSocketClass && type === 'close') {
       disown(application, 'webSockets', wrapper);
     }
+    return event.defaultPrevented;
   });
 
   // C++ 要建包装对象时回调这里。同一个原生指针 C++ 那边会复用已有的包装，

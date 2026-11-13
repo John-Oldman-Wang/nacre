@@ -56,6 +56,11 @@ typedef void (^NacreWebSocketEmit)(id task, NSString* type, NSString* json,
 
 // 网页的事件出口，同一个路子。json 为 nil 表示没有负载
 typedef void (^NacreWebContentsEmit)(id contents, NSString* type, NSString* json);
+// 能被取消的网页事件的出口：派发完之后用 answer 把「监听器取消了没有」
+// 交回来。**answer 必须恰好被调一次**——它后面连着系统的一个回调，那个
+// 回调不答，WebKit 会抛异常
+typedef void (^NacreWebContentsAsk)(id contents, NSString* type, NSString* json,
+                                    void (^answer)(BOOL prevented));
 
 // Keychain 的载体。iOS 上没有「钥匙串对象」这种东西，SecItem* 是一组 C 函数，
 // 所以自己给一个单例当包装表里的那个原生指针。
@@ -336,6 +341,7 @@ typedef NS_ENUM(NSInteger, NacreKeychainAccessible) {
   NSString* NamesFor##FuncName(void);
 
 NACRE_ENUM_DECL(TextAlignment, NSTextAlignment)
+NACRE_ENUM_DECL(WebNavigationType, NSInteger)
 NACRE_ENUM_DECL(LineBreakMode, NSLineBreakMode)
 NACRE_ENUM_DECL(ContentMode, UIViewContentMode)
 NACRE_ENUM_DECL(BaselineAdjustment, UIBaselineAdjustment)
@@ -682,6 +688,7 @@ bool LayerCallMethod(id object, NSString* sel, const NacreArgs& args,
 // ---- WebView ----
 // 一个域一个文件（NacreWebView.mm），每个入口返回「认不认领」
 void WebViewSetEmitter(NacreWebContentsEmit emit);
+void WebViewSetAsker(NacreWebContentsAsk ask);
 nacre::NativeObjectRef WebViewConstruct(id options);
 nacre::NativeObjectRef ReadWebViewObjectProperty(id object, const std::string& name);
 bool WebContentsSetSubscription(id object, NSString* type, BOOL on, std::string* error);

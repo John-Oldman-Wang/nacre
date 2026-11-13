@@ -201,11 +201,15 @@ export function stepTraits(ctx) {
       console.log('  实测：不属于任何视图的图层写 label，读回 ' + orphan.backgroundColor +
                   '（系统是 ' + original + '）');
       card.overrideUserInterfaceStyle = 'unspecified';
-      setTimeout(() => {
+      // 等它到，不赌固定时长：主线程忙的时候这次通知会晚（实测晚过 500 毫秒）
+      const deadline = Date.now() + 5000;
+      const settle = () => {
+        if (seen.length < 2 && Date.now() < deadline) { setTimeout(settle, 100); return; }
         assert('改回跟随：又收到一次',
                seen.join(' | '), original + ' → ' + flipped + ' | ' + flipped + ' → ' + original);
         console.log('--- 外观特征：以上断言跑完 ---');
-      }, 500);
+      };
+      setTimeout(settle, 100);
     }, 500);
   }, 1500);
 

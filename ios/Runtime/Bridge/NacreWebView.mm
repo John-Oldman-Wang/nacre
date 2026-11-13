@@ -24,6 +24,21 @@
 #import <WebKit/WebKit.h>
 
 static NacreWebContentsEmit g_webContentsEmit = nil;
+static NacreWebContentsAsk g_webContentsAsk = nil;
+
+// will-navigate 带的 navigationType。Electron 没有这个字段，iOS 有这个事实
+// 就给。枚举的规矩照旧：去前缀、首字母小写
+namespace nacre_bridge {
+NACRE_ENUM_MAP(WebNavigationType, NSInteger,
+               @"linkActivated": @(WKNavigationTypeLinkActivated),
+               @"formSubmitted": @(WKNavigationTypeFormSubmitted),
+               @"backForward": @(WKNavigationTypeBackForward),
+               @"reload": @(WKNavigationTypeReload),
+               @"formResubmitted": @(WKNavigationTypeFormResubmitted),
+               @"other": @(WKNavigationTypeOther))
+
+}  // namespace nacre_bridge
+
 
 // 事件名照搬 Electron 的 webContents。check-api.sh 拿这张表和 d.ts 的
 // WebContentsEventType 对
@@ -32,8 +47,9 @@ static NSArray<NSString*>* WebContentsEventNamesList(void) {
   static dispatch_once_t once;
   dispatch_once(&once, ^{
     names = @[
-      @"did-start-loading", @"did-stop-loading", @"did-finish-load", @"did-fail-load",
-      @"did-navigate", @"page-title-updated", @"render-process-gone", @"destroyed"
+      @"will-navigate", @"did-start-loading", @"did-stop-loading", @"did-finish-load",
+      @"did-fail-load", @"did-navigate", @"page-title-updated", @"render-process-gone",
+      @"destroyed"
     ];
   });
   return names;
@@ -119,6 +135,12 @@ static void RejectLoadWithError(NacreAsyncDone done, NSError* error) {
 @property(nonatomic) BOOL crashed;
 // 这一次导航的主文档拿到的 HTTP 状态码。不是 HTTP 的是 -1
 @property(nonatomic) NSInteger responseCode;
+// App 这边刚调过 loadRequest / reload / goBack / goForward，系统还没来问
+// 「放不放行」。用来认出「这一次询问是我们自己发起的导航」
+@property(nonatomic) BOOL apiNavigationPending;
+// 主文档的一次导航已经开始、还没落地。这期间系统再来问同一个地址，
+// 就是服务器重定向
+@property(nonatomic) BOOL provisional;
 // loadURL 发起、还没有结果的导航 → 兑现它的块。按导航对象的**身份**认，
 // 不按「下一个 finish 事件」认：同一张网页上可以连着发起几次加载，后一次
 // 会把前一次顶掉，两者的结果不能串
@@ -222,6 +244,101 @@ static void RejectLoadWithError(NacreAsyncDone done, NSError* error) {
     didStartProvisionalNavigation:(WKNavigation*)navigation {
   self.crashed = NO;
   self.responseCode = -1;
+  self.apiNavigationPending = NO;
+  self.provisional = YES;
+}
+
+// 去掉 # 和它后面的部分
+static NSString* WithoutFragment(NSString* url) {
+  NSRange hash = [url rangeOfString:@"#"];
+  return hash.location == NSNotFound ? url : [url substringToIndex:hash.location];
+}
+
+// 两个地址是不是只有 # 后面不一样（同一个文档里跳锚点，不换文档）
+static BOOL OnlyFragmentDiffers(NSString* target, NSString* current) {
+  if ([target rangeOfString:@"#"].location != NSNotFound) {
+    return [WithoutFragment(target) isEqualToString:WithoutFragment(current)];
+  }
+  // 实测 iOS 26.0：data: 的网页改锚点，系统交过来的地址里 # 被编码成了
+  // %23（NSURL 在这个版本上不认 data: 地址里的锚点，fragment 读出来是
+  // nil；iOS 27.2 上是正常的 #）。所以对 data: 多认一种形状：要去的地址
+  // 等于当前地址后面接一段 %23 开头的东西。
+  // 只盖住「第一次加锚点」。从 %23a 改到 %23b 认不出来，会多派发一次
+  // will-navigate——那种跳转系统本来也不让拦，多的只是一个事件
+  if ([target hasPrefix:@"data:"] && target.length > current.length &&
+      [target hasPrefix:current]) {
+    return [[target substringFromIndex:current.length] hasPrefix:@"%23"];
+  }
+  return NO;
+}
+
+// 系统每次要导航之前都来问一句「放不放行」。**原生不做这个决定**：网页
+// 自己要跳的时候派发 will-navigate，监听器调了 preventDefault() 就不放，
+// 否则放。没人监听就是放行，和不实现这个方法时一样。
+//
+// 这个回调可以晚点再答（实测晚 2 秒都正常），所以能等 JS 跑完一轮。
+//
+// 照 Electron，只有**网页自己发起的、主文档的、会换文档的**导航才派发。
+// 其余的当场放行。怎么认出「其余的」，靠的是实测（iOS 26.0 和 27.2 一致）：
+// 系统来问的那一刻，
+//
+//   App 发起的（loadRequest / reload / goBack / goForward）
+//       webView.URL **已经**等于要去的地址
+//   服务器重定向
+//       同上，而且前面那次导航已经开始（didStartProvisional 来过）
+//   网页发起的（点链接、改 location、提交表单、history.back()）
+//       webView.URL 还是当前这一页的地址
+//
+// 例外是网页自己 location.reload()：要去的地址本来就等于当前地址。所以
+// 再配一个标记 apiNavigationPending，只有我们自己调过加载接口才认作
+// 「App 发起的」。
+- (void)webView:(WKWebView*)webView
+    decidePolicyForNavigationAction:(WKNavigationAction*)action
+                    decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler {
+  // 新窗口（target="_blank"、window.open，这时 targetFrame 是 nil）和
+  // <iframe> 里的导航：不归 will-navigate 管
+  if (action.targetFrame == nil || !action.targetFrame.isMainFrame) {
+    decisionHandler(WKNavigationActionPolicyAllow);
+    return;
+  }
+  NSString* target = action.request.URL.absoluteString ?: @"";
+  NSString* current = webView.URL.absoluteString ?: @"";
+  BOOL hasFragment = [target rangeOfString:@"#"].location != NSNotFound;
+  if ([target isEqualToString:current]) {
+    if (self.apiNavigationPending) {   // App 发起的
+      self.apiNavigationPending = NO;
+      decisionHandler(WKNavigationActionPolicyAllow);
+      return;
+    }
+    if (self.provisional) {            // 服务器重定向
+      decisionHandler(WKNavigationActionPolicyAllow);
+      return;
+    }
+    // 网页把自己导航到带 # 的同一个地址：只是滚到锚点，不换文档
+    if (hasFragment && action.navigationType != WKNavigationTypeReload) {
+      decisionHandler(WKNavigationActionPolicyAllow);
+      return;
+    }
+    // 剩下的是网页导航到自己（location.reload() 之类），往下派发
+  } else if (OnlyFragmentDiffers(target, current)) {
+    // 只有 # 后面不一样：同一个文档里跳锚点
+    decisionHandler(WKNavigationActionPolicyAllow);
+    return;
+  }
+
+  if (g_webContentsAsk == nil) {
+    decisionHandler(WKNavigationActionPolicyAllow);
+    return;
+  }
+  NSString* json = @(nacre_bridge::EncodeJSON(@{
+    @"url" : target,
+    @"isMainFrame" : @YES,
+    @"navigationType" : nacre_bridge::NameForWebNavigationType(action.navigationType) ?: @"other"
+  }).c_str());
+  g_webContentsAsk(self, @"will-navigate", json, ^(BOOL prevented) {
+    decisionHandler(prevented ? WKNavigationActionPolicyCancel
+                              : WKNavigationActionPolicyAllow);
+  });
 }
 
 // 实现这个方法只为了**读状态码**——那个数在别处拿不到。放不放行照系统
@@ -240,6 +357,7 @@ static void RejectLoadWithError(NacreAsyncDone done, NSError* error) {
 }
 
 - (void)webView:(WKWebView*)webView didCommitNavigation:(WKNavigation*)navigation {
+  self.provisional = NO;
   // 这一次导航落地了，别的还挂着的加载就是被它顶掉的
   [self rejectPendingExcept:navigation
                        name:@"AbortError"
@@ -288,6 +406,8 @@ static void RejectLoadWithError(NacreAsyncDone done, NSError* error) {
 - (void)webView:(WKWebView*)webView
     didFailProvisionalNavigation:(WKNavigation*)navigation
                        withError:(NSError*)error {
+  self.provisional = NO;
+  self.apiNavigationPending = NO;
   [self navigation:navigation failedWithError:error];
 }
 
@@ -333,6 +453,7 @@ static void RejectLoadWithError(NacreAsyncDone done, NSError* error) {
 namespace nacre_bridge {
 
 void WebViewSetEmitter(NacreWebContentsEmit emit) { g_webContentsEmit = [emit copy]; }
+void WebViewSetAsker(NacreWebContentsAsk ask) { g_webContentsAsk = [ask copy]; }
 
 // new WebView({ webPreferences: { partition } })
 //
@@ -417,15 +538,17 @@ bool WebViewCallMethod(id object, NSString* sel, const NacreArgs& args,
     *out = webView.canGoForward ? "true" : "false";
   } else if ([sel isEqualToString:@"stop"]) {
     [webView stopLoading];
+    contents.apiNavigationPending = NO;
     // 实测：loadURL 之后马上 stop()，那次导航还没真正开始，系统**不会**报
     // 它失败——一个回调都没有，等它的 Promise 会永远挂着。所以这里自己拒掉
     [contents rejectPendingExcept:nil name:@"AbortError" message:@"the load was stopped"];
   } else if ([sel isEqualToString:@"reload"]) {
-    [webView reload];
+    // 返回了导航对象才算真的发起了一次导航（空白页上 reload 什么都不做）
+    if ([webView reload] != nil) contents.apiNavigationPending = YES;
   } else if ([sel isEqualToString:@"goBack"]) {
-    [webView goBack];
+    if ([webView goBack] != nil) contents.apiNavigationPending = YES;
   } else if ([sel isEqualToString:@"goForward"]) {
-    [webView goForward];
+    if ([webView goForward] != nil) contents.apiNavigationPending = YES;
   }
   return true;
 }
@@ -458,6 +581,7 @@ bool WebViewCallAsync(id object, const std::string& name, const std::string& arg
     RejectLoad(done, @"Error", @"loadURL: the page refused to start loading", 0, @"");
     return true;
   }
+  contents.apiNavigationPending = YES;
   [contents.pending setObject:[done copy] forKey:navigation];
   return true;
 }

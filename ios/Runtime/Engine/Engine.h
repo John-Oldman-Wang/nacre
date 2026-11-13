@@ -231,7 +231,12 @@ class Engine {
                            const NativeObjectRef& payload);
   // 同上，但负载是一个 JSON 值而不是原生对象（动画的 stop 要带 finished）。
   // JS 侧的 sink 一视同仁：拿到什么就往事件上挂什么
-  void EmitObjectEventWithJSON(const NativeObjectRef& target, const std::string& type,
+  //
+  // 返回值：监听器有没有对这个事件调 preventDefault()。只有 JS 侧把这个
+  // 事件建成 cancelable 的时候才可能是 true（现在只有网页的 will-navigate）。
+  // 给「原生能把默认动作推迟到 JS 答复之后」的场合用：系统给了一个可以晚点
+  // 再调的回调，原生先不答，派发完看这个返回值再答
+  bool EmitObjectEventWithJSON(const NativeObjectRef& target, const std::string& type,
                                const std::string& json);
 
   // 结束一个由 JS 发起的异步调用，用布尔值兑现它的 Promise。

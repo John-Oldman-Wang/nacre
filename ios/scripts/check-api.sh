@@ -225,6 +225,7 @@ for macro, tsname in [('TextAlignment', 'NSTextAlignment'),
                       ('UserInterfaceIdiom', 'UIUserInterfaceIdiom'),
                       ('ImpactFeedbackStyle', 'UIImpactFeedbackStyle'),
                       ('NotificationFeedbackType', 'UINotificationFeedbackType'),
+                      ('WebNavigationType', 'WebNavigationType'),
                       ('KeychainAccessible', 'KeychainAccessible')]:
     compare(tsname, mm_enum(macro), dts_union(tsname))
 

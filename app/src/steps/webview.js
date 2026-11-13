@@ -1,7 +1,8 @@
 // WebView：把网页放进界面。
 //
 // 形状照 Electron：WebView 是视图，webContents 是里面那张网页。
-// 这一步只管加载、导航和事件；拦截导航、执行脚本、cookie 是后面几步。
+// 加载、导航、事件，以及拦住网页自己发起的跳转（will-navigate）。
+// 执行脚本、cookie 是后面几步。
 //
 // 大部分用 data: 地址，不联网也能跑。要联网的只有两条（HTTP 状态码），
 // 网不通时报未验证。
@@ -74,7 +75,7 @@ export function stepWebView(ctx) {
          '没抛');
 
   // ===== 上屏 =====
-  const host = ctx.section('WebView：网页（点下面的按钮）', 300);
+  const host = ctx.section('WebView：网页（点下面的按钮）', 344);
   web.frame = new CGRect(16, 0, 100, 240);
   web.layer.cornerRadius = 10;
   web.layer.masksToBounds = true;
@@ -104,6 +105,22 @@ export function stepWebView(ctx) {
     });
     host.addSubview(button);
   });
+
+  let blocking = false;
+  const toggle = UIButton.buttonWithType('system');
+  const showToggle = () => {
+    toggle.setTitle(blocking ? '拦住网页里的跳转：开（点链接不会跳）' : '拦住网页里的跳转：关',
+                    { forState: ['normal'] });
+  };
+  showToggle();
+  toggle.frame = new CGRect(16, 296, 320, 40);
+  toggle.contentHorizontalAlignment = 'leading';
+  toggle.addEventListener('primaryActionTriggered', () => {
+    blocking = !blocking;
+    showToggle();
+    console.log('  ✓ 真实触摸：拦住网页里的跳转 = ' + blocking);
+  });
+  host.addSubview(toggle);
 
   // ===== 事件 =====
   /** @type {string[]} */
@@ -293,6 +310,215 @@ export function stepWebView(ctx) {
       console.log('  ! httpbin.org 连不上（' + online + '），HTTP 状态码那两条未验证');
     }
 
+    // ----- will-navigate：网页自己要跳的时候，先问一声 -----
+    //
+    // 用另一张网页来验（加进界面但隐藏，定时器才照常跑），屏幕上那一张
+    // 在自动跑的这一段里**不挂** will-navigate——没人监听时的行为由上面
+    // 那些断言盯着。
+    //
+    // 要去的地址都是解析不了的域名：拦住了就根本不会去连；放行了会收到
+    // did-fail-load，正好当「确实放行了」的证据。所以这一段不用联网
+    const gate = new WebView();
+    const gated = gate.webContents;
+    gate.isHidden = true;
+    gate.frame = new CGRect(0, 0, 10, 10);
+    host.addSubview(gate);
+    /** @type {WebContentsWillNavigateEvent[]} */
+    let asked = [];
+    /** @type {string[]} */
+    let loads = [];
+    /** @type {number[]} */
+    let failCodes = [];
+    let refuse = true;
+    gated.addEventListener('will-navigate', (e) => {
+      asked.push(e);
+      if (refuse) e.preventDefault();
+    });
+    /** @type {boolean[]} */
+    const otherCancelable = [];
+    gated.addEventListener('did-navigate', (e) => {
+      loads.push(e.type);
+      e.preventDefault();   // 不可取消的事件上调它，照标准静默无效
+      otherCancelable.push(e.cancelable || e.defaultPrevented);
+    });
+    gated.addEventListener('did-start-loading', (e) => { loads.push(e.type); });
+    gated.addEventListener('did-finish-load', (e) => { loads.push(e.type); });
+    gated.addEventListener('did-fail-load', (e) => { loads.push(e.type); failCodes.push(e.errorCode); });
+    /** 一张加载完 200 毫秒后自己执行一段脚本的网页
+     * @param {string} title @param {string} script */
+    const scripted = (title, script) => pageURL(title,
+      '<a id="l" href="https://nacre-gate.invalid/link">link</a>' +
+      '<form id="f" method="post" action="https://nacre-gate.invalid/form"></form>' +
+      '<script>setTimeout(() => { ' + script + ' }, 200);</script>');
+    /** 加载一张这样的网页，等它的脚本跑完。返回这期间问了几次
+     * @param {string} title @param {string} script @param {() => boolean} [done] */
+    const act = async (title, script, done = () => asked.length > 0) => {
+      await gated.loadURL(scripted(title, script));
+      asked = []; loads = []; failCodes = [];
+      for (let i = 0; i < 25 && !done(); i++) await sleep(100);
+      await sleep(300);   // 再等一会儿：拦住之后「不该发生」的事要给它时间发生
+      return asked.length;
+    };
+
+    // App 自己发起的：不问
+    const plainA = pageURL('甲');
+    await gated.loadURL(plainA);
+    await gated.loadURL(pageURL('乙'));
+    arrived = next('did-finish-load', gated);
+    gated.navigationHistory.goBack();
+    await arrived;
+    arrived = next('did-finish-load', gated);
+    gated.navigationHistory.goForward();
+    await arrived;
+    arrived = next('did-finish-load', gated);
+    gated.reload();
+    await arrived;
+    await sleep(200);
+    assert('loadURL、后退、前进、reload()：都不派发 will-navigate', asked.length, 0);
+    assert('别的事件不可取消，preventDefault() 无效', otherCancelable.includes(true), false);
+
+    // 网页脚本改 location：问，拦得住
+    assert('脚本改 location：派发一次 will-navigate',
+           await act('改地址', "location.href = 'https://nacre-gate.invalid/href';"), 1);
+    assert('will-navigate 带着要去的地址', asked[0].url, 'https://nacre-gate.invalid/href');
+    assert('脚本改 location 的 navigationType 是 other', asked[0].navigationType, 'other');
+    assert('isMainFrame 是 true', asked[0].isMainFrame, true);
+    assert('will-navigate 是可取消的', asked[0].cancelable, true);
+    assert('事件的 target 是 webContents', asked[0].target === gated, true);
+    assert('拦住之后 defaultPrevented 是 true', asked[0].defaultPrevented, true);
+    assert('拦住之后一个加载事件都没有', loads.join(','), '');
+    assert('拦住之后网页留在原地', gated.getTitle(), '改地址');
+    assert('拦住之后 isLoading() 是 false', gated.isLoading(), false);
+
+    // 点链接（脚本替用户点）
+    assert('点链接：派发一次 will-navigate',
+           await act('点链接', "document.getElementById('l').click();"), 1);
+    assert('点链接的 navigationType 是 linkActivated', asked[0].navigationType, 'linkActivated');
+    assert('点链接：地址是链接的地址', asked[0].url, 'https://nacre-gate.invalid/link');
+    assert('点链接：拦住了，没有加载事件', loads.join(','), '');
+
+    // 提交表单
+    assert('提交表单：派发一次 will-navigate',
+           await act('表单', "document.getElementById('f').submit();"), 1);
+    assert('提交表单的 navigationType 是 formSubmitted', asked[0].navigationType, 'formSubmitted');
+    assert('提交表单：地址是表单的 action', asked[0].url, 'https://nacre-gate.invalid/form');
+
+    // 网页不认识的协议：拦下来就可以自己处理
+    assert('tel: 链接：派发一次 will-navigate',
+           await act('电话', "location.href = 'tel:10086';"), 1);
+    assert('tel: 链接：地址原样给', asked[0].url, 'tel:10086');
+    assert('tel: 链接：拦住了，没有加载失败', loads.join(','), '');
+
+    // App 自己定的协议：同样拦得到，地址原样给
+    assert('自定义协议的链接：派发一次 will-navigate',
+           await act('自定义协议', "location.href = 'myapp://share?id=1';"), 1);
+    assert('自定义协议的链接：地址原样给', asked[0].url, 'myapp://share?id=1');
+    assert('自定义协议的链接：拦住了，没有加载失败', loads.join(','), '');
+
+    // 网页自己刷新。window.name 当「刷过一次了」的记号——data: 的网页
+    // 用不了 sessionStorage
+    assert('网页自己 location.reload()：派发一次 will-navigate',
+           await act('自己刷新', "if (!window.name) { window.name = 'r'; location.reload(); }"), 1);
+    assert('网页自己刷新的 navigationType 是 reload', asked[0].navigationType, 'reload');
+    assert('网页自己刷新：拦住了，没有加载事件', loads.join(','), '');
+
+    // 网页自己后退
+    await gated.loadURL(plainA);
+    assert('网页自己 history.back()：派发一次 will-navigate',
+           await act('自己后退', 'history.back();'), 1);
+    assert('网页自己后退的 navigationType 是 backForward', asked[0].navigationType, 'backForward');
+    assert('网页自己后退：地址是上一页的', asked[0].url, plainA);
+    assert('网页自己后退：拦住了，还在这一页', gated.getTitle(), '自己后退');
+
+    // 只改 # 后面的部分：不问
+    // iOS 26 上 data: 网页的地址里 # 读出来是 %23，两种都认
+    const anchored = () => /(#|%23)x$/.test(gated.getURL());
+    assert('只改 #：不派发 will-navigate',
+           await act('锚点', "location.hash = 'x';", anchored), 0);
+    assert('只改 #：地址确实变了', anchored(), true);
+    console.log('  实测：data: 网页改锚点之后，getURL() 的结尾是 ' + gated.getURL().slice(-4));
+
+    // <iframe> 里的加载：不问
+    assert('<iframe> 里的加载：不派发 will-navigate',
+           await act('内嵌', "const i = document.createElement('iframe'); " +
+                     "i.src = 'https://nacre-gate.invalid/frame'; document.body.append(i);",
+                     () => false), 0);
+
+    // 不拦：照常跳。域名解析不了，所以会收到 did-fail-load
+    refuse = false;
+    assert('不调 preventDefault()：照样派发一次',
+           await act('放行', "location.href = 'https://nacre-gate.invalid/allowed';",
+                     () => loads.includes('did-fail-load')), 1);
+    assert('不调 preventDefault()：defaultPrevented 是 false', asked[0].defaultPrevented, false);
+    assert('不调 preventDefault()：跳转照常发生（解析不了，收到 did-fail-load）',
+           loads.includes('did-fail-load'), true);
+
+    // 不拦 tel:：系统的网页不认识这个协议，加载失败
+    await act('电话放行', "location.href = 'tel:10086';", () => loads.includes('did-fail-load'));
+    console.log('  实测：不拦 tel: 链接，did-fail-load 的 errorCode = ' + failCodes.join(','));
+    assert('不拦 tel: 链接：加载失败，errorCode 是 -1002', failCodes[0], -1002);
+
+    // 监听器抛了：按没取消算，跳转照常
+    const thrower = () => { throw new Error('这条是验收故意抛的，下面应该打出一行 Event listener threw'); };
+    gated.addEventListener('will-navigate', thrower);
+    await act('监听器抛', "location.href = 'https://nacre-gate.invalid/thrown';",
+              () => loads.includes('did-fail-load'));
+    assert('监听器抛了：跳转照常发生', loads.includes('did-fail-load'), true);
+    gated.removeEventListener('will-navigate', thrower);
+
+    // 先拦住、异步查完再自己加载：loadURL 不派发 will-navigate，所以不会绕回来
+    refuse = false;
+    const later = pageURL('查完再去');
+    const deferring = (/** @type {WebContentsWillNavigateEvent} */ e) => {
+      e.preventDefault();
+      sleep(150).then(() => gated.loadURL(later));
+    };
+    gated.addEventListener('will-navigate', deferring);
+    await act('先拦住', "location.href = 'https://nacre-gate.invalid/later';",
+              () => gated.getURL() === later);
+    assert('先拦住再自己 loadURL：只派发了一次（loadURL 不会再绕回来）', asked.length, 1);
+    assert('先拦住再自己 loadURL：最后到了自己加载的那一页', gated.getURL(), later);
+    gated.removeEventListener('will-navigate', deferring);
+
+    // 服务器重定向（要联网）：App 发起的不问；网页发起的只问第一个地址
+    refuse = true;
+    asked = [];
+    const redirected = await outcome(gated.loadURL('https://httpbin.org/redirect/1'));
+    if (redirected === 'ok') {
+      assert('loadURL 到一个会重定向的地址：不派发 will-navigate', asked.length, 0);
+      assert('loadURL 到一个会重定向的地址：落在重定向之后的地址',
+             gated.getURL(), 'https://httpbin.org/get');
+      refuse = false;
+      await act('跳去重定向', "location.href = 'https://httpbin.org/redirect/1';",
+                () => loads.includes('did-finish-load') || loads.includes('did-fail-load'));
+      assert('网页跳到一个会重定向的地址：只问一次', asked.length, 1);
+      assert('问的是重定向之前的那个地址',
+             asked.length > 0 && asked[0].url, 'https://httpbin.org/redirect/1');
+      assert('重定向本身没有再问，最后落在目标地址', gated.getURL(), 'https://httpbin.org/get');
+    } else {
+      console.log('  ! httpbin.org 连不上（' + redirected + '），服务器重定向那几条未验证');
+    }
+
+    // 在 will-navigate 的监听器里把网页销毁：答复照样送得到，不出事
+    const fragile = new WebView();
+    const fragileContents = fragile.webContents;
+    fragile.isHidden = true;
+    fragile.frame = new CGRect(0, 0, 10, 10);
+    host.addSubview(fragile);
+    let closedInside = false;
+    fragileContents.addEventListener('will-navigate', () => {
+      fragileContents.close();
+      closedInside = true;
+    });
+    await fragileContents.loadURL(scripted('要被销毁', "location.href = 'https://nacre-gate.invalid/gone';"));
+    for (let i = 0; i < 25 && !closedInside; i++) await sleep(100);
+    await sleep(500);
+    assert('在 will-navigate 里 close()：监听器跑到了', closedInside, true);
+    assert('在 will-navigate 里 close()：销毁了，App 还在', fragileContents.isDestroyed(), true);
+    fragile.removeFromSuperview();
+    gate.removeFromSuperview();
+    gated.close();
+
     // ----- 网页感知得到什么：大小、深浅色、显示隐藏、安全区 -----
     //
     // 一张把这些都写进标题的网页：宽度 | 深浅色 | 安全区上 | 安全区下 |
@@ -422,7 +648,13 @@ export function stepWebView(ctx) {
       '<p><a href="https://example.com/">点这个链接去 example.com</a></p>' +
       '<p style="height:400px;background:linear-gradient(#e8f0ff,#fff)">往下滚</p>')));
     live = true;
-    console.log('  ✓ 屏幕上有一张网页和四个按钮：点链接或按钮会打出加载事件');
+    // 从这里起屏幕上那一张才挂 will-navigate：打日志，开关开着就拦
+    contents.addEventListener('will-navigate', (e) => {
+      if (blocking) e.preventDefault();
+      console.log('  · will-navigate ' + e.url.slice(0, 60) + '（' + e.navigationType + '）' +
+                  (blocking ? '，拦住了' : ''));
+    });
+    console.log('  ✓ 屏幕上有一张网页、四个按钮和一个开关：点链接或按钮会打出加载事件，开关开着时点链接不会跳');
     console.log('--- WebView：以上断言跑完 ---');
   };
   run().catch((err) => {

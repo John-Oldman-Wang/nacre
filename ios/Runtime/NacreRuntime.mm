@@ -954,6 +954,27 @@ nacre::NativeObjectRef CreateBlob(
         [strongSelf emitEvent:type from:contents className:"WebContents" then:nil];
       }
     });
+    // 能被取消的那一个（will-navigate）：派发完把「取消了没有」交回去。
+    // 走 postToJS，所以 answer 一定会被调到；引擎不在了就按没取消算
+    WebViewSetAsker(^(id contents, NSString* type, NSString* json,
+                      void (^answer)(BOOL prevented)) {
+      NacreRuntime* strongSelf = weakSelf;
+      if (strongSelf == nil) {
+        answer(NO);
+        return;
+      }
+      auto engine = strongSelf->_engine;
+      std::string t = type.UTF8String;
+      std::string payload = json.UTF8String ?: "null";
+      [strongSelf postToJS:^{
+        BOOL prevented = NO;
+        if (*engine) {
+          prevented = (*engine)->EmitObjectEventWithJSON(
+              {(__bridge void*)contents, "WebContents"}, t, payload);
+        }
+        answer(prevented);
+      }];
+    });
     host.read_class_object_property = [](const std::string& className,
                                          const std::string& name) {
       return Guarded(name.c_str(), nullptr, [&] {

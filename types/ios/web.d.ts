@@ -5,6 +5,7 @@
 
 /** `webContents` 上能监听的事件。名字照搬 Electron。 */
 type WebContentsEventType =
+  | 'will-navigate'
   | 'did-start-loading'
   | 'did-stop-loading'
   | 'did-finish-load'
@@ -24,6 +25,44 @@ interface WebPreferences {
    * - `'名字'`：只在内存里，同名的网页共用一份，App 退出就没了
    */
   partition?: string;
+}
+
+/**
+ * 一次导航是怎么引起的。
+ *
+ * - `'linkActivated'`：点了链接
+ * - `'formSubmitted'`：提交了表单
+ * - `'backForward'`：网页自己后退或前进（`history.back()`）
+ * - `'reload'`：网页自己刷新（`location.reload()`）
+ * - `'formResubmitted'`：重新提交表单（后退到一个 POST 出来的页面）
+ * - `'other'`：其余的，最常见的是脚本改 `location`
+ */
+type WebNavigationType =
+  | 'linkActivated'
+  | 'formSubmitted'
+  | 'backForward'
+  | 'reload'
+  | 'formResubmitted'
+  | 'other';
+
+/**
+ * `will-navigate` 事件：网页自己要跳到别的地址，还没开始跳。
+ *
+ * 调 `preventDefault()` 就不跳了，网页留在原地。
+ *
+ * ```js
+ * contents.addEventListener('will-navigate', (e) => {
+ *   if (!e.url.startsWith('https://my.app/')) e.preventDefault();
+ * });
+ * ```
+ */
+interface WebContentsWillNavigateEvent extends Event {
+  /** 要去的地址。 */
+  readonly url: string;
+  /** 总是 `true`：`<iframe>` 里的跳转不派发这个事件。 */
+  readonly isMainFrame: boolean;
+  /** 这次跳转是怎么引起的。**Electron 没有这个字段。** */
+  readonly navigationType: WebNavigationType;
 }
 
 /** `did-fail-load` 事件。 */
@@ -59,6 +98,7 @@ interface WebContentsPageTitleUpdatedEvent extends Event {
 
 /** 每个事件名对应的事件对象。`addEventListener` 按它给回调的参数定类型。 */
 interface WebContentsEventMap {
+  'will-navigate': WebContentsWillNavigateEvent;
   'did-start-loading': Event;
   'did-stop-loading': Event;
   'did-finish-load': Event;

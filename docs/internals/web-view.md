@@ -4,7 +4,7 @@
 
 `WebView` 是上层标准，底下是 `WKWebView`。这一篇记它为什么长成这样、原生那边怎么搭的、量到了什么。
 
-这是分四步做的第 1 步：视图、加载、导航、加载事件、存储分区、销毁。后三步（拦截导航、执行脚本和消息、cookie）还没做。
+分四步做。第 1 步：视图、加载、导航、加载事件、存储分区、销毁。第 2 步：拦截导航（`will-navigate`）。后两步（执行脚本和消息、cookie）还没做。
 
 ## 属于哪一层
 
@@ -58,6 +58,7 @@ JS 的 `WebView` 包的是壳，`WebContents` 包的是 `NacreWebContents`。
 | --- | --- |
 | `did-start-loading` / `did-stop-loading` | KVO `loading` |
 | `page-title-updated` | KVO `title` |
+| `will-navigate` | `webView:decidePolicyForNavigationAction:decisionHandler:`，见[下面](#will-navigate第一个能取消的原生事件) |
 | `did-navigate` | `webView:didCommitNavigation:` |
 | `did-finish-load` | `webView:didFinishNavigation:` |
 | `did-fail-load` | `didFailNavigation:` 和 `didFailProvisionalNavigation:` 两个 |
@@ -71,6 +72,95 @@ JS 的 `WebView` 包的是壳，`WebContents` 包的是 `NacreWebContents`。
 ### 状态码要实现一个本来不用实现的方法
 
 `did-navigate` 的 `httpResponseCode` 只有 `webView:decidePolicyForNavigationResponse:decisionHandler:` 里拿得到。这个方法是让 App **决定**放不放行的，而原生层不做决定。所以它的实现是：记下状态码，然后照系统在没人实现这个方法时的做法放行——`canShowMIMEType` 为真就放，否则取消。
+
+## `will-navigate`：第一个能取消的原生事件
+
+[项目说明](../project.md#cancelable-按派发来源定)里早就写了判据：原生事件能不能取消，看原生**能不能把默认动作推迟到 JS 答复之后**。UIKit 的 delegate 多数是同步返回 `BOOL`，推不了。这一个推得了：系统问「放不放行」时给的是一个回调，可以晚点再调。实测晚 50 毫秒、晚 2 秒再答都正常。
+
+流程：
+
+```
+系统问放不放行（带一个 decisionHandler）
+  → 原生先不答，照常排一轮（postToJS）
+  → 派发 will-navigate，监听器跑完
+  → 引擎把 event.defaultPrevented 作为返回值交回来
+  → 原生调 decisionHandler：取消了就不放，否则放
+```
+
+**原生不做决定。** 没人监听、没调 `preventDefault()`、监听器抛了、引擎不在了，全都是放行——和不实现这个方法时一样。
+
+### 答复怎么交回原生
+
+引擎的 `EmitObjectEventWithJSON` 加了返回值：事件汇入口（sink）返回 `event.defaultPrevented`。未处理拒绝那条路已经是这个形状（JS 调了 `preventDefault()` 就不打默认日志）。
+
+JS 侧有一张表 `cancelableNativeEvents`，现在只有 `will-navigate` 一条。表里的事件建成 `cancelable: true`，其余的原生事件照旧是 `false`——它们派发时默认动作早就做完了，`preventDefault()` 照标准静默无效。
+
+被否掉的做法是「JS 派发完再调一次原生把答案送过去」。系统的那个回调必须恰好被调一次，不调的话 WebKit 会在它被释放时抛异常（按 WebKit 的做法，这条没有实测）。走返回值，答复和派发在同一个任务里，任何一步出岔子都落到「返回 false」，漏不掉；走回调则要另外保证「sink 中途抛了也得答」。
+
+### 怎么认出是谁发起的
+
+照 Electron，`loadURL()`、`reload()`、后退、前进**不派发**。这条重要：混合 App 里常见的写法是「网页里每点一个链接，就拦下来、开一个新页面去加载它」，要是 `loadURL` 自己也触发 `will-navigate`，就成了死循环。
+
+难处是系统对所有导航都来问，而公开接口上没有「这是谁发起的」这一项。试过的三样都分不开：
+
+| | 结果 |
+| --- | --- |
+| `navigationType` | `loadRequest:` 和脚本改 `location` 都是 `Other` |
+| `sourceFrame` | 全都非空、全都是主框架，`loadRequest:` 发起的也是 |
+| `request.timeoutInterval` | App 发起的是 60，网页发起的是 `INT_MAX`——看着能用，但网页自己 `history.back()` 也是 60 |
+
+分得开的是这一条（iOS 26.0 和 27.2 一致）：**系统来问的那一刻，`webView.URL` 是不是已经等于要去的地址。**
+
+| 谁发起的 | `navigationType` | 那一刻 `webView.URL` | `isLoading` |
+| --- | --- | --- | --- |
+| `loadRequest:` | `Other` | **已经是要去的地址** | 是 |
+| `reload` | `Reload` | 等于要去的地址（本来就一样） | 是 |
+| `goBack` / `goForward` | `BackForward` | **已经是要去的地址** | 是 |
+| 服务器重定向 | `Other` | **已经是重定向之后的地址** | 是 |
+| 点链接 | `LinkActivated` | 还是当前页 | 否 |
+| 脚本改 `location` | `Other` | 还是当前页 | 否 |
+| 提交表单 | `FormSubmitted` | 还是当前页 | 否 |
+| 脚本 `history.back()` | `BackForward` | 还是当前页 | 否 |
+| 脚本 `location.reload()` | `Reload` | 等于要去的地址（本来就一样） | 否 |
+| 脚本改 `#` | `Other` | 还是当前页（只差 `#` 后面） | 否 |
+| `<iframe>` 加载 | `Other` | — | `targetFrame.isMainFrame` 是 `NO` |
+| `pushState` | 系统不问 | | |
+
+两个地址都是 WebKit 自己规范化过的（`http://localhost:8765` 两边都是带斜杠的，大写的主机名两边都是小写），所以直接比字符串，不用自己处理规范化。
+
+表里有一处重叠：App 的 `reload()` 和网页自己的 `location.reload()`，要去的地址都等于当前地址。所以另配一个标记 `apiNavigationPending`——四个发起导航的调用点在系统返回了导航对象时置上，被对应的那次询问用掉。判定顺序：
+
+```
+不是主框架，或者是新窗口（targetFrame 为 nil）   → 放行，不派发
+要去的地址 == webView.URL：
+    apiNavigationPending                        → App 发起的，放行
+    前一次导航已经开始、还没落地                 → 服务器重定向，放行
+    带 #，且不是 Reload                          → 滚到锚点，放行
+    其余                                        → 网页导航到自己，派发
+只差 # 后面                                      → 同文档，放行
+其余                                            → 网页发起的，派发
+```
+
+标记可能错位的情形只有一种：App 调了加载接口、而同一瞬间网页恰好在导航到**同一个地址**。那时两者的结果本来也一样。
+
+这套分类依据的是实测，不是文档的承诺。验收里把上面每一行都做成了断言。
+
+### 为什么 App 发起的导航从不取消
+
+量过取消的后果：
+
+| 被取消的是 | 结果 |
+| --- | --- |
+| 网页发起的 | 干净。网页留在原地，一个加载事件都没有 |
+| `loadRequest:` 发起的 | `did-start-loading`、`did-stop-loading` 各来一次，**没有任何失败回调**，等它的 Promise 永远不结算 |
+
+App 发起的导航不派发 `will-navigate`，也就不会走到第二行。
+
+### 三条实测到的边角
+
+- **不带用户手势的新窗口，系统根本不问。** 脚本点一个 `target="_blank"` 的链接、脚本调 `window.open`，一次询问都没有（被弹窗拦截挡在更前面）。真实点击会问，那时 `targetFrame` 是 `nil`，现在是放行——而没有 `WKUIDelegate` 时放行的结果是什么都不发生。这是「新窗口」那一项的事，不在这一步。
+- **不拦 `tel:` 链接**：系统照常去加载，然后失败，`-1002`。
+- **iOS 26.0 上 `data:` 网页的锚点是 `%23`。** 在 `data:` 的网页里改 `location.hash`，系统交过来的地址结尾是 `%23x` 而不是 `#x`，`NSURL.fragment` 是 `nil`；iOS 27.2 上是正常的 `#x`。照 `#` 去认「只差锚点」就认不出来，被当成了一次跳转（而且那次跳转调了取消也拦不住，地址照变）。所以对 `data:` 多认一种形状：要去的地址等于当前地址后面接一段 `%23` 开头的。只盖住第一次加锚点；从 `%23a` 改到 `%23b` 按代码推断会多派发一次，没有实测。`http(s)` 的网页两个系统上都是正常的 `#`。
 
 ## `loadURL` 的 Promise
 
@@ -185,7 +275,7 @@ iOS 27.2 模拟器（iPhone Air）和 iOS 26.0 模拟器（iPhone 17）上各跑
 
 ## 没验到的
 
-- 真实触摸：滚动、点链接。
+- 真实触摸：滚动、点链接、开着拦截开关点链接。验收里的「点链接」是脚本替用户点的。
 - App 退到后台时网页的 `visibilitychange`（裸的 `WKWebView` 上验过，新的 `WebView` 上没重验）。
 - 真机。
 

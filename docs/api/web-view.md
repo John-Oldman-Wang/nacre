@@ -13,11 +13,12 @@ status: partial
 - **`WebView`**：视图本身。放在哪、多大、显示还是隐藏，用[视图](ui-view.md)的写法。
 - **`webView.webContents`**：里面那张网页。加载、后退前进、加载事件都在它上面。
 
-它相当于网页里的 `<iframe>`。接口的形状照 [Electron](https://www.electronjs.org/docs/latest/api/web-contents) 的 `WebContentsView` 和 `webContents`：方法名和事件名和 Electron 相同。和 Electron 有四点不同：
+它相当于网页里的 `<iframe>`。接口的形状照 [Electron](https://www.electronjs.org/docs/latest/api/web-contents) 的 `WebContentsView` 和 `webContents`：方法名和事件名和 Electron 相同。和 Electron 有五点不同：
 
 - **事件用 `addEventListener` 监听，数据在事件对象上。** Electron 写 `on('did-fail-load', (event, errorCode) => …)`，这里写 `addEventListener('did-fail-load', (e) => e.errorCode)`。
 - **摆放用视图的写法。** 没有 `setBounds`，用 `frame` 或者[约束](auto-layout.md)。
 - **错误码是 iOS 的那一套数**，不是 Electron 的。
+- **`will-navigate` 多一个 `navigationType` 字段**，说明这次跳转是点链接、提交表单还是脚本引起的。
 - **只有一部分方法和事件。** 没有的列在[还不能做的](#还不能做的)里。
 
 ## 完整例子
@@ -169,6 +170,66 @@ loading.catch((err) => console.log(err.name, err.code));
 
 连着调两次 `loadURL` 时，后一次会取代前一次：前一次的 Promise 以 `AbortError` 拒绝，后一次照常兑现。
 
+### 只允许网页跳到自己的域名
+
+网页自己要跳到别的地址时（用户点了链接、脚本改了 `location`、提交了表单），先派发 `will-navigate`。在监听器里调 `preventDefault()`，这次跳转就不发生。
+
+```js
+contents.addEventListener('will-navigate', (e) => {
+  if (!e.url.startsWith('https://my.app/')) {
+    e.preventDefault();
+    console.log('拦住了', e.url, e.navigationType);
+  }
+});
+```
+
+**效果**
+
+- 网页里点一个指向 `https://other.site/` 的链接：控制台输出 `拦住了 https://other.site/ linkActivated`，网页留在原地，一个加载事件都不派发。
+- 点指向 `https://my.app/` 下面的链接：照常跳转。
+- 自己调 `contents.loadURL(...)`、`reload()`、后退、前进**不派发**这个事件，所以不会被这段代码拦住。
+
+哪些情况派发、哪些不派发，见 [`will-navigate` 什么时候派发](#will-navigate-什么时候派发)。
+
+### 处理电话、邮件和自定义协议的链接
+
+网页不认识 `tel:`、`mailto:` 和 App 自己定的协议（比如 `myapp://`）。不处理的话，点这类链接会加载失败。在 `will-navigate` 里拦下来，自己处理。
+
+```js
+contents.addEventListener('will-navigate', (e) => {
+  if (e.url.startsWith('tel:') || e.url.startsWith('mailto:')) {
+    e.preventDefault();
+    application.openURL(e.url);       // 交给系统：拨号、写邮件
+  } else if (e.url.startsWith('myapp://')) {
+    e.preventDefault();
+    console.log('网页让 App 做一件事', e.url);
+  }
+});
+```
+
+**效果**
+
+- 点 `tel:10086` 的链接：`e.url` 是 `tel:10086`，网页留在原地，不派发 `did-fail-load`。系统弹出拨号确认（未在模拟器验证，模拟器不能拨号）。
+- 点 `myapp://share?id=1` 的链接：控制台输出 `网页让 App 做一件事 myapp://share?id=1`。
+- 不拦 `tel:` 链接时：派发 `did-fail-load`，`errorCode` 是 `-1002`。
+
+### 要先查一下再决定放不放行
+
+放不放行在监听器**返回的那一刻**就定了，不能 `await` 之后再调 `preventDefault()`。需要异步判断时，先拦住，查完再自己加载。
+
+```js
+contents.addEventListener('will-navigate', async (e) => {
+  e.preventDefault();                       // 先拦住。这一句要在第一个 await 之前
+  const allowed = await isAllowed(e.url);   // isAllowed 是你自己的函数
+  if (allowed) contents.loadURL(e.url);
+});
+```
+
+**效果**
+
+- 网页先留在原地。`isAllowed` 兑现 `true` 之后才开始跳转。
+- `loadURL` 发起的加载不派发 `will-navigate`，所以不会再进这个监听器。
+
 ### 先加载，要用的时候再显示
 
 `WebView` 不加进界面也能加载。提前建好几张，要显示哪张就把哪张加进界面。
@@ -306,6 +367,28 @@ NSLayoutConstraint.activateConstraints([
 | 加回界面 | `visibilityState` 变回 `'visible'`，派发 `visibilitychange` |
 | App 退到后台、回到前台 | `visibilityState` 变成 `'hidden'`、变回 `'visible'`（未在模拟器验证） |
 
+### `will-navigate` 什么时候派发
+
+只有**网页自己发起的、会换成另一个文档的**跳转才派发。
+
+| 情况 | 派发吗 | `navigationType` |
+| --- | --- | --- |
+| 用户点链接 | 是 | `'linkActivated'` |
+| 网页的脚本改 `location` | 是 | `'other'` |
+| 提交表单 | 是 | `'formSubmitted'` |
+| 网页的脚本调 `location.reload()` | 是 | `'reload'` |
+| 网页的脚本调 `history.back()` / `forward()` | 是 | `'backForward'` |
+| `tel:`、`mailto:`、自定义协议的链接 | 是 | 同上，按它是怎么引起的 |
+| App 调 `loadURL()`、`reload()`、`navigationHistory.goBack()` / `goForward()` | 否 | |
+| 服务器重定向（301、302） | 否。只为重定向之前的那个地址派发一次 | |
+| 只改 `#` 后面的部分 | 否 | |
+| `history.pushState()` | 否 | |
+| `<iframe>` 里的跳转 | 否 | |
+
+拦住之后网页留在原地，不派发任何加载事件。监听器里抛了异常，按没拦算。
+
+用户点一下链接，到跳转真正开始，中间要等监听器执行完。监听器里不要做耗时的事。
+
 ### 存储分区
 
 `partition` 决定网页的 cookie、`localStorage` 和缓存存在哪一份里。写法和 Electron 相同。
@@ -416,11 +499,12 @@ new WebView({ webPreferences: { partition: 'persist:main' } });
 在 `webContents` 上用 `addEventListener` 监听。事件名写错会抛 `TypeError`，报错里列出全部可用的名字：
 
 ```
-addEventListener has no value "did-finsh-load"; expected one of: did-start-loading / did-stop-loading / did-finish-load / did-fail-load / did-navigate / page-title-updated / render-process-gone / destroyed
+addEventListener has no value "did-finsh-load"; expected one of: will-navigate / did-start-loading / did-stop-loading / did-finish-load / did-fail-load / did-navigate / page-title-updated / render-process-gone / destroyed
 ```
 
 | 事件 | 什么时候派发 | 事件对象上的字段 |
 | --- | --- | --- |
+| `will-navigate` | 网页自己要跳到别的地址，还没开始跳。见[什么时候派发](#will-navigate-什么时候派发) | `url`、`isMainFrame`、`navigationType` |
 | `did-start-loading` | 开始加载 | 无 |
 | `did-stop-loading` | 不再加载。成功和失败都会派发 | 无 |
 | `did-navigate` | 网页换成了一个新的文档 | `url`、`httpResponseCode` |
@@ -430,17 +514,31 @@ addEventListener has no value "did-finsh-load"; expected one of: did-start-loadi
 | `render-process-gone` | 网页的进程不在了（崩溃，或者被系统结束） | 无 |
 | `destroyed` | 被 `close()` 销毁 | 无 |
 
+`will-navigate` 是唯一能取消的事件：它的 `cancelable` 是 `true`，调 `preventDefault()` 跳转就不发生。其余事件派发时事情已经发生，`cancelable` 是 `false`，调 `preventDefault()` 没有效果。
+
 字段的含义：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `url` | `string` | 新的地址 |
+| `url` | `string` | `did-navigate`：新的地址。`will-navigate`：要去的地址 |
+| `navigationType` | `string` | 这次跳转是怎么引起的，取值见下 |
 | `httpResponseCode` | `number` | HTTP 状态码。`data:`、`about:` 这类不经过 HTTP 的是 `-1` |
 | `errorCode` | `number` | 系统的错误码。常见的：`-1003` 域名解析不了，`-1009` 没有网络，`-1001` 超时，`-1022` 明文 `http://` 被拦截，`-999` 被取消 |
 | `errorDescription` | `string` | 系统给的说明。语言跟随系统，只适合打日志 |
 | `validatedURL` | `string` | 加载失败的那个地址 |
-| `isMainFrame` | `boolean` | 总是 `true`。网页里 `<iframe>` 的加载失败不会派发这个事件 |
+| `isMainFrame` | `boolean` | 总是 `true`。网页里 `<iframe>` 的跳转和加载失败不会派发这两个事件 |
 | `title` | `string` | 新的标题 |
+
+`navigationType` 的取值：
+
+| 取值 | 含义 |
+| --- | --- |
+| `'linkActivated'` | 点了链接 |
+| `'formSubmitted'` | 提交了表单 |
+| `'backForward'` | 网页的脚本后退或前进 |
+| `'reload'` | 网页的脚本刷新 |
+| `'formResubmitted'` | 重新提交表单，比如后退到一个由表单提交得到的页面（未在模拟器验证） |
+| `'other'` | 其余的。最常见的是脚本改 `location` |
 
 > **注意**：`loadURL` 之后立刻 `stop()`，Promise 以 `AbortError` 拒绝，但**不派发** `did-fail-load`。要知道一次 `loadURL` 的结果，以它的 Promise 为准。
 
@@ -452,6 +550,7 @@ addEventListener has no value "did-finsh-load"; expected one of: did-start-loadi
 | `view.setBounds({ x, y, width, height })` | `web.frame = new CGRect(x, y, width, height)` | 也可以用约束 |
 | `win.contentView.addChildView(view)` | `page.view.addSubview(web)` | |
 | `contents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => …)` | `contents.addEventListener('did-fail-load', (e) => …)` | 数据在 `e` 上，字段名相同 |
+| `contents.on('will-navigate', (details) => details.preventDefault())` | `contents.addEventListener('will-navigate', (e) => e.preventDefault())` | 多一个 `navigationType`；没有 `frame`、`initiator` |
 | `did-navigate` 的 `httpStatusText` | 没有 | 系统不提供 |
 | `render-process-gone` 的 `details.reason` | 没有 | 系统不说原因 |
 | `did-fail-load` 的 `errorCode`（`-105` 等） | `errorCode`（`-1003` 等） | 数不同 |
@@ -472,6 +571,8 @@ addEventListener has no value "did-finsh-load"; expected one of: did-start-loadi
 | `[webView reload]` | `contents.reload()` |
 | `webView.canGoBack` / `canGoForward` | `contents.navigationHistory.canGoBack()` / `canGoForward()` |
 | `[webView goBack]` / `[webView goForward]` | `contents.navigationHistory.goBack()` / `goForward()` |
+| `webView:decidePolicyForNavigationAction:decisionHandler:` | `will-navigate` 事件，`decisionHandler(.cancel)` 对应 `e.preventDefault()` |
+| `navigationAction.navigationType` | 事件的 `navigationType` |
 | `webView:didCommitNavigation:` | `did-navigate` 事件 |
 | `webView:didFinishNavigation:` | `did-finish-load` 事件 |
 | `webView:didFailNavigation:withError:`、`webView:didFailProvisionalNavigation:withError:` | `did-fail-load` 事件 |
@@ -482,7 +583,8 @@ addEventListener has no value "did-finsh-load"; expected one of: did-start-loadi
 
 | 想做的事 | 对应的能力 |
 | --- | --- |
-| 拦住某些跳转，比如只允许自己的域名 | Electron 的 `will-navigate`；`WKNavigationDelegate` 的 `decidePolicyForNavigationAction` |
+| 拦住服务器重定向 | Electron 的 `will-redirect` |
+| 拦住 `<iframe>` 里的跳转 | Electron 的 `will-frame-navigate` |
 | 在网页里执行一段脚本、读网页里的值 | Electron 的 `executeJavaScript`；`evaluateJavaScript:` |
 | 每张网页加载前先注入一段脚本 | Electron 的 `preload`；`WKUserScript` |
 | 网页和 App 互相发消息 | Electron 的 `ipc-message`；`WKScriptMessageHandler` |

@@ -214,7 +214,7 @@ V8 没有「强制严格」的编译选项（`v8::Script::Compile` 编译的是 
 | --- | --- | --- |
 | JS 执行期间 Nacre 自己派发 | 可以 `true` | 同步，派发方立刻拿到返回值，和 Web 一样 |
 | 原生通知派发 | **必须 `false`** | 运行时刻意延后一轮执行，避免在 UIKit 操作中途重入 JS，所以派发方早已返回；这类通知本来也没有可取消的默认行为 |
-| 原生能推迟默认动作的场合 | 可以 `true` | 原生先不做、派发事件、等 JS 回调回主线程再查 `defaultPrevented`。但 UIKit 多数 delegate 是同步返回 BOOL，推不了 |
+| 原生能推迟默认动作的场合 | 可以 `true` | 原生先不做、派发事件、等 JS 回调回主线程再查 `defaultPrevented`。但 UIKit 多数 delegate 是同步返回 BOOL，推不了。**第一处是网页的 `will-navigate`**：系统问放不放行时给的是一个可以晚点再调的回调，见[实现原理](internals/web-view.md#will-navigate第一个能取消的原生事件) |
 
 #### 传播：先只做 target 阶段
 
@@ -648,6 +648,7 @@ Commit message 格式：
 | — | A9-2 图层颜色按所属视图的外观解析 | 六个写入点：边框、阴影、底色、形状图层的填充和描边、渐变的颜色数组 | 已在模拟器验证通过（iOS 27.2）：先加断言跑出 5 条失败（被强制成深色的卡片上写 `label`，读回来是黑色），改完 1436 条通过 |
 | — | 修复：iOS 26 上键盘的内部场景被当成 `sceneconnect` | 只把公开角色的场景交给 JS（接入断开、前后台事件、`application.scenes` 三处） | 已在模拟器验证通过：iOS 26.0 上 1442 条全过（修之前整套验收会跑两遍），iOS 27.2 上 1439 条通过。之后的验收两个系统都跑 |
 | — | A17-1 `WebView`：视图、加载、导航、加载事件 | 形状照 Electron：`WebView`（视图）+ `webContents`（`loadURL` 是 Promise、`navigationHistory`、八个事件）、存储分区 `partition`、`close()` 销毁 | 已在模拟器验证通过：iOS 26.0 上 1529 条全过，iOS 27.2 上 1527 条通过（剩 2 条是原有的图片下载网络问题）。分区隔离和落盘、销毁和回收后进程退出、进程被杀后的事件和恢复，用一次性探针验的。`backgroundThrottling` 做了又拿掉：实测那个系统开关没有效果。真实触摸（滚动、点链接）和真机未验证 |
+| — | A17-2 `will-navigate`：拦住网页自己发起的跳转 | 第一个能取消的原生事件：引擎的派发函数返回「取消了没有」，原生等这个答复再答系统；按实测分清 App 发起的、网页发起的和服务器重定向 | 已在模拟器验证通过：iOS 26.0 上 1578 条全过，iOS 27.2 上 1576 条通过（剩 2 条是原有的图片下载网络问题），旧断言一条没少。点链接、改 `location`、提交表单、`tel:` 和自定义协议、网页自己刷新和后退各派发一次并拦得住；`loadURL`、后退、前进、`reload()`、重定向、改锚点、`<iframe>` 不派发。实测 iOS 26.0 上 `data:` 网页的锚点读出来是 `%23`，单独认了一种形状。验收里的点链接是脚本替用户点的，真实触摸和真机未验证。顺带把外观特征验收里一个写死 500 毫秒的等待改成了等条件 |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |
@@ -798,7 +799,7 @@ bindgen 做完也解决不了同盾（风控）、mtpush（推送）、Sentry �
 | A14 | ~~**`UIPasteboard`**~~ **已做**：字符串的读写、`hasStrings`、`changeCount`、`change` 事件。剩图片、网址、多条内容 | 复制地址、订单号 |
 | A15 | ~~**`crypto.getRandomValues`**~~ **已做**，连同 `randomUUID()`。剩 `crypto.subtle` | 随机源必须来自系统。摘要/签名 JS 算得出来，但 jitless 下慢，该走 CommonCrypto |
 | A16 | ~~**WebSocket**~~ **已做**：比 Web 多两样——可以带首部、有协议级 `ping()` | `fetch` 只有请求-响应，实时行情只能轮询 |
-| A17 | ~~**`WKWebView`**~~ **第 1 步已做**：上层的 `WebView`，形状照 Electron，见[实现原理](internals/web-view.md)。剩拦截导航、执行脚本和消息、cookie 三步 | 协议、KYC、活动页 |
+| A17 | ~~**`WKWebView`**~~ **前两步已做**：上层的 `WebView`，形状照 Electron，能拦住网页自己发起的跳转（`will-navigate`），见[实现原理](internals/web-view.md)。剩执行脚本和消息、cookie 两步 | 协议、KYC、活动页 |
 | A18 | **生物识别**：LocalAuthentication | 系统能力 |
 | A19 | ~~**`performance.now()`**~~ **已做**：`now()` 和 `timeOrigin`，时钟在引擎的 C++ 里 | `Date.now()` 只有毫秒精度 |
 

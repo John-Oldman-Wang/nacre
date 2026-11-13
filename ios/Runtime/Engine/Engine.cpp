@@ -1306,19 +1306,22 @@ void Engine::EmitObjectEventWith(const NativeObjectRef& target,
   impl_->ScheduleRejectionFlush();
 }
 
-void Engine::EmitObjectEventWithJSON(const NativeObjectRef& target,
+bool Engine::EmitObjectEventWithJSON(const NativeObjectRef& target,
                                      const std::string& type,
                                      const std::string& json) {
   v8::Isolate* isolate = impl_->isolate;
   v8::Isolate::Scope isolate_scope(isolate);
   v8::HandleScope handle_scope(isolate);
-  if (impl_->object_event_sink.IsEmpty()) return;
+  if (impl_->object_event_sink.IsEmpty()) return false;
+  // 任何一步出了岔子（包装建不出来、sink 抛了）都按「没取消」算：
+  // 默认动作照常发生，和没人监听时一样
+  bool prevented = false;
 
   v8::Local<v8::Context> ctx = impl_->context.Get(isolate);
   v8::Context::Scope context_scope(ctx);
   const bool rebuilt = !impl_->HasWrapper(target.ptr);
   v8::Local<v8::Object> wrapper = impl_->WrapNative(ctx, target);
-  if (wrapper.IsEmpty()) return;
+  if (wrapper.IsEmpty()) return false;
   {
     v8::TryCatch try_catch(isolate);
     // 解不出来就当没有负载。和 SettleJSON 一个处理：宁可少一个字段，
@@ -1330,13 +1333,18 @@ void Engine::EmitObjectEventWithJSON(const NativeObjectRef& target,
     }
     v8::Local<v8::Value> argv[] = {wrapper, Utf8(isolate, type), extra,
                                    v8::Boolean::New(isolate, rebuilt)};
+    v8::Local<v8::Value> result;
     if (impl_->object_event_sink.Get(isolate)
             ->Call(ctx, ctx->Global(), 4, argv)
-            .IsEmpty()) {
+            .ToLocal(&result)) {
+      // sink 返回 true 表示监听器取消了默认动作
+      prevented = result->IsTrue();
+    } else {
       impl_->ReportException(ctx, try_catch);
     }
   }
   impl_->ScheduleRejectionFlush();
+  return prevented;
 }
 
 void Engine::SettleBool(int call_id, bool value) {
