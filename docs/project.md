@@ -422,12 +422,27 @@ packages/ios/                 → 发布成 @nacre/ios
 
 ### 四步
 
-| | 做什么 | 验收标准 |
-| --- | --- | --- |
-| 1 | 运行时拆成 framework target，目录不动 | 断言一字不差；拿到大小和启动数据 |
-| 2 | 搬目录成第 5 节那棵树 | 纯机械，断言一字不差 |
-| 3 | `packages/ios/` + 简单 CLI；验收和示例的 `ios/` 都改成 CLI 生成 | **两个工程都不用手改一行就能跑** |
-| 4 | `docs/guides/` 入门文档 | 照着做一遍能跑通 |
+| | 做什么 | 验收标准 | |
+| --- | --- | --- | --- |
+| 1 | 运行时拆成 framework target，目录不动 | 断言一字不差；拿到大小和启动数据 | 已做 |
+| 2 | 搬目录成第 5 节那棵树 | 纯机械，断言一字不差 | 已做 |
+| 3 | `packages/ios/` + 简单 CLI；验收和示例的 `ios/` 都改成 CLI 生成 | **两个工程都不用手改一行就能跑** | 已做 |
+| 4 | `docs/guides/` 入门文档 | 照着做一遍能跑通 | 待做 |
+
+### 第 3 步定下来的形状
+
+`@nacre/ios` 里四样东西：`template/`（启动壳和图标）、`nacre-ios.json`（机器可读的清单）、`Nacre.xcframework`（构建产物，不提交）、`bin/nacre-ios.js`（参考实现的 CLI）。
+
+CLI 只有一个命令：`generate <项目目录> [--runtime=framework|source]`。两种运行时都要通，少一条就有问题——
+
+| `--runtime` | 工程引什么 | 谁用 | 为什么要有 |
+| --- | --- | --- | --- |
+| `source` | 运行时的 Xcode 工程当子工程 | 我们 | 改一行 C++ 重新编就生效，不用先打包 |
+| `framework` | 预编译的 `Nacre.xcframework` | 用户 | 用户拿到的就是这个，不验等于没交付 |
+
+**验收 App 的 `ios/` 也由 CLI 生成**，所以模板天天被用一遍，漂了当天就会被一千七百多条断言发现。这是这一步最值钱的地方——Expo 正是在这里吃过亏（模板能换但不推荐，因为生成器对模板文件有「未文档化的假设」）。
+
+清单里 `appSettings` 那三条是**宿主必须照做的**，哪条漏了都会出事：`-Wl,-stack_size,0x800000`（`LC_MAIN` 只有主可执行文件有，framework 带不了）、`ENABLE_DEBUG_DYLIB: NO`（不关上一条就报错）、`TARGETED_DEVICE_FAMILY: 1`。
 
 ## 4. Android 扩展计划（未开始，仅记录方向）
 
@@ -454,10 +469,21 @@ nacre/
 ├─ ios/               iOS 运行时源码（= Nacre.xcframework 的源）
 ├─ packages/          发到 npm 的交付物
 │  ├─ types/          TypeScript 类型定义（@nacre/types）
-│  └─ ios/            @nacre/ios：模板 + 清单 + xcframework（第 3 步做）
-├─ acceptance/        验收套件：JS 源码 + 验收 App 的工程
-├─ examples/          示例 App（第 3 步做）
+│  └─ ios/            @nacre/ios：模板 + 清单 + CLI + xcframework
+├─ acceptance/        验收套件（一个 Nacre 项目）
+├─ examples/hello/    最小示例（一个 Nacre 项目）
 └─ android/           以后再加
+```
+
+`acceptance/` 和 `examples/hello/` 都是**一个 Nacre 项目**，形状一样，它们的 `ios/` 都由 CLI 生成、不进版本库：
+
+```
+<project>/
+├─ package.json
+├─ nacre.config.json      App 的名字和包名
+├─ src/main.js            JS 入口
+├─ assets/                图片等资源
+└─ ios/                   ← 生成的，随时可以删掉重建
 ```
 
 这棵树按**交付不交付**分（2026-11-13 定，理由见 [3.7 交付物](#37-交付物一个给-cli-用的包)）：
@@ -653,7 +679,7 @@ types/
 | `.gitignore` | 平台相关的忽略规则（根目录的 `.gitignore` 里不能出现平台目录名，所以放这里） | 提交 |
 | `Runtime/Nacre.h` | framework 的 umbrella header，**公开面** | 提交 |
 | `Runtime/` | `Nacre` target：`NacreRuntime`（ObjC++ 启动壳与接线）、`Bridge/`（能力暴露，按能力域分文件）、`Engine/`（纯 C++）、`Builtin/nacre.js` | 提交 |
-| `scripts/` | `fetch-v8.sh`、`build-js.sh`、`check-api.sh`、`run-sim.sh` | 提交 |
+| `scripts/` | `fetch-v8.sh`、`build-js.sh`、`build-xcframework.sh`、`check-api.sh`、`run-sim.sh` | 提交 |
 | `Nacre.xcodeproj/` | 由 `project.yml` 生成 | 不提交 |
 | `Vendor/` | 由 `fetch-v8.sh` 下载的 V8 | 不提交 |
 | `build/` | 构建产物 | 不提交 |
@@ -754,6 +780,7 @@ Commit message 格式：
 | — | A17-4 `session`：网页的 cookie 和清数据 | 全局的 `session`（`defaultSession`、`fromPartition`）、`contents.session`、`ses.cookies.get / set / remove`、`changed` 事件、`ses.clearStorageData`；名字照 Electron | 已验证通过：iPhone Air 模拟器（iOS 27.2）上 1749 条通过（剩 2 条是原有的图片下载网络问题），真机（iPhone 14）上 1735 条全过，旧断言一条没少。系统只有「读全部」，筛选在 JS 里做；`changed` 不带是哪一条变了（系统不说）；按站点清是按域名算的，不分协议和端口 |
 | — | 交付第 1 步：运行时拆成 framework target | `ios/project.yml` 拆成 `Nacre`（framework）和 `NacreApp`（验收 App）；umbrella header；系统框架显式声明；内置脚本改从 framework 自己的包读 | 已验证通过：iPhone Air 上 1749 条、真机 1735 条，断言标签和改之前一字不差。真机二进制里 `stacksize 8388608`，栈设置仍然生效。启动没变慢（真机 1.4/3.2 ms，改之前 1.2/2.7；模拟器冷启动 7.9–9.6 / 11.6–19.2 ms，改之前 6.8–9.7 / 10.6–34.5）。framework 14 MB（Debug 未 strip）。**没量到 dyld 加载 framework 的成本**，它发生在第一行日志之前，要另外埋点；static 的对比等真做了 static 才有 |
 | — | 交付第 2 步：按交付不交付搬目录 | `app/` → `acceptance/`，`ios/App/`+`ios/JS/` → `acceptance/ios/`，`types/` → `packages/types/`；工程描述拆成两份（运行时的只剩 framework，验收 App 的引它当子工程） | 已验证通过：iPhone Air 上 1749 条、标签和搬之前一字不差；真机 1735 条（另有一条偶发见下）。`ios/` 现在只有运行时 |
+| — | 交付第 3 步：产物 `@nacre/ios` 和参考 CLI | `template/` + `nacre-ios.json` + `bin/nacre-ios.js` + `build-xcframework.sh`；验收和示例的 `ios/` 都改成 CLI 生成 | 已验证通过：验收工程（引源码）iPhone Air 1749 条、真机 1735 条**全过**，标签和上一步一字不差；`examples/hello/`（引预编译的 xcframework）跑起来了。xcframework 25 MB（Release，两个切片）|
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |

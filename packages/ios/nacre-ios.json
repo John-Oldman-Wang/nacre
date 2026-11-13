@@ -1,0 +1,33 @@
+{
+  "//": "宿主工程必须满足的条件。CLI 读这份清单去配工程——它是数据，不是文档，因为 CLI 不会读散文。每一条为什么是这样，见 docs/project.md。",
+  "runtimeVersion": "0.1.0",
+  "xcframework": "Nacre.xcframework",
+  "moduleName": "Nacre",
+
+  "deploymentTarget": "26.0",
+  "architectures": ["arm64"],
+  "excludedArchitectures": { "iphonesimulator": ["x86_64"] },
+
+  "projectSettings": {
+    "DEAD_CODE_STRIPPING": "YES"
+  },
+
+  "appSettings": {
+    "//": "这三条是宿主必须照做的，framework 替不了。-stack_size 写进 LC_MAIN，而 LC_MAIN 只有主可执行文件有：JS 跑在主线程，真机默认只给 1MB，V8 按约 1MB 算栈上限，没有余量。关不掉 debug dylib 的话链接器直接报错。",
+    "OTHER_LDFLAGS": ["$(inherited)", "-Wl,-stack_size,0x800000"],
+    "ENABLE_DEBUG_DYLIB": "NO",
+    "TARGETED_DEVICE_FAMILY": "1"
+  },
+
+  "js": {
+    "//": "JS 怎么打包、打到哪。format 和 platform 是硬约束：运行时编译的是 classic script，ESM 的 import 直接抛；platform 不能注入 process / Buffer 的 polyfill。",
+    "directory": "JS",
+    "entry": "src/main.js",
+    "outfile": "ios/JS/main.js",
+    "assets": "assets",
+    "format": "iife",
+    "platform": "neutral",
+    "charset": "utf8",
+    "minify": false
+  }
+}

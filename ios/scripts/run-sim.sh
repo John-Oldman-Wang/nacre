@@ -1,12 +1,29 @@
 #!/usr/bin/env bash
-# 一键：下载 V8 → 生成两个工程 → 编译模拟器包 → 安装启动，并在终端显示 console 输出
+# 一键：下载 V8 → 生成 ios/ → 打包 JS → 编译 → 装进模拟器启动，终端显示 console 输出
 #
-# 两个工程：ios/ 是运行时（framework），acceptance/ios/ 是验收 App，后者把
-# 前者当子工程引进去。所以要先生成运行时那个。
+#   bash ios/scripts/run-sim.sh                                     跑验收套件
+#   bash ios/scripts/run-sim.sh examples/hello --runtime=framework  跑示例
+#
+# 项目的 ios/ 由 packages/ios 的 CLI 生成，不在版本库里。两种运行时：
+#   source      引运行时的 Xcode 工程（我们自己开发用，改一行 C++ 就生效）
+#   framework   引预编译的 Nacre.xcframework（用户拿到的就是这个）
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-BUNDLE_ID="com.orbitlabs.nacre.dev"
+PROJECT="${1:-acceptance}"
+RUNTIME="source"
+for arg in "${@:2}"; do
+  case "$arg" in
+    --runtime=*) RUNTIME="${arg#*=}" ;;
+    *) echo "不认识的选项 $arg"; exit 1 ;;
+  esac
+done
+[ -f "$PROJECT/nacre.config.json" ] || { echo "$PROJECT 不是一个 Nacre 项目（没有 nacre.config.json）"; exit 1; }
+
+# 包名和 App 名从项目配置里读，和 CLI 生成工程时用的是同一份
+BUNDLE_ID=$(node -p "require('./$PROJECT/nacre.config.json').bundleId")
+APP_NAME=$(node -p "require('./$PROJECT/nacre.config.json').name")
+
 # 默认使用第一个可用的 iPhone 模拟器；也可以用 NACRE_SIM=<模拟器 UDID> 指定
 DEVICE="${NACRE_SIM:-$(xcrun simctl list devices available | awk '/^-- iOS (2[6-9]|[3-9][0-9])/{f=1;next} /^--/{f=0} f && /iPhone/ {match($0,/\([0-9A-F-]+\)/); print substr($0,RSTART+1,RLENGTH-2); exit}')}"
 [ -n "$DEVICE" ] || { echo "没有找到可用的 iPhone 模拟器，请在 Xcode → Settings → Components 安装 iOS 26 模拟器"; exit 1; }
@@ -14,14 +31,19 @@ DEVICE="${NACRE_SIM:-$(xcrun simctl list devices available | awk '/^-- iOS (2[6-
 command -v xcodegen >/dev/null || { echo "请先安装 XcodeGen：brew install xcodegen"; exit 1; }
 
 bash ios/scripts/fetch-v8.sh
-# acceptance/ 的验收 JS → acceptance/ios/JS/main.js（产物，不提交）
-bash ios/scripts/build-js.sh
-(cd ios && xcodegen generate --quiet)
-(cd acceptance/ios && xcodegen generate --quiet)
+if [ "$RUNTIME" = "source" ]; then
+  (cd ios && xcodegen generate --quiet)
+elif [ ! -d packages/ios/Nacre.xcframework ]; then
+  bash ios/scripts/build-xcframework.sh
+fi
 
-BUILD=acceptance/ios/build
+node packages/ios/bin/nacre-ios.js generate "$PROJECT" --runtime="$RUNTIME"
+bash ios/scripts/build-js.sh "$PROJECT"
+(cd "$PROJECT/ios" && xcodegen generate --quiet)
+
+BUILD="$PROJECT/ios/build"
 mkdir -p "$BUILD"
-xcodebuild -project acceptance/ios/NacreApp.xcodeproj -scheme NacreApp -configuration Debug \
+xcodebuild -project "$PROJECT/ios/$APP_NAME.xcodeproj" -scheme App -configuration Debug \
   -sdk iphonesimulator -destination "platform=iOS Simulator,id=$DEVICE" \
   -derivedDataPath "$BUILD" -quiet build 2>&1 | tee "$BUILD/xcodebuild.log"
 
@@ -30,7 +52,7 @@ xcodebuild -project acceptance/ios/NacreApp.xcodeproj -scheme NacreApp -configur
 # 可空性标注），这几条淹在里面，从来没人看见过。所以单独捞出来放在最后。
 #
 # 增量编译只重编改过的文件，这里只看得到这次重编到的那些。要看全量：
-# rm -rf acceptance/ios/build 之后再跑一次。
+# rm -rf <项目>/ios/build 之后再跑一次。
 AVAILABILITY=$(grep -E '\[-Wunguarded-availability(-new)?\]' "$BUILD/xcodebuild.log" \
                  | sed 's#^.*/ios/##' | sort -u || true)
 if [ -n "$AVAILABILITY" ]; then
@@ -40,7 +62,7 @@ if [ -n "$AVAILABILITY" ]; then
   echo
 fi
 
-APP="$BUILD/Build/Products/Debug-iphonesimulator/Nacre.app"
+APP="$BUILD/Build/Products/Debug-iphonesimulator/$APP_NAME.app"
 xcrun simctl boot "$DEVICE" 2>/dev/null || true
 
 # 打开模拟器窗口。Xcode 26 及以前是 Simulator.app，Xcode 27 起改成 DeviceHub.app

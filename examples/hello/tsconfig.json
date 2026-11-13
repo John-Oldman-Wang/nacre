@@ -1,0 +1,16 @@
+{
+  // 和验收套件同一套设置：类型从 @nacre/types 这个依赖进来，不走相对路径
+  "compilerOptions": {
+    "target": "ESNext",
+    // 不要 DOM：这个运行时没有 window、document、location
+    "lib": ["ESNext"],
+    "module": "Preserve",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "allowJs": true,
+    "checkJs": true,
+    "types": []
+  },
+  "include": ["src/**/*.js"]
+}

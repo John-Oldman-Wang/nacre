@@ -18,7 +18,13 @@
 bash ios/scripts/run-sim.sh
 ```
 
-脚本依次做：下载并校验 V8 → 打包验收 JS → 生成两个 Xcode 工程 → 编译 → 装进模拟器并启动。JS 的 `console` 输出直接显示在终端（Ctrl+C 退出）。
+脚本依次做：下载并校验 V8 → 生成运行时工程 → 用 [`@nacre/ios`](../packages/ios/README.md) 的 CLI 生成验收 App 的 `ios/` → 打包验收 JS → 生成 App 工程 → 编译 → 装进模拟器并启动。JS 的 `console` 输出直接显示在终端（Ctrl+C 退出）。
+
+跑示例（引的是预编译的 `Nacre.xcframework`，用户拿到的就是这个）：
+
+```bash
+bash ios/scripts/run-sim.sh examples/hello --runtime=framework
+```
 
 指定模拟器：
 
@@ -31,8 +37,10 @@ NACRE_SIM=<模拟器 UDID> bash ios/scripts/run-sim.sh
 ```bash
 bash ios/scripts/fetch-v8.sh                 # 下载预编译 V8 到 Vendor/v8（只需一次）
 (cd ios && xcodegen generate)
+node packages/ios/bin/nacre-ios.js generate acceptance --runtime=source
+bash ios/scripts/build-js.sh acceptance
 (cd acceptance/ios && xcodegen generate)
-open acceptance/ios/NacreApp.xcodeproj
+open acceptance/ios/Nacre.xcodeproj
 ```
 
 ## 目录
@@ -48,10 +56,11 @@ ios/
 │  └─ Builtin/nacre.js      内置脚本，打进 framework 自己的包
 ├─ Vendor/v8/               由 fetch-v8.sh 下载，不提交
 └─ scripts/
-   ├─ fetch-v8.sh           下载并校验 V8
-   ├─ build-js.sh           打包 acceptance/ 的验收 JS
-   ├─ check-api.sh          三边符号核对
-   └─ run-sim.sh            一键构建并在模拟器运行
+   ├─ fetch-v8.sh             下载并校验 V8
+   ├─ build-js.sh             打包某个项目的 JS
+   ├─ build-xcframework.sh    构建交付物 Nacre.xcframework
+   ├─ check-api.sh            三边符号核对
+   └─ run-sim.sh              一键构建并在模拟器运行
 ```
 
 公开面只有 `Nacre.h` 和它 `#import` 的那些头。加一个公开接口要改两处：umbrella 里写一行，`project.yml` 里把那个头标成 public。详见[项目说明](../docs/project.md)。

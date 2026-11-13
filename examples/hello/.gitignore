@@ -1,0 +1,3 @@
+node_modules/
+# 整个目录由 nacre-ios 生成，删掉重建就行
+ios/

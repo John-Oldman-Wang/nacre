@@ -1,0 +1,8 @@
+{
+  "name": "@nacre/ios",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Nacre 的 iOS 交付物：运行时的预编译产物、工程模板、配置清单，以及一个参考实现的 CLI",
+  "bin": { "nacre-ios": "./bin/nacre-ios.js" },
+  "license": "MIT"
+}
