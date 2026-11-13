@@ -3939,7 +3939,9 @@
       const expression = asExpression(text);
       return nativeCallAsync(this, 'executeJavaScript',
                              expression === null ? [text, false] : [expression, true])
-        .then((result) => result.value);
+        // 表达式方式带回来的是 JSON 文本（成员顺序保得住），语句方式是
+        // 系统转好的值。两个键都没有就是 undefined
+        .then((result) => (typeof result.json === 'string' ? JSON.parse(result.json) : result.value));
     }
     /**
      * 给网页发一条消息。网页的预加载脚本里 ipcRenderer.on(channel, …) 收。

@@ -574,10 +574,12 @@ NSLayoutConstraint.activateConstraints([
 | 值 | 传过去之后 |
 | --- | --- |
 | 数、字符串、布尔、`null`、数组、普通对象 | 原样 |
+| 对象的成员顺序 | 和网页里一样。例外是 `executeJavaScript` 执行**多条语句**得到的对象：值是对的，顺序不保证 |
 | `undefined` | 单独一个值时还是 `undefined`；在对象里的那个成员没有了；在数组里变成 `null` |
 | 日期 | 字符串，比如 `'1970-01-01T00:00:00.000Z'` |
 | `NaN`、`Infinity` | `null` |
-| 函数 | 消息里带了函数当场抛 `TypeError`；`executeJavaScript` 的结果是函数时被拒绝 |
+| 函数 | 消息里带了函数当场抛 `TypeError`；`executeJavaScript` 的结果是函数时被拒绝；结果是对象、里面有函数成员时，那个成员没有了 |
+| `Map` | 空对象 `{}` |
 | DOM 节点 | `executeJavaScript` 的结果是 DOM 节点时被拒绝 |
 
 ### 本地网页的限制
@@ -726,7 +728,7 @@ new WebView({ webPreferences: { partition: 'persist:main' } });
 | 情况 | 结果 |
 | --- | --- |
 | 代码是一个表达式 | 兑现它的值。值是 Promise 时等它；它被拒绝，这边也被拒绝 |
-| 代码是多条语句 | 兑现最后一个表达式的值，不等 Promise |
+| 代码是多条语句 | 兑现最后一个表达式的值，不等 Promise。值是对象时成员顺序不保证 |
 | 网页里抛了异常，或者代码有语法错 | 以 `Error` 拒绝，`message` 是网页那边的原文，比如 `Error: boom`、`SyntaxError: …` |
 | 结果传不回来（函数、DOM 节点、多条语句得到的 Promise） | 以 `TypeError` 拒绝：`executeJavaScript: the result cannot be passed back; it is a function, a DOM node, or a Promise produced by multi-statement code` |
 
@@ -826,7 +828,7 @@ addEventListener has no value "did-finsh-load"; expected one of: will-navigate /
 | `did-navigate` 的 `httpStatusText` | 没有 | 系统不提供 |
 | `render-process-gone` 的 `details.reason` | 没有 | 系统不说原因 |
 | `did-fail-load` 的 `errorCode`（`-105` 等） | `errorCode`（`-1003` 等） | 数不同 |
-| `contents.executeJavaScript(code)` | 相同 | 多条语句的代码不等 Promise；结果按 JSON 传 |
+| `contents.executeJavaScript(code)` | 相同 | 多条语句的代码不等 Promise、带回的对象不保证成员顺序；结果按 JSON 传（日期是字符串，`Map` 是 `{}`） |
 | `webPreferences.preload` | 相同 | 相对路径的起点是 App 包。不隔离，相当于 `contextIsolation: false` |
 | `ipcRenderer.send` / `invoke` / `on`、`contextBridge.exposeInMainWorld` | 相同 | 是预加载脚本里直接能用的名字，不用 `require('electron')` |
 | `contents.on('ipc-message', (event, channel, ...args) => …)` | `contents.addEventListener('ipc-message', (e) => …)` | `e.channel`、`e.args` |

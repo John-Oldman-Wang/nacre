@@ -667,6 +667,13 @@ export function stepWebView(ctx) {
     assert('executeJavaScript：数组', JSON.stringify(await run1('[1, "a", null]')), '[1,"a",null]');
     assert('executeJavaScript：对象（undefined 的成员没有了）',
            JSON.stringify(await run1('({ a: 1, b: [2], u: undefined })')), '{"a":1,"b":[2]}');
+    // 成员顺序。表达式方式保得住；特意不按字母序排，免得「碰巧一样」
+    assert('executeJavaScript：对象的成员顺序和网页里一样（表达式）',
+           JSON.stringify(await run1('({ z: 1, a: 2, m: { y: 1, b: 2, x: 3 }, k: [{ q: 1, c: 2 }], e: 5 })')),
+           '{"z":1,"a":2,"m":{"y":1,"b":2,"x":3},"k":[{"q":1,"c":2}],"e":5}');
+    assert('executeJavaScript：对象里的函数成员没有了',
+           JSON.stringify(await run1('({ a: 1, f: () => 1 })')), '{"a":1}');
+    assert('executeJavaScript：Map 带回来是空对象', JSON.stringify(await run1('new Map([[1, 2]])')), '{}');
     assert('executeJavaScript：日期变成字符串', await run1('new Date(0)'), '1970-01-01T00:00:00.000Z');
     assert('executeJavaScript：NaN 变成 null', await run1('NaN'), null);
     assert('executeJavaScript：无穷大也变成 null', await run1('1 / 0'), null);
@@ -682,6 +689,13 @@ export function stepWebView(ctx) {
            await run1('Promise.reject(new Error("no"))'), 'REJECTED Error: Error: no');
     // 多条语句：取最后那个值
     assert('executeJavaScript：多条语句取最后的值', await run1('var a = 1; a + 1'), 2);
+    // 多条语句带回来的对象：值对，**成员顺序不保证**（真机上实测到变了），
+    // 所以排过序再比
+    const viaStatements = await run1('var o = { z: 1, a: 2, m: 3 }; o');
+    assert('executeJavaScript：多条语句带回的对象，值是对的',
+           JSON.stringify(Object.keys(viaStatements).sort().map((k) => [k, viaStatements[k]])),
+           '[["a",2],["m",3],["z",1]]');
+    console.log('  实测：多条语句带回的对象，成员顺序是 ' + Object.keys(viaStatements).join(','));
     assert('executeJavaScript：改了网页再返回值', await run1('document.title = "改过"; 5'), 5);
     assert('executeJavaScript：网页确实被改了', await titled('改过', bridged), '改过');
     assert('executeJavaScript：函数声明进了网页的全局',

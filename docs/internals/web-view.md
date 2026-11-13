@@ -279,21 +279,46 @@ V8 和 WebKit 的引擎对「合不合语法」的判断理论上可能有出入
 
 ### 结果怎么带回来
 
-系统交回来的是 ObjC 对象，过桥之前要变成 JSON 装得下的东西（`JSONSafeResult`）：
+两种执行方式带回结果的路不一样。
+
+**表达式方式：网页那边先转成 JSON 文本。** 包出来的函数体是：
+
+```js
+const __nacreResult = await (代码
+);
+if (__nacreResult === undefined) return undefined;
+if (/* 是函数、Symbol 或 DOM 节点 */) throw new Error('带不回来的记号');
+return JSON.stringify(__nacreResult);
+```
+
+原生把这段文本原样交给 JS，JS 自己 `JSON.parse`。文本在原生这一段**不解析**——一解析就成了 `NSDictionary`，顺序又丢了。函数和 DOM 节点要自己查：`JSON.stringify` 遇到函数是悄悄给 `undefined`，遇到 DOM 节点是给 `"{}"`，都是看着正常的错值。
+
+**语句方式：只能由系统把值转成 ObjC 对象。** 过桥之前再变成 JSON 装得下的东西（`JSONSafeResult`）：
 
 | 网页里的值 | 系统给的 | 过桥之后 |
 | --- | --- | --- |
-| 数、字符串、布尔、数组、普通对象 | `NSNumber` / `NSString` / `NSArray` / `NSDictionary` | 原样 |
+| 数、字符串、布尔、数组 | `NSNumber` / `NSString` / `NSArray` | 原样 |
+| 普通对象 | `NSDictionary` | 值对，**成员顺序不保证** |
 | `null` | `NSNull` | `null` |
-| `undefined` | `nil` | `undefined`。靠包一层 `{ value }`：没有值时不带这个键 |
+| `undefined` | `nil` | `undefined` |
 | `new Date(0)` | `NSDate` | ISO 8601 字符串，和 `JSON.stringify` 给的一样 |
 | `NaN`、无穷 | `NSNumber` | `null`。**不处理的话 `NSJSONSerialization` 直接抛异常** |
 | `new Map()` | 空的 `NSDictionary` | `{}` |
-| 函数、DOM 节点、Promise（语句方式下） | 报错，`WKErrorDomain` 的 5 | 以 `TypeError` 拒绝 |
+| 函数、DOM 节点、Promise | 报错，`WKErrorDomain` 的 5 | 以 `TypeError` 拒绝 |
+
+两种方式在日期、`NaN`、`Map`、`undefined` 上的结果是一样的，差别只有成员顺序。
+
+**成员顺序这件事是真机上查出来的。** 最初两种方式都走系统的转换。验收里有一条比的是 `JSON.stringify` 的结果，两个模拟器上都过，真机（iPhone 14，iOS 27.0.1）上得到的是 `{"b":[2],"a":1}`：值对，顺序反了。`NSDictionary` 不保证顺序，模拟器上碰巧和原来一样。
+
+Electron 是保序的：网页进程用 `v8::ValueSerializer` 把结果序列化，主进程再用 V8 反序列化，两头都是 V8，中间不经过别的语言的容器（查的是它主分支的源码，`electron_api_service_impl.cc` 的 `ReplyWithScriptResult`）。它还保住了类型——日期还是 `Date`、`Map` 还是 `Map`——那一点我们对不上，公开接口下出网页的只能是文本或者系统转好的对象。
+
+语句方式救不了：那种方式下「最后一个表达式的值」只有系统拿得到，没有机会在网页里先转成文本。文档里写明了。
+
+「没有值」靠包一层分辨：原生给 JS 的是一个小对象，表达式方式带 `json` 键，语句方式带 `value` 键，两个都没有就是 `undefined`。
 
 网页里抛的异常：错误的 `userInfo` 里有 `WKJavaScriptExceptionMessage`，是 `"Error: boom"` 这种带类名的原文，直接当 `message`。
 
-50 次执行往返：iOS 27.2 上 6.3 毫秒，iOS 26.0 上 13.3 毫秒。
+50 次执行往返：iOS 27.2 上 6.3 毫秒，iOS 26.0 上 13.3 毫秒（这是改成 JSON 文本之前量的）。
 
 ### 预加载脚本：注入的是什么
 
