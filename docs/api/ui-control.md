@@ -6,24 +6,45 @@ status: partial
 
 # `UIControl`
 
-`UIControl` 是控件：能接收触摸、并把触摸过程转换成一组「控件事件」的视图。它是所有可交互控件的共同父类，[`UIButton`](ui-button.md)（按钮）和 [`UITextField`](ui-text-field.md)（输入框）都继承它。
+**`UIControl`** 表示一个控件：一种能接收触摸的视图，它把一次触摸的过程转换成一组「控件事件」派发出来。它是所有可交互控件的共同父类，[`UIButton`](ui-button.md)（按钮）和 [`UITextField`](ui-text-field.md)（输入框）都继承它。
 
-它提供两样东西：
+控件提供两样东西：
 
-- **状态**：平常、手指按住、禁用、选中。
+- **状态**：平常、手指按住、禁用、选中。子类按状态显示不同的外观。
 - **控件事件**：手指按下、移出、松开等 16 个事件，用 `addEventListener()` 监听。
 
-它相当于 HTML 表单控件共有的那部分，也就是 `disabled` 属性和 `click`、`input` 这类事件。有五点不同：
+`UIControl` 也可以直接创建。直接创建的控件不显示任何内容，用来做自定义的可点击区域：给它底色，往里面加文字和图标，再监听它的事件。普通的 [`UIView`](ui-view.md) 不派发控件事件，要让普通视图响应点击，用[手势识别器](ui-gesture-recognizer.md)。
 
-- **没有 `click` 事件。** 按钮的点击对应 `primaryActionTriggered`。直接创建的 `UIControl` 的点击对应 `touchUpInside`。两者的区别见[点击用哪个事件](#点击用哪个事件)。
-- **事件不冒泡。** 事件只派发到注册监听的那个控件上，父视图收不到。
-- **事件对象只有 `type` 和 `target`。** 没有触点坐标。
-- **事件不能取消。** `preventDefault()` 不起作用。
-- **回调不是同步执行的。** 触摸发生后，回调稍后才执行，见[回调的执行时机](#回调的执行时机)。
+## 平时用哪个事件
 
-`UIControl` 也可以直接创建。它本身不显示任何内容，可以用来做一块自定义的可点击区域。
+16 个事件里，日常用到的只有下面几个。其余的描述手指拖动的细节，用于自己实现「按住并拖动」这类交互。
 
-这一页分三部分：先给一个[能直接运行的完整例子](#完整例子)，再按[你想做的事](#常见用法)给出写法和效果，最后是[每个成员的说明](#成员说明)。
+| 想做的事 | 监听的事件 |
+| --- | --- |
+| 按钮被点击后执行代码 | `primaryActionTriggered` |
+| 直接创建的 `UIControl` 被点击后执行代码 | `touchUpInside`。它不派发 `primaryActionTriggered`（实测） |
+| 手指按下时立刻改变外观 | `touchDown`，并在 `touchUpInside`、`touchUpOutside`、`touchCancel` 里恢复 |
+| 输入框的文字变了 | `editingChanged` |
+| 输入框开始输入、结束输入、用户按了回车 | `editingDidBegin`、`editingDidEnd`、`editingDidEndOnExit` |
+
+全部事件见[控件事件](#控件事件)。
+
+## 事件怎么派发
+
+- **事件只派发给注册监听的那个控件。** 父视图收不到子控件的事件。`stopPropagation()` 可以调用，没有效果。
+- **事件不能取消。** 事件对象的 `cancelable` 是 `false`，`preventDefault()` 可以调用，没有效果。
+- **回调不是在触摸发生的那一刻执行的。** 回调排在当前这一轮代码之后执行，回调里读到的控件状态是执行时的状态，见[回调的执行时机](#回调的执行时机)。
+- **`touch` 开头的九个事件带触点位置，其余事件不带。** 见[触点位置](#触点位置)。
+- **回调里抛出异常不影响控件。** 运行时把异常输出到控制台，以 `Event listener threw:` 开头。同一个事件的其他回调照常执行，控件之后照常派发事件。
+- **禁用的控件不接收触摸，不派发控件事件。** **未在模拟器验证。**
+
+## 事件名的限制
+
+目前在控件上只能监听这 16 个控件事件，以及所有视图都有的 [`traitchange`](ui-trait-collection.md)。监听其他名字会抛 `TypeError`，所以还不能在控件上监听自定义名字的事件。这是已知的限制。
+
+`dispatchEvent()` 可以派发任意名字的事件，不会报错。但对应名字的监听器注册不上，所以没有回调执行。
+
+报错的原文见 [`addEventListener()`](#addeventlistener)。
 
 ## 完整例子
 
@@ -364,7 +385,7 @@ NSLayoutConstraint.activateConstraints([
 
 ## 控件事件
 
-控件事件是 `UIControl` 把一次触摸的过程拆开后派发的事件。Web 里的 `pointermove` 不区分手指在不在元素内，控件事件把「在内部」「在外部」「越过边界」分成了不同的事件。
+控件事件是 `UIControl` 把一次触摸的过程拆开后派发的事件。手指移动时，「在控件内部移动」「在控件外部移动」「越过控件边界」各是不同的事件。
 
 事件一共 16 个，名字区分大小写。
 
@@ -426,6 +447,8 @@ touchDown
 
 在任何控件上监听这 16 个事件都不会报错。控件不派发的事件，回调不会执行。
 
+对按钮调用 `sendActionsForControlEvents(['touchUpInside'])` 时，按钮的 `primaryActionTriggered` 也会派发（实测）。
+
 用户点输入框时，`editingDidBegin` 在手指按下时派发，不等松手（实测）。
 
 ### 点击用哪个事件
@@ -435,68 +458,70 @@ touchDown
 | [`UIButton`](ui-button.md) | `primaryActionTriggered` | 它表示「用户触发了这个按钮」，不限定触发方式 |
 | 直接创建的 `UIControl` | `touchUpInside` | 它不派发 `primaryActionTriggered` |
 
-`touchUpInside` 描述的是触摸过程：手指在控件内松开。`primaryActionTriggered` 描述的是结果：控件的主要操作被触发了。Web 的 `click` 也是描述结果的事件，键盘和辅助功能都能触发它，所以它对应 `primaryActionTriggered`。
+`touchUpInside` 描述的是触摸过程：手指在控件内松开。`primaryActionTriggered` 描述的是结果：控件的主要操作被触发了。
 
-按钮被点击时两个事件都派发。**两者的先后未在模拟器验证。**
+按钮被点击时两个事件都派发。**两者的先后未在模拟器验证。** 在按钮上两个事件选一个监听，同时监听会让一次点击执行两遍代码。
 
-没有 `'click'` 这个事件名。监听它会抛 `TypeError`，见 [`addEventListener()`](#addeventlistener)。
+手指按下后滑到控件外面再松开，派发的是 `touchUpOutside`，不派发 `touchUpInside`。**未在模拟器验证。**
 
-## 和 Web 事件的差别
+用户连点两下是两次触摸，每次各派发一遍事件（实测连点两次收到两次 `touchDown`）。
 
-| Web | 控件事件 |
-| --- | --- |
-| `pointerdown` | `touchDown` |
-| `pointermove` | `touchDragInside`、`touchDragOutside`、`touchDragEnter`、`touchDragExit` |
-| `pointerup` | `touchUpInside`、`touchUpOutside` |
-| `pointercancel` | `touchCancel` |
-| `click` | `primaryActionTriggered`（按钮）、`touchUpInside`（直接创建的 `UIControl`） |
-| `input` | `editingChanged` |
-| `focus`、`blur` | `editingDidBegin`、`editingDidEnd` |
-
-除了名字，还有这些差别：
-
-- **不冒泡，也没有捕获阶段。** 事件只派发到调用 `addEventListener()` 的那个控件上。在父视图上监听收不到子控件的事件。`stopPropagation()` 可以调用，没有任何效果。
-- **只有 `touch*` 那九个带触点坐标**，见下面一节。其余事件的对象只有 `type` 和 `target`。
-- **不能取消。** 事件对象的 `cancelable` 是 `false`。`preventDefault()` 可以调用，没有任何效果。
-- **回调延后执行。** 见下一节。
-- **事件名是固定的 16 个。** 在控件上监听其他名字会抛 `TypeError`。Web 里可以在任何元素上监听自定义事件名，控件上不行。
+没有名为 `'click'` 的事件，见[事件名的限制](#事件名的限制)。
 
 ## 触点位置
 
-九个 `touch*` 事件的对象上有两个额外字段：
+`touch` 开头的九个事件，事件对象上多两个只读字段：
+
+| 字段 | 类型 | 含义 |
+| --- | --- | --- |
+| `location` | [`CGPoint`](structs.md) 或 `null` | 手指的位置，在**这个控件自己的坐标系**里，单位 [pt](units.md)。没有真实触摸时是 `null` |
+| `tapCount` | 数 | 连击次数，单位是次。没有真实触摸时是 0 |
 
 ```js
-button.addEventListener('touchUpInside', (e) => {
-  e.location;    // CGPoint，**这个控件自己的坐标系**
-  e.tapCount;    // 连击次数
+card.addEventListener('touchUpInside', (e) => {
+  const { location, tapCount } = /** @type {UIControlTouchEvent} */ (e);
+  if (location !== null) {
+    console.log(location.x, location.y, tapCount);
+  }
 });
 ```
 
-**只有这九个有**：`touchDown` / `touchDownRepeat` / `touchDragInside` / `touchDragOutside` / `touchDragEnter` / `touchDragExit` / `touchUpInside` / `touchUpOutside` / `touchCancel`。
+**效果**：手指在 `card` 上松开时，控制台输出手指在 `card` 里的横坐标、纵坐标和连击次数。
 
-其余事件**根本没有这两个字段**，不是「有但为 null」：
+回调参数的类型是 `Event`。要读这两个字段，像上面这样转成 `UIControlTouchEvent`。
+
+这两个值只能从事件对象上读。回调执行时触摸可能已经结束，控件上没有保存触摸的位置。要把位置换算到别的视图的坐标系，用 [`UIView`](ui-view.md) 的 `convertPoint()`。
+
+九个事件是：`touchDown`、`touchDownRepeat`、`touchDragInside`、`touchDragOutside`、`touchDragEnter`、`touchDragExit`、`touchUpInside`、`touchUpOutside`、`touchCancel`。
+
+其余七个事件的对象上没有这两个字段。读它们得到 `undefined`，`'location' in e` 是 `false`。
 
 | 事件 | 为什么没有 |
 | --- | --- |
-| `editingDidBegin` / `editingChanged` / `editingDidEnd` / `editingDidEndOnExit` | 文本编辑，和触点无关 |
-| `valueChanged` / `primaryActionTriggered` / `menuActionTriggered` | **和触点没有固定关系**——多数来自一次点击或拖动，但程序改 `slider.value`、或者 `sendActionsForControlEvents()` 也会发。不确定就不承诺 |
+| `editingDidBegin`、`editingChanged`、`editingDidEnd`、`editingDidEndOnExit` | 这些是文字输入的事件，和触点无关 |
+| `valueChanged`、`primaryActionTriggered`、`menuActionTriggered` | 这些事件不一定来自触摸。代码调用 `sendActionsForControlEvents()` 也会派发它们 |
 
-这是 Web 的做法：`clientX` 在 `MouseEvent` 上，`KeyboardEvent` 这个接口上根本没有它。
+所以按钮上需要触点位置时，监听 `touchUpInside`，不监听 `primaryActionTriggered`。
 
-### 没有真实触点时 `location` 是 `null`
+### 没有真实触摸时 `location` 是 `null`
+
+`sendActionsForControlEvents()` 派发的事件没有对应的触摸。
 
 ```js
-button.sendActionsForControlEvents(['touchUpInside']);
-// 收到的事件：location === null，tapCount === 0
+card.addEventListener('touchDown', (e) => {
+  const { location, tapCount } = /** @type {UIControlTouchEvent} */ (e);
+  console.log(location, tapCount);
+});
+card.sendActionsForControlEvents(['touchDown']);
 ```
 
-这条路上压根没有触摸，所以给 `null` 而**不是 `(0, 0)`**——后者是个合法坐标，和「没有触点」分不开。
+**效果**：控制台输出 `null 0`。
 
-> 类型上这两个字段在 `UIControlTouchEvent` 接口里。回调参数的类型没有窄化（`EventTarget` 的基类签名不允许），要拿就转一下型，和导航的 `willshow` 一样。
+`location` 是 `null` 而不是 `(0, 0)`。`(0, 0)` 是控件左上角，是一个真实存在的位置。读 `location` 之前先判断是不是 `null`。
 
 ## 回调的执行时机
 
-触摸发生时回调不会立刻执行。它会稍后执行，背景见[运行时怎么工作](how-it-works.md#事件)。
+触摸发生时回调不会立刻执行。回调排在当前这一轮代码之后执行，背景见[运行时怎么工作](how-it-works.md)。
 
 这带来两个后果。
 
@@ -510,7 +535,9 @@ card.addEventListener('touchDown', () => {
 
 **效果**：手指按住不放时输出 `true`。手指按下后很快松开时可能输出 `false`，因为回调执行时系统已经把 `isHighlighted` 改回去了（实测）。
 
-事件对象上没有事件发生那一刻的状态。
+事件对象不带事件发生那一刻的控件状态。事件发生那一刻的触点位置在事件对象上，见[触点位置](#触点位置)。
+
+所以按下时改变外观的代码不要依赖 `isHighlighted`。在 `touchDown` 的回调里直接改外观，在三个结束事件的回调里恢复，写法见[完整例子](#完整例子)。
 
 **控件事件和定时器回调的先后没有保证。**
 
@@ -558,8 +585,9 @@ console.log(card.state);   // 包含 'selected' 和 'disabled'
 
 | | `sendActionsForControlEvents()` | `dispatchEvent()` |
 | --- | --- | --- |
-| 途径 | 交给原生控件，由原生控件派发 | 只在 JS 侧派发 |
-| 谁会收到 | 这个控件上该事件的所有接收方，包括 JS 监听器和系统自己的处理 | 只有 JS 监听器 |
+| 途径 | 让控件自己派发，和真实触摸相同 | 直接调用注册的回调 |
+| 谁会收到 | 这个控件上该事件的所有接收方，包括注册的回调和系统自己的处理。例如对按钮发 `touchUpInside`，按钮还会派发 `primaryActionTriggered`（实测） | 只有 `addEventListener()` 注册的回调 |
+| 事件名 | 只能是 16 个控件事件 | 任意名字 |
 | 回调什么时候执行 | 下一轮任务。方法返回时回调还没执行（实测） | 立刻。方法返回时回调已经执行完 |
 | 参数 | 事件名的数组 | 一个 `Event` 对象 |
 | 返回值 | 无 | 布尔值 |
@@ -694,7 +722,8 @@ card.addEventListener('touchUpInside', (e) => {
 - 同一个事件名和同一个函数重复注册，只算一次。
 - 回调里抛出的异常不影响同一事件的其他回调。运行时把异常输出到控制台，以 `Event listener threw:` 开头。
 - **出错**：
-  - 事件名不在 16 个之内：`TypeError: addEventListener has no value "click"; expected one of: touchDown / touchDownRepeat / touchDragInside / touchDragOutside / touchDragEnter / touchDragExit / touchUpInside / touchUpOutside / touchCancel / valueChanged / primaryActionTriggered / menuActionTriggered / editingDidBegin / editingChanged / editingDidEnd / editingDidEndOnExit / traitchange`。名单最后的 `traitchange` 不是控件事件，是所有视图都有的[外观特征变化通知](ui-trait-collection.md#traitchange-事件)
+  - 事件名不在可以监听的名字之内：`TypeError: addEventListener has no value "click"; expected one of: touchDown / touchDownRepeat / touchDragInside / touchDragOutside / touchDragEnter / touchDragExit / touchUpInside / touchUpOutside / touchCancel / valueChanged / primaryActionTriggered / menuActionTriggered / editingDidBegin / editingChanged / editingDidEnd / editingDidEndOnExit / traitchange`。名单最后的 `traitchange` 不是控件事件，是所有视图都有的[外观特征变化通知](ui-trait-collection.md)。抛错之后这个监听器没有注册上，控件原有的监听器不受影响。这是已知的限制，见[事件名的限制](#事件名的限制)
+  - 事件名以 `@` 开头：`TypeError: addEventListener has no value "@x"; names starting with @ are reserved for the runtime`
   - `callback` 不是函数也不是 `null`：`TypeError: Failed to execute 'addEventListener': parameter 2 is not of type 'Function'.`
 
 事件对象的成员：
@@ -703,6 +732,8 @@ card.addEventListener('touchUpInside', (e) => {
 | --- | --- | --- |
 | `type` | 字符串 | 事件名 |
 | `target` | 控件 | 派发事件的控件。`currentTarget` 和它相同 |
+| `location` | `CGPoint` 或 `null` | 只有 `touch` 开头的九个事件有。见[触点位置](#触点位置) |
+| `tapCount` | 数 | 只有 `touch` 开头的九个事件有。见[触点位置](#触点位置) |
 | `cancelable` | 布尔 | 固定是 `false` |
 | `defaultPrevented` | 布尔 | 固定是 `false` |
 | `preventDefault()` | 方法 | 可以调用，没有效果 |
@@ -728,7 +759,7 @@ card.removeEventListener('touchUpInside', onTap);
 
 #### `dispatchEvent()`
 
-只在 JS 侧派发一个事件。原生控件不参与。
+把一个事件直接派发给这个控件上用 `addEventListener()` 注册的回调。系统不知道这次派发，不会当作用户操作了控件。
 
 ```js
 const notPrevented = card.dispatchEvent(new Event('touchUpInside'));
@@ -746,7 +777,7 @@ console.log(notPrevented);   // true
 
 16 个控件事件的名字、派发时机、派发的控件见[控件事件](#控件事件)。
 
-- 事件对象只有 `type` 和 `target` 有用，见 [`addEventListener()`](#addeventlistener)。
+- 事件对象的成员见 [`addEventListener()`](#addeventlistener)。`touch` 开头的九个事件带触点位置，见[触点位置](#触点位置)。
 - 事件不能取消。
 - 事件不冒泡。
 - 回调在下一轮任务里执行，见[回调的执行时机](#回调的执行时机)。
@@ -778,16 +809,32 @@ console.log(notPrevented);   // true
 - 原生的位掩码（多个值用 `|` 组合）在 JS 里是字符串数组。
 - 原生的 `addTarget:action:forControlEvents:` 叫 target-action：给控件登记一个对象和它的一个方法，事件发生时控件调用这个方法。JS 里用 `addEventListener()` 代替。
 
+## 与浏览器事件的对照
+
+这张表只用来查对应关系，给熟悉浏览器事件的人用。
+
+| 浏览器 | 控件事件 |
+| --- | --- |
+| `pointerdown` | `touchDown` |
+| `pointermove` | `touchDragInside`、`touchDragOutside`、`touchDragEnter`、`touchDragExit` |
+| `pointerup` | `touchUpInside`、`touchUpOutside` |
+| `pointercancel` | `touchCancel` |
+| `click` | `primaryActionTriggered`（按钮）、`touchUpInside`（直接创建的 `UIControl`） |
+| `input` | `editingChanged` |
+| `focus`、`blur` | `editingDidBegin`、`editingDidEnd` |
+| `clientX`、`clientY` | `touch` 开头的事件的 `location`，坐标系是控件自己的 |
+| `element.disabled = true` | `control.isEnabled = false` |
+
 ## 还不能做的
 
 | 想做的事 | 对应的原生能力 | 状态 |
 | --- | --- | --- |
-| 在回调里得到事件发生那一刻的状态 | 事件对象带状态 | 未实现 |
+| 在回调里得到事件发生那一刻的控件状态 | 事件对象带状态 | 未实现。触点位置已经在事件对象上 |
 | 响应拖动、捏合、轻扫 | `UIPanGestureRecognizer` 等 | 未实现。点按和长按见[手势识别器](ui-gesture-recognizer.md) |
 | 自己处理原始触摸，决定控件怎么跟踪手指 | 覆写 `touchesBegan:withEvent:`、`beginTrackingWithTouch:withEvent:` 等方法 | 未实现 |
 | 用开关、滑块、分段选择、步进器、日期选择 | `UISwitch`、`UISlider`、`UISegmentedControl`、`UIStepper`、`UIDatePicker` | 未实现 |
 | 一次监听所有触摸事件 | `UIControlEventAllTouchEvents` 等聚合掩码 | 未实现。逐个事件名调用 `addEventListener()` |
-| 在控件上监听自定义名字的事件 | 无。Web 的 `EventTarget` 允许 | 未实现 |
+| 在控件上监听自定义名字的事件 | 无 | 未实现。这是已知的限制，见[事件名的限制](#事件名的限制) |
 | 点控件弹出菜单 | `contextMenuInteraction`、`showsMenuAsPrimaryAction` | 未实现 |
 | 让父视图收到子控件的事件 | 无。原生的控件事件也不冒泡 | 未实现 |
 
@@ -802,4 +849,6 @@ console.log(notPrevented);   // true
 - [颜色](ui-color.md)：`'systemGreen'` 这类颜色字符串的写法
 - [单位](units.md)：pt 和像素的关系
 - [原生类](native-classes.md)：为什么不能继承 `UIControl`
+- [`UITraitCollection`](ui-trait-collection.md)：`traitchange` 事件
+- [结构体](structs.md)：`location` 的类型 `CGPoint`
 - [实现原理：事件](../internals/events.md)：触摸在 iOS 里经过的四套机制和实测的派发顺序

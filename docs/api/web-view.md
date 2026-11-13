@@ -6,20 +6,101 @@ status: partial
 
 # 网页（`WebView`）
 
-`WebView` 是一个显示网页的视图。把它加进界面，让它加载一个地址，网页就显示在它的范围里。
+**`WebView`** 是一个显示网页的视图。把它加进界面，让它加载一个地址，网页就显示在它的范围里，用户可以在里面点链接、填表单。
 
-它分成两个对象：
+一个 `WebView` 由两个对象组成：
 
-- **`WebView`**：视图本身。放在哪、多大、显示还是隐藏，用[视图](ui-view.md)的写法。
-- **`webView.webContents`**：里面那张网页。加载、后退前进、加载事件都在它上面。
+- **`WebView`** 是视图本身。它继承自 [`UIView`](ui-view.md)，放在哪、多大、显示还是隐藏，都用视图的属性和方法。
+- **`webView.webContents`** 表示视图里的那张网页，类型是 `WebContents`。加载地址、后退前进、监听加载过程、在网页里执行脚本、和网页互发消息，都在它上面。它随 `WebView` 一起创建，不能单独创建。
 
-它相当于网页里的 `<iframe>`。接口的形状照 [Electron](https://www.electronjs.org/docs/latest/api/web-contents) 的 `WebContentsView` 和 `webContents`：方法名和事件名和 Electron 相同。和 Electron 有五点不同：
+网页的 cookie、`localStorage` 和缓存存在哪里，由[存储分区](#存储分区)决定；读写 cookie 和清数据用 [`session`](session.md)。
 
-- **事件用 `addEventListener` 监听，数据在事件对象上。** Electron 写 `on('did-fail-load', (event, errorCode) => …)`，这里写 `addEventListener('did-fail-load', (e) => e.errorCode)`。
-- **摆放用视图的写法。** 没有 `setBounds`，用 `frame` 或者[约束](auto-layout.md)。
-- **错误码是 iOS 的那一套数**，不是 Electron 的。
-- **`will-navigate` 多一个 `navigationType` 字段**，说明这次跳转是点链接、提交表单还是脚本引起的。
-- **只有一部分方法和事件。** 没有的列在[还不能做的](#还不能做的)里。
+## 网页和 App 的关系
+
+每张网页在自己独立的进程里运行，和 App 的 JS 不在同一个进程。这决定了下面几件事：
+
+- **两边的变量互相访问不到。** 网页里的 `window`、`document` 在 App 的 JS 里不存在；App 的 JS 里的对象、函数，网页里也没有。两边之间能传递的只有数据，按 JSON 传，见[值怎么传](#值怎么传)。
+- **网页的脚本不占用 App 的时间。** 网页里的脚本执行多久，都不影响 App 的界面响应。
+- **网页崩溃不会让 App 退出。** 网页的进程崩溃或者被系统结束时，网页变成空白，App 照常运行，并在 `webContents` 上收到 `render-process-gone` 事件。恢复的写法见[网页崩溃之后恢复](#网页崩溃之后恢复)。
+
+App 和网页之间有三种传递数据的方式：
+
+| 方式 | 方向 | 用在什么时候 |
+| --- | --- | --- |
+| [`executeJavaScript()`](#读网页里的内容) | App 在网页里执行一段代码，取回结果 | App 主动读网页里的内容，或者改网页 |
+| [预加载脚本和消息](#让网页调用-app-的功能) | 两个方向都可以 | 网页要调用 App 的功能，或者 App 要通知网页 |
+| [`will-navigate` 事件](#只允许网页跳到自己的域名) | 网页要跳转时，App 得到要去的地址，并可以拦住 | 限制网页能去哪里，处理 `tel:`、自定义协议的链接 |
+
+## 网页内容不受信任
+
+网页的内容来自服务器，网页里还可能引入第三方的脚本。App 不能假定网页里执行的代码是自己写的。运行时按这个前提划定了边界：
+
+- **运行时不会把 App 的任何能力自动提供给网页。** 一张没有配预加载脚本的网页，没有任何办法调用 App 的 JS、读 App 的文件或存储。它能做的只有普通网页能做的事。
+- **消息通道是网页进入 App 的唯一入口。** 只有建 `WebView` 时用 `webPreferences.preload` 指定了[预加载脚本](#预加载脚本)，网页里才有消息通道。App 收到消息后做什么，完全由 App 自己的监听器决定。
+- **预加载脚本和网页的脚本不隔离。** 两者在同一个环境里执行。配了预加载脚本之后，网页里的任何脚本，包括第三方脚本，都可以调用预加载脚本提供的对象，可以修改这个对象的成员，也可以不经过预加载脚本直接往消息通道里发消息。所以预加载脚本里写的检查不能当作安全措施，检查必须写在 App 这一侧。
+- **`<iframe>` 里的内容发不了消息。** 预加载脚本只在主文档里执行，`<iframe>` 里发来的消息 App 不接收。
+
+从网页来的数据有三处：消息的频道名和参数、`executeJavaScript()` 的结果、`will-navigate` 事件里的地址。这三处都要当作不可信的输入，用之前检查类型和取值范围。
+
+## 网页里哪些功能和浏览器里不一样
+
+| 网页里的功能 | 在 `WebView` 里 |
+| --- | --- |
+| 点链接、提交表单、脚本跳转 | 正常。App 可以用 `will-navigate` 拦住 |
+| `localStorage`、cookie | 正常，存在[存储分区](#存储分区)里 |
+| 明文的 `http://` 地址 | 被系统拦截，加载失败。`http://localhost` 除外 |
+| 打开新窗口（`window.open`、`target="_blank"` 的链接） | 什么都不发生，网页留在原地。脚本触发的是实测结果；用户真实点击 `target="_blank"` 的链接**未在模拟器验证** |
+| 下载文件（地址指向压缩包这类不能显示的内容） | 不下载。加载失败，派发 `did-fail-load`，`errorCode` 是 `102` |
+| `alert()`、`confirm()`、`prompt()` | 不显示对话框。**未在模拟器验证** |
+| 选择文件（`<input type="file">`）、相机、麦克风、定位 | **未在模拟器验证** |
+| 从屏幕左边缘右滑后退 | 没有。后退用 `navigationHistory.goBack()` |
+
+从本地文件加载的网页另有几条限制，见[本地网页的限制](#本地网页的限制)。
+
+## 用完之后
+
+一张网页占用的内存不小：模拟器上实测一张简单的网页占 60 MB 左右。内存紧张时，系统可以结束网页的进程。
+
+不再使用的网页，调 `webContents.close()` 销毁。销毁之后网页的进程退出，内存释放；`WebView` 还是一个视图，只是里面空了，再把它从界面上拿掉。
+
+不调 `close()` 时：
+
+- 还在界面里的 `WebView` 一直存在，网页一直占着内存。
+- 不在界面里、代码也没有保存引用的 `WebView` 会被回收，网页跟着销毁，进程退出（实测）。回收发生在什么时候不确定，所以不要依赖它来释放内存。
+
+## 推荐的做法
+
+**只给自己控制的网页配预加载脚本。** 加载第三方网站的 `WebView` 不要配，这样那张网页里没有消息通道。同一个 App 里既有自己的网页又有第三方的网页时，建两个 `WebView`。
+
+**在 App 这一侧检查每一条消息。** 网页里的任何脚本都能发消息，参数可以是任何值。
+
+```js
+const web = new WebView({ webPreferences: { preload: 'JS/web/preload.js' } });
+const contents = web.webContents;
+
+contents.addEventListener('ipc-message', (e) => {
+  // 只接受来自自己站点的消息
+  if (!contents.getURL().startsWith('https://my.app/')) return;
+
+  if (e.channel === 'share') {
+    const id = e.args[0];
+    // 参数的类型和范围都要检查
+    if (typeof id !== 'number' || !Number.isInteger(id) || id <= 0) return;
+    console.log('分享', id);
+  }
+});
+```
+
+**效果**
+
+- 网页在 `https://my.app/` 下面，并且发来 `share` 和一个正整数时，控制台输出 `分享` 和这个数。
+- 网页跳到了别的站点，或者参数不是正整数时，这条消息被忽略。
+
+**用 `will-navigate` 限制网页能去的地址。** 配了预加载脚本的 `WebView` 尤其需要：网页一旦跳到别的站点，那个站点的脚本同样拿得到消息通道。写法见[只允许网页跳到自己的域名](#只允许网页跳到自己的域名)。
+
+**预加载脚本提供的方法越少越好，每个方法只做一件事。** 提供 `share(id)` 这样的具体方法，不要提供「执行任意命令」「读任意键」这样的通用方法。
+
+**不用的网页调 `close()`。** 理由见[用完之后](#用完之后)。
 
 ## 完整例子
 
@@ -67,8 +148,8 @@ application.addEventListener('sceneconnect', (e) => {
 
 **效果**
 
-- 屏幕上显示 example.com 的网页。它占满安全区：上边在状态栏下面，下边在底部横条上面。安全区是屏幕上不会被刘海、状态栏和底部横条挡住的那一块，见[安全区](ui-view.md#安全区)。
-- 链接可以点。网页可以滚动（未验证）。
+- 屏幕上显示 example.com 的网页。它占满安全区：上边在状态栏下面，下边在底部横条上面。安全区是屏幕上不会被刘海、状态栏和底部横条挡住的那一块，见[视图](ui-view.md)。
+- 链接可以点。网页内容超出视图时可以滚动（滚动**未在模拟器验证**）。
 - 控制台输出 `到了 https://example.com/ 状态码 200`、`加载完 https://example.com/`、`标题 Example Domain`。后两行谁先谁后不固定。
 
 ## 常见用法
@@ -95,20 +176,21 @@ contents.loadURL('https://example.com/');
 
 ### 处理加载失败
 
-失败有两个地方能知道：`loadURL` 返回的 Promise 被拒绝，同时派发 `did-fail-load` 事件。用哪个都可以。
+加载失败时，`loadURL` 返回的 Promise 被拒绝，同时派发 `did-fail-load` 事件。两处带的信息相同。只关心自己发起的这一次加载时用 Promise；要连同用户点链接引起的加载失败一起处理时，监听事件。
 
 ```js
 try {
   await contents.loadURL('https://no-such-host.invalid/');
 } catch (err) {
-  console.log(err.name, err.code);
+  const failure = /** @type {Error & { code: number }} */ (err);
+  console.log(failure.name, failure.code);
 }
 ```
 
 **效果**
 
 - 控制台输出 `NetworkError -1003`。
-- 网页停在原来那一页，不会变成空白。
+- 网页停在原来那一页，不会变成空白，也不显示错误页。要告诉用户加载失败，得自己显示提示。
 - 同时派发一次 `did-fail-load`，它的 `errorCode` 是 `-1003`，`validatedURL` 是 `https://no-such-host.invalid/`。
 
 只监听事件、不接 Promise 也可以。失败时不会多出一条未处理的拒绝。
@@ -207,9 +289,11 @@ contents.addEventListener('will-navigate', (e) => {
 });
 ```
 
+自定义协议的地址是网页给的，属于不可信的输入：按它做事之前，检查它是不是 App 认识的那几种。
+
 **效果**
 
-- 点 `tel:10086` 的链接：`e.url` 是 `tel:10086`，网页留在原地，不派发 `did-fail-load`。系统弹出拨号确认（未在模拟器验证，模拟器不能拨号）。
+- 点 `tel:10086` 的链接：`e.url` 是 `tel:10086`，网页留在原地，不派发 `did-fail-load`。系统弹出拨号确认（**未在模拟器验证**，模拟器不能拨号）。
 - 点 `myapp://share?id=1` 的链接：控制台输出 `网页让 App 做一件事 myapp://share?id=1`。
 - 不拦 `tel:` 链接时：派发 `did-fail-load`，`errorCode` 是 `-1002`。
 
@@ -220,7 +304,7 @@ contents.addEventListener('will-navigate', (e) => {
 ```js
 contents.addEventListener('will-navigate', async (e) => {
   e.preventDefault();                       // 先拦住。这一句要在第一个 await 之前
-  const allowed = await isAllowed(e.url);   // isAllowed 是你自己的函数
+  const allowed = await isAllowed(e.url);   // isAllowed 是 App 自己的函数，返回 Promise<boolean>
   if (allowed) contents.loadURL(e.url);
 });
 ```
@@ -232,7 +316,7 @@ contents.addEventListener('will-navigate', async (e) => {
 
 ### 加载打进 App 包里的网页
 
-协议、帮助这类不需要联网的页面，可以把网页文件和 App 一起打包，用 `loadFile` 加载。路径从 App 包的根开始写，和 [`UIImage.imageNamed`](ui-image.md) 的写法一样。
+协议、帮助这类不需要联网的页面，可以把网页文件和 App 一起打包，用 `loadFile` 加载。相对路径从 App 包的根目录开始算。App 包是安装到设备上的那个目录，里面是 App 的程序和打包进去的资源文件，只能读不能写。
 
 ```js
 await contents.loadFile('JS/web/help.html');
@@ -283,6 +367,7 @@ console.log(title, count, status);
 - 控制台输出网页的标题、链接的个数和那次请求的状态码。
 - 第三句的结果是 Promise，会等它兑现再带回来。
 - 网页里抛了异常，这边的 Promise 被拒绝：`executeJavaScript('throw new Error("boom")')` 的错误说明是 `Error: boom`。
+- 这段代码不受网页的内容安全策略限制：网页禁止了脚本时照常执行。
 
 代码是**一个表达式**时，结果是 Promise 会等。写成多条语句（`var a = 1; a + 1`）时取最后那个值，但不等 Promise。要在多条语句里用 `await`，包成一个立即执行的异步函数：
 
@@ -303,7 +388,7 @@ const text = await contents.executeJavaScript(`(async () => {
 
 网页要让 App 做事（分享、关闭页面、取登录状态），分两步：用**预加载脚本**在网页里放一个对象，网页调这个对象；对象的方法把消息发给 App。
 
-预加载脚本是一个单独的 JS 文件，和 App 一起打包：
+预加载脚本是一个单独的 JS 文件，和 App 一起打包。它在网页里执行，不在 App 的 JS 里执行，所以不能写进 `main.js`，也用不了 App 这边的任何对象：
 
 ```js
 // JS/web/preload.js
@@ -333,7 +418,7 @@ web.webContents.addEventListener('ipc-message', (e) => {
 - 网页里 `typeof app` 是 `'object'`。网页自己的第一段脚本执行时它就已经在了。
 - `ipcRenderer` 和 `contextBridge` 只有预加载脚本能用，网页里 `typeof ipcRenderer` 是 `'undefined'`。
 
-> **注意**：网页里的任何脚本（包括它引入的第三方脚本）都能调 `app.share`，也能绕过它直接发消息。`ipc-message` 里收到的内容一律当成不可信的输入来检查。不要给不信任的网页配预加载脚本。
+> **注意**：网页里的任何脚本（包括它引入的第三方脚本）都能调 `app.share`，也能绕过它直接发消息。`ipc-message` 里收到的内容一律当成不可信的输入来检查，写法见[推荐的做法](#推荐的做法)。不要给不信任的网页配预加载脚本。
 
 ### 让网页向 App 要一个结果
 
@@ -347,7 +432,9 @@ contextBridge.exposeInMainWorld('app', {
 ```
 
 ```js
-web.webContents.ipc.handle('get-user', async () => {
+web.webContents.ipc.handle('get-user', async (event) => {
+  // 处理函数的返回值会交给网页。只返回这张网页该看到的数据
+  if (!event.sender.getURL().startsWith('https://my.app/')) throw new Error('not allowed');
   return { name: application.storage.get('name') };
 });
 ```
@@ -360,7 +447,8 @@ const user = await app.getUser();
 
 **效果**
 
-- 网页里的 `user` 是处理函数返回的那个对象。处理函数可以是异步的，网页会一直等到它返回。
+- 网页在 `https://my.app/` 下面时，网页里的 `user` 是处理函数返回的那个对象。处理函数可以是异步的，网页会一直等到它返回。
+- 网页在别的站点时，网页那边的 Promise 被拒绝，说明是 `Error invoking remote method 'get-user': Error: not allowed`。
 - 处理函数抛了异常，网页那边的 Promise 被拒绝，说明是 `Error invoking remote method 'get-user': Error: …`。
 - App 没登记这个频道时，网页那边同样被拒绝，说明是 `Error invoking remote method 'get-user': Error: No handler registered for 'get-user'`。
 
@@ -396,6 +484,7 @@ pages.help.webContents.loadURL('https://example.com/help');
 pages.terms.webContents.loadURL('https://example.com/terms');
 
 // 之后要显示帮助页时
+/** @param {WebView} view */
 function show(view) {
   view.frame = page.view.bounds;
   page.view.addSubview(view);
@@ -439,7 +528,7 @@ const guest = new WebView({ webPreferences: { partition: 'guest' } });
 
 ### 销毁一张网页
 
-一张网页占的内存不小，不用了就销毁。
+一张网页占的内存不小，不用了就销毁。不销毁会怎样，见[用完之后](#用完之后)。
 
 ```js
 contents.addEventListener('destroyed', () => console.log('销毁了'));
@@ -452,12 +541,14 @@ web.removeFromSuperview();
 
 - 控制台输出 `true`，然后输出 `销毁了`。
 - 网页从屏幕上消失，它占的内存被释放。
-- `web` 还是一个视图，只是里面空了。不用了就像别的视图一样从界面上拿掉。
+- `web` 还是一个视图，只是里面空了。不用了就和别的视图一样，从界面上移除。
 - 之后再调 `contents.getURL()` 等方法会抛 `TypeError: Object has been destroyed`。
+- 销毁不能撤销。要再显示网页，新建一个 `WebView`。
+- 销毁时还在进行的 `loadURL`，它的 Promise 以 `AbortError` 被拒绝。
 
 ### 网页崩溃之后恢复
 
-每张网页在自己独立的进程里运行。这个进程可能崩溃，也可能在内存紧张时被系统结束。这时网页变成空白。
+每张网页在自己独立的进程里运行。这个进程可能崩溃，也可能在内存紧张时被系统结束。这时网页变成空白，App 不受影响。运行时不会自动重新加载，要不要恢复由 App 决定。
 
 ```js
 contents.addEventListener('render-process-gone', () => {
@@ -469,6 +560,8 @@ contents.addEventListener('render-process-gone', () => {
 
 - 网页的进程被结束时，网页重新加载，恢复显示。
 - 在 `render-process-gone` 的回调里读 `contents.isCrashed()` 是 `true`，重新加载之后变回 `false`。
+- 重新加载得到的是一张新加载的网页。网页里原来的状态（填到一半的表单、脚本里的变量）不会恢复。
+- 进程不在的那一刻还没完成的 `loadURL`，它的 Promise 被拒绝。
 
 ### 让网页伸到状态栏和底部横条下面
 
@@ -517,7 +610,7 @@ NSLayoutConstraint.activateConstraints([
 | 设 `isHidden` | **没有变化。** 不派发 `visibilitychange` |
 | 从界面上拿掉（`removeFromSuperview`） | `visibilityState` 变成 `'hidden'`，派发 `visibilitychange` |
 | 加回界面 | `visibilityState` 变回 `'visible'`，派发 `visibilitychange` |
-| App 退到后台、回到前台 | `visibilityState` 变成 `'hidden'`、变回 `'visible'`（未在模拟器验证） |
+| App 退到后台、回到前台 | `visibilityState` 变成 `'hidden'`、变回 `'visible'`（**未在模拟器验证**） |
 
 ### `will-navigate` 什么时候派发
 
@@ -553,7 +646,14 @@ NSLayoutConstraint.activateConstraints([
 | 能用什么 | 网页里能用的一切（`document`、`window`），外加 `ipcRenderer` 和 `contextBridge` 两个名字 |
 | 网页禁止了脚本（内容安全策略） | 照常执行。受限的只是网页自己的脚本 |
 
-它和网页的脚本在**同一个环境**里：预加载脚本往 `window` 上挂的东西，网页看得到也改得了。这相当于 Electron 的 `contextIsolation: false`，和 Electron 的默认值相反。
+它和网页的脚本在**同一个环境**里执行，两者之间没有隔离。这带来四个结果：
+
+- 预加载脚本往 `window` 上挂的东西，网页看得到。
+- 用 `contextBridge.exposeInMainWorld` 挂上去的名字，网页不能换成别的对象，但能修改这个对象的成员。
+- `ipcRenderer` 和 `contextBridge` 这两个名字网页用不了，但网页可以不经过它们，直接往底下的消息通道里发消息，频道名和参数都由它决定。
+- 网页可以冒充 App，让预加载脚本里 `ipcRenderer.on` 登记的监听器收到假的消息。
+
+所以预加载脚本适合用在 App 自己控制的网页上。App 这一侧收到的每条消息都要检查，预加载脚本收到的消息也不能当作一定来自 App。
 
 预加载脚本里能用的两个名字：
 
@@ -602,7 +702,7 @@ NSLayoutConstraint.activateConstraints([
 
 ### 存储分区
 
-`partition` 决定网页的 cookie、`localStorage` 和缓存存在哪一份里。写法和 Electron 相同。
+`partition` 决定网页的 cookie、`localStorage` 和缓存存在哪一份里。分区的数据存在 App 自己的存储空间里，别的 App 和 Safari 都读不到（来自 iOS 的定义，**未在模拟器验证**）。
 
 | `partition` 的值 | 数据存在哪 | App 退出之后 |
 | --- | --- | --- |
@@ -620,7 +720,7 @@ NSLayoutConstraint.activateConstraints([
 
 每张网页在自己独立的进程里运行，和 App 的 JS 不在同一个进程。所以网页里的脚本再慢也不会卡住 App 的界面，网页崩溃也不会让 App 退出。
 
-代价是内存：模拟器上实测一张简单的网页占 60 MB 左右。同时存在的网页越多，被系统结束进程的可能越大。不用的网页用 `close()` 销毁。
+代价是内存：模拟器上实测一张简单的网页占 60 MB 左右。不用的网页用 `close()` 销毁。
 
 ### 谁拿着 `WebView`
 
@@ -705,7 +805,7 @@ new WebView({ webPreferences: { partition: 'persist:main' } });
 
 拒绝的错误上有两个附加的字段：`code` 是系统的错误码（见 [`did-fail-load`](#事件) 的 `errorCode`），`domain` 是错误的来源，网络层的错误是 `'NSURLErrorDomain'`。`message` 是系统给的说明，语言跟随系统，只适合打日志。
 
-> **注意**：明文的 `http://` 地址会被系统拦截：`loadURL` 以 `NetworkError` 拒绝，`code` 是 `-1022`。用 `https://`。`http://localhost` 不受这条限制，开发时可以用。
+> **注意**：明文的 `http://` 地址会被系统拦截：`loadURL` 以 `NetworkError` 拒绝，`code` 是 `-1022`。iOS 默认不允许 App 用没有加密的 HTTP 连接，CLI 生成的工程没有放开这条限制。用 `https://`。`http://localhost` 不受这条限制，开发时可以用。
 
 #### `loadFile(filePath, options)`
 
@@ -814,7 +914,7 @@ addEventListener has no value "did-finsh-load"; expected one of: will-navigate /
 | `'formSubmitted'` | 提交了表单 |
 | `'backForward'` | 网页的脚本后退或前进 |
 | `'reload'` | 网页的脚本刷新 |
-| `'formResubmitted'` | 重新提交表单，比如后退到一个由表单提交得到的页面（未在模拟器验证） |
+| `'formResubmitted'` | 重新提交表单，比如后退到一个由表单提交得到的页面（**未在模拟器验证**） |
 | `'other'` | 其余的。最常见的是脚本改 `location` |
 
 > **注意**：`loadURL` 之后立刻 `stop()`，Promise 以 `AbortError` 拒绝，但**不派发** `did-fail-load`。要知道一次 `loadURL` 的结果，以它的 Promise 为准。
@@ -823,7 +923,7 @@ addEventListener has no value "did-finsh-load"; expected one of: will-navigate /
 
 | Electron | 这里 | 差别 |
 | --- | --- | --- |
-| `new WebContentsView({ webPreferences })` | `new WebView({ webPreferences })` | 只支持 `partition` |
+| `new WebContentsView({ webPreferences })` | `new WebView({ webPreferences })` | 只支持 `partition` 和 `preload` |
 | `view.setBounds({ x, y, width, height })` | `web.frame = new CGRect(x, y, width, height)` | 也可以用约束 |
 | `win.contentView.addChildView(view)` | `page.view.addSubview(web)` | |
 | `contents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => …)` | `contents.addEventListener('did-fail-load', (e) => …)` | 数据在 `e` 上，字段名相同 |
@@ -899,4 +999,5 @@ addEventListener has no value "did-finsh-load"; expected one of: will-navigate /
 - [外观特征](ui-trait-collection.md)：强制深浅色，网页的 `prefers-color-scheme` 会跟着变。
 - [`session`](session.md)：读写网页的 cookie、清掉网页留下的数据。
 - [`fetch`](fetch.md)：只要数据、不需要显示网页时用它。它的 cookie 和网页的不通。
+- [文件读写](filesystem.md)：把网页文件写到 App 的目录里，再用 `loadFile` 加载。
 - [实现原理](../internals/web-view.md)：为什么分成两个对象、几条实测的数据。

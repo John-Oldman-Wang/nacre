@@ -6,15 +6,63 @@ status: partial
 
 # `UITabBarController`
 
-`UITabBarController` 是屏幕底部带一排标签的界面。每个标签对应一个页面，点哪个标签就显示哪个页面。很多 App 的主界面是这个结构：首页、行情、我的。
+**`UITabBarController`** 表示一个带标签栏的界面，称为标签控制器。它自己是一个页面（[`UIViewController`](ui-view-controller.md)），管理一组页面：屏幕底部有一排标签，称为**标签栏**，每个标签对应一个页面，用户点哪个标签，屏幕就显示哪个页面。「首页、行情、我的」这种主界面用的就是它。
 
-Web 里没有直接对应的东西，通常是自己写一个固定在底部的导航栏加上路由。这里有三点不同：
+标签栏和点击标签后的切换都由系统提供。代码不需要监听点击，也不需要自己更换页面。
 
-- **切换是系统做的。** 不用自己监听点击、自己换页面。
-- **各个页面一直都在。** 切走的页面不会被销毁，切回来时还是离开时的样子。
-- **每个标签长什么样由页面自己决定。** 标题、图标、角标写在页面的 `tabBarItem` 上，不是写在 `UITabBarController` 上。
+每个标签上显示的标题、图标和角标，由对应的页面决定，不由标签控制器决定：它们设在页面的 `tabBarItem` 上。这一页同时说明相关的两个类：[`UITabBarItem`](#uitabbaritem) 表示一个标签，[`UITabBar`](#uitabbar) 表示标签栏本身。
 
-这一页还包括两个相关的类：[`UITabBarItem`](#uitabbaritem)（一个标签）和 [`UITabBar`](#uitabbar)（那一排标签本身）。
+## 切换标签时页面不会被销毁
+
+标签控制器保管 `viewControllers` 里的每一个页面。页面交给它之后不需要自己保存；只要它们还在 `viewControllers` 里，就不会被回收，不管当前选中的是不是它。验收用例验证过：放进去之后丢掉对页面的引用，再从 `tabs.viewControllers` 读回来，得到的是同一个对象，挂在上面的数据还在。
+
+所以用户从一个标签切到另一个标签时，离开的那个页面还在内存里，它的视图、数据、事件监听器都保持原样。切回来时显示的是同一个页面对象。页面上正在运行的定时器、网络轮询在切走之后也继续运行，标签控制器不会停掉它们。
+
+页面从 `viewControllers` 里被换掉之后，标签控制器不再保管它。这时代码里没有别的地方保存它，它就被回收（验收用例验证过）。
+
+## 选中项变了怎么知道
+
+选中的标签有两种改变方式，通知不一样：
+
+| 谁改的 | 是否派发 `didselect` |
+| --- | --- |
+| 用户点了标签 | 派发。事件对象的 `viewController` 是被点中的页面 |
+| 代码写 `selectedIndex` 或 `selectedViewController` | 不派发（实测：连写两次，一次都没有收到） |
+
+事件派发时切换已经完成，不能用它阻止切换。
+
+## 推荐的做法
+
+**让标签控制器做窗口的根页面，每个标签里放一个导航控制器。** 标签页里通常要能一层层点进去。把 [`UINavigationController`](ui-navigation-controller.md) 放进 `viewControllers`，页面在各自的导航栈里推入和弹出，底部的标签栏一直在。写法见[每个标签里放一个导航栈](#每个标签里放一个导航栈)。
+
+**页面交给标签控制器之前，先设好它的 `tabBarItem`。** 没设的页面，系统按页面的 `title` 自动建一个只有文字、没有图标的标签。
+
+**选中项变化后要做的事，写成一个函数，两处都调。** 用户点标签时在 `didselect` 的回调里调；代码切换标签时，写完 `selectedIndex` 之后自己调一次。这样两种方式的结果一致：
+
+```js
+/**
+ * @param {UITabBarController} tabs
+ */
+function watchSelection(tabs) {
+  function selectionChanged() {
+    console.log('现在是第 ' + tabs.selectedIndex + ' 个');
+  }
+
+  tabs.addEventListener('didselect', selectionChanged);
+
+  return {
+    /** @param {number} index */
+    select(index) {
+      tabs.selectedIndex = index;
+      selectionChanged();
+    },
+  };
+}
+```
+
+**效果**：用户点标签，或者代码调用返回对象的 `select()`，控制台都输出一行当前选中的序号。
+
+**切走的页面要暂停的工作，在同一个函数里处理。** 页面自己不知道什么时候被切走：页面的生命周期回调目前没有开放。需要「切走时停止刷新、切回来时恢复」的页面，在上面的 `selectionChanged()` 里比较 `tabs.selectedViewController` 和这个页面，自己启动或停止。
 
 ## 完整例子
 
@@ -99,7 +147,7 @@ console.log(tabs.selectedViewController === profile);
 
 **效果**：界面切到「我的」。控制台输出 `true`。
 
-> **注意**：用代码切换**不会**派发 `didselect` 事件。那个事件只在用户自己点标签时派发（实测）。需要在两种情况下都做同一件事时，把那件事写成一个函数，切换之后自己调一次。
+> **注意**：用代码切换**不会**派发 `didselect` 事件。那个事件只在用户自己点标签时派发（实测）。需要在两种情况下都做同一件事时，见[推荐的做法](#推荐的做法)。
 
 ### 知道用户切了标签
 
@@ -219,7 +267,7 @@ EventTarget
 const tabs = new UITabBarController();
 ```
 
-没有参数。建好之后不用自己保存引用：把它交给窗口之后，它和它的各个页面都不会被回收。
+没有参数。建好之后不用自己保存：把它交给窗口之后，它和它的各个页面都不会被回收，见[切换标签时页面不会被销毁](#切换标签时页面不会被销毁)。
 
 ### 属性
 
@@ -234,7 +282,7 @@ const tabs = new UITabBarController();
 
 - `viewControllers` 读出来的是当时的一份快照。往这个数组里 `push` 不会改变界面，要整个赋值，或者用 `setViewControllers()`。读到的每个元素和当初放进去的是同一个对象。
 - `selectedIndex` 和 `selectedViewController` 是同一件事的两种写法，改一个另一个跟着变。
-- 选中项被用户改变时派发 [`didselect`](#事件)。被你自己的代码改变时不派发。
+- 选中项被用户改变时派发 [`didselect`](#事件)。被代码改变时不派发。
 - **出错**：
   - `selectedIndex` 超出范围：`TypeError: selectedIndex 3 is out of range; there are 3 view controllers`
   - `selectedViewController` 写入不在 `viewControllers` 里的页面：`TypeError: selectedViewController must be one of this tab bar controller's viewControllers`
@@ -276,8 +324,8 @@ tabs.addEventListener('didselect', (e) => {
 
 - 代码改 `selectedIndex` 或 `selectedViewController` 时不派发（实测）。
 - 事件不能取消。不能用它阻止用户切换，见[还不能做的](#还不能做的)。
-- 回调不是在点击的那一刻同步执行，而是稍后执行，见[运行时怎么工作](how-it-works.md#事件)。
-- 它是一个页面，所以被模态呈现时，[模态的三个关闭事件](ui-view-controller.md#事件)也能在它上面监听。[`traitchange`](ui-trait-collection.md#traitchange-事件) 也能。
+- 回调不是在点击的那一刻同步执行，而是稍后执行，见[运行时怎么工作](how-it-works.md)。
+- 它是一个页面，所以被模态呈现时，[模态的三个关闭事件](ui-view-controller.md)也能在它上面监听。[`traitchange`](ui-trait-collection.md) 也能。
 - **出错**：监听不认识的事件名抛 `TypeError`：
 
   ```
@@ -296,11 +344,21 @@ EventTarget
 ```
 
 ```js
-new UITabBarItem()
-new UITabBarItem({ title, image, selectedImage, tag, badgeValue, badgeColor })
+const empty = new UITabBarItem();
+const item = new UITabBarItem({
+  title: '首页',
+  image: UIImage.systemImageNamed('house'),
+  selectedImage: UIImage.systemImageNamed('house.fill'),
+  tag: 7,
+  badgeValue: '3',
+  badgeColor: 'systemIndigo',
+});
+console.log(empty.title, item.title, item.tag, item.badgeValue, item.badgeColor);
 ```
 
-参数里的每一项都可以不给，和建好之后再写对应的属性效果一样。
+**结果**：控制台输出 `null 首页 7 3 systemIndigo`。
+
+参数是一个对象，可以有 `title`、`image`、`selectedImage`、`tag`、`badgeValue`、`badgeColor` 六项。每一项都可以不给，和建好之后再写对应的属性效果一样。
 
 | 属性 | 类型 | 可读 | 可写 | 默认值 | 含义 |
 | --- | --- | --- | --- | --- | --- |
@@ -314,8 +372,8 @@ new UITabBarItem({ title, image, selectedImage, tag, badgeValue, badgeColor })
 
 - `badgeValue` 写入的不是字符串时按 `String()` 转，比如写 `12` 得到 `'12'`。
 - `badgeColor` 写入时可以是颜色字符串或 `UIColor`，读出来是字符串。
-- 这些值变了没有事件。它们只会被你自己的代码改变。
-- **`selectedImage` 读回来不是写进去的那个对象**（实测）。系统在写入时另存了一份，尺寸相同，多次读得到的是同一个，但和你给的那个用 `===` 比较是 `false`。`image` 没有这个现象。
+- 这些值变了没有事件。它们只会被代码改变。
+- **`selectedImage` 读回来不是写进去的那个对象**（实测）。系统在写入时另存了一份，尺寸相同，多次读得到的是同一个，但和写进去的那个用 `===` 比较是 `false`。`image` 没有这个现象。
 - `isEnabled` 是 `false` 时的样子**未在模拟器验证**。
 
 ### `UITabBar`

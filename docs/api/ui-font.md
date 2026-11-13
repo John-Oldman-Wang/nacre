@@ -6,18 +6,42 @@ status: partial
 
 # `UIFont`
 
-`UIFont` 是字体对象。一个 `UIFont` 同时包含「哪种字体」「多大」「多粗」三项信息。把它赋给 [`UILabel`](ui-label.md) 这类显示文字的视图的 `font` 属性，文字就用这个字体显示。
+**`UIFont`** 表示一个字体。一个 `UIFont` 对象同时确定三件事：用哪种字体、字号多大、笔画多粗。把它赋给 [`UILabel`](ui-label.md) 这类显示文字的视图的 `font` 属性，文字就用这个字体显示。
 
-它相当于把 CSS 的 `font-family`、`font-size`、`font-weight`、`font-style` 合成了一个值，有四点不同：
+字体对象通过 `UIFont` 上的静态方法得到，例如 `UIFont.systemFontOfSize(17)`，不能用 `new` 创建。字体对象不可变：创建之后字号和粗细都不能改。要换字号，就再取一个字体对象，重新赋给 `font`。
 
-- **它是不可变的对象。** 创建之后字号和粗细都不能改。要换字号，就再创建一个字体对象，重新赋给 `font`。
-- **不能用 `new` 创建。** 字体都通过 `UIFont` 上的静态方法得到，例如 `UIFont.systemFontOfSize(17)`。
-- **字号的单位是点（[pt](units.md)）**，没有 `px`、`em`、`rem`。
-- **没有字体回退列表。** CSS 可以写 `font-family: A, B, sans-serif`。这里一次只指定一个字体，找不到时方法返回 `null`，由你的代码决定换成什么。
+## 字号的单位
 
-「系统字体」是 iOS 界面默认使用的字体，对应 CSS 的 `font-family: system-ui`。
+字号的单位是点（[pt](units.md)），和视图的位置、大小用同一种单位。没有其他单位可选。标签不设字体时用的是 17 pt 的系统字体。
 
-这一页分三部分：先给一个[能直接运行的完整例子](#完整例子)，再按[你想做的事](#常见用法)给出写法和效果，最后是[每个成员的说明](#成员说明)。
+字号是一个固定的数。`UIFont.systemFontOfSize(17)` 得到的字体永远是 17 pt，不随屏幕大小变化，也不随用户的系统设置变化。
+
+## 用哪种字体
+
+| 来源 | 写法 | 取不到时 |
+| --- | --- | --- |
+| 系统字体 | `systemFontOfSize()` 等五个方法 | 一定取得到 |
+| 按用途取的系统字体，字号跟随用户设置 | `preferredFontForTextStyle()` | 一定取得到 |
+| 系统里装着的其他字体，按名字取 | `fontWithName()` | 返回 `null`，不抛异常 |
+
+「系统字体」是 iOS 界面默认使用的字体。**界面上的文字推荐用系统字体**：它一定存在，取字体的方法不会返回 `null`，并且有九种粗细可选。
+
+`fontWithName()` 按名字取字体。名字不存在时返回 `null`，所以使用前要判空。没有回退列表：一次只能指定一个名字，取不到时换成什么由 App 的代码决定。
+
+**随 App 打包的字体文件目前不能用。** 运行时没有注册字体文件的接口，命令行工具生成的工程里也没有声明字体文件的配置。能用的只有系统自带的字体。
+
+## 用户调大系统字号后
+
+用户可以在系统的「设置 → 显示与亮度 → 文字大小」里调整文字大小。App 的文字是否跟着变，取决于字体是怎么取的：
+
+| 取法 | 用户改了设置之后 |
+| --- | --- |
+| `systemFontOfSize(17)`、`fontWithName()` 等指定字号的方法 | 不变，仍是指定的字号 |
+| `preferredFontForTextStyle('body')` | 取到的是当时设置下的字号。已经取到的字体对象不变，已经显示的文字也不变 |
+
+所以要让文字跟随设置，需要两步：用 `preferredFontForTextStyle()` 取字体；在设置变化时重新取一次并赋给 `font`。写法见[用户改了系统文字大小后更新字体](#用户改了系统文字大小后更新字体)。
+
+推荐的做法：正文、说明这类供阅读的文字用 `preferredFontForTextStyle()`，让它跟随用户的设置；位置和大小都固定的文字（比如标签栏、固定高度的按钮）用 `systemFontOfSize()`，避免字号变大后放不下。
 
 ## 完整例子
 
@@ -109,7 +133,7 @@ body.font = UIFont.systemFontOfSize(20);
 
 **效果**：这一行文字变成 20 pt 的系统字体，常规粗细。标签的高度跟着变大，下面几行下移。
 
-相当于 CSS 的 `font: 20px system-ui`，单位换成 [pt](units.md)。
+字号的单位是 [pt](units.md)。
 
 ### 指定粗细
 
@@ -143,7 +167,7 @@ body.font = UIFont.italicSystemFontOfSize(17);
 
 ### 显示代码：用等宽字体
 
-等宽字体里每个字符占的宽度相同，对应 CSS 的 `font-family: monospace`。
+等宽字体里每个字符占的宽度相同。显示代码、需要上下对齐成列的文字时用它。
 
 ```js
 body.text = '0123456789';
@@ -158,7 +182,7 @@ console.log(body.font.fontName);
 
 ### 显示会变的数字：只让数字等宽
 
-计时器、倒计时、价格这类数字会不断变化。系统字体里 `1` 比 `8` 窄，数字一变，整行文字的宽度跟着变，看起来左右抖动。`monospacedDigitSystemFontOfSize()` 得到的字体只把数字做成等宽，字母的样子和普通系统字体相同。
+计时器、倒计时、价格这类数字会不断变化。系统字体里各个数字的宽度不同，数字一变，整行文字的宽度跟着变（**未在模拟器验证**）。`monospacedDigitSystemFontOfSize()` 得到的字体只把数字做成等宽，字母的样子和普通系统字体相同。
 
 ```js
 body.text = '00:59';
@@ -166,8 +190,6 @@ body.font = UIFont.monospacedDigitSystemFontOfSize(17, { weight: 'regular' });
 ```
 
 **效果**：文字的样子和普通系统字体相同。把 `text` 从 `'00:59'` 改成 `'01:11'`，文字的总宽度不变。**未在模拟器验证。**
-
-对应 CSS 的 `font-variant-numeric: tabular-nums`。
 
 ### 跟随系统的文字大小设置
 
@@ -197,7 +219,9 @@ application.addEventListener('contentsizecategorychange', () => {
 
 **效果**：App 在运行时，用户到系统设置里改了文字大小，回到 App 后这一行文字换成新的字号。**未在模拟器验证。**
 
-事件的说明见 [`application`](application.md)。
+有多个标签要更新时，把「取字体并赋值」写成一个函数，建界面时调用一次，事件回调里再调用一次。
+
+事件的说明见 [`application`](application.md)。视图和场景的 `traitchange` 事件也会在文字大小变化时派发，见[外观特征](ui-trait-collection.md)。
 
 ### 用指定名字的字体
 
@@ -219,7 +243,7 @@ console.log(missing);
 
 **效果**：控制台输出 `null`。
 
-名字可以是字体家族名（如 `'Helvetica'`），也可以是具体字体名（如 `'Helvetica-Bold'`）。只能用系统自带的字体，随 App 打包自己的字体文件还不支持。
+名字可以是字体家族名（如 `'Helvetica'`），也可以是具体字体名（如 `'Helvetica-Bold'`）。只能用系统自带的字体，随 App 打包的字体文件目前不能用。系统里有哪些字体名目前不能在 JS 里列出，要查 Apple 的资料。
 
 ### 基于现有字体改字号
 
@@ -279,7 +303,7 @@ console.log(size.width, size.height);
 
 **效果**：控制台输出这一行文字按当前字体显示时的宽和高，单位 pt。
 
-这和 Canvas 的 `measureText()` 分工不同。`measureText()` 一次返回某段文字的宽度和字体的高度信息。这里字体的高度信息在 `UIFont` 上，某段文字的大小在 [`UILabel`](ui-label.md) 上。
+两类信息分在两个对象上：字体的高度信息在 `UIFont` 上，某段文字的大小在 [`UILabel`](ui-label.md) 上。
 
 ### 把字体用到按钮上
 
@@ -297,7 +321,7 @@ column.addArrangedSubview(button);
 
 **效果**：容器最下面多出一个按钮，文字是 20 pt 的半粗体。
 
-`titleLabel` 的类型是「可能为 `null`」，所以要先判断。详见 [`UIButton`](ui-button.md#改字体和字号)。
+`titleLabel` 的类型是「可能为 `null`」，所以要先判断。详见 [`UIButton`](ui-button.md)。
 
 ### 把字体用到输入框上
 
@@ -330,7 +354,7 @@ console.log(body.font === a);
 
 ## 字重
 
-字重是笔画的粗细，对应 CSS 的 `font-weight`。CSS 用 100 到 900 的数字，这里用九个名字，按从细到粗排列：
+字重是笔画的粗细。一共九个名字，按从细到粗排列：
 
 | 取值 | 效果 |
 | --- | --- |
@@ -344,7 +368,7 @@ console.log(body.font === a);
 | `'heavy'` | 比粗体粗一级 |
 | `'black'` | 最粗 |
 
-只能写这九个名字，不能写数字。九个名字和 CSS 的 100–900 都是九级，但本文档没有核对过每一级是否一一对应，所以不列数值对照。
+只能写这九个名字，不能写数字。
 
 写了不认识的名字会抛 `TypeError`，不会退回 `'regular'`：
 
@@ -361,7 +385,7 @@ try {
 
 ## 文本样式
 
-文本样式是按用途命名的一组字体。每种样式的字号和粗细由系统规定，并且随用户的文字大小设置变化。它的作用类似 CSS 里用 `rem` 写字号再由根字号统一缩放，差别是这里每种样式的缩放幅度由系统分别规定，不是同一个倍数。
+文本样式是按用途命名的一组字体。每种样式的字号和粗细由系统规定，并且随用户的文字大小设置变化。用户调整文字大小时，每种样式各自变化多少也由系统规定。
 
 | 取值 | 用途 |
 | --- | --- |
@@ -402,21 +426,23 @@ try {
 
 「动态字体」是 iOS 的一项系统功能：用户在系统设置里选一个文字大小档位，各个 App 的文字跟着变大或变小。[文本样式](#文本样式)是 App 接入这项功能的方式。
 
-要注意三点：
+三条规则：
 
 - **只有 `preferredFontForTextStyle()` 得到的字体跟随设置。** `systemFontOfSize(17)` 永远是 17 pt。
 - **跟随发生在创建的时刻。** `preferredFontForTextStyle('body')` 返回的是「此刻的设置下」的正文字体。它仍然是一个不可变的对象，用户之后改了设置，这个对象的 `pointSize` 不变，已经用了它的标签也不变。
-- **要在运行时跟着变，得自己重新赋值。** 监听 `application` 的 `contentsizecategorychange` 事件，在回调里重新调用 `preferredFontForTextStyle()` 并赋给 `font`。写法见[用户改了系统文字大小后更新字体](#用户改了系统文字大小后更新字体)。
+- **要在 App 运行期间跟着变，需要重新赋值。** 监听 `application` 的 `contentsizecategorychange` 事件，在回调里重新调用 `preferredFontForTextStyle()` 并赋给 `font`。写法见[用户改了系统文字大小后更新字体](#用户改了系统文字大小后更新字体)。
 
 当前的档位可以从 `application.contentSizeCategory` 读到，见 [`application`](application.md)。
 
 iOS 原生还有一个让标签自动完成上面第三步的开关 `adjustsFontForContentSizeCategory`，它还没有实现，见[还不能做的](#还不能做的)。
 
-间距、图标大小这些[点值](units.md)不会跟着文字大小设置变化。文字变大后要不要加大间距，由你的代码决定。
+间距、图标大小这些[点值](units.md)不会跟着文字大小设置变化。文字变大后要不要加大间距，由 App 的代码决定。
+
+文字变大后标签需要更多的空间。标签用约束定位并且不约束高度时，大小随新字体自动调整，见 [`UILabel`](ui-label.md)。
 
 ## 字体度量
 
-一行文字在竖直方向上分成几段。这几个概念和 Web 排版里的相同，在 Canvas 里对应 `measureText()` 返回的 `fontBoundingBoxAscent`、`fontBoundingBoxDescent`。
+一行文字在竖直方向上分成几段，字体对象上的度量属性给出每一段的高度。
 
 ```
         ┬ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─   最高处
@@ -436,7 +462,7 @@ iOS 原生还有一个让标签自动完成上面第三步的开关 `adjustsFont
 - **`lineHeight`**：一行文字的高度。单行的 `UILabel` 按它决定自己的高度。
 - **`leading`**：字体建议的行与行之间的额外间距。
 
-这些值都随字号变化，单位都是 [pt](units.md)。它们和 CSS 的 `line-height` 不同：`lineHeight` 是字体自带的只读数值，不能通过它调整行距。
+这些值都随字号变化，单位都是 [pt](units.md)。`lineHeight` 是字体自带的只读数值，不能通过它调整行距。调整行距目前做不到，见 [`UILabel`](ui-label.md) 的「还不能做的」。
 
 ## 成员说明
 
@@ -453,7 +479,7 @@ EventTarget → NSObject → UIFont
 `UIFont` 不能用 `new` 创建，也不能被继承。
 
 - `new UIFont()` 抛 `TypeError: Illegal constructor: UIFont is created by the runtime, not by new`。
-- 继承的限制见[原生类](native-classes.md#不能继承)。
+- 继承的限制见[原生类](native-classes.md)。
 
 字体对象全部通过下面的静态方法得到。
 
@@ -562,6 +588,23 @@ const font = UIFont.preferredFontForTextStyle('headline');
 
 - 原生的 `monospacedSystemFontOfSize:weight:` 和 `monospacedDigitSystemFontOfSize:weight:` 必须传字重。JS 里 `weight` 可以省略，省略时是 `'regular'`。
 - 原生的字重是浮点数常量，可以写任意中间值。JS 只接受九个名字。
+
+## 与浏览器写法的对照
+
+这张表给熟悉 CSS 的人查对应关系。
+
+| CSS | 这里 |
+| --- | --- |
+| `font-family`、`font-size`、`font-weight`、`font-style` 四个属性 | 合在一个 `UIFont` 对象里，赋给 `font` |
+| `font-family: system-ui` | `UIFont.systemFontOfSize(size)` |
+| `font-family: monospace` | `UIFont.monospacedSystemFontOfSize(size)` |
+| `font-variant-numeric: tabular-nums` | `UIFont.monospacedDigitSystemFontOfSize(size)` |
+| `font-weight: 100`–`900` | 九个字重名。每一级和 CSS 的数值是否一一对应没有核对过 |
+| `font-family: A, B, sans-serif` 回退列表 | 没有。`fontWithName()` 取不到时返回 `null` |
+| `px`、`em`、`rem` | 只有 pt |
+| `@font-face` 加载字体文件 | 未实现 |
+| `line-height` | 没有对应的可写属性。`lineHeight` 是只读的字体度量 |
+| Canvas 的 `measureText()` | 字体的高度信息读 `UIFont` 的度量属性，一段文字的宽高读标签的 `intrinsicContentSize` |
 
 ## 还不能做的
 

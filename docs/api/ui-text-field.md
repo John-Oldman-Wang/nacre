@@ -6,31 +6,57 @@ status: partial
 
 # `UITextField`
 
-`UITextField` 是单行输入框：用户点它，系统键盘弹出，打的字显示在框里。
+**`UITextField`** 表示一个单行输入框。用户点它，系统键盘从屏幕底部弹出，输入的文字显示在框里。App 从 `text` 属性读出框里的内容，通过事件得知内容变了、输入开始和结束了、用户按了回车。
 
-它相当于 HTML 的 `<input type="text">`。对应关系如下：
+输入框是[控件](ui-control.md)，也是[视图](ui-view.md)。禁用和事件来自控件，位置、大小、底色来自视图。输入框只有一行，按回车不会换行。多行输入还不支持，见[还不能做的](#还不能做的)。
 
-| Web | Nacre | 差别 |
-| --- | --- | --- |
-| `input.value` | `field.text` | 没有内容时是空字符串，不是 `null` |
-| `placeholder` | `placeholder` | 没设时读到 `null` |
-| `type="password"` | `isSecureTextEntry = true` | 是一个布尔属性，不是一种类型 |
-| `inputmode` | `keyboardType` | 只决定弹出哪种键盘，不校验内容 |
-| `autocomplete` | `textContentType` | 取值是 iOS 定的一组名字 |
-| `enterkeyhint` | `returnKeyType` | 只改回车键上的字，不改行为 |
-| `input` 事件 | `editingChanged` 事件 | 事件对象不带内容，要读 `field.text` |
-| `focus` / `blur` 事件 | `editingDidBegin` / `editingDidEnd` 事件 | — |
-| `el.focus()` / `el.blur()` | `becomeFirstResponder()` / `resignFirstResponder()` | 有返回值，表示是否成功 |
-| `disabled` | `isEnabled = false` | — |
+## 键盘什么时候弹出，怎么收起
 
-另外有四点和 Web 不同：
+键盘没有单独的「显示」「隐藏」方法。键盘跟着 first responder 走。first responder 是 iOS 里「当前接收键盘输入的那个对象」，同一时刻最多只有一个。输入框成为 first responder 时键盘弹出，它不再是 first responder 时键盘收起。
 
-- **没有默认的边框和大小。** 新建的输入框没有边框，放到页面上看不出哪里能点。边框用 `borderStyle` 设，宽度用约束给。
-- **按回车不会提交表单。** iOS 没有表单。按回车时派发 `editingDidEndOnExit` 事件，做什么由你的代码决定。
-- **键盘会挡住内容，页面不会自动上移。** 移动端浏览器会把正在输入的框滚到可见位置，iOS 不会。要用[一条约束](#键盘避让一条约束)让内容跟着键盘移动。
-- **没有 `maxlength`、`pattern`、`required`、`readonly`。** 限制和校验要在事件回调里自己做，见[限制输入长度](#限制输入长度或过滤字符)。
+| 想做的事 | 怎么发生 |
+| --- | --- |
+| 键盘弹出 | 用户点输入框。或者代码调用 `field.becomeFirstResponder()` |
+| 键盘收起 | 代码调用 `field.resignFirstResponder()`，或者调用 `page.view.endEditing(true)` |
 
-这一页分三部分：先给一个[能直接运行的完整例子](#完整例子)，再按[你想做的事](#常见用法)给出写法和效果，最后是[每个成员的说明](#成员说明)。
+键盘的收起要由 App 的代码完成。用户点输入框以外的地方，键盘不会自己收起。**未在模拟器验证。** 所以每个带输入框的页面都要提供收起键盘的方式，常用的两种是[按回车时收起](#按回车时提交并收起键盘)和[点空白处收起](#点空白处收起键盘)。
+
+`becomeFirstResponder()` 可能被系统拒绝，这时它返回 `false`，键盘不弹出。什么时候被拒绝见 [first responder：焦点](#first-responder焦点)。
+
+## 键盘会不会挡住输入框
+
+会。键盘盖在页面上面，页面的大小和位置不变。位于屏幕下半部分的内容在键盘弹出后被盖住，系统不会自动把它移到看得见的位置。**不做处理时被盖住这一点未在模拟器验证。**
+
+处理的办法是一条约束：把内容的底边约束到 `keyboardLayoutGuide` 的顶边，内容就跟着键盘上下移动，见[键盘避让：一条约束](#键盘避让一条约束)。不需要监听键盘的弹出和收起，也不需要知道键盘的高度。
+
+位于屏幕上方、键盘盖不到的输入框不需要处理。
+
+## 新建的输入框是什么样
+
+新建的输入框没有边框，没有内容，没有占位文字。把它放到页面上，看不出哪里可以点。
+
+- **边框**用 `borderStyle` 设，默认是 `'none'`。
+- **高度**可以不给，输入框按字体算出自己的高度。
+- **宽度**要给。用约束固定左右两边，或者给一个固定宽度，见[位置和大小](#位置和大小)。
+
+## 能不能限制输入的内容
+
+输入框没有内建的长度限制、格式校验和只读模式。
+
+- `keyboardType` 只决定弹出哪种键盘，不校验内容。用户仍然可以粘贴别的字符。
+- 限制长度、过滤字符，在 `editingChanged` 的回调里检查 `field.text`，不符合时改回去，见[限制输入长度或过滤字符](#限制输入长度或过滤字符)。
+- 在字符显示之前拦截它，目前做不到，见[还不能做的](#还不能做的)。
+
+## 推荐的做法
+
+- **边框用 `borderStyle = 'roundedRect'`。** 这是系统标准的输入框外观，文字左右自带间距。要别的外观时把输入框放进一个容器，见[自己画边框和底色](#自己画边框和底色)。
+- **表单的底边约束到 `keyboardLayoutGuide.topAnchor`。** 一条约束同时适用于键盘弹出和收起两种情况。
+- **同时提供两种收起键盘的方式：按回车和点空白处。** 数字键盘这类键盘上没有回车键，只靠回车收不起来。
+- **多个输入框时，回车跳到下一个，最后一个回车提交。** 用 `returnKeyType` 把回车键上的字设成对应的 `'next'` 和 `'done'`。
+- **账号和密码框设 `textContentType`。** 系统据此提供自动填充，用户不用手打。
+- **按内容设 `keyboardType`，账号和邮箱关掉自动大写和自动纠错。**
+
+这几条合在一起的写法见[做一个表单页](#做一个表单页)。
 
 ## 完整例子
 
@@ -108,7 +134,9 @@ console.log(name.length);
 
 **效果**：`field.text` 是框里当前的全部内容。没有内容时是空字符串 `''`，不是 `null`，可以直接取 `length`。
 
-用代码写 `field.text = '张三'` 会把框里的内容换掉。**用代码改 `text` 不派发 `editingChanged`**，这一点和 Web 里改 `value` 不触发 `input` 事件相同。**未在模拟器验证。**
+用代码写 `field.text = '张三'` 会把框里的内容换掉。用代码改 `text` 不派发 `editingChanged`，这个事件只在用户的输入改变内容时派发。**未在模拟器验证。**
+
+写入的值不是字符串时按字符串转换。写 `null` 或 `undefined` 得到空字符串。
 
 ### 显示占位文字
 
@@ -130,7 +158,11 @@ field.addEventListener('editingChanged', () => {
 
 **效果**：用户每打一个字、删一个字、粘贴一段文字，回调执行一次。**未在模拟器验证。**
 
-事件对象只有 `type` 和 `target`（就是这个输入框），不带内容。内容从 `field.text` 读。
+事件对象的 `type` 是事件名，`target` 是这个输入框。事件对象不带内容，内容从 `field.text` 读。
+
+回调在内容变化之后才执行，回调里读到的 `field.text` 是执行时的内容。用户打字很快时，一次回调里读到的内容可能已经包含了后面几次按键。**未在模拟器验证。**
+
+使用中文拼音这类输入法时，用户还没选字的拼音字母是否算进 `text`、这期间是否派发 `editingChanged`，**未在模拟器验证**。
 
 ### 按回车时提交并收起键盘
 
@@ -141,9 +173,13 @@ field.addEventListener('editingDidEndOnExit', () => {
 });
 ```
 
-**效果**：用户按回车键，回调执行，键盘收起。**未在模拟器验证。**
+**效果**：用户按回车键，回调执行，键盘收起。验收用例里用的是这个写法；**用户真实按回车未在模拟器验证。**
 
 单行输入框里按回车不会插入换行。
+
+不调用 `resignFirstResponder()` 时，按回车后键盘是否留在屏幕上，**未在模拟器验证**。要收起键盘就在回调里明确调用它。
+
+多个输入框时，在回调里让下一个输入框聚焦，键盘不收起，见[做一个表单页](#做一个表单页)。
 
 ### 做密码输入框
 
@@ -152,6 +188,21 @@ field.isSecureTextEntry = true;
 ```
 
 **效果**：打的每个字显示成圆点。`field.text` 读到的仍然是真实内容。**显示成圆点未在模拟器验证。**
+
+### 让密码框可以切换显示明文
+
+`isSecureTextEntry` 可以随时改。放一个按钮，点击时把它取反。
+
+```js
+const toggle = UIButton.buttonWithType('system');
+toggle.setTitle('显示', { forState: ['normal'] });
+toggle.addEventListener('primaryActionTriggered', () => {
+  field.isSecureTextEntry = !field.isSecureTextEntry;
+  toggle.setTitle(field.isSecureTextEntry ? '显示' : '隐藏', { forState: ['normal'] });
+});
+```
+
+**效果**：点一下按钮，框里的圆点变成真实的文字，按钮上的字变成「隐藏」。再点一下变回圆点。按钮还需要加到页面上并定位，写法见 [`UIButton`](ui-button.md)。**这个例子未在模拟器验证。**
 
 ### 弹出数字键盘或邮箱键盘
 
@@ -263,7 +314,7 @@ field.resignFirstResponder();              // 失焦，键盘收起
 
 ### 页面刚出现时自动聚焦
 
-iOS 里合适的时机是「页面已经显示出来」。这个时机现在没有对应的事件，见[还不能做的](#还不能做的)。目前的做法是用定时器等待，并检查返回值，不成功就过一会儿重试。
+聚焦要等页面已经显示出来。这个时刻目前没有对应的事件，见[还不能做的](#还不能做的)。目前的做法是反复调用 `becomeFirstResponder()` 并检查返回值，不成功就过一会儿重试。
 
 ```js
 /**
@@ -280,7 +331,11 @@ function focusWhenReady(target, attemptsLeft) {
 setTimeout(() => focusWhenReady(field, 30), 0);
 ```
 
-**效果**：页面显示出来之后，输入框自动开始输入，键盘弹出。最多重试 30 次，约 3 秒，之后放弃。**这个例子未在模拟器验证。**
+**效果**：页面显示出来之后，输入框自动开始输入，键盘弹出。最多重试 30 次，约 3 秒，之后放弃。
+
+验收用例用的是同样的做法（每 100 毫秒调用一次 `becomeFirstResponder()`，直到返回 `true`），随后 `isFirstResponder`、`isEditing` 是 `true`，并收到 `editingDidBegin`。这段代码本身没有在模拟器运行过。
+
+已经是 first responder 的输入框再调用 `becomeFirstResponder()`，返回 `true`，所以可以反复调用。
 
 这个做法有三个限制，都来自实测：
 
@@ -292,7 +347,30 @@ setTimeout(() => focusWhenReady(field, 30), 0);
 
 没有回车键的键盘（比如数字键盘）需要另一种收起方式。常见的做法是点输入框以外的地方收起。
 
-Nacre 还没有手势识别。可以在页面最底层放一个铺满的 [`UIControl`](ui-control.md)，用它接收点击。
+推荐的写法是在页面的根视图上加一个点按的[手势识别器](ui-gesture-recognizer.md)。识别器接收根视图和它所有子视图上的点按，所以回调里要先查出点到了哪个视图，点在输入框和按钮上时不收键盘。
+
+```js
+const dismiss = new UITapGestureRecognizer();
+dismiss.cancelsTouchesInView = false;   // 不取消视图自己正在处理的触摸
+dismiss.addEventListener('ended', (e) => {
+  const { location } = /** @type {UIGestureRecognizerEvent} */ (e);
+  if (location === null) return;
+  // 点在控件（输入框、按钮）或它们的子视图上：不收键盘
+  for (let v = page.view.hitTest(location); v !== null; v = v.superview) {
+    if (v instanceof UIControl) return;
+  }
+  page.view.endEditing(true);
+});
+page.view.addGestureRecognizer(dismiss);
+```
+
+**效果**：点页面上控件以外的地方，键盘收起。点输入框和按钮时键盘不收起，它们照常响应。**这个例子未在模拟器验证。**
+
+`page.view.endEditing(true)` 让页面里正在输入的那个输入框失焦。不需要知道是哪一个。
+
+这个写法不需要改动页面的视图结构，页面上有文字、图片这些不是控件的视图时，点它们也能收起键盘。
+
+另一种写法不用手势识别器：在页面最底层放一个铺满的 [`UIControl`](ui-control.md)，用它接收点击。它只在点到没有别的视图的空白处时有效，点在文字和图片上是否有效取决于这些视图是否接收触摸。
 
 ```js
 const backdrop = new UIControl();
@@ -311,8 +389,6 @@ backdrop.addEventListener('touchUpInside', () => {
 ```
 
 **效果**：点页面上没有别的控件的地方，键盘收起。点输入框和按钮不受影响，因为它们在 `backdrop` 的前面。**这个例子未在模拟器验证。**
-
-`page.view.endEditing(true)` 让页面里正在输入的那个输入框失焦。不需要知道是哪一个。
 
 ### 让输入框不被键盘挡住
 
@@ -338,7 +414,7 @@ NSLayoutConstraint.activateConstraints([
 **效果**
 
 - 键盘收起时，输入框在屏幕底部，底边在安全区底边上方 16 pt。
-- 键盘弹出时，输入框上移到键盘上方 16 pt。键盘收起后回到原位。**键盘弹出时上移未在模拟器验证**（验收时软键盘没有弹出）。
+- 键盘弹出时，输入框上移到键盘上方 16 pt。键盘收起后回到原位。验收用例只在软键盘真的弹出时检查上移；iOS 27.2 的模拟器上软键盘没有弹出，**在这个系统上未在模拟器验证**。
 
 原理见[键盘避让：一条约束](#键盘避让一条约束)。
 
@@ -399,7 +475,7 @@ field.textAlignment = 'center';
 
 ### 限制输入长度或过滤字符
 
-没有 `maxlength`。现在能做的是在内容变化之后改回去。
+输入框没有最大长度的属性。目前能做的是在内容变化之后改回去。
 
 ```js
 field.addEventListener('editingChanged', () => {
@@ -414,36 +490,132 @@ field.addEventListener('editingChanged', () => {
 这个做法有两个缺点：
 
 - 多出来的字符会先显示出来，再被去掉。回调不是在按键的那一刻同步执行的，见[事件](#事件)。
-- 用拼音这类输入法时，还没选字的拼音字母也算在 `text` 里。这时截断会打断输入。**未在模拟器验证。**
+- 用拼音这类输入法时，还没选字的拼音字母可能也算在 `text` 里，这时截断会打断输入。**未在模拟器验证。**
+
+用代码改 `text` 不派发 `editingChanged`，所以回调里改 `text` 不会让回调再执行一次。**未在模拟器验证。**
+
+只允许某些字符的写法相同，把截断换成过滤：
+
+```js
+field.addEventListener('editingChanged', () => {
+  const digits = field.text.replace(/[^0-9]/g, '');
+  if (digits !== field.text) {
+    field.text = digits;
+  }
+});
+```
+
+**效果**：粘贴或输入的内容里不是数字的字符被去掉。**未在模拟器验证。**
 
 在字符显示之前拦截它，现在做不到，见[还不能做的](#还不能做的)。
 
+### 做一个表单页
+
+下面是一个登录表单：两个输入框和一个按钮。它包含[推荐的做法](#推荐的做法)里的全部几条。
+
+```js
+// 1. 账号框：回车键显示「下一项」
+const account = new UITextField();
+account.placeholder = '账号';
+account.borderStyle = 'roundedRect';
+account.textContentType = 'username';
+account.autocapitalizationType = 'none';
+account.autocorrectionType = 'no';
+account.returnKeyType = 'next';
+
+// 2. 密码框：回车键显示「完成」
+const secret = new UITextField();
+secret.placeholder = '密码';
+secret.borderStyle = 'roundedRect';
+secret.textContentType = 'password';
+secret.isSecureTextEntry = true;
+secret.returnKeyType = 'done';
+
+const submit = UIButton.buttonWithType('system');
+submit.setTitle('登录', { forState: ['normal'] });
+
+// 3. 提交：先收起键盘，再读内容
+function login() {
+  page.view.endEditing(true);
+  console.log('登录：' + account.text + '，密码长度 ' + secret.text.length);
+}
+
+// 4. 回车：账号框跳到密码框，密码框提交
+account.addEventListener('editingDidEndOnExit', () => {
+  secret.becomeFirstResponder();
+});
+secret.addEventListener('editingDidEndOnExit', login);
+submit.addEventListener('primaryActionTriggered', login);
+
+// 5. 点空白处收起键盘
+const dismissTap = new UITapGestureRecognizer();
+dismissTap.cancelsTouchesInView = false;
+dismissTap.addEventListener('ended', (e) => {
+  const { location } = /** @type {UIGestureRecognizerEvent} */ (e);
+  if (location === null) return;
+  for (let v = page.view.hitTest(location); v !== null; v = v.superview) {
+    if (v instanceof UIControl) return;
+  }
+  page.view.endEditing(true);
+});
+page.view.addGestureRecognizer(dismissTap);
+
+// 6. 布局：两个输入框在顶部，按钮的底边跟着键盘
+for (const v of [account, secret, submit]) {
+  v.translatesAutoresizingMaskIntoConstraints = false;
+  page.view.addSubview(v);
+}
+const safeArea = page.view.safeAreaLayoutGuide;
+const keyboardGuide = page.view.keyboardLayoutGuide;
+NSLayoutConstraint.activateConstraints([
+  account.topAnchor.constraintEqualToAnchor(safeArea.topAnchor, { constant: 24 }),
+  account.leadingAnchor.constraintEqualToAnchor(safeArea.leadingAnchor, { constant: 16 }),
+  account.trailingAnchor.constraintEqualToAnchor(safeArea.trailingAnchor, { constant: -16 }),
+  secret.topAnchor.constraintEqualToAnchor(account.bottomAnchor, { constant: 12 }),
+  secret.leadingAnchor.constraintEqualToAnchor(account.leadingAnchor),
+  secret.trailingAnchor.constraintEqualToAnchor(account.trailingAnchor),
+  submit.centerXAnchor.constraintEqualToAnchor(safeArea.centerXAnchor),
+  submit.bottomAnchor.constraintEqualToAnchor(keyboardGuide.topAnchor, { constant: -16 }),
+]);
+```
+
+**效果**
+
+- 页面顶部是账号框和密码框，左右各留 16 pt。「登录」按钮在屏幕底部，底边在安全区底边上方 16 pt。
+- 点账号框，键盘弹出，「登录」按钮上移到键盘上方 16 pt。
+- 在账号框里按回车，光标跳到密码框，键盘不收起。
+- 在密码框里按回车，或者点「登录」，键盘收起，控制台输出一行 `登录：` 加账号和密码长度。
+- 点输入框和按钮以外的地方，键盘收起。
+
+**这个例子没有作为一个整体在模拟器运行过。** 其中每个属性的读写、`becomeFirstResponder()`、`endEditing()`、`keyboardLayoutGuide` 的约束在验收用例里运行过。在 `editingDidEndOnExit` 的回调里让另一个输入框聚焦时键盘不收起，**未在模拟器验证**。
+
 ## first responder：焦点
 
-**first responder** 是 iOS 里「当前接收键盘输入的那个对象」，相当于 Web 的焦点。同一时刻最多只有一个。
+**first responder** 是 iOS 里「当前接收键盘输入的那个对象」，也就是焦点所在的对象。同一时刻最多只有一个。
 
-| Web | Nacre |
+| 想做的事 | 写法 |
 | --- | --- |
-| `el.focus()` | `field.becomeFirstResponder()` |
-| `el.blur()` | `field.resignFirstResponder()` |
-| `document.activeElement === el` | `field.isFirstResponder` |
-| `focus` 事件 | `editingDidBegin` 事件 |
-| `blur` 事件 | `editingDidEnd` 事件 |
+| 让输入框聚焦 | `field.becomeFirstResponder()` |
+| 让输入框失焦 | `field.resignFirstResponder()` |
+| 判断输入框是否聚焦 | `field.isFirstResponder` |
+| 得知输入框聚焦了 | `editingDidBegin` 事件 |
+| 得知输入框失焦了 | `editingDidEnd` 事件 |
 
-和 Web 的差别：
+关于 first responder 有四件事要知道：
 
 - **键盘和 first responder 是绑定的。** 输入框成为 first responder，键盘弹出。它不再是 first responder，键盘收起。没有单独「显示键盘」「隐藏键盘」的方法。
-- **聚焦可能失败。** `focus()` 没有返回值，`becomeFirstResponder()` 返回布尔，`false` 表示系统拒绝了。
-- **聚焦发生在手指按下的那一刻。** 实测：用户点输入框时，手指刚按下输入框就成为 first responder。Web 是手指抬起、`click` 之后才聚焦。
-- **点别处不会自动失焦。** Web 里点页面空白处，输入框失去焦点。iOS 里输入框保持 first responder，键盘留在屏幕上，直到有代码让它失焦，或者用户点了另一个输入框。
+- **聚焦可能失败。** `becomeFirstResponder()` 返回布尔值，`false` 表示系统拒绝了，什么都没有发生。所以不要忽略返回值。
+- **用户点输入框时，聚焦发生在手指按下的那一刻**，不等手指抬起（实测）。
+- **点别处不会自动失焦。** 输入框保持 first responder，键盘留在屏幕上，直到有代码让它失焦，或者用户点了另一个输入框。**未在模拟器验证。**
 
-`becomeFirstResponder()` 被拒绝的情况：
+`becomeFirstResponder()` 在不同情况下的结果：
 
 | 情况 | 结果 | 依据 |
 | --- | --- | --- |
+| 页面已经显示，没有切换在进行 | 返回 `true`，随后派发 `editingDidBegin` | 实测 |
+| 输入框已经是 first responder | 返回 `true` | 验收用例依赖这一点反复调用，没有单独的断言 |
 | 页面正在切换（模态页面弹出或关闭的动画期间） | 返回 `false` | 实测 |
 | 在 `sceneconnect` 的回调里，页面还没显示出来 | 返回 `true`，`isEditing` 是 `true`，但不派发 `editingDidBegin` | 实测 |
-| 页面已经显示，没有切换在进行 | 返回 `true`，随后派发 `editingDidBegin` | 实测 |
 | 输入框还没加到页面上 | 返回 `false` | **未在模拟器验证** |
 
 收起键盘有三种写法，结果相同：
@@ -460,7 +632,7 @@ field.addEventListener('editingChanged', () => {
 
 每个视图有一个 `keyboardLayoutGuide` 属性。它是一个 layout guide，也就是不显示的矩形，只用来对齐。这个矩形代表键盘占的区域：
 
-- **键盘收起时**，它的顶边在[安全区](ui-view.md#安全区)的底边。
+- **键盘收起时**，它的顶边在安全区的底边。安全区是屏幕上不被刘海和底部横条遮挡的区域，见 [`UIView`](ui-view.md)。
 - **键盘弹出时**，它的顶边在键盘的顶边。
 
 所以把内容的底边约束到它的顶边，两种情况都是对的：
@@ -473,7 +645,7 @@ field.bottomAnchor
   .isActive = true;
 ```
 
-**效果**：键盘收起时，输入框的底边在安全区底边上方 16 pt。键盘弹出时，输入框的底边在键盘上方 16 pt。**键盘弹出时的位置未在模拟器验证。**
+**效果**：键盘收起时，输入框的底边在安全区底边上方 16 pt（验收用例里核对过）。键盘弹出时，输入框的底边在键盘上方 16 pt。验收用例只在软键盘真的弹出时检查这一条；iOS 27.2 的模拟器上软键盘没有弹出，**在这个系统上未在模拟器验证**。
 
 不需要监听键盘的弹出和收起，也不需要计算键盘的高度。位置由系统随键盘一起更新。**移动过程和键盘动画同步这一点未在模拟器验证。**
 
@@ -756,7 +928,7 @@ field.resignFirstResponder();
 | `isFirstResponder` | 布尔 | 是 | 否 | `true`：这个对象现在是 first responder。`false`：不是。新建的输入框是 `false`。输入框上的变化派发 `editingDidBegin` 和 `editingDidEnd` |
 | `canBecomeFirstResponder` | 布尔 | 是 | 否 | `true`：这个对象可以成为 first responder。`false`：不可以，`becomeFirstResponder()` 会返回 `false`。输入框是 `true`，普通的 `UIView` 是 `false`。**这两个值未在模拟器验证** |
 
-让一棵视图树里的输入框失焦用 `endEditing()`，它定义在 `UIView` 上，见 [`UIView` 的键盘一节](ui-view.md#键盘)。
+让一棵视图树里的输入框失焦用 `endEditing()`，它定义在 `UIView` 上，见 [`UIView`](ui-view.md)。
 
 ### 键盘的 layout guide
 
@@ -773,12 +945,12 @@ field.resignFirstResponder();
 
 用 `addEventListener()` 监听。输入框用到的是这四个：
 
-| 事件 | 什么时候派发 | Web 的对应物 |
-| --- | --- | --- |
-| `editingDidBegin` | 输入框成为 first responder，开始输入 | `focus` |
-| `editingChanged` | 用户的输入让内容变了一次 | `input` |
-| `editingDidEndOnExit` | 用户按了回车键 | 没有。接近监听 `keydown` 里的 Enter |
-| `editingDidEnd` | 输入框不再是 first responder，结束输入 | `blur` |
+| 事件 | 什么时候派发 |
+| --- | --- |
+| `editingDidBegin` | 输入框成为 first responder，开始输入 |
+| `editingChanged` | 用户的输入让内容变了一次 |
+| `editingDidEndOnExit` | 用户按了回车键 |
+| `editingDidEnd` | 输入框不再是 first responder，结束输入 |
 
 一次典型的输入派发这些事件：
 
@@ -793,11 +965,12 @@ field.resignFirstResponder();
 
 用代码调 `becomeFirstResponder()` 和 `endEditing()` 时，同样派发 `editingDidBegin` 和 `editingDidEnd`。这一点在验收用例里验证过。
 
-- 事件对象只有 `type` 和 `target` 两个字段。不带输入的内容，也不带按了哪个键。
+- 事件对象的 `type` 是事件名，`target` 是这个输入框。这四个事件的对象不带输入的内容，不带按了哪个键，也不带触点位置。
 - 事件不能取消，`preventDefault()` 不起作用。所以不能用它阻止某个字符进入输入框。
-- 回调不是在事件发生的那一刻同步执行，而是稍后执行，界面忙的时候会更晚。见[运行时怎么工作](how-it-works.md#事件)。
-- 没有 Web 里 `change` 事件的对应物。「用户输入完了」用 `editingDidEnd`。
-- 监听不认识的事件名会抛 `TypeError`。
+- 回调不是在事件发生的那一刻同步执行，而是稍后执行，见[回调的执行时机](ui-control.md#回调的执行时机)。
+- 「用户输入完了」用 `editingDidEnd`。没有「内容确认修改」这样单独的事件。
+- 回调里抛出异常不影响输入框。运行时把异常输出到控制台，同一事件的其他回调照常执行。
+- 目前只能监听 [`UIControl`](ui-control.md#控件事件) 列出的 16 个控件事件和 `traitchange`。监听其他名字会抛 `TypeError`，所以还不能在输入框上使用自定义事件。这是已知的限制，见[事件名的限制](ui-control.md#事件名的限制)。
 
 完整的 16 个事件见 [`UIControl`](ui-control.md)。
 
@@ -840,11 +1013,33 @@ field.resignFirstResponder();
 | `textField:shouldChangeCharactersInRange:replacementString:` | 未实现 |
 | `textFieldShouldBeginEditing:`、`textFieldShouldEndEditing:`、`textFieldShouldClear:` | 未实现 |
 
+## 与浏览器 `<input>` 的对照
+
+这张表只用来查对应关系，给熟悉 HTML 表单的人用。
+
+| 浏览器 | Nacre | 差别 |
+| --- | --- | --- |
+| `input.value` | `field.text` | 没有内容时是空字符串，不是 `null` |
+| `placeholder` | `placeholder` | 没设时读到 `null` |
+| `type="password"` | `isSecureTextEntry = true` | 是一个布尔属性，不是一种类型 |
+| `inputmode` | `keyboardType` | 只决定弹出哪种键盘，不校验内容 |
+| `autocomplete` | `textContentType` | 取值是 iOS 定的一组名字 |
+| `enterkeyhint` | `returnKeyType` | 只改回车键上的字，不改行为 |
+| `input` 事件 | `editingChanged` 事件 | 事件对象不带内容，要读 `field.text` |
+| `focus` / `blur` 事件 | `editingDidBegin` / `editingDidEnd` 事件 | — |
+| `keydown` 里判断 Enter | `editingDidEndOnExit` 事件 | — |
+| `el.focus()` / `el.blur()` | `becomeFirstResponder()` / `resignFirstResponder()` | 有返回值，表示是否成功 |
+| `document.activeElement === el` | `field.isFirstResponder` | — |
+| `disabled` | `isEnabled = false` | — |
+| `maxlength`、`pattern`、`required`、`readonly` | 没有 | 在 `editingChanged` 的回调里自己检查 |
+| 表单的提交 | 没有 | 按回车派发 `editingDidEndOnExit`，做什么由回调决定 |
+
 ## 还不能做的
 
 | 想做的事 | 对应的原生能力 | 状态 |
 | --- | --- | --- |
 | 多行输入 | `UITextView` | 未实现 |
+| 在输入框上监听自定义名字的事件 | 无 | 未实现，见[事件名的限制](ui-control.md#事件名的限制) |
 | 在字符显示之前拦截：限制长度、只允许数字 | `textField:shouldChangeCharactersInRange:replacementString:` | 未实现。这个方法要求立刻返回一个布尔，运行时还不能同步回调 JS。现在只能[事后改回去](#限制输入长度或过滤字符) |
 | 阻止输入框开始输入、结束输入、被清空 | `textFieldShouldBeginEditing:` 等 | 未实现，原因同上 |
 | 页面出现时自动聚焦，不用定时器 | `viewDidAppear:` | 未实现。页面的生命周期还没暴露。现在的做法见[页面刚出现时自动聚焦](#页面刚出现时自动聚焦) |
@@ -854,7 +1049,6 @@ field.resignFirstResponder();
 | 把系统键盘换成自己的视图 | `inputView` | 未实现 |
 | 在输入框左侧或右侧放图标 | `leftView`、`rightView` | 未实现 |
 | 设置文字到边框的内边距 | 覆写 `textRectForBounds:` | 未实现。现在的做法见[自己画边框和底色](#自己画边框和底色) |
-| 用手势点空白处收起键盘 | `UITapGestureRecognizer` | 未实现。现在的做法见[点空白处收起键盘](#点空白处收起键盘) |
 | 拖动滚动视图时收起键盘 | `UIScrollView.keyboardDismissMode` | 未实现 |
 | 得知键盘弹出、收起的时刻和键盘的高度 | `UIKeyboardWillShowNotification` 等通知 | 未实现。避开键盘用 `keyboardLayoutGuide`，不需要这些 |
 | 让键盘的 guide 不包含底部安全区 | `UIKeyboardLayoutGuide.usesBottomSafeArea` | 没有暴露。实测写入 `true` 后读回来仍是 `false` |
@@ -866,6 +1060,8 @@ field.resignFirstResponder();
 - [`UIView`](ui-view.md)：`endEditing()`、`keyboardLayoutGuide` 和安全区
 - [Auto Layout](auto-layout.md)：约束和 layout guide 的写法
 - [`UIScrollView`](ui-scroll-view.md)：表单很长时放进滚动视图
+- [手势识别器](ui-gesture-recognizer.md)：点空白处收起键盘用到的点按识别器
+- [`UIButton`](ui-button.md)：表单里的提交按钮
 - [`UIFont`](ui-font.md)、[颜色](ui-color.md)：`font` 和 `textColor` 的取值
 - [定时器](timers.md)：自动聚焦用到的 `setTimeout`
 - [枚举](enums.md)：字符串取值的规则

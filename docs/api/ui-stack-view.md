@@ -6,30 +6,53 @@ status: partial
 
 # `UIStackView`
 
-`UIStackView` 是排列容器：把放进去的子视图排成一行或一列，并替它们算好位置和大小。它自己不显示任何东西。
+**`UIStackView`** 表示一个排列容器。它把放进去的子视图沿一个方向排成一行或一列，并自动安排每个子视图的位置和大小。它自己不显示任何东西。
 
-它相当于 CSS 里 `display: flex` 的容器：
+排列的方向由 `axis` 决定：`'horizontal'` 排成一行，`'vertical'` 排成一列。子视图之间的间距由 `spacing` 决定，单位是 [pt](units.md)，不随字号变化。沿排列方向怎么分配空间由 `distribution` 决定，垂直于排列方向怎么对齐由 `alignment` 决定。
 
-| CSS | `UIStackView` |
-| --- | --- |
-| `flex-direction: row` / `column` | `axis = 'horizontal'` / `'vertical'` |
-| `gap` | `spacing` |
-| `justify-content` 加上各项的 `flex-grow` | `distribution` |
-| `align-items` | `alignment` |
-| `padding` | `directionalLayoutMargins`，并把 `isLayoutMarginsRelativeArrangement` 设成 `true` |
-| `flex-wrap` | 没有 |
+参与排列的子视图叫排列项，用 `addArrangedSubview()` 加入。排列的顺序就是加入的顺序。
 
-和 flexbox 有七点不同：
+## 排列项不用写约束
 
-- **不换行。** 一行放不下时，各项被压窄，不会折到下一行。
-- **子视图要用 `addArrangedSubview()` 加。** 用 `addSubview()` 加进去的视图不参与排列。见[排列项和子视图](#排列项和子视图)。
-- **隐藏一项，它就让出位置。** `isHidden = true` 的效果相当于 CSS 的 `display: none`，其余项自动重新排列。
-- **间距只能写点数或 `'system'`。** 单位是点（pt），没有 `em` 和百分比，也不跟着字号变。见[单位](units.md)。
-- **内边距要多开一个开关。** 只写内边距不生效，还要把 `isLayoutMarginsRelativeArrangement` 设成 `true`。见[给容器加内边距](#给容器加内边距)。
-- **没有 `align-self` 和 `order`。** 交叉轴的对齐方式整个容器只有一个。顺序就是加入的顺序。
-- **容器自己的底色和圆角不显示。** 见[它自己不显示](#它自己不显示)。
+排列容器替每个排列项建立约束（[Auto Layout](auto-layout.md) 里视图之间的位置关系）。排列项的位置不用写，也不要写。加进容器时，容器自动把排列项的 `translatesAutoresizingMaskIntoConstraints` 设成 `false`（实测）。
 
-这一页分三部分：先给一个[能直接运行的完整例子](#完整例子)，再按[你想做的事](#常见用法)给出写法和效果，最后是[每个成员的说明](#成员说明)。
+排列项的大小有三个来源：
+
+- **它自己的内容。** 文字、按钮、图片有自己的大小，叫固有大小，容器按它分配空间。
+- **容器的拉伸。** `alignment` 是 `'fill'`（默认值）时，排列项在垂直于排列方向上和容器一样大。`distribution` 是 `'fillEqually'` 时，各项沿排列方向一样大。
+- **另外写的宽高约束。** 普通的 `UIView` 没有固有大小，容器又没有拉伸它时，要用约束给它指定宽或高，否则它的大小是 0，看不到。
+
+## 容器自己的位置和大小
+
+排列容器只管里面的排列项，不管自己。它自己的位置要像其他视图一样，用约束或 `frame` 确定。用约束时，容器自己的 `translatesAutoresizingMaskIntoConstraints` 要设成 `false`，容器不会替自己设。漏了这一行，整个容器的大小是 0，里面的内容都看不到，控制台没有任何输出。
+
+容器的大小可以不写。没有约束限定宽度或高度的方向上，容器的大小由排列项决定：各项的大小加上间距。实测：一列 12 行、每行高 36 pt、间距 6 pt 的纵向容器，没有写高度，算出来的高度是 498 pt（12 × 36 + 11 × 6）。
+
+推荐的写法是：只确定容器的位置和垂直于排列方向的大小（纵向容器给左右两边，横向容器给上下两边或高度），沿排列方向的大小留给内容决定。
+
+容器作为另一个容器的排列项时，由外层容器定位，什么都不用写。
+
+## 隐藏一项
+
+把排列项的 `isHidden` 设成 `true`，它让出位置，其余项自动重新排列。设回 `false`，它回到原来的位置。实测：三项等宽的一行隐藏中间一项后，隐藏项的宽度是 0，其余两项平分整行，中间只有一个间距。隐藏的排列项仍然在 `arrangedSubviews` 里。
+
+不在排列容器里的视图没有这个行为，隐藏之后仍然占着原来的位置。
+
+## 不能换行
+
+排列容器只排一行或一列。一行放不下时，各项被压窄，不会折到下一行（压窄的效果**未在模拟器验证**）。
+
+需要多行时，由 JS 决定每行放几项：每一行建一个横向容器，再把这些横向容器放进一个纵向容器。写法见[嵌套：行里套列](#嵌套行里套列)。各行分别计算宽度。要让上下两行的列对齐，各行用 `distribution = 'fillEqually'`，并保持每行的项数和间距相同（对齐的效果**未在模拟器验证**）。
+
+内容超出屏幕时排列容器不会滚动，要把它放进 [`UIScrollView`](ui-scroll-view.md)。
+
+## 推荐的做法
+
+- **页面的主体用「滚动视图里放一个纵向排列容器」。** 页面上的每一块内容是一个排列项，内容超出屏幕时可以滚动，增删内容时不用改任何约束。完整写法见 [`UIScrollView` 的完整例子](ui-scroll-view.md#完整例子)。
+- **加入用 `addArrangedSubview()`，移除用 `removeFromSuperview()`。** `addSubview()` 加进来的视图不参与排列；`removeArrangedSubview()` 移出排列之后视图仍然留在容器里。见[排列项和子视图](#排列项和子视图)。
+- **临时不显示的项用 `isHidden`，不要移除再加回。** 隐藏的项保留在原来的顺序里，显示回来时位置不变。
+- **四周的留白用内边距，不要多套一层视图。** 见[给容器加内边距](#给容器加内边距)。
+- **底色和圆角设在外层的普通视图上。** 排列容器自己的底色和圆角不显示，见[加底色和圆角](#加底色和圆角)。
 
 ## 完整例子
 
@@ -89,9 +112,11 @@ application.addEventListener('sceneconnect', (e) => {
 
 这段代码没有作为一个整体在模拟器运行过。其中用到的每个 API 都在验收用例里运行过，「三项等宽」和宽度的算法在验收用例里核对过。
 
-四步分别是：创建容器、放入排列项、嵌套另一个容器、用约束定位最外层。第 4 步用到的约束和 `safeAreaLayoutGuide`（安全区，屏幕上不被刘海和底部横条遮挡的区域）见 [Auto Layout](auto-layout.md) 和 [`UIView`](ui-view.md#安全区)。
+四步分别是：创建容器、放入排列项、嵌套另一个容器、用约束定位最外层。第 4 步用到的约束和 `safeAreaLayoutGuide`（安全区，屏幕上不被刘海和底部横条遮挡的区域）见 [Auto Layout](auto-layout.md) 和 [`UIView`](ui-view.md)。
 
-> **注意**：第 4 步里 `column.translatesAutoresizingMaskIntoConstraints = false` 这一行不能少。这个属性默认是 `true`，意思是「按 `frame` 摆放这个视图」，而新建视图的 `frame` 是 0 × 0，结果是整列都看不到。放进容器的排列项（`title`、`row`、三个色块）由容器自动设好，不用写。
+> **注意**：第 4 步里 `column.translatesAutoresizingMaskIntoConstraints = false` 这一行不能少。这个属性默认是 `true`，意思是「按 `frame` 定位这个视图」，而新建视图的 `frame` 是 0 × 0，结果是整列都看不到。放进容器的排列项（`title`、`row`、三个色块）由容器自动设好，不用写。
+
+这个例子没有给 `column` 写高度，也没有给 `title` 写任何约束。`column` 的高度由两个排列项的高度加间距决定，`title` 的高度由文字决定。
 
 ## 常见用法
 
@@ -175,7 +200,7 @@ column.addArrangedSubview(line);
 
 **效果**：「128.00」贴着这一行的右端，宽度正好是文字的宽度。「账户余额」占满左边其余的宽度。**未在模拟器验证。**
 
-`distribution` 是 `'fill'`（默认值）时，容器按各项的「内容抱紧优先级」决定把多出来的空间给谁：优先级最低的那一项被拉长。它相当于 `flex-grow`，但方向相反：数越小越容易被拉长。`UILabel` 和普通 `UIView` 的默认值都是 250，所以要把其中一项调高或调低，才能分出先后。说明见 [`UIView` 的内容优先级](ui-view.md#内容优先级)和 [Auto Layout](auto-layout.md)。
+`distribution` 是 `'fill'`（默认值）时，容器按各项的「内容抱紧优先级」决定把多出来的空间给谁。内容抱紧优先级是一个 1 到 1000 的数，表示视图不愿意被拉得比自己的内容大的程度。优先级最低的那一项被拉长，多出来的空间全部给它，不按比例分。`UILabel` 和普通 `UIView` 的默认值都是 250（实测），所以要把其中一项调高或调低，才能分出先后。完整说明见 [Auto Layout 的内容抱紧和抗压缩](auto-layout.md#内容抱紧和抗压缩)。
 
 ### 交叉轴上的对齐
 
@@ -221,6 +246,8 @@ orange.isHidden = false;
 
 不在排列容器里的视图，隐藏之后仍然占着原来的位置。只有排列项隐藏后会让出位置。
 
+需要临时去掉一项时推荐用隐藏。隐藏的项保留在排列里，顺序不变，之后显示回来不用重新计算插入的位置。
+
 ### 插入到指定位置
 
 ```js
@@ -232,7 +259,7 @@ row.insertArrangedSubview(purple, { atIndex: 1 });
 
 **效果**：紫色块排在第二个，顺序变成红、紫、橙、青，四项等宽。
 
-`atIndex` 从 0 开始。它可以等于当前的项数，效果和 `addArrangedSubview()` 一样，加在末尾。超出范围会抛错，见[方法](#方法)。
+`atIndex` 从 0 开始。它可以等于当前的项数，效果和 `addArrangedSubview()` 一样，加在末尾。超出范围、没传或者传了 `undefined` 都会抛 `TypeError`，不会插入，见[方法](#方法)。
 
 ### 移除一项
 
@@ -316,11 +343,11 @@ row.addArrangedSubview(stacked);
 - `row` 里有四项，四项等宽。
 - 第四项和这一行一样高（44 pt），里面上下两个色块，各高 20 pt，中间空 4 pt。
 
-> **注意**：嵌套排不出列对齐的表格。每一行各自计算宽度，第二行的第二项和第一行的第二项没有关系。要让列对齐，用约束让同一列的各个视图宽度相等，见 [Auto Layout](auto-layout.md)。
+> **注意**：嵌套的各行各自计算宽度，第二行的第二项和第一行的第二项没有关系。各行的项数和间距相同并且都用 `'fillEqually'` 时，各行算出的宽度相同。其他情况要让列对齐，用约束让同一列的各个视图宽度相等，见 [Auto Layout](auto-layout.md)。
 
 ### 给容器加内边距
 
-内边距是容器四条边和排列项之间留出的空白，相当于 CSS 的 `padding`。要写两个属性：`directionalLayoutMargins` 给出四条边各留多少，`isLayoutMarginsRelativeArrangement` 让排列项按它缩进。
+内边距是容器四条边和排列项之间留出的空白，单位 [pt](units.md)。要写两个属性：`directionalLayoutMargins` 给出四条边各留多少，`isLayoutMarginsRelativeArrangement` 让排列项按它缩进。
 
 ```js
 const padded = new UIStackView();
@@ -345,7 +372,8 @@ column.addArrangedSubview(padded);
 - 两个属性缺一不可。只写 `directionalLayoutMargins`、不开 `isLayoutMarginsRelativeArrangement`，排列项仍然贴着容器的边缘。
 - `leading` 是文字开始的一侧，`trailing` 是文字结束的一侧。中文和英文里 `leading` 在左。
 - 内边距的默认值是四边各 8 pt，不是 0。只开开关、不写内边距时用的是这个默认值。
-- `directionalLayoutMargins` 是从 `UIView` 继承来的，完整说明见 [`UIView` 的内边距](ui-view.md#内边距)。
+- `directionalLayoutMargins` 是从 `UIView` 继承来的，完整说明见 [`UIView`](ui-view.md)。四个字段都要写，少一个抛 `TypeError`。
+- 只留上下或只留左右时，其余两边写 `0`。
 
 > **注意**：容器的某条边伸到安全区外面时（比如容器铺满整个屏幕），系统会把安全区加到那条边的内边距上。要写多少就是多少，把容器的 `insetsLayoutMarginsFromSafeArea` 设成 `false`。
 
@@ -393,7 +421,7 @@ column.addArrangedSubview(card);
 
 ### 主轴和交叉轴
 
-`axis` 决定排列的方向，这个方向叫主轴。和它垂直的方向叫交叉轴。含义和 flexbox 里相同。
+`axis` 决定排列的方向，这个方向叫主轴。和它垂直的方向叫交叉轴。
 
 | `axis` | 主轴 | 交叉轴 |
 | --- | --- | --- |
@@ -430,7 +458,7 @@ column.addArrangedSubview(card);
 
 ### 排列项的大小从哪里来
 
-容器按排列项的「固有大小」来分配空间。固有大小是视图根据自己的内容算出的大小：文字有多长、按钮上的字有多宽。它相当于 CSS 里元素的内容尺寸。
+容器按排列项的「固有大小」来分配空间。固有大小是视图根据自己的内容算出的大小：文字有多长、按钮上的字有多宽。内容变了，固有大小跟着变，容器在下一次布局时重新排列。
 
 - [`UILabel`](ui-label.md)、[`UIButton`](ui-button.md)、[`UIImageView`](ui-image.md) 这类视图有固有大小。
 - 普通的 `UIView` 没有固有大小。作为排列项时，要让容器把它拉开（`alignment = 'fill'`、`distribution = 'fillEqually'`），或者用约束给它指定宽高。两样都没有时，它的大小是 0，看不到。
@@ -440,7 +468,7 @@ column.addArrangedSubview(card);
 - 把排列项的 `translatesAutoresizingMaskIntoConstraints` 设成 `false`。
 - 替排列项建立约束。所以不要再给排列项写决定位置的约束，只在需要时写宽度或高度。
 
-容器自己的位置和大小不归它自己管。它和其他视图一样，要用约束或 `frame` 来定位。作为另一个容器的排列项时，由外层容器来定位。
+容器自己的位置不归它自己管。它和其他视图一样，要用约束或 `frame` 来定位。作为另一个容器的排列项时，由外层容器来定位。没有约束限定的方向上，容器的大小由排列项决定。
 
 ### 它自己不显示
 
@@ -476,7 +504,7 @@ column.addArrangedSubview(card);
 └──────────────────────────────────┘
 ```
 
-`'equalSpacing'`：各项保持固有大小，多出来的空间平均分到项与项之间的空隙里。相当于 `justify-content: space-between`。
+`'equalSpacing'`：各项保持固有大小，多出来的空间平均分到项与项之间的空隙里。第一项贴着容器的起始边，最后一项贴着结束边。
 
 ```
 ┌──────────────────────────────────┐
@@ -501,17 +529,17 @@ column.addArrangedSubview(card);
 | `'fill'`、`'fillEqually'`、`'fillProportionally'` | 相邻两项之间的间距就是这个值 |
 | `'equalSpacing'`、`'equalCentering'` | 相邻两项之间的间距至少是这个值 |
 
-容器比各项加起来窄时，各项被压窄。先压谁由另一个优先级决定，见 [`UIView` 的内容优先级](ui-view.md#内容优先级)。
+容器比各项加起来窄时，各项被压窄。先压谁由另一个优先级决定，见 [Auto Layout 的内容抱紧和抗压缩](auto-layout.md#内容抱紧和抗压缩)。压窄的效果**未在模拟器验证**。
 
 五个取值里，`'fillEqually'` 的效果在验收用例里核对过。其余四个的效果**未在模拟器验证**。
 
-> **注意**：没有 flexbox 的 `center`、`flex-end`、`space-around`。写 `row.distribution = 'spaceBetween'` 会抛错。要让一组视图整体居中，不要让容器铺满，用约束把容器自己放到中间。
+> **注意**：`distribution` 只有这五个取值，没有「各项靠一端」或「整体居中」的取值。写表里没有的值（比如 `'spaceBetween'`）会抛 `TypeError`，属性保持原值。要让一组视图整体居中或靠一端，不要让容器铺满，用约束把容器自己放到中间或那一端，容器的宽度留给内容决定。
 
 ### `alignment` 的取值
 
 `alignment` 决定交叉轴方向上各项怎么对齐。下面的示意图都是横向排列，三项的高度不同。
 
-`'fill'`（默认值）：所有项被拉到和容器一样高。相当于 `align-items: stretch`。
+`'fill'`（默认值）：所有项被拉到和容器一样高。
 
 ```
 ┌───────────────┐
@@ -522,7 +550,7 @@ column.addArrangedSubview(card);
 └───────────────┘
 ```
 
-`'leading'`，别名 `'top'`：顶边对齐。相当于 `align-items: flex-start`。
+`'leading'`，别名 `'top'`：顶边对齐。各项按自己的高度显示。
 
 ```
 ┌───────────────┐
@@ -533,7 +561,7 @@ column.addArrangedSubview(card);
 └───────────────┘
 ```
 
-`'center'`：中线对齐。相当于 `align-items: center`。
+`'center'`：中线对齐。
 
 ```
 ┌───────────────┐
@@ -545,7 +573,7 @@ column.addArrangedSubview(card);
 └───────────────┘
 ```
 
-`'trailing'`，别名 `'bottom'`：底边对齐。相当于 `align-items: flex-end`。
+`'trailing'`，别名 `'bottom'`：底边对齐。
 
 ```
 ┌───────────────┐
@@ -556,7 +584,7 @@ column.addArrangedSubview(card);
 └───────────────┘
 ```
 
-`'firstBaseline'`：各项第一行文字的基线对齐。基线是一行文字里字母底部所在的那条线。相当于 `align-items: baseline`。只在横向排列时有效。
+`'firstBaseline'`：各项第一行文字的基线对齐。基线是一行文字里字母底部所在的那条线。只在横向排列时有效。
 
 `'lastBaseline'`：各项最后一行文字的基线对齐。只在横向排列时有效。各项都只有一行文字时，它和 `'firstBaseline'` 的结果相同：
 
@@ -609,7 +637,7 @@ EventTarget → NSObject → UIResponder → UIView → UIStackView
 
 `frame`、`isHidden`、`addSubview()`、锚点等成员继承自 [`UIView`](ui-view.md)，这里不重复。
 
-`UIStackView` 不能被继承，`class X extends UIStackView` 在 `new X()` 时抛错，见[原生类](native-classes.md#不能继承)。
+`UIStackView` 不能被继承，`class X extends UIStackView` 在 `new X()` 时抛错，见[原生类](native-classes.md)。
 
 ### 创建
 
@@ -624,6 +652,7 @@ const filled = new UIStackView([red, orange, teal]);
 | --- | --- | --- | --- |
 | `arrangedSubviews` | `UIView` 的数组 | 否 | 一开始就放进去的排列项，按数组顺序排列。不传时容器是空的 |
 
+- `arrangedSubviews` 可以是数组，也可以是任何可迭代的对象。传 `null` 或 `undefined` 和不传相同。
 - 数组里的视图同时成为容器的子视图，不用再调 `addSubview()`。
 - 数组里的视图原来有父视图时，会从原来的父视图里移出。
 - 数组里的视图的 `translatesAutoresizingMaskIntoConstraints` 被设成 `false`。
@@ -638,7 +667,7 @@ const filled = new UIStackView([red, orange, teal]);
 | `alignment` | 字符串 | 是 | 是 | `'fill'` | 交叉轴方向上各项怎么对齐。取值见下表 |
 | `spacing` | 数，或 `'system'` | 是 | 是 | `0` | 相邻两项之间的间距，单位 [pt](units.md)。`'system'` 表示用系统推荐的间距 |
 | `isBaselineRelativeArrangement` | 布尔 | 是 | 是 | `false` | `true`：纵向排列时，间距从上一项最后一行文字的基线量到下一项第一行文字的基线。`false`：间距从上一项的底边量到下一项的顶边。横向排列时这个属性无效 |
-| `isLayoutMarginsRelativeArrangement` | 布尔 | 是 | 是 | `false` | `true`：排列项排在容器的[内边距](ui-view.md#内边距)以内。`false`：排列项贴着容器的边缘，内边距不起作用 |
+| `isLayoutMarginsRelativeArrangement` | 布尔 | 是 | 是 | `false` | `true`：排列项排在容器的[内边距](#给容器加内边距)以内。`false`：排列项贴着容器的边缘，内边距不起作用 |
 | `arrangedSubviews` | `UIView` 的数组 | 是 | 否 | 空数组 | 全部排列项，按排列顺序。隐藏的排列项也在里面 |
 
 `distribution` 的取值，示意图见 [`distribution` 的取值](#distribution-的取值)：
@@ -671,7 +700,8 @@ const filled = new UIStackView([red, orange, teal]);
 - `isLayoutMarginsRelativeArrangement` 用到的内边距是从 `UIView` 继承来的 `directionalLayoutMargins`，见[给容器加内边距](#给容器加内边距)。
 - 容器还没加到窗口里、又已经布局过一次时，改内边距或 `isLayoutMarginsRelativeArrangement` 之后要先调 `setNeedsLayout()`，再调 `layoutIfNeeded()`，排列项的位置才会更新。容器在窗口里时不需要。
 - `arrangedSubviews` 每次读出来是一个新数组。数组里的视图对象是同一个，可以用 `===` 比较。
-- 这些属性都没有变化通知。只有你自己的代码能改它们。
+- 这些属性都没有变化通知。只有 App 自己的代码能改它们。
+- 写入属性后，排列在下一次布局时更新。要立刻读到新的 `frame`，先调 `layoutIfNeeded()`。
 
 **出错**
 
@@ -680,7 +710,10 @@ const filled = new UIStackView([red, orange, teal]);
 | `axis` 写了不认识的值 | `TypeError: axis has no value "diagonal"; expected one of: …` |
 | `distribution` 写了不认识的值 | `TypeError: distribution has no value "spaceBetween"; expected one of: …` |
 | `alignment` 写了不认识的值 | `TypeError: alignment has no value "baseline"; expected one of: fill / leading / firstBaseline / center / trailing / lastBaseline / top / bottom` |
-| `spacing` 写了数和 `'system'` 以外的值 | `TypeError: spacing has no value "default"; expected one of: a number / "system"` |
+| `spacing` 写了数和 `'system'` 以外的字符串 | `TypeError: spacing has no value "default"; expected one of: a number / "system"` |
+| `spacing` 写了转不成数的其他值（`undefined`、对象） | `TypeError: spacing must be a finite number, got undefined` |
+
+抛错之后属性保持原值。`spacing` 接受能转成数的字符串，`'12'` 和 `12` 效果相同。布尔属性接受任何值，按 JS 的真假转换。
 
 报错里的 `…` 处是全部可选值。枚举的通用规则见[枚举](enums.md)。
 
@@ -720,13 +753,15 @@ row.insertArrangedSubview(brown, { atIndex: 0 });
 | 参数 | 类型 | 必填 | 含义 |
 | --- | --- | --- | --- |
 | `view` | `UIView` | 是 | 要插入的视图 |
-| `atIndex` | 数（个数，从 0 开始） | 是 | 插入后这个视图在排列里的位置。范围是 0 到当前的项数，等于项数时加在末尾 |
+| `atIndex` | 整数（个数，从 0 开始） | 是 | 插入后这个视图在排列里的位置。范围是 0 到当前的项数，等于项数时加在末尾。小数向零取整 |
 
 - **返回**：无。
 - 视图同时成为容器的子视图，和 `addArrangedSubview()` 相同。
 - 视图已经是排列项时，它被移到新的位置。**未在模拟器验证。**
 - **出错**：
-  - 没传 `atIndex`：`TypeError: insertArrangedSubview needs { atIndex }`
+  - 没传 `atIndex`，或者写成 `{ atIndex: undefined }`：`TypeError: insertArrangedSubview needs { atIndex }`
+  - `atIndex` 转不成有限数（`NaN`、`'abc'`）：`TypeError: atIndex must be a finite number, got NaN`
+  - `view` 不是视图：`TypeError: insertArrangedSubview needs a UIView`
   - `atIndex` 超出范围：`TypeError: insertArrangedSubview: atIndex 99 is out of range (0...3)`。括号里是允许的范围，后一个数是当前的项数
 
 #### `removeArrangedSubview(view)`
@@ -767,7 +802,8 @@ row.setCustomSpacing(40, { afterView: red });
 - **返回**：无。
 - 视图被移出排列之后，给它设的间距失效。排列项在排列里换位置时，间距跟着它移动。**这两条未在模拟器验证。**
 - **出错**：
-  - 没传 `afterView`：`TypeError: setCustomSpacing needs { afterView }`
+  - 没传 `afterView`，或者写成 `{ afterView: undefined }`：`TypeError: setCustomSpacing needs { afterView }`
+  - `afterView` 不是视图：`TypeError: setCustomSpacing needs a UIView`
   - `spacing` 不是数、`'system'` 或 `'default'`：`TypeError: setCustomSpacing has no value "wide"; expected one of: a number / "system" / "default"`
 
 #### `customSpacingAfterView(view)`
@@ -792,16 +828,17 @@ if (spacing === 'default') {
 
 | 情况 | 报错 |
 | --- | --- |
+| 应该传视图的参数传了别的东西（`null`、数、字符串、不是视图的原生对象），或者没传 | `TypeError: addArrangedSubview needs a UIView`，开头是方法名 |
 | 把还没有原生对象的窗口当作参数传入（`new UIWindow()` 不传场景，并且还没给 `windowScene` 赋值） | `TypeError: addArrangedSubview:: UIWindow has no native object yet, so it cannot be passed as an argument`，开头是方法对应的原生名字 |
 | 在不是由构造函数创建的对象上调用（比如 `Object.create(UIStackView.prototype)`） | `TypeError: axis: Illegal invocation`，开头是属性名或方法对应的原生名字 |
 
-详见[原生类](native-classes.md#三种没有原生对象话术不同)。
+抛错的调用不产生任何效果，排列保持原样。后两种情况详见[原生类](native-classes.md)。
 
-> **注意**：参数不是视图时不报错，调用被忽略。`row.addArrangedSubview(null)` 什么都不发生，构造函数的数组里不是视图的元素会被跳过。类型检查能发现这种错误。
+构造函数 `new UIStackView([…])` 的数组里不是视图的元素（数、字符串、`null`）不报错，被跳过。这和上面方法的行为不一致，是已知问题。类型检查能发现这种错误。
 
 ## 与 iOS 原生写法的对照
 
-如果你在看 Apple 的文档或 iOS 的示例代码，按这张表换成 JS 的写法。
+这张表供照着 Apple 的文档或 iOS 的示例代码写 JS 时查对应的写法。
 
 | ObjC | JS |
 | --- | --- |
@@ -826,6 +863,27 @@ if (spacing === 'default') {
 
 枚举值的换算规则：去掉类型前缀，首字母改小写。`UIStackViewDistributionEqualSpacing` 写成 `'equalSpacing'`。
 
+## 与 CSS 的对照
+
+这张表只供熟悉 flexbox 的人查对应关系，正文不依赖它。
+
+| CSS | `UIStackView` | 差别 |
+| --- | --- | --- |
+| `display: flex` | `new UIStackView()` | 子视图要用 `addArrangedSubview()` 加入 |
+| `flex-direction: row` / `column` | `axis = 'horizontal'` / `'vertical'` | |
+| `gap` | `spacing` | 只能写 pt 或 `'system'`，没有 `em` 和百分比 |
+| `justify-content` 加上各项的 `flex-grow` | `distribution` | 没有 `center`、`flex-end`、`space-around` 的对应取值 |
+| `justify-content: space-between` | `distribution = 'equalSpacing'` | |
+| `flex-grow` | 排列项的内容抱紧优先级 | 方向相反：值越低越容易被拉长。不按比例分 |
+| `align-items: stretch` | `alignment = 'fill'` | |
+| `align-items: flex-start` / `center` / `flex-end` | `alignment = 'leading'` / `'center'` / `'trailing'` | |
+| `align-items: baseline` | `alignment = 'firstBaseline'` | 只在横向排列时有效 |
+| `padding` | `directionalLayoutMargins`，并把 `isLayoutMarginsRelativeArrangement` 设成 `true` | 默认值是四边各 8 pt，不是 0 |
+| `display: none` | 排列项的 `isHidden = true` | |
+| `flex-wrap` | 没有 | |
+| `align-self`、`order` | 没有 | 对齐方式整个容器只有一个，顺序就是加入的顺序 |
+| 容器自己的 `background`、`border-radius` | 不显示 | 在外面套一个普通视图 |
+
 ## 还不能做的
 
 | 想做的事 | 对应的原生能力 | 状态 |
@@ -842,7 +900,7 @@ if (spacing === 'default') {
 - [`UIScrollView`](ui-scroll-view.md)：内容超出屏幕时，把排列容器放进去
 - [`UILabel`](ui-label.md)：最常见的排列项，有固有大小
 - [枚举](enums.md)：字符串取值的通用规则和报错格式
-- [单位](units.md)：pt 是什么，间距会不会跟着缩放
+- [单位](units.md)：pt 是什么
 - [实现原理：Auto Layout](../internals/auto-layout.md)：别名和间距令牌的实现
 
 ← 返回 [API 文档](README.md)

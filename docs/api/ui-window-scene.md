@@ -6,16 +6,107 @@ status: partial
 
 # `UIWindowScene`
 
-`UIWindowScene` 是场景（scene）：App 的一个界面实例。系统创建它，把它交给你的代码，你在它上面建窗口、放页面。
+**`UIWindowScene`** 表示 App 界面的一个实例，称为场景。App 的每个窗口都属于某个场景，场景决定这些窗口显示在哪块屏幕上、此刻在前台还是后台。
 
-它大致相当于浏览器里的一个标签页，有四点不同：
+场景是界面的前提。窗口（[`UIWindow`](ui-window.md)）要建在场景上才能显示，页面和视图又要放进窗口才能显示。没有场景时 App 的代码照常运行，但屏幕上显示不出任何东西。
 
-- iPhone 上一个 App 通常只有一个场景。多个场景主要出现在 iPad 的多窗口和外接显示器上。
-- 场景不能自己创建。它由系统创建，通过 `application` 的 `sceneconnect` 事件交给你。
-- 场景自己不显示任何东西。要先在场景上建一个窗口（[`UIWindow`](ui-window.md)），再给窗口设置页面。
-- 前后台变化类似 Web 的 `visibilitychange`，但状态不止「可见 / 不可见」两种，见[激活状态](#激活状态)。
+场景由系统创建，也由系统销毁，App 不能自己创建。系统创建好一个场景后，在 [`application`](application.md) 上派发 `sceneconnect` 事件，事件对象的 `scene` 属性就是这个场景。
 
-这一页分三部分：先给一个[能直接运行的完整例子](#完整例子)，再按[你想做的事](#常见用法)给出写法和效果，最后是[每个成员的说明](#成员说明)。
+## 场景的数量
+
+一个 App 同时有几个场景，取决于设备：
+
+| 设备 | 场景数量 |
+| --- | --- |
+| iPhone | 一个。连接了外接显示器时可能多一个 |
+| iPad | 用户可以给同一个 App 打开多个窗口，每个窗口是一个场景。各场景的界面和前后台状态互相独立 |
+
+App 是否允许同时有多个场景，读 `application.supportsMultipleScenes`。
+
+运行时目前只支持 iPhone。iPad 上的多场景**未验证**。
+
+## 什么时候没有场景
+
+以下情况下 App 的代码在运行，但没有可用的场景：
+
+- **App 刚启动，脚本顶层执行时。** 系统在脚本执行完之后才创建场景，这时 `application.scenes` 是空数组。所以建界面的代码不能写在顶层，要写在 `sceneconnect` 的回调里。
+- **场景被系统销毁之后。** App 进入后台后，系统为了回收内存可以销毁场景，这时在 `application` 上派发 `scenedisconnect`。
+- **用户关掉了窗口。** 在 iPad 上，用户可以从多任务界面关闭 App 的某个窗口，对应的场景被销毁。
+
+后两种情况**未在模拟器验证**：验收过程中系统没有销毁过场景。
+
+## 场景被销毁之后
+
+场景被销毁不等于 App 重新启动。App 的进程还在，JS 里的变量、数据、没完成的网络请求都还在。被销毁的只有这个场景和它上面的界面。
+
+销毁之后依次发生这些事：
+
+1. 系统在 `application` 上派发 `scenedisconnect`，事件对象的 `scene` 是被销毁的那个场景。
+2. 运行时不再保管这个场景。如果 App 的代码也没有保存它，这个场景连同它的窗口、页面和所有视图都会被回收，内存还给系统。
+3. 用户回到 App 时，系统创建一个**新的**场景对象，再派发一次 `sceneconnect`。
+
+新场景和旧场景是两个不同的对象。它们的 `session` 表示同一份界面：`session.persistentIdentifier` 相同，`session.userInfo` 里存的数据还在。
+
+以上过程来自运行时的代码和 iOS 的定义，**未在模拟器验证**。
+
+### 销毁之后还拿着旧场景会怎样
+
+如果 App 的代码把场景保存在了回调外面的变量里，或者挂在了 `application` 这类一直存在的对象上：
+
+- **旧场景不会被释放。** 它的窗口、页面和所有视图也都留在内存里。系统销毁场景是为了回收内存，这样保存之后内存没有被回收。
+- **旧场景已经不能用了。** 屏幕上不再显示它的窗口。在它上面新建窗口也不会显示。读它的 `activationState` 得到 `'unattached'`。
+- **不会报错。** 读写旧场景的属性不抛异常，所以这种错误不容易发现。
+
+挂在 `application` 上的后果最重：`application` 在 App 运行期间一直存在，挂在它上面的场景永远不会被释放。场景每被销毁重建一次，就多留下一份。
+
+这一节**未在模拟器验证**。
+
+## 推荐的做法
+
+**不要把场景、窗口、页面保存到 `sceneconnect` 的回调外面。** 运行时已经在保管它们：场景在的时候它们不会被回收，场景被销毁时它们一起被回收。
+
+要保存的是数据。把「用户正在看什么」记成数据放在回调外面，每次 `sceneconnect` 都按这份数据从头建一遍界面：
+
+```js
+// 界面的状态存成数据。场景被销毁时它还在
+const state = { title: '首页', visits: 0 };
+
+/** @param {{ title: string, visits: number }} s */
+function buildPage(s) {
+  const page = new UIViewController();
+  page.title = s.title;
+  page.view.backgroundColor = 'systemBackground';
+  return page;
+}
+
+application.addEventListener('sceneconnect', (e) => {
+  state.visits += 1;
+  const win = new UIWindow(e.scene);
+  win.rootViewController = buildPage(state);
+  win.makeKeyAndVisible();
+});
+```
+
+**效果**：App 启动后显示页面。之后场景每被销毁并重建一次，这段回调再执行一次，按 `state` 里的数据重新建出界面，`state.visits` 加一。
+
+这样写有两个好处：
+
+- **内存能被回收。** 系统销毁场景时，界面占用的内存确实还了回去。App 在后台占用的内存越少，越不容易被系统整个结束。
+- **只有一条路径。** 第一次启动和场景重建走的是同一段代码，不用区分「这是第一次」还是「这是回来了」。
+
+数据放在哪里，决定它能保留到什么时候：
+
+| 放在哪里 | 场景被销毁后 | App 被系统结束后 |
+| --- | --- | --- |
+| 回调外面的 JS 变量 | 还在 | 没有了 |
+| `scene.session.userInfo` | 还在 | 还在。**未在模拟器验证** |
+| [`application.storage`](storage.md) | 还在 | 还在 |
+
+### 什么时候可以保留页面
+
+重建一个页面的代价很大时，可以把页面对象保存在回调外面，场景重建后把它放进新窗口。比如页面里有一张加载好的网页，或者用户填到一半的长表单。
+
+代价是这个页面和它的所有视图一直占着内存，直到代码不再保存它。把旧页面放进新窗口后能否正常显示，**未在模拟器验证**。
 
 ## 完整例子
 
@@ -270,7 +361,7 @@ application.addEventListener('scenedisconnect', (e) => {
 | `'unattached'` | 场景没有接入 App |
 | `'unknown'` | 系统返回了运行时不认识的状态。现有的 iOS 版本不会出现 |
 
-和 Web 的 `document.visibilityState` 对照：`'visible'` 对应前两种，`'hidden'` 对应 `'background'`。iOS 多出的 `'foregroundInactive'` 表示「看得见但不能操作」。
+`'foregroundInactive'` 表示看得见但不能操作。它出现在两种时候：进后台和回前台的过渡期；以及界面被系统的东西临时盖住时，比如下拉通知中心。
 
 ### 场景的状态和 App 的状态
 

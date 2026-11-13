@@ -6,14 +6,9 @@ status: partial
 
 # Auto Layout
 
-Auto Layout 是 iOS 的布局系统。你不直接写每个视图的位置和大小，而是写一组**约束**：视图的边和边之间、尺寸和尺寸之间的关系。系统按这些关系算出每个视图的 `frame`，并在屏幕尺寸变化时重算。
+**Auto Layout** 是 iOS 的布局系统。它不要求写出每个视图的位置和大小，而是接受一组**约束**：视图的边和边之间、尺寸和尺寸之间的关系，例如「卡片的左边在安全区左边的右侧 16 pt」「两个色块等宽」。系统根据全部约束算出每个视图的 `frame`（视图在父视图里的位置和大小），并在屏幕尺寸变化时重新计算。
 
-它在 Web 里最接近的是 CSS 布局，有四点不同：
-
-- **没有文档流。** CSS 里元素不写任何规则也会按顺序排下去。这里一个视图不写约束就没有位置。每个视图的 x、y、宽、高四个量都要能从约束里算出来。
-- **规则写在关系上，不写在元素上。** CSS 是每个元素声明自己的 `margin`、`width`。约束是一个独立的对象，连接两个视图：「A 的左边 = B 的右边 + 8」。
-- **没有 `display: flex`、`grid` 这类布局模式。** 排成一行、等宽、占满剩余空间，都用约束表达。只想排成一行或一列时，用 [`UIStackView`](ui-stack-view.md)，它替你生成约束。
-- **约束出错时系统不报任何信息。** 约束不够或互相矛盾时，控制台没有输出，要自己[检查](#排版调试)。
+一条约束是一个独立的对象（`NSLayoutConstraint`），它连接两个视图上的两个位置或尺寸。这些可以被约束引用的位置和尺寸叫锚点，例如 `view.leadingAnchor`（起始边）、`view.widthAnchor`（宽度）。
 
 这一页涉及四种对象：
 
@@ -26,7 +21,52 @@ Auto Layout 是 iOS 的布局系统。你不直接写每个视图的位置和大
 
 所有长度的单位都是 [pt](units.md)。
 
-这一页分四部分：先给一个[能直接运行的完整例子](#完整例子)，再按[你想做的事](#常见用法)给出写法和效果，然后解释[必须理解的概念](#概念)，最后是[每个成员的说明](#成员说明)。第一次接触 Auto Layout 的话，看完完整例子后先读[概念](#概念)。
+## 约束和 `frame` 的关系
+
+视图有两种定位方式：直接写 `frame`，或者写约束。每个视图用哪一种，由它的 `translatesAutoresizingMaskIntoConstraints` 属性决定。这个属性默认是 `true`，表示按 `frame` 定位。用约束定位的视图要先把它设成 `false`。
+
+- **同一个视图只用一种。** 用了约束的视图，系统每次布局都用约束的结果覆盖它的 `frame`，所以写 `frame` 没有意义。
+- **不同的视图可以各用各的。** 同一个父视图里，可以有的子视图用 `frame`、有的用约束。用 `frame` 定位的容器里面，子视图也可以用约束。
+- **约束的结果从 `frame` 读。** 约束不是另一套坐标，系统算完之后把结果写进每个视图的 `frame`。
+
+## 没有约束的视图
+
+视图没有默认的位置。关掉了 `translatesAutoresizingMaskIntoConstraints`、又一条约束都没写的视图，没有位置和大小，屏幕上看不到（**未在模拟器验证**）。
+
+每个视图在水平方向要能确定 x 和宽，在垂直方向要能确定 y 和高。少确定一个量时不报错，系统自己选一个结果，常见的结果是这个量为 0。实测：一张卡片去掉高度约束之后，高度从 60 pt 变成 16 pt，里面三个色块的高度变成 0。
+
+文字、按钮、图片自带宽和高（见[固有尺寸](#固有尺寸)），只需要再确定位置。
+
+## 约束什么时候生效
+
+创建约束和让它生效是两步。`constraintEqualToAnchor()` 这类方法只创建约束对象，激活（`isActive = true` 或 `NSLayoutConstraint.activateConstraints()`）之后它才参与布局。
+
+激活之后视图的 `frame` 也不会立刻改变。系统在当前这段 JS 执行完之后、下一次屏幕刷新之前统一计算一次。所以激活约束后紧接着读 `frame`，读到的不是新的结果。要立刻得到结果，先在页面的根视图上调 `layoutIfNeeded()`，再读 `frame`。只设置界面、不读 `frame` 的代码不需要调它。
+
+## 视图不显示或位置不对
+
+约束写错时**系统不输出任何信息**（实测：标准输出、标准错误、系统日志都没有内容），App 也不会崩溃。视图只是不出现，或者出现在意外的位置。最常见的原因有三个：
+
+| 原因 | 表现 | 怎么确认 |
+| --- | --- | --- |
+| 没有把 `translatesAutoresizingMaskIntoConstraints` 设成 `false` | 约束都写了，视图的位置和大小不变。新建的视图大小是 0，所以看不到 | 读这个属性，是 `true` 就是漏了 |
+| 约束没有激活 | 和没写这些约束一样 | 读约束的 `isActive`，是 `false` 就是没激活 |
+| 约束不够，某个量没有被确定 | 视图的宽或高是 0，或者位置不对 | 先调 `layoutIfNeeded()`，再读 `view.hasAmbiguousLayout`，是 `true` 就是不够 |
+
+另外两种写错的情况有明确的报错：
+
+- 约束两端的视图不在同一棵视图树里（比如其中一个还没有 `addSubview()`），激活时抛 `TypeError`。所以要先把视图加进视图树，再激活约束。
+- 把垂直方向的锚点和水平方向的锚点连在一起，创建时抛 `TypeError`。
+
+几条必须满足的约束互相矛盾时（同一个视图既写「宽 = 100」又写「宽 = 200」），系统放弃其中一条，同样没有任何输出。检查的方法见[排版调试](#排版调试)。
+
+## 推荐的做法
+
+- **排成一行或一列，用 [`UIStackView`](ui-stack-view.md)，不手写约束。** 它替子视图建立约束，隐藏一项时其余项自动重新排列。手写约束用在它表达不了的地方：把最外层的容器放到页面上、居中、宽高比、两个不相邻的视图对齐。
+- **一组约束用 `NSLayoutConstraint.activateConstraints([…])` 一次激活。** 逐条激活时，前几条已经生效、后几条还没生效，中间会经过约束不完整的状态。
+- **要改布局，改约束的 `constant`，不要停用旧约束再建新约束。** 把约束对象保存在变量里，之后直接赋值：`cardHeight.constant = 84`。约束创建之后只有 `constant` 这一个数值能改；要改倍数、关系或者连接的锚点时，才需要[换一条约束](#停用和替换约束)。
+- **和安全区对齐，不和页面的根视图对齐。** 安全区是视图里不会被刘海、状态栏、屏幕圆角和底部横条遮挡的区域，用 `view.safeAreaLayoutGuide` 取得。
+- **给之后要检查的约束起名字**（`identifier`）。约束出错时没有任何输出，只能自己列出约束来核对，有名字才认得出哪条是哪条。
 
 ## 完整例子
 
@@ -142,7 +182,7 @@ function addBox(color) {
 }
 ```
 
-**效果**：调用一次，页面上多一个视图。它还没有约束，所以没有位置和大小，屏幕上看不到。
+**效果**：调用一次，页面的根视图多一个子视图。它还没有约束，所以没有位置和大小，屏幕上看不到（**未在模拟器验证**）。
 
 ### 固定宽高
 
@@ -332,7 +372,7 @@ NSLayoutConstraint.activateConstraints([
 ]);
 ```
 
-**效果**：`cover` 的宽度跟着屏幕变，高度始终是宽度的 9/16。相当于 CSS 的 `aspect-ratio: 16 / 9`。**未在模拟器验证。**
+**效果**：`cover` 的宽度跟着屏幕变，高度始终是宽度的 9/16。**未在模拟器验证。**
 
 ### 限制最小和最大尺寸
 
@@ -354,7 +394,7 @@ NSLayoutConstraint.activateConstraints([
 ]);
 ```
 
-**效果**：`bubble` 的宽度是页面宽度的一半，但不小于 100 pt，不大于 300 pt。相当于 CSS 的 `width: 50%; min-width: 100px; max-width: 300px`。**未在模拟器验证。**
+**效果**：`bubble` 的宽度是页面宽度的一半，但不小于 100 pt，不大于 300 pt。**未在模拟器验证。**
 
 「一半」那一条的优先级调低了。页面宽度的一半超过 300 时，它和「最宽 300」矛盾，系统保留优先级高的那条。优先级的规则见[优先级](#优先级)。
 
@@ -362,7 +402,7 @@ NSLayoutConstraint.activateConstraints([
 
 ### 之后修改约束的常数（展开和收起）
 
-把约束对象留在变量里，之后改它的 `constant`。
+要改一个已经在屏幕上的布局（展开、收起、移动），推荐改约束的 `constant`。创建约束时把它保存在变量里，之后直接赋值。
 
 ```js
 cardHeight.constant = 84;
@@ -376,7 +416,9 @@ console.log(card.frame.height);   // 84
 
 变化是立刻完成的，没有过渡动画。
 
-约束创建之后只有 `constant` 这一个数值能改。要改倍数、改关系、改连接的锚点，只能[换一条约束](#停用和替换约束)。
+改 `constant` 时约束对象不变，其余约束也不受影响。另一种做法是停用旧约束、再建一条新约束并激活，它要多创建一个约束对象，旧约束还要另外停用。只有 `constant` 表达不了的修改才用那种做法：约束创建之后只有 `constant` 这一个数值能改，要改倍数、改关系、改连接的锚点，只能[换一条约束](#停用和替换约束)。
+
+`constant` 接受能转成数的值，`'84'` 和 `84` 效果相同。转不成有限数的值（`undefined`、`'abc'`、`NaN`）抛 `TypeError: constant must be a finite number, got undefined`，末尾是收到的值。
 
 ### 停用和替换约束
 
@@ -440,7 +482,7 @@ NSLayoutConstraint.activateConstraints([
 
 ### 用不显示的矩形占位
 
-需要一个只参与布局、不显示的东西时，建一个 `UILayoutGuide`，不要建透明的 `UIView`。
+需要一个只参与布局、不显示的矩形时，建一个 `UILayoutGuide`，不要建透明的 `UIView`。`UILayoutGuide` 不进入视图树，不接收触摸。
 
 ```js
 const spacer = new UILayoutGuide();
@@ -476,9 +518,9 @@ NSLayoutConstraint.activateConstraints([
 ]);
 ```
 
-**效果**：没有键盘时，`bar` 在安全区底边上方 16 pt。页面上的输入框获得焦点、键盘弹出时，`bar` 跟着键盘一起上移，停在键盘上方 16 pt。键盘收起时它回到原位。**未在模拟器验证。**
+**效果**：没有键盘时，`bar` 在安全区底边上方 16 pt。页面上的输入框获得焦点、键盘弹出时，`bar` 跟着键盘一起上移，停在键盘上方 16 pt。键盘收起时它回到原位。键盘弹出时的位置**未在模拟器验证**。
 
-不需要监听键盘事件，也不需要计算键盘的高度。输入框的用法见[输入框和键盘](ui-text-field.md)。
+不需要监听键盘事件，也不需要计算键盘的高度。键盘收起时这条约束的结果在验收用例里断言过：`bar` 的底边在安全区底边上方 16 pt。输入框的用法见[输入框和键盘](ui-text-field.md)。
 
 ### 读出约束算出来的位置
 
@@ -489,11 +531,11 @@ console.log(card.frame.x, card.frame.y, card.frame.width, card.frame.height);
 
 **效果**：控制台输出卡片在页面根视图里的位置和大小，单位 pt。
 
-激活约束之后不调 `layoutIfNeeded()` 就读 `frame`，读到的是布局之前的值。原因见[约束什么时候算出结果](#约束什么时候算出结果)。
+激活约束之后不调 `layoutIfNeeded()` 就读 `frame`，读到的是上一次布局的结果。原因见[约束什么时候算出结果](#约束什么时候算出结果)。
 
 ### 查约束够不够
 
-位置不对时，先查约束是不是没写够。
+视图不显示或位置不对时，先查约束是不是没写够。
 
 ```js
 page.view.layoutIfNeeded();
@@ -553,7 +595,7 @@ const gap = middle.leadingAnchor.constraintEqualToAnchor(
 
 有[固有尺寸](#固有尺寸)的视图（文字、按钮、图片）自带宽和高，只需要再确定位置。
 
-用了约束的视图不要再写 `frame`。下一次布局时，系统用约束的结果覆盖它。
+用了约束的视图不要再写 `frame`。下一次布局时，系统用约束的结果覆盖它。要移动或缩放这个视图，改约束的 `constant`。
 
 ### 锚点：边的对象化
 
@@ -601,15 +643,15 @@ try {
 
 **`leading` / `trailing` 和 `left` / `right`。** `leading` 是文字开始的那一边，`trailing` 是文字结束的那一边。在中文、英文这类从左往右书写的语言里，`leading` 是左，`trailing` 是右。系统语言是阿拉伯语、希伯来语这类从右往左书写的语言时，两者对调，整个界面左右镜像。`left` 和 `right` 永远是屏幕的左和右。
 
-这相当于 CSS 里 `inline-start` / `inline-end` 和 `left` / `right` 的区别。平常用 `leading` / `trailing`。只有内容确实和书写方向无关时才用 `left` / `right`。从右往左的语言里对调的行为**未在模拟器验证**。
+平常用 `leading` / `trailing`，界面在从右往左的语言里会自动镜像。只有内容确实和书写方向无关时才用 `left` / `right`。从右往左的语言里对调的行为**未在模拟器验证**。
 
 `leading` / `trailing` 和 `left` / `right` 不要在同一条约束里混用。
 
-**基线**（baseline）是一行文字里字母底部所在的那条线。`firstBaselineAnchor` 是第一行文字的基线，`lastBaselineAnchor` 是最后一行的。两个字号不同的标签并排时，对齐基线比对齐上下边看起来整齐。相当于 CSS 的 `align-items: baseline`。
+**基线**（baseline）是一行文字里字母底部所在的那条线。`firstBaselineAnchor` 是第一行文字的基线，`lastBaselineAnchor` 是最后一行的。两个字号不同的标签并排时，对齐基线之后两段文字的底部在同一条线上，对齐上下边则不在。
 
 **锚点不能自己构造**，只能从视图或 `UILayoutGuide` 上读。同一个视图的同一个锚点，每次读到的是同一个对象：`card.topAnchor === card.topAnchor` 是 `true`。
 
-**锚点持有它的视图。** 只保留锚点、不保留视图的变量，锚点照样能用。约束持有两端的锚点。所以不需要为了让约束有效而另外保存视图。
+**只保存锚点或约束就够了。** 代码里只保存了锚点、没有保存视图时，锚点照样能用。只保存了约束时，约束两端的锚点和视图也都还在。不需要为了让约束有效而另外保存视图。
 
 ### 关掉 `translatesAutoresizingMaskIntoConstraints`
 
@@ -620,11 +662,11 @@ const box = new UIView();
 box.translatesAutoresizingMaskIntoConstraints = false;
 ```
 
-**效果**：`box` 不再按 `frame` 定位，它的位置和大小完全由你写的约束决定。
+**效果**：`box` 不再按 `frame` 定位，它的位置和大小完全由约束决定。
 
-原因：iOS 有两种定位方式，直接写 `frame` 和写约束。这个属性默认是 `true`，意思是「这个视图按 `frame` 定位」。此时系统自动生成一组约束，把视图固定在 `frame` 指定的位置上。这组约束的优先级是最高的。你再写约束，就和它们矛盾。
+原因：iOS 有两种定位方式，直接写 `frame` 和写约束。这个属性默认是 `true`，意思是「这个视图按 `frame` 定位」。此时系统自动生成一组约束，把视图固定在 `frame` 指定的位置上。这组约束的优先级是最高的，另外写的约束和它们矛盾。
 
-漏写的表现是：约束都写对了，但视图的位置不变。
+漏写的表现是：约束都写对了，但视图的位置和大小不变，控制台没有任何输出。新建视图的 `frame` 是 0 × 0，所以通常的结果是看不到这个视图。
 
 三种情况不用写：
 
@@ -652,7 +694,7 @@ console.log(c.isActive);   // true
 | `c.isActive = true` | 单独一条 |
 | `NSLayoutConstraint.activateConstraints([c1, c2, …])` | 一次激活多条 |
 
-一次要激活多条时用批量的写法。逐条激活时，前几条已经生效、后几条还没生效，中间会经过约束不完整的状态。批量激活没有这个中间状态，也只过一次桥。
+一次要激活多条时用批量的写法。逐条激活时，前几条已经生效、后几条还没生效，中间会经过约束不完整的状态。批量激活没有这个中间状态。
 
 停用是 `c.isActive = false` 或 `NSLayoutConstraint.deactivateConstraints([…])`。
 
@@ -733,7 +775,7 @@ cardHeight.priority = 'required';
 | [`UIImageView`](ui-image.md) | 图片的大小 |
 | 普通 `UIView` | 没有。读出来是 `(-1, -1)`（实测） |
 
-有固有尺寸的视图不需要写宽高约束，只写位置。相当于 CSS 里行内元素的大小由内容决定。
+有固有尺寸的视图不需要写宽高约束，只写位置。文字变了，固有尺寸跟着变，视图的大小在下一次布局时更新。
 
 固有尺寸不是硬性规定。系统把它当成四条带优先级的约束：宽和高各有「不要比这个大」和「不要比这个小」两条。别的约束可以覆盖它们。这四条的优先级就是下一节的内容。
 
@@ -765,14 +807,7 @@ console.log(label.contentHuggingPriorityForAxis('horizontal'));   // 750
 
 这两种情况下谁被拉大、谁被压小的效果**未在模拟器验证**。
 
-**和 flex 的对照**
-
-| CSS | 这里 | 差别 |
-| --- | --- | --- |
-| `flex-grow` | 抱紧优先级，方向相反：值越**低**越容易被拉大 | `flex-grow` 是比例，多余的空间按比例分给各项。这里是优先级，多余的空间全部给最低的那一个，不分摊 |
-| `flex-shrink` | 抗压缩优先级，方向相反：值越**低**越容易被压小 | 同上，不按比例分摊 |
-| `flex: 1` | 把这一项的抱紧优先级设得比其他项低 | |
-| 几项按比例分空间 | 用 `widthAnchor` 之间带 `multiplier` 的约束 | 见[两个视图等宽](#两个视图等宽) |
+多余或不足的空间**不按比例分摊**，全部由优先级最低的那一个视图承担。要让几个视图按比例分空间，不用这两个优先级，用 `widthAnchor` 之间带 `multiplier` 的约束，见[两个视图等宽](#两个视图等宽)和[宽度是父视图的一半](#宽度是父视图的一半)。
 
 两个视图的优先级相等时，系统不知道该拉大或压小哪一个，这是[约束不够](#约束不够和约束冲突)。所以并排放两个标签时，要把其中一个的优先级改掉。
 
@@ -782,14 +817,12 @@ console.log(label.contentHuggingPriorityForAxis('horizontal'));   // 750
 
 layout guide 是一个只参与布局、不显示的矩形。它有和视图一样的锚点，可以和它建约束。它不是视图：没有底色，不接收触摸，不出现在 `subviews` 里。
 
-它相当于 Web 里只用来占位或分组的不可见 `<div>`。差别是它不进入视图树，不占渲染资源。
-
 **系统提供的 layout guide**，从视图的属性上读：
 
 | 属性 | 代表的区域 |
 | --- | --- |
-| `view.safeAreaLayoutGuide` | 安全区：视图里不会被刘海、状态栏、屏幕圆角和底部横条遮挡的部分。相当于 CSS 的 `env(safe-area-inset-*)`，但直接给出一个可以对齐的矩形 |
-| `view.layoutMarginsGuide` | 视图四边各向内缩进一段系统边距之后的区域 |
+| `view.safeAreaLayoutGuide` | 安全区：视图里不会被刘海、状态栏、屏幕圆角和底部横条遮挡的部分 |
+| `view.layoutMarginsGuide` | 视图四边各向内缩进[内边距](ui-view.md)之后的区域。内边距默认四边各 8 pt，可以改 |
 | `view.readableContentGuide` | 适合阅读长文字的宽度范围。视图很宽时它比视图窄 |
 | `view.keyboardLayoutGuide` | 键盘占的区域。见[跟随键盘](#跟随键盘) |
 | `scrollView.contentLayoutGuide`、`frameLayoutGuide` | 滚动视图的内容区和可视区。见 [`UIScrollView`](ui-scroll-view.md) |
@@ -807,7 +840,7 @@ layout guide 的大小和位置同样要由约束确定。布局完成后，从 
 
 激活约束、改 `constant`、改优先级，都不会立刻改变视图的 `frame`。系统只是记下「需要重新布局」，在当前这段 JS 执行完之后、下一次屏幕刷新之前统一计算一次。
 
-相当于浏览器里改了样式之后，布局在下一帧才计算。差别是浏览器在你读 `offsetWidth` 时会自动提前计算，这里不会。读 `frame` 得到的是上一次布局的结果。
+读 `frame` 不会触发计算。在系统完成这次布局之前读 `frame`，得到的是上一次布局的结果。
 
 想立刻得到结果，调 `layoutIfNeeded()`：
 
@@ -820,7 +853,7 @@ console.log(card.frame.height);   // 84
 
 **效果**：第二次输出 `84`。第一次输出的是改之前的高度，这一点**未在模拟器验证**。
 
-`layoutIfNeeded()` 要在**共同的祖先**上调。它完成这个视图和它的后代的布局。调在页面的根视图上最保险。
+`layoutIfNeeded()` 要在**共同的祖先**上调。它完成这个视图和它的后代的布局。推荐调在页面的根视图上，这样页面里所有视图的 `frame` 都是新的。
 
 只是设置界面、之后不读 `frame` 的代码，不需要调它。
 
@@ -839,9 +872,9 @@ console.log(card.frame.height);   // 84
 | 属性 | 类型 | 可读 | 可写 | 默认值 | 含义 |
 | --- | --- | --- | --- | --- | --- |
 | `isActive` | 布尔 | 是 | 是 | `false` | `true`：约束参与布局。`false`：约束不起作用 |
-| `constant` | 数，单位 pt | 是 | 是 | 创建时传入的值，没传是 `0` | 等式里的常数项。创建之后唯一能改的数值 |
+| `constant` | 数，单位 pt | 是 | 是 | 创建时传入的值，没传是 `0` | 等式里的常数项。创建之后唯一能改的数值。改了之后在下一次布局时生效 |
 | `priority` | 写：数或优先级的名字。读：数 | 是 | 是 | `1000` | 优先级，1 到 1000 的数，没有单位。取值见[优先级](#优先级) |
-| `identifier` | 字符串或 `null` | 是 | 是 | `null` | 自己起的名字，只用于调试时辨认。写入不是字符串的值等于写入 `null` |
+| `identifier` | 字符串或 `null` | 是 | 是 | `null` | 自己起的名字，只用于调试时辨认。写入 `null` 或 `undefined` 得到 `null`，其他值转成字符串 |
 | `multiplier` | 数，比例 | 是 | 否 | 创建时传入的值，没传是 `1` | 等式里的倍数 |
 | `relation` | 字符串 | 是 | 否 | 由创建它的方法决定 | 等式的关系，取值见下 |
 | `firstAttribute` | 字符串 | 是 | 否 | — | 等式左边的锚点是哪一种，取值见下 |
@@ -851,7 +884,7 @@ console.log(card.frame.height);   // 84
 
 `isActive`、`priority`、`identifier` 的默认值来自 UIKit 的定义，**未在模拟器验证**。
 
-这些属性变化时不派发事件。它们只会被你的代码修改。
+这些属性变化时不派发事件。它们只会被 App 自己的代码修改。
 
 `relation` 的取值：
 
@@ -871,8 +904,8 @@ console.log(card.frame.height);   // 84
 | `'centerX'`、`'centerY'` | 水平中心线、垂直中心线 |
 | `'width'`、`'height'` | 宽、高 |
 | `'firstBaseline'`、`'lastBaseline'` | 第一行文字的基线、最后一行文字的基线 |
-| `'leftMargin'`、`'rightMargin'`、`'topMargin'`、`'bottomMargin'`、`'leadingMargin'`、`'trailingMargin'` | 对应的边向内缩进系统边距之后的位置 |
-| `'centerXWithinMargins'`、`'centerYWithinMargins'` | 缩进系统边距之后的区域的中心线 |
+| `'leftMargin'`、`'rightMargin'`、`'topMargin'`、`'bottomMargin'`、`'leadingMargin'`、`'trailingMargin'` | 对应的边向内缩进内边距之后的位置 |
+| `'centerXWithinMargins'`、`'centerYWithinMargins'` | 缩进内边距之后的区域的中心线 |
 | `'notAnAttribute'` | 没有锚点。约束到常数时，右边是这个值 |
 
 带 `Margin` 的八个值只会出现在系统创建的约束上。用锚点创建的约束不会产生这些值。
@@ -885,6 +918,7 @@ console.log(card.frame.height);   // 84
 | --- | --- |
 | `priority` 写了不认识的名字 | `TypeError: priority has no value "veryImportant"; expected one of: … , or a number between 0 and 1000` |
 | `isActive = true`，但两端的视图没有共同祖先 | `TypeError`，信息以 `failed to activate constraint:` 开头，后面是 UIKit 给出的原因 |
+| `constant` 写了转不成有限数的值 | `TypeError: constant must be a finite number, got "abc"` |
 
 `priority` 写入 1 到 1000 之外的数时的行为**未在模拟器验证**，不要这样写。
 
@@ -901,9 +935,11 @@ NSLayoutConstraint.activateConstraints([
 
 - **`constraints`**：约束的数组，或者任何可迭代的对象。
 - **返回**：无。
-- **出错**：某一条约束的两端没有共同祖先时抛 `TypeError`，信息以 `failed to activate constraint:` 开头，后面是 UIKit 给出的原因。
+- **出错**：
+  - 某一条约束的两端没有共同祖先：`TypeError`，信息以 `failed to activate constraint:` 开头，后面是 UIKit 给出的原因。
+  - 数组里有不是约束的元素（数、字符串、`null`、别的原生对象）：`TypeError: activateConstraints needs a list of NSLayoutConstraint`。
 
-> **注意**：数组里只要有一个元素不是约束（数、字符串、别的原生对象），就抛 `TypeError`，并且整批都不激活，不会只激活合法的那几条。
+> **注意**：数组里只要有一个元素不是约束，整批都不激活，不会只激活合法的那几条。
 
 #### `NSLayoutConstraint.deactivateConstraints(constraints)`
 
@@ -916,8 +952,9 @@ console.log(cardHeight.isActive);   // false
 
 - **`constraints`**：约束的数组，或者任何可迭代的对象。
 - **返回**：无。
+- **出错**：数组里有不是约束的元素：`TypeError: deactivateConstraints needs a list of NSLayoutConstraint`，整批都不停用。
 
-停用的约束对象仍然可用，可以再次激活。数组里不是约束的元素同样被跳过。
+停用的约束对象仍然可用，可以再次激活。
 
 ### 锚点的三个类
 
@@ -953,11 +990,12 @@ const below = middle.topAnchor.constraintEqualToAnchor(card.topAnchor, { constan
 ```
 
 - **`other`**：同一种类型的另一个锚点。
-- **`constant`**：数，单位 pt，可省略，省略时是 `0`。水平方向向右为正，垂直方向向下为正。
+- **`constant`**：数，单位 pt，可省略，省略时是 `0`。水平方向向右为正，垂直方向向下为正。写成 `{ constant: undefined }` 和省略相同。
 - **返回**：`NSLayoutConstraint`。
 - **出错**：
   - `other` 是另一种类型的锚点：`TypeError: NSLayoutYAxisAnchor cannot be constrained to NSLayoutXAxisAnchor: their units are not compatible`，两个类名是实际的类名。
   - `other` 不是锚点（包括 `null`）：`TypeError: constraintEqualToAnchor: needs an anchor as its argument`。开头是完整的原生方法名，带了 `constant` 时是 `constraintEqualToAnchor:constant:`。
+  - `constant` 或 `multiplier` 转不成有限数：`TypeError: constant must be a finite number, got "abc"`。
 
 #### `NSLayoutDimension` 独有的方法
 
@@ -996,7 +1034,7 @@ const next = middle.leadingAnchor.constraintEqualToSystemSpacingAfterAnchor(left
 - **返回**：`NSLayoutConstraint`。
 - **出错**：和 `constraintEqualToAnchor()` 相同。
 
-标准间距的数值由系统决定，和两端是什么有关。Web 里没有对应物。具体数值**未在模拟器验证**。
+标准间距的数值由系统决定，和两端是什么有关。具体数值**未在模拟器验证**。
 
 **两个锚点之间的距离。**
 
@@ -1036,7 +1074,7 @@ console.log(guide.owningView === card);   // true
 | --- | --- | --- | --- | --- | --- |
 | `owningView` | `UIView` 或 `null` | 是 | 否 | `null` | 它被加到了哪个视图上。还没加时是 `null` |
 | `layoutFrame` | `CGRect`，单位 pt | 是 | 否 | — | 布局算出的矩形，在 `owningView` 的坐标系里。布局完成之后才有意义 |
-| `identifier` | 字符串 | 是 | 是 | — | 自己起的名字，只用于调试时辨认。写入不是字符串的值等于写入 `''` |
+| `identifier` | 字符串 | 是 | 是 | — | 自己起的名字，只用于调试时辨认。写入 `null` 或 `undefined` 得到 `''`，其他值转成字符串 |
 
 `owningView` 还没加到视图上时是 `null`，以及 `identifier` 的默认值，**未在模拟器验证**。
 
@@ -1071,7 +1109,7 @@ console.log(guide.owningView === card);   // true
 
 | 属性 | 类型 | 可读 | 可写 | 默认值 | 含义 |
 | --- | --- | --- | --- | --- | --- |
-| `translatesAutoresizingMaskIntoConstraints` | 布尔 | 是 | 是 | `true` | `true`：系统按 `frame` 定位这个视图。`false`：这个视图由你写的约束定位。详见[上文](#关掉-translatesautoresizingmaskintoconstraints) |
+| `translatesAutoresizingMaskIntoConstraints` | 布尔 | 是 | 是 | `true` | `true`：系统按 `frame` 定位这个视图。`false`：这个视图由约束定位。详见[上文](#关掉-translatesautoresizingmaskintoconstraints) |
 
 #### 锚点属性
 
@@ -1097,14 +1135,14 @@ console.log(guide.owningView === card);   // true
 | 成员 | 类型 / 返回 | 可读 | 可写 | 含义 |
 | --- | --- | --- | --- | --- |
 | `safeAreaLayoutGuide` | `UILayoutGuide` | 是 | 否 | 安全区 |
-| `layoutMarginsGuide` | `UILayoutGuide` | 是 | 否 | 四边各向内缩进系统边距之后的区域 |
+| `layoutMarginsGuide` | `UILayoutGuide` | 是 | 否 | 四边各向内缩进[内边距](ui-view.md)之后的区域 |
 | `readableContentGuide` | `UILayoutGuide` | 是 | 否 | 适合阅读长文字的宽度范围 |
 | `keyboardLayoutGuide` | `UIKeyboardLayoutGuide` | 是 | 否 | 键盘占的区域 |
 | `layoutGuides` | `UILayoutGuide` 的只读数组 | 是 | 否 | 用 `addLayoutGuide()` 加在这个视图上的 layout guide |
 | `addLayoutGuide(guide)` | 无 | — | — | 把 `guide` 加到这个视图上 |
 | `removeLayoutGuide(guide)` | 无 | — | — | 把 `guide` 从这个视图上移除 |
 
-`addLayoutGuide()` 和 `removeLayoutGuide()` 的参数不是 `UILayoutGuide` 时，调用被忽略，不报错。
+`addLayoutGuide()` 和 `removeLayoutGuide()` 的参数不是 `UILayoutGuide`（包括 `null`）时抛 `TypeError: addLayoutGuide needs a UILayoutGuide`，开头是方法名。
 
 #### 约束和布局
 
@@ -1189,7 +1227,7 @@ console.log(left.constraintsAffectingLayoutForAxis('horizontal').length);
 
 ## 与 iOS 原生写法的对照
 
-如果你在看 Apple 的文档或 iOS 的示例代码，按这张表换成 JS 的写法。
+这张表供照着 Apple 的文档或 iOS 的示例代码写 JS 时查对应的写法。
 
 | ObjC | JS |
 | --- | --- |
@@ -1226,6 +1264,25 @@ console.log(left.constraintsAffectingLayoutForAxis('horizontal').length);
 
 原生的 `[view addConstraint:c]` 和 `[view removeConstraint:c]` 没有对应的 JS 方法。用 `c.isActive = true` 和 `c.isActive = false`，Apple 的文档也建议这样写。
 
+## 与 CSS 的对照
+
+这张表只供熟悉 CSS 的人查对应关系，正文不依赖它。
+
+| CSS | 这里 | 差别 |
+| --- | --- | --- |
+| `width: 120px` | `widthAnchor.constraintEqualToConstant(120)` | |
+| `width: 50%` | `widthAnchor.constraintEqualToAnchor(parent.widthAnchor, { multiplier: 0.5 })` | 可以相对任意视图，不限于父视图 |
+| `min-width`、`max-width` | `constraintGreaterThanOrEqualToConstant()`、`constraintLessThanOrEqualToConstant()` | |
+| `aspect-ratio: 16 / 9` | `heightAnchor.constraintEqualToAnchor(widthAnchor, { multiplier: 9 / 16 })` | |
+| `inline-start`、`inline-end` | `leading`、`trailing` | |
+| `env(safe-area-inset-*)` | `safeAreaLayoutGuide` | 给出的是一个可以对齐的矩形，不是四个数 |
+| `flex-grow` | 内容抱紧优先级 | 方向相反：值越低越容易被拉大。不按比例分摊，多余的空间全部给最低的那一个 |
+| `flex-shrink` | 抗压缩优先级 | 方向相反：值越低越容易被压小。不按比例分摊 |
+| `flex: 1` | 把这一项的抱紧优先级设得比其他项低 | |
+| `align-items: baseline` | 对齐 `firstBaselineAnchor` | |
+| 读 `offsetWidth` 时自动完成布局 | 没有。先调 `layoutIfNeeded()` 再读 `frame` | |
+| 文档流（不写规则也按顺序排列） | 没有。用 [`UIStackView`](ui-stack-view.md) | |
+
 ## 还不能做的
 
 | 想做的事 | 对应的原生能力 | 状态 |
@@ -1237,14 +1294,13 @@ console.log(left.constraintsAffectingLayoutForAxis('horizontal').length);
 | 从约束对象读出两端的视图 | `firstItem`、`secondItem` | 不提供。创建约束时自己记下来 |
 | 用一个字符串描述一组约束 | `constraintsWithVisualFormat:options:metrics:views:` | 未实现 |
 | 不通过锚点、用「视图 + 属性名」创建约束 | `constraintWithItem:attribute:relatedBy:toItem:attribute:multiplier:constant:` | 未实现。锚点能表达同样的约束 |
-| 设置视图的系统边距的大小 | `layoutMargins`、`directionalLayoutMargins` | 未实现。`layoutMarginsGuide` 只能读系统给出的范围 |
 | 键盘靠近或离开某条边时自动切换约束 | `UITrackingLayoutGuide` 的 `setConstraints:activeWhenNearEdge:` | 未实现 |
 | 让对齐用的矩形和 `frame` 不同（比如不算阴影） | `alignmentRectForFrame:`、`alignmentRectInsets` | 未实现 |
 | 指定用哪个子视图的基线作为自己的基线 | `viewForFirstBaselineLayout`、`viewForLastBaselineLayout` | 未实现 |
 
 ## 参见
 
-- [`UIView`](ui-view.md)：`frame`、安全区、两种定位方式，以及视图的其他成员
+- [`UIView`](ui-view.md)：`frame`、安全区、内边距、两种定位方式，以及视图的其他成员
 - [`UIStackView`](ui-stack-view.md)：把视图排成一行或一列，不用自己写约束
 - [`UIScrollView`](ui-scroll-view.md)：用 `contentLayoutGuide` 和 `frameLayoutGuide` 说明内容区的大小
 - [输入框和键盘](ui-text-field.md)：`keyboardLayoutGuide` 配合输入框使用

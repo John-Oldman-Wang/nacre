@@ -6,24 +6,70 @@ status: partial
 
 # 网页的数据和 cookie（`session`）
 
-[`WebView`](web-view.md) 里的网页会留下数据：cookie、`localStorage`、缓存。这些数据按**存储分区**存，一个分区对应一个 `Session` 对象。用它做两件事：
+**`Session`** 表示一个存储分区：[`WebView`](web-view.md) 里的网页留下的 cookie、`localStorage`、缓存等数据都存在某一个分区里。通过 `Session`，App 可以读写这个分区的 cookie，也可以把分区里的数据清掉。
 
-- **读写 cookie**：打开网页之前把登录状态写进去，或者读出网页登录之后得到的 cookie。
-- **清数据**：退出登录时把这个分区的数据清掉。
+`Session` 由运行时创建，App 不能自己创建。得到它有两个入口，同一个分区从哪个入口拿到的都是同一个对象：
 
-拿到 `Session` 有两个入口，得到的是同一种对象：
+- 全局对象 **`session`**：`session.defaultSession` 是默认分区，`session.fromPartition('persist:shop')` 是指定名字的分区。不需要先建网页就可以用。
+- **`webView.webContents.session`**：这张网页使用的那个分区。
 
-- 全局的 `session`：`session.defaultSession`、`session.fromPartition('persist:shop')`。不用先建网页。
-- `webView.webContents.session`：这张网页用的那一份。
+## 数据存在哪，什么时候还在
 
-接口的形状照 [Electron 的 session](https://www.electronjs.org/docs/latest/api/session)，方法名和 cookie 的字段名相同。和 Electron 有四点不同：
+每个分区是独立的一份数据。网页用哪个分区，在建 `WebView` 时用 `webPreferences.partition` 指定，之后不能改。
 
-- **`changed` 事件不带数据。** 只知道 cookie 有变化，不知道是哪一条。
-- **按站点清数据时不分协议和端口。** `clearStorageData({ origin })` 清的是那个域名的。
-- **`sameSite` 读出来没有 `'unspecified'`。** 没写 SameSite 的 cookie 读出来是 `'no_restriction'`。
-- **只有 cookie 和清数据这两块。** 没有的列在[还不能做的](#还不能做的)里。
+| 分区 | 谁在用 | App 重启之后 |
+| --- | --- | --- |
+| 默认分区 | 所有没写 `partition` 的网页，共用一份 | 数据还在 |
+| `'persist:名字'` | `partition` 写了同一个名字的网页，共用一份 | 数据还在 |
+| `'名字'`（不带 `persist:`） | `partition` 写了同一个名字的网页，共用一份 | 数据没了 |
 
-> **注意**：这里的 cookie 只属于网页。[`fetch`](fetch.md) 有它自己的一份 cookie，两边不通：在这里写的 cookie，`fetch` 发请求时不会带上。
+- **同一个分区里的网页共享数据。** 在一张网页里登录，同分区的另一张网页也是登录状态。
+- **不同分区之间互相看不到数据。** 要让两张网页的登录状态互不影响，给它们不同的 `partition`。
+- **分区的数据只属于这个 App。** 别的 App 和 Safari 读不到（来自 iOS 的定义，**未在模拟器验证**）。
+- **「数据还在」的分区里，没有过期时间的 cookie 例外。** 这种 cookie 在 App 重启之后就没了，见[会话 cookie 和有过期时间的](#会话-cookie-和有过期时间的)。
+
+## App 能对 cookie 做什么
+
+App 对分区里的 cookie 有完全的读写权限，不受网页那一侧的限制：
+
+- 任何站点的 cookie 都读得到，包括标了 `httpOnly`、网页的脚本读不到的那些。
+- App 写的 cookie，网页的下一个请求就会带上。已经打开的网页不用刷新，读 `document.cookie` 就看得到（`httpOnly` 的除外）。
+- 网页的脚本写的、服务器用 `Set-Cookie` 写的 cookie，App 都读得到。
+
+cookie 有变化时，`cookies` 上派发 `changed` 事件。事件只说明「有变化」，不带是哪一条、是新增还是删除。收到之后要自己重新读一遍。
+
+> **注意**：这里的 cookie 只属于网页。[`fetch`](fetch.md) 有它自己的一份 cookie，两边不通：在这里写的 cookie，`fetch` 发请求时不会带上；在这里清数据，也清不到 `fetch` 的 cookie。
+
+## 清数据会清掉什么
+
+`clearStorageData()` 不带参数时，清掉这个分区里的全部数据：cookie、`localStorage`、`sessionStorage`、IndexedDB、缓存。别的分区不受影响。
+
+- 已经打开的网页当场受影响：它再读 `localStorage` 是空的，再读 `document.cookie` 是空的，再发请求不带 cookie。
+- 可以只清某几类数据（`storages`），也可以只清某一个站点的（`origin`）。
+- 按站点清是按域名算的，不分协议和端口：`https://shop.my.app` 和 `http://shop.my.app:8080` 清的是同一批数据。
+
+## 推荐的做法
+
+**登录状态在打开网页之前写进去。** App 自己完成登录后，先用 `cookies.set()` 把令牌写成一条 cookie，再建 `WebView` 加载网页。网页的第一个请求就带着它，不会先显示一次未登录的页面。写的时候加上 `httpOnly: true`，网页里的脚本就读不到这个令牌。给 `expirationDate`，App 重启后 cookie 还在；不给的话重启后要重新写。完整的代码见[完整例子](#完整例子)。
+
+**退出登录时把整个分区清掉，再重新加载还开着的网页。** 只删登录用的那一条 cookie 不够：网页可能在 `localStorage` 里存了用户的数据。清完之后，已经显示在屏幕上的内容不会自己消失，所以要重新加载或者销毁那张网页。
+
+```js
+/** @param {WebContents} contents */
+async function logout(contents) {
+  await contents.session.clearStorageData();
+  contents.reload();
+}
+```
+
+**效果**
+
+- 这张网页所在分区的数据全部清掉。
+- 网页重新加载，这一次的请求不带 cookie。重新加载之后显示什么取决于网站，**未在模拟器验证**。
+
+**同时登录多个账号时，每个账号用一个 `persist:` 分区。** 分区名里带上账号的标识，比如 `'persist:user-42'`。各账号的 cookie 互不相干，退出其中一个账号只清它自己的分区。
+
+**第一次读写放在不影响界面的时候。** App 启动后第一次读写某个分区要等 0.6 到 1 秒，之后每次不到 1 毫秒（实测）。这是异步的等待，期间界面照常响应，但等它完成之后才打开网页的话，用户会多等这一段时间。
 
 ## 完整例子
 
@@ -87,6 +133,7 @@ if (found.length > 0) console.log('网页已经登录', found[0].value);
 
 - 网页登录过的话，控制台输出那条 cookie 的值。
 - 没有这条 cookie 时 `found` 是空数组，不报错。
+- 读到的值来自网页和服务器，当作不可信的输入处理。
 
 ### 退出登录时清掉
 
@@ -98,6 +145,7 @@ await session.defaultSession.clearStorageData();
 
 - 这个分区的 cookie、`localStorage`、缓存全部清掉。
 - 已经打开的网页当场受影响：它再读 `localStorage` 就是空的，再发请求就不带 cookie 了。
+- 返回的 Promise 在清完之后兑现。要在清完之后再做的事，写在 `await` 后面。
 
 只清 cookie，留着别的：
 
@@ -146,11 +194,12 @@ cookies.addEventListener('changed', async () => {
 
 - App 写的、网页的脚本写的、服务器写的、清数据清掉的，都会派发 `changed`。
 - 事件上没有「是哪一条变了」，所以在回调里自己重新读。
-- 一次改动可能派发不止一次。
+- 一次改动可能派发不止一次。实测五次写入、一次覆盖、两次删除，一共收到 7 次。回调里的代码要能承受重复执行。
+- 不再需要时用 `removeEventListener` 去掉，之后不再收到。
 
 ### 给不同的账号用不同的分区
 
-分区的写法和 [`WebView` 的 `partition`](web-view.md#存储分区) 相同，两边指的是同一份数据。
+`session.fromPartition()` 的参数和 [`WebView` 的 `partition`](web-view.md#存储分区) 是同一种写法，名字相同就是同一份数据。
 
 ```js
 const work = session.fromPartition('persist:work');
@@ -175,7 +224,9 @@ console.log(web.webContents.session === work);
 | `session.fromPartition('persist:名字')` | 名字对应的那一份 | 数据还在 |
 | `session.fromPartition('名字')`（不带 `persist:`） | 名字对应的那一份，只在内存里 | 数据没了 |
 
-不同分区之间互相看不到数据。`session.fromPartition('')` 就是 `session.defaultSession`。
+不同分区之间互相看不到数据。`session.fromPartition('')` 和 `session.fromPartition('persist:')` 都是 `session.defaultSession`。
+
+`Session` 对象从第一次用到起一直存在到 App 退出，可以保存在任何地方，也可以每次用的时候重新取。
 
 App 启动后第一次读写某个分区要等 0.6 到 1 秒，之后每次不到 1 毫秒。
 
@@ -203,20 +254,20 @@ App 启动后第一次读写某个分区要等 0.6 到 1 秒，之后每次不�
 
 全局对象，不用建。
 
-| 成员 | 类型 | 含义 |
-| --- | --- | --- |
-| `session.defaultSession` | `Session` | 默认分区。只读。每次读是同一个对象 |
-| `session.fromPartition(partition)` | 返回 `Session` | 某个分区。同一个分区名永远返回同一个对象 |
+| 成员 | 类型 | 可读 | 可写 | 含义 |
+| --- | --- | --- | --- | --- |
+| `session.defaultSession` | `Session` | 是 | 否 | 默认分区。每次读是同一个对象 |
+| `session.fromPartition(partition)` | 方法，返回 `Session` | — | — | 某个分区。`partition` 的写法见[分区和 `Session`](#分区和-session)。同一个分区名永远返回同一个对象 |
 
 ### `Session`
 
 不能自己建：`new Session()` 抛 `TypeError: Illegal constructor: Session is created by the runtime, not by new`。
 
-| 成员 | 类型 | 含义 |
-| --- | --- | --- |
-| `cookies` | `Cookies` | 这个分区的 cookie。只读。每次读是同一个对象 |
-| `isPersistent()` | 返回 `boolean` | 这个分区落不落盘。只在内存里的分区返回 `false` |
-| `clearStorageData(options)` | 返回 `Promise<void>` | 清数据。见下 |
+| 成员 | 类型 | 可读 | 可写 | 含义 |
+| --- | --- | --- | --- | --- |
+| `cookies` | `Cookies` | 是 | 否 | 这个分区的 cookie。每次读是同一个对象 |
+| `isPersistent()` | 方法，返回 `boolean` | — | — | 这个分区的数据在 App 重启之后还在不在。默认分区和 `persist:` 开头的分区返回 `true`，只在内存里的分区返回 `false` |
+| `clearStorageData(options)` | 方法，返回 `Promise<void>` | — | — | 清数据。见下 |
 
 #### `clearStorageData(options)`
 
@@ -237,7 +288,7 @@ App 启动后第一次读写某个分区要等 0.6 到 1 秒，之后每次不�
 | `'filesystem'` | 网页用文件系统接口存的文件 |
 | `'shadercache'` | 什么都不清。iOS 上没有对应的东西，认这个名字是为了从 Electron 搬过来的代码不报错 |
 
-后四类没有单独验证过，验过的是 `'cookies'` 和 `'localstorage'`。
+验证过的只有 `'cookies'` 和 `'localstorage'`，其余几类**未在模拟器验证**。
 
 返回的 Promise 在清完之后兑现。参数不对时被拒绝：
 
@@ -293,7 +344,7 @@ App 启动后第一次读写某个分区要等 0.6 到 1 秒，之后每次不�
 | `secure` | `boolean` | `false` | `true`：只在 `https` 的请求里带 |
 | `httpOnly` | `boolean` | `false` | `true`：网页的脚本读不到 |
 | `expirationDate` | `number` | 无 | 过期时间，从 1970 年起的秒数。不给就是会话 cookie |
-| `sameSite` | `string` | 无 | `'lax'`、`'strict'`、`'no_restriction'` 或 `'unspecified'` |
+| `sameSite` | `string` | 无 | `'lax'`、`'strict'`、`'no_restriction'` 或 `'unspecified'`，含义见 [`Cookie`](#cookie)。后两种的效果相同：都是不写这个属性，读回来是 `'no_restriction'` |
 
 被拒绝的情况：
 
@@ -306,7 +357,7 @@ App 启动后第一次读写某个分区要等 0.6 到 1 秒，之后每次不�
 
 ### `Cookie`
 
-`get` 返回的每一项。全部只读。
+`get` 返回的每一项，是读取那一刻的一份记录。下面的字段只用来读：修改这个对象不会改动分区里的 cookie，要改用 `set()`。之后 cookie 变了，已经拿到的记录也不会跟着变。
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
@@ -319,7 +370,7 @@ App 启动后第一次读写某个分区要等 0.6 到 1 秒，之后每次不�
 | `httpOnly` | `boolean` | `true`：网页的脚本读不到 |
 | `session` | `boolean` | `true`：没有过期时间，App 重启就没了 |
 | `expirationDate` | `number` | 过期时间，从 1970 年起的秒数，整数。`session` 为 `true` 时没有这个字段 |
-| `sameSite` | `string` | `'no_restriction'`、`'lax'` 或 `'strict'` |
+| `sameSite` | `string` | 跨站请求带不带这条 cookie。`'strict'`：只有同一站点发起的请求才带。`'lax'`：跨站的子请求不带，用户点链接跳转过来时带。`'no_restriction'`：都带。没写 SameSite 的 cookie 读出来也是 `'no_restriction'`，和明确写了的区分不出来 |
 
 ## 与 Electron 的对照
 

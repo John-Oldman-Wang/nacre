@@ -6,13 +6,67 @@ status: partial
 
 # `UIPasteboard`
 
-`UIPasteboard` 是系统剪贴板。用它把一段文字放进剪贴板（复制），或者读出剪贴板里的文字（粘贴）。
+**`UIPasteboard`** 表示系统剪贴板。App 把一段文字写进去，用户就能在任何 App 里粘贴它；用户在别的 App 里复制的文字，App 也能从它读出来。
 
-它相当于浏览器里的 `navigator.clipboard`。有三点不同：
+系统剪贴板只有一个，所有 App 共用。它由系统提供，从 `UIPasteboard.generalPasteboard` 取，不能用 `new` 创建。每次读 `UIPasteboard.generalPasteboard` 得到的是同一个对象。
 
-- **读和写都是同步的。** 直接读写 `string` 属性，没有 Promise。
-- **不能创建。** 整个系统共用一个，从 `UIPasteboard.generalPasteboard` 取。
-- **现在只能读写文字。** 图片、网址、颜色还不行。
+读和写都通过 `string` 属性，是同步的：赋值的那一行执行完，文字已经在剪贴板里；读的那一行返回时，拿到的就是内容。现在只能读写文字，图片、网址、颜色还不能，见[还不能做的](#还不能做的)。
+
+## 写入
+
+给 `string` 赋值就是复制。写入会替换剪贴板里原有的内容。写入不需要用户同意，也没有系统提示。
+
+写 `null` 清空剪贴板：之后 `string` 读到 `null`，`hasStrings` 是 `false`。写的值不是字符串时按 `String()` 转换，比如写 `42` 得到 `'42'`；`undefined` 和 `null` 一样是清空。写入不会抛异常。
+
+剪贴板是用户的，里面可能有他刚复制的内容。所以只在用户做了「复制」这个动作时写它，不要在启动时或后台自动写。
+
+## 读取会弹出系统提示，并且停住界面
+
+读 `string` 时，如果剪贴板里的内容是用户在**别的 App** 里复制的，系统会先弹出一个提示，让用户决定是否允许这个 App 粘贴。**用户回应之前，读 `string` 的那一行不返回。** 这段时间里 App 的代码不执行：定时器不触发，事件回调不执行，界面不响应。
+
+在真机（iPhone 14）上实测过一次：读别的 App 复制的内容，这一行用了 6613 毫秒才返回。这个时长就是用户看到提示到点下按钮的时间，它取决于用户，没有上限。
+
+提示出现的条件和已知的范围：
+
+| 情况 | 会不会有提示 |
+| --- | --- |
+| 读 `string`，内容是别的 App 复制的 | 会（真机实测） |
+| 读 `string`，内容是这个 App 自己写进去的 | 不会。**未在真机验证**，来自 iOS 的规则；模拟器上读自己写的内容立刻返回 |
+| 读 `hasStrings` | 不会 |
+| 读 `changeCount` | 不会 |
+| 写 `string` | 不会 |
+
+用户在提示里选了不允许时 `string` 读到什么，**未在模拟器验证**。模拟器上是否出现这个提示，**未在模拟器验证**。
+
+## 推荐的做法
+
+**只在用户明确要粘贴时读 `string`。** 比如用户点了 App 里的「粘贴」按钮。这时弹出系统提示是用户预期之内的，界面停住的那几秒他正在看提示。
+
+**不要在启动时、回到前台时或定时器里读 `string`。** 那样用户一打开 App 就看到「是否允许粘贴」的提示，而且在他回应之前整个界面不动。
+
+**想知道「有没有可粘贴的文字」，读 `hasStrings`。** 它只查询，不取内容，不会有提示。用它决定「粘贴」按钮是否可点。
+
+**想知道「内容变了没有」，比较 `changeCount`。** 它同样不取内容。记下一个值，回到前台时再读，不同就说明内容变过。
+
+```js
+const pasteboard = UIPasteboard.generalPasteboard;
+
+/** 用户点了「粘贴」按钮时调用 */
+function onPasteTapped() {
+  if (!pasteboard.hasStrings) {
+    console.log('剪贴板里没有文字');
+    return;
+  }
+  const text = pasteboard.string;   // 可能弹出系统提示，等用户回应后才返回
+  if (text !== null) {
+    console.log('粘贴：' + text);
+  }
+}
+```
+
+**结果**：剪贴板里没有文字时输出 `剪贴板里没有文字`，不读内容，不会有提示。有文字时读出来并输出；内容来自别的 App 时，系统先弹出提示。
+
+读 `hasStrings` 之后仍然要判断 `string` 是不是 `null`：两次读之间内容可能变了。
 
 ## 完整例子
 
@@ -37,7 +91,7 @@ application.addEventListener('sceneconnect', (e) => {
   page.view.addSubview(button);
 
   // 3. 点击时把文字写进剪贴板
-  button.addEventListener('touchUpInside', () => {
+  button.addEventListener('primaryActionTriggered', () => {
     pasteboard.string = '20261112-0042';
     console.log('已复制');
   });
@@ -50,7 +104,7 @@ application.addEventListener('sceneconnect', (e) => {
 - 点它，控制台输出 `已复制`。
 - 切到别的 App（比如备忘录），长按输入区域选「粘贴」，出现 `20261112-0042`。
 
-这段代码没有作为一个整体在模拟器运行过。「写进去再读出来是同一段文字」在验收用例里核对过；切到别的 App 粘贴这一步**未验证**。
+这段代码没有作为一个整体在模拟器运行过。「写进去再读出来是同一段文字」在验收用例里核对过；切到别的 App 粘贴这一步**未在模拟器验证**。
 
 ## 常见用法
 
@@ -65,11 +119,9 @@ if (text !== null) {
 }
 ```
 
-**效果**：剪贴板里有文字时输出它。没有文字时（空的，或者里面是图片）`text` 是 `null`，什么都不输出。
+**结果**：剪贴板里有文字时输出它。剪贴板是空的时 `text` 是 `null`，什么都不输出。剪贴板里只有图片时读到 `null`，**未在模拟器验证**。
 
-> **注意**：读 `string` 是真的去取内容。内容是用户在别的 App 里复制的时，系统会先弹出一个提示，让用户决定是否允许这个 App 粘贴。**用户回应之前，这一行代码不会返回，整个界面停住不动。** 真机上实测，这一次读取用了 6.6 秒才返回。所以只在用户明确要粘贴时读它（比如点了「粘贴」按钮），不要在启动时或定时读。
->
-> 读自己写进去的内容不会有提示，立刻返回。
+> **注意**：内容来自别的 App 时，这一行会弹出系统提示，用户回应之前不返回，见[读取会弹出系统提示，并且停住界面](#读取会弹出系统提示并且停住界面)。把它放在用户点「粘贴」按钮的回调里。
 
 ### 只判断有没有文字，不取内容
 
@@ -79,20 +131,22 @@ if (pasteboard.hasStrings) {
 }
 ```
 
-**效果**：剪贴板里有文字时输出 `可以粘贴`。这个判断不取内容，不会引出系统提示。适合用来决定「粘贴」按钮是否可点。
+**结果**：剪贴板里有文字时输出 `可以粘贴`。这个判断不取内容，不会有系统提示。
 
 ### 清空剪贴板
 
 ```js
 pasteboard.string = null;
-console.log(pasteboard.hasStrings);
+console.log(pasteboard.string, pasteboard.hasStrings);
 ```
 
-**效果**：剪贴板被清空，控制台输出 `false`。
+**结果**：剪贴板被清空，控制台输出 `null false`。
 
-### 知道剪贴板的内容变了
+清空的是整个系统剪贴板，包括用户在别的 App 里复制的内容。
 
-`changeCount` 是一个计数，剪贴板的内容每变一次它就变大。先记下一个值，之后再读，不一样就说明内容变过。
+### 用户离开 App 期间内容变了没有
+
+别的 App 修改剪贴板时，这个 App 收不到任何事件。要知道用户离开期间内容有没有变，在回到前台时比较 `changeCount`：
 
 ```js
 let seen = pasteboard.changeCount;
@@ -105,21 +159,25 @@ application.addEventListener('active', () => {
 });
 ```
 
-**效果**：用户切到别的 App 复制了东西再切回来，输出 `剪贴板的内容变了`。
+**结果**：用户切到别的 App 复制了东西再切回来，输出 `剪贴板的内容变了`。
 
 真机上核对过：在别的 App 里复制之后回来，`changeCount` 从 24 变成了 25，这期间没有收到 `change` 事件。
 
-读 `changeCount` 不取内容，不会引出系统提示。
+这段代码只读 `changeCount`，不会有系统提示。发现变了之后不要接着读 `string`，否则用户一回到 App 就看到提示。
 
-App 在前台时内容变了，会派发 `change` 事件：
+### 自己的代码改了剪贴板时得到通知
+
+App 自己写 `string` 之后，剪贴板上派发 `change` 事件：
 
 ```js
 pasteboard.addEventListener('change', () => {
   console.log('变了，现在的计数是 ' + pasteboard.changeCount);
 });
+
+pasteboard.string = '新的内容';
 ```
 
-**效果**：自己的代码写了 `string` 之后，输出一行 `变了，现在的计数是 …`。一次写入可能输出不止一行，见[事件](#事件)。
+**结果**：输出两行 `变了，现在的计数是 …`，两行里的数相同。一次写入派发两次事件，见[事件](#事件)。
 
 ## 成员说明
 
@@ -143,23 +201,26 @@ EventTarget
 
 | 属性 | 类型 | 可读 | 可写 | 含义 |
 | --- | --- | --- | --- | --- |
-| `string` | 字符串或 `null` | 是 | 是 | 剪贴板里的文字。没有文字时读到 `null`。写入一段文字会替换掉剪贴板里原有的全部内容。写 `null` 会清空剪贴板（实测） |
-| `hasStrings` | 布尔 | 是 | 否 | `true`：剪贴板里有文字。`false`：没有。只是查询，不取内容 |
-| `changeCount` | 数 | 是 | 否 | 内容变化的计数，单位是次。只增不减。它的具体数值没有意义，只用来和之前读到的值比较 |
+| `string` | 字符串或 `null` | 是 | 是 | 剪贴板里的文字。没有文字时读到 `null`。读它可能弹出系统提示并停住界面，见[上文](#读取会弹出系统提示并且停住界面)。写入一段文字替换原有的内容。写 `null` 清空剪贴板 |
+| `hasStrings` | 布尔 | 是 | 否 | `true`：剪贴板里有文字。`false`：没有。只查询，不取内容，没有系统提示 |
+| `changeCount` | 数 | 是 | 否 | 内容变化的计数，单位是次。内容每变一次它变大。它的具体数值没有意义，只用来和之前读到的值比较。只查询，没有系统提示 |
 
-- 自己的代码造成的变化通过 [`change` 事件](#事件)得知。别的 App 造成的变化没有事件，回到前台后比较 `changeCount`。
-- 给 `string` 写的不是字符串时按 `String()` 转，比如写 `42` 得到 `'42'`。`undefined` 和 `null` 一样是清空。
+- 三个属性的变化怎么得知：自己的代码造成的变化派发 [`change` 事件](#事件)。别的 App 造成的变化没有事件，回到前台后比较 `changeCount`。
+- 给 `string` 写的不是字符串时按 `String()` 转换，比如写 `42` 得到 `'42'`。写 `undefined` 和写 `null` 一样是清空。
+- 给 `hasStrings`、`changeCount` 赋值抛 `TypeError`。
+- 写 `string` 之后 `changeCount` 变大。写 `null` 也算一次变化。
 
 ### 事件
 
 | 事件名 | 什么时候派发 | 事件对象 |
 | --- | --- | --- |
-| `change` | 剪贴板的内容变了 | `Event`，没有额外的字段。新的内容从 `string` 读 |
+| `change` | 这个 App 自己修改了剪贴板的内容 | `Event`，没有额外的字段。新的内容从 `string` 读，计数从 `changeCount` 读 |
 
-- 自己的代码写 `string` 会派发这个事件（实测）。
-- **一次修改派发了两次。** 模拟器上连续写入两次收到 4 次 `change`，真机上写入一次收到 2 次。所以不要用收到事件的次数来计数，要知道变了几次读 `changeCount`。
-- **别的 App 修改剪贴板时不派发这个事件**（真机实测）。要知道 App 在后台期间内容有没有变，回到前台后比较 `changeCount`。
+- **一次写入派发两次。** 真机上写入一次收到 2 次 `change`；模拟器上连续写入两次收到 4 次。所以不要用收到事件的次数来计数，要知道变了几次读 `changeCount`。回调里的操作要能重复执行。
+- **回调不是在写入的那一行同步执行，而是稍后执行。** 连续写两次时，四次回调里读到的 `changeCount` 是同一个值：回调执行时两次写入都已经完成。
+- **别的 App 修改剪贴板时不派发**（真机实测）。App 在后台期间内容有没有变，回到前台后比较 `changeCount`。
 - 事件不能取消。
+- 只有添加了监听器才会派发。用 `removeEventListener()` 移除。
 - **出错**：事件名不是 `change`：`TypeError: addEventListener has no value "paste"; expected one of: change`
 
 ## 与 iOS 原生写法的对照
@@ -172,6 +233,14 @@ EventTarget
 | `pasteboard.hasStrings` | `pasteboard.hasStrings` |
 | `pasteboard.changeCount` | `pasteboard.changeCount` |
 | 监听 `UIPasteboardChangedNotification` | `pasteboard.addEventListener('change', …)` |
+
+## 与浏览器的对照
+
+| 浏览器 | Nacre |
+| --- | --- |
+| `await navigator.clipboard.writeText('文字')` | `pasteboard.string = '文字'`，同步 |
+| `await navigator.clipboard.readText()` | `pasteboard.string`，同步，可能停住界面等用户回应 |
+| 没有对应 | `pasteboard.hasStrings`、`pasteboard.changeCount` |
 
 ## 还不能做的
 
@@ -188,3 +257,4 @@ EventTarget
 
 - [`UIButton`](ui-button.md)：例子里触发复制的按钮
 - [`application`](application.md)：`active` 事件，App 回到前台时检查 `changeCount`
+- [运行时怎么工作](how-it-works.md)：为什么一行代码不返回时整个界面不动

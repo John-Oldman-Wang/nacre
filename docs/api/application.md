@@ -6,18 +6,68 @@ status: partial
 
 # 全局对象 `application`
 
-`application` 代表正在运行的这个 App。它是运行时放在全局的一个对象，类是 `Application`，整个 App 只有这一个实例。
+**`application`** 表示正在运行的这个 App。它是运行时提供的全局对象，类是 `Application`。运行时在 App 启动时创建它，整个 App 只有这一个，一直存在到 App 结束。脚本的任何位置都可以直接使用，不需要创建，也不能再创建一个。
 
-它管三类东西：App 的信息（名字、版本）、App 的状态（在前台还是后台）、App 级的事件（启动后可以建界面了、内存不足、有没处理的异常）。
+`application` 管整个 App 范围内的事：
 
-它的地位接近浏览器里的 `window` 全局对象加 `navigator`，有四点不同：
+- **App 的信息**：包名、版本、配置文件的内容。
+- **App 的状态**：在前台还是后台，当前有哪些场景。
+- **App 级的事件**：可以建界面了、进入后台、内存不足、有没处理的异常。
+- **App 级的能力**：本地存储、文件、Keychain 的入口，以及让系统打开一个 URL。
 
-- **没有 `window`、`document`、`location`、`history`。** JS 打包在 App 里，从本地加载，没有网址。
-- **界面不在 `application` 上。** 界面属于「场景」，见[场景](#场景)。`application` 只负责通知你场景已经可用。
-- **事件名和 Web 相同的只有两个**：`error` 和 `unhandledrejection`。其余事件是 iOS 特有的。
-- **`application` 不能自己构造。** `new Application()` 会抛错，和 `new Navigator()` 一样。
+界面不在 `application` 上。界面属于场景（[`UIWindowScene`](ui-window-scene.md)）：场景表示 App 界面的一个实例，由系统创建，窗口要建在场景上才能显示。`application` 负责在场景可用时发出通知，并记录当前有哪些场景。
 
-这一页分三部分：先给一个[能直接运行的完整例子](#完整例子)，再按[你想做的事](#常见用法)给出写法和效果，最后是[每个成员的说明](#成员说明)。
+## 界面代码写在 `sceneconnect` 里
+
+App 启动后，运行时先把整个 `main.js` 执行完，系统随后才创建场景。场景创建好之后，`application` 派发 `sceneconnect` 事件，事件对象的 `scene` 就是这个场景。
+
+所以在 `main.js` 顶层执行的那段时间里没有场景：`application.scenes` 是空数组，`application.scenes[0]` 是 `undefined`，建不出能显示的窗口。建界面的代码要写在 `sceneconnect` 的回调里。
+
+监听器要在 `main.js` 的顶层注册。运行时保证 `sceneconnect` 在 `main.js` 执行完之后才派发，顶层注册的监听器一定能收到。事件不会补发：如果等到某个 `Promise` 兑现之后才注册，这时事件可能已经派发过，监听器就收不到了。
+
+`sceneconnect` 可能派发不止一次。App 启动时派发一次；之后系统如果销毁了场景，用户回到 App 时系统创建一个新的场景，`sceneconnect` 再派发一次。所以回调要写成可以重复执行的：每次都用 `e.scene` 从头建一遍界面，不依赖上一次建出来的窗口和页面。启动代码怎么组织、数据放在哪里，见 [`UIWindowScene`](ui-window-scene.md) 的「推荐的做法」一节。
+
+系统在弹出键盘时也会创建自己内部用的场景。这类场景不会引起 `sceneconnect`，也不在 `application.scenes` 里。
+
+## App 进入后台之后
+
+用户回到主屏幕或切到别的 App 时，App 进入后台。`application` 依次派发 `inactive` 和 `background`，这两个事件的回调会执行。
+
+进入后台后，系统会在一小段时间之后暂停 App：JS 不再执行，定时器不再触发。用户回到 App 时从暂停的地方继续，JS 里的变量都还在。系统也可能在后台直接结束 App，这时不会有任何通知，下次打开时 `main.js` 从头执行。**「后台会被暂停、定时器停止、恢复后继续」来自 iOS 的定义，未在模拟器验证。** 进入后台时还没完成的网络请求会怎样，**未在模拟器验证**。
+
+推荐的做法是：**需要保留的数据在 `background` 事件里保存完**，写进 [`application.storage`](storage.md)。它的写入是同步的，`set()` 返回时新值已经生效，由系统负责写入磁盘。不要等 `willterminate`：App 在后台被结束时这个事件不一定派发（**未在模拟器验证**）。
+
+进入后台后申请更多执行时间的能力还没有，见[还不能做的](#还不能做的)。
+
+## 没处理的异常不会让 App 退出
+
+JS 里抛出的异常没有被 `try` / `catch` 接住时，App 不会退出。抛出异常的那一段代码停止执行，其余部分照常运行：监听器还在，定时器照常触发，界面可以继续操作。
+
+运行时按异常出现的位置分三种方式处理：
+
+| 异常出现在 | 运行时怎么处理 | 能在哪里统一接到 |
+| --- | --- | --- |
+| `main.js` 顶层、定时器的回调 | 在 `application` 上派发 `error`。没有监听器取消时，向控制台输出以 `Uncaught` 开头的错误日志 | `error` 事件 |
+| `Promise` 被拒绝，并且没有挂处理函数。`async` 函数里抛出的异常属于这一种 | 在 `application` 上派发 `unhandledrejection`。没有监听器取消时，输出以 `Uncaught (in promise)` 开头的错误日志 | `unhandledrejection` 事件 |
+| 事件监听器的回调（包括 `sceneconnect` 的回调、按钮的点击回调） | 向控制台输出以 `Event listener threw:` 开头的错误日志。同一个事件的其余监听器照常执行 | 接不到。不派发 `error` |
+
+`main.js` 顶层抛出异常时，这一行之后的顶层代码不再执行。在它之前注册的监听器仍然有效。
+
+在这两个事件的监听器里调 `preventDefault()`，取消的只是运行时输出的那条默认日志。异常已经发生，被中断的代码不会恢复执行。不调 `preventDefault()` 时，监听器和默认日志都会执行。
+
+推荐的做法见[统一处理错误](#统一处理错误)。
+
+## 收到内存警告时
+
+设备内存不足时，系统先通知各个 App 释放内存，`application` 派发 `memorywarning`。App 在这时应当丢掉可以重新得到的数据：缓存的图片、已经解析好但还能再解析的数据、不在屏幕上的页面。
+
+运行时自己不会因为内存警告丢掉 JS 里的任何数据，释放什么由 App 的代码决定。不处理这个事件不会报错。内存仍然不足时系统会结束 App，结束时没有通知。**「不释放就会被结束」来自 iOS 的定义，未在模拟器验证。**
+
+## 在 `application` 上放自己的数据和事件
+
+`application` 可以监听和派发自己定义的事件，事件名可以是任意字符串，写法见[派发自己的事件](#派发自己的事件)。App 的各个部分可以用它互相通知。
+
+`application` 是一个普通的 JS 对象，可以往上面加自己的属性。**不推荐这样做**：类型定义里没有这些属性，每次读写都要转型；`application` 在 App 运行期间一直存在，挂在上面的东西永远不会被回收。App 范围内共享的数据放在模块自己的变量里。场景、窗口、页面尤其不要挂上去，原因见 [`UIWindowScene`](ui-window-scene.md)。
 
 ## 完整例子
 
@@ -54,11 +104,7 @@ application.addEventListener('sceneconnect', (e) => {
 
 这段代码没有作为一个整体在模拟器运行过。其中用到的每个 API 都在验收用例里运行过。
 
-三件事要记住：
-
-- **界面代码必须写在 `sceneconnect` 的回调里。** 脚本开始执行时 `application.scenes` 是空数组，没有场景就建不了能显示的窗口。
-- **监听器要在脚本顶层注册。** 运行时保证 `main.js` 执行完之后才派发 `sceneconnect`，所以在顶层注册一定来得及。
-- 回调里那五行的含义见 [`UIWindow`](ui-window.md) 和 [`UIViewController`](ui-view-controller.md)。
+回调里那五行的含义见 [`UIWindow`](ui-window.md) 和 [`UIViewController`](ui-view-controller.md)。回调里的 `win` 和 `page` 不需要保存到回调外面：窗口建在场景上、页面交给窗口之后，运行时会保管它们。
 
 ## 常见用法
 
@@ -78,7 +124,9 @@ application.addEventListener('sceneconnect', (e) => {
 
 **效果**：App 启动后屏幕显示一个空白页面，底色是系统背景色。
 
-`e.scene` 是系统刚接入的场景，类型是 [`UIWindowScene`](ui-window-scene.md)。在回调里它和 `application.scenes` 里的第一个元素是同一个对象。
+`e.scene` 是系统刚创建的场景，类型是 [`UIWindowScene`](ui-window-scene.md)。在回调里它和 `application.scenes` 里的第一个元素是同一个对象。
+
+这段回调在场景被销毁又重建时会再执行一次，所以它只依赖 `e.scene` 和回调外面的数据。完整的组织方式见 [`UIWindowScene`](ui-window-scene.md) 的「推荐的做法」一节。
 
 ### 读 App 的名字和版本
 
@@ -97,7 +145,7 @@ console.log(application.info.CFBundleDisplayName);
 
 ### 读 Info.plist 里的任意字段
 
-Info.plist 是每个 iOS App 自带的配置文件，记录包名、版本、支持的方向等。它的作用类似 Web 的 `manifest.json` 加 `package.json` 里的 `name` 和 `version`。`application.info` 是它的全部内容。
+Info.plist 是每个 iOS App 自带的配置文件，记录包名、版本、支持的方向等。它在构建 App 时生成，App 运行期间不变。`application.info` 是它的全部内容，在脚本一开始就能读。
 
 ```js
 console.log(Object.keys(application.info).length);
@@ -111,7 +159,7 @@ console.log(Object.isFrozen(application.info));
 - 第二行输出 App 要求的最低系统版本，是一个字符串。
 - 第三行输出 `true`。`info` 和它里面的每一层对象都是冻结的，写入会抛 `TypeError`。
 
-`info` 里每个值的类型声明是 `unknown`，因为运行时不知道你的 Info.plist 里有什么。读嵌套的字段要自己判断类型：
+读一个 Info.plist 里没有的键得到 `undefined`，不报错。`info` 里每个值的类型声明是 `unknown`，因为每个 App 的 Info.plist 内容不同。读嵌套的字段要先判断类型：
 
 ```js
 const manifest = application.info.UIApplicationSceneManifest;
@@ -149,13 +197,15 @@ for (const type of ['inactive', 'background', 'foreground', 'active']) {
 - `foreground 此刻 state = background`
 - `active 此刻 state = active`
 
-`inactive` 和 `foreground` 表示「即将」，所以这两个事件到达时 `state` 还是旧值。要在进后台之前保存数据，监听 `inactive`。
+`inactive` 和 `foreground` 表示「即将」，所以这两个事件到达时 `state` 还是旧值。
+
+`inactive` 不只在进后台之前派发：来电、下拉通知中心时也会派发，随后 App 可能直接回到活动状态。保存数据用 `background`，它只在 App 确实进了后台时派发，见 [App 进入后台之后](#app-进入后台之后)。
 
 App 启动时也会依次派发 `foreground` 和 `active`。
 
 ### 收到内存警告时释放缓存
 
-内存警告是 iOS 的机制：设备内存不足时，系统先通知各个 App 释放内存，仍然不够才结束 App。Web 里没有对应的事件。
+设备内存不足时，系统先通知各个 App 释放内存。收到通知后丢掉可以重新得到的数据，见[收到内存警告时](#收到内存警告时)。
 
 ```js
 /** @type {Map<string, string>} */
@@ -170,6 +220,63 @@ application.addEventListener('memorywarning', () => {
 **效果**：系统发出内存警告时，控制台输出 `缓存已清空`。
 
 在模拟器里触发：设备菜单里选 Simulate Memory Warning。
+
+### 统一处理错误
+
+推荐把两个错误事件的监听器写在 `main.js` 的最前面，交给同一个函数处理。写在最前面，是因为排在它前面的顶层代码抛出的异常它收不到。
+
+事件监听器里抛出的异常不会派发 `error`（见[没处理的异常不会让 App 退出](#没处理的异常不会让-app-退出)）。要让它们也进同一个函数，把回调包一层：
+
+```js
+/** @param {unknown} reason */
+function report(reason) {
+  console.error('出错了', String(reason));
+}
+
+application.addEventListener('error', (e) => {
+  report(e.error);
+  e.preventDefault();
+});
+application.addEventListener('unhandledrejection', (e) => {
+  report(e.reason);
+  e.preventDefault();
+});
+
+/**
+ * 把一个事件回调包起来，回调里抛出的异常交给 report
+ * @template {Event} E
+ * @param {(e: E) => void} fn
+ * @returns {(e: E) => void}
+ */
+function guard(fn) {
+  return (e) => {
+    try {
+      fn(e);
+    } catch (err) {
+      report(err);
+    }
+  };
+}
+
+application.addEventListener('sceneconnect', guard((e) => {
+  const win = new UIWindow(e.scene);
+  const page = new UIViewController();
+  page.view.backgroundColor = 'systemBackground';
+  win.rootViewController = page;
+  win.makeKeyAndVisible();
+  throw new Error('建界面时出错');
+}));
+```
+
+**效果**
+
+- 屏幕显示空白页面。`throw` 之前的代码已经执行完，窗口照常显示。
+- 控制台输出 `出错了 Error: 建界面时出错`，不再有 `Event listener threw:` 那条日志。
+- App 继续运行。
+
+这段代码没有作为一个整体在模拟器运行过。
+
+正式发布的 App 里，`report()` 通常还要把错误发给自己的服务器。调了 `preventDefault()` 之后运行时不再输出默认日志，所以 `report()` 里要自己输出，否则开发时在控制台看不到错误。
 
 ### 捕获没处理的异常
 
@@ -189,9 +296,9 @@ throw new Error('没人接的异常');
 - 控制台输出 `是 Error 对象吗 true`。
 - 因为调了 `preventDefault()`，运行时不再输出默认的错误日志。不调时，运行时用 `console.error` 的级别输出一条以 `Uncaught` 开头的日志。
 
-事件名和 Web 的 `window.onerror` / `error` 事件相同。字段见 [`ErrorEvent`](#errorevent)。
+事件对象的字段见 [`ErrorEvent`](#errorevent)。
 
-> **注意**：脚本顶层抛出的异常会让 `main.js` 剩下的代码不再执行。`error` 事件只是通知你，不会恢复执行。
+> **注意**：脚本顶层抛出的异常会让 `main.js` 剩下的顶层代码不再执行。`error` 事件只是通知，不会恢复执行。App 不会退出，已经注册的监听器仍然有效。
 
 ### 捕获没处理的 Promise 拒绝
 
@@ -209,7 +316,9 @@ Promise.reject(new Error('没人接的拒绝'));
 - 控制台输出 `没处理的拒绝 Error: 没人接的拒绝`。
 - 因为调了 `preventDefault()`，运行时不再输出默认日志。不调时，运行时输出一条错误级别的日志，开头是 `Uncaught (in promise)`，后面是拒绝的原因。
 
-事件名和 Web 的 `unhandledrejection` 相同。字段见 [`PromiseRejectionEvent`](#promiserejectionevent)。
+事件对象的字段见 [`PromiseRejectionEvent`](#promiserejectionevent)。
+
+拒绝之后很快补挂了处理函数的 `Promise` 不会被上报，见[错误类事件](#错误类事件)。
 
 ### 打开一个 URL
 
@@ -247,12 +356,12 @@ console.log(application.protectedDataAvailable);
 
 **效果**：控制台输出四行，每行是当前设备上的值。例如系统语言是从左往右书写、字体大小是默认档时，前两行是 `ltr` 和 `UICTContentSizeCategoryL`。**后两行的具体值未在模拟器验证**，取值范围见[环境与偏好](#环境与偏好)。
 
-- `layoutDirection`：界面的书写方向。相当于 CSS 的 `direction`。
+- `layoutDirection`：界面的书写方向，由系统语言决定。
 - `contentSizeCategory`：用户在系统设置里选的字体大小档位。
 - `backgroundRefreshStatus`：用户是否允许 App 在后台刷新内容。
 - `protectedDataAvailable`：加密保护的文件现在能不能读。设备锁屏期间是 `false`。
 
-读不到的环境信息见[还不能做的](#还不能做的)，包括深色还是浅色、系统语言。
+深色还是浅色、屏幕是几倍的，不在 `application` 上，从场景或视图的 `traitCollection` 读，见[外观特征](ui-trait-collection.md)。设备型号和系统版本见 [`UIDevice`](ui-device.md)。系统语言还读不到，见[还不能做的](#还不能做的)。
 
 ### 让屏幕保持常亮
 
@@ -265,7 +374,7 @@ console.log(application.idleTimerDisabled);
 
 **效果**：控制台输出 `true`。App 在前台期间设备不再自动锁屏。**「不再自动锁屏」未在模拟器验证。**
 
-用完设回 `false`。相当于 Web 的 Screen Wake Lock，写法不同：这里是一个布尔属性。
+这个设置对整个 App 生效，不会自动恢复。离开需要常亮的页面时设回 `false`，否则设备在 App 位于前台期间一直不锁屏，耗电增加。
 
 ### 判断能不能开多个窗口
 
@@ -300,7 +409,7 @@ console.log(application.storage.get('theme'));
 
 ### 派发自己的事件
 
-`application` 可以当作 App 内的事件中心使用，和 Web 的 `EventTarget` 写法相同。
+`application` 可以监听和派发自己定义的事件。事件名可以是任意字符串，只要不和[已有的事件名](#事件)相同。App 里互不引用的两部分代码可以用它互相通知。
 
 ```js
 application.addEventListener('login', (e) => {
@@ -324,24 +433,24 @@ EventTarget
 
 `addEventListener()`、`removeEventListener()`、`dispatchEvent()` 来自 `EventTarget`。
 
-`EventTarget` 和 `Event` 不是 JS 语言自带的，由运行时提供，名字和基本用法与 Web 相同。有三点不同：
+`EventTarget` 是所有能发事件的对象的基类，`Event` 是事件对象的基类。它们由运行时提供，是全局的类，可以直接 `new`。它们的行为有三条：
 
-- 没有捕获和冒泡。事件只派发给注册了监听器的那个对象。
-- `addEventListener()` 的选项只有 `once`，没有 `passive`、`capture`、`signal`。
-- 监听器只能是函数，不能是带 `handleEvent` 方法的对象。
+- 事件只派发给注册了监听器的那个对象，没有捕获和冒泡。
+- `addEventListener()` 的选项只有 `once`。
+- 监听器只能是函数。
 
 ## 场景
 
-场景（scene）是 iOS 里「App 的一个界面实例」，类是 [`UIWindowScene`](ui-window-scene.md)。窗口必须建在某个场景里才能显示。它大致相当于浏览器的一个标签页：同一个 App 可以有多个场景，各自有自己的窗口。iPhone 上通常只有一个。
+场景（scene）表示 App 界面的一个实例，类是 [`UIWindowScene`](ui-window-scene.md)。窗口必须建在某个场景里才能显示。iPhone 上一个 App 通常只有一个场景。
 
-场景由系统创建，JS 不能构造。拿到场景有两个途径：
+场景由系统创建，也由系统销毁，JS 不能构造。拿到场景有两个途径：
 
 | 途径 | 什么时候有值 |
 | --- | --- |
 | `sceneconnect` 事件的 `e.scene` | 事件派发时 |
 | `application.scenes` | `sceneconnect` 派发之后。脚本刚开始执行时是空数组 |
 
-所以界面代码的入口固定是 `sceneconnect`。
+所以界面代码的入口固定是 `sceneconnect`。场景被销毁时派发 `scenedisconnect`，这个场景同时从 `application.scenes` 里移除。
 
 `application` 和场景的分工：
 
@@ -352,7 +461,7 @@ EventTarget
 
 ## 前台、后台和运行状态
 
-iOS 的 App 不是一直在运行。用户回到主屏幕或切到别的 App 时，当前 App 进入后台，系统随后可能暂停它，也可能直接结束它。Web 里最接近的是 `document.visibilityState`，区别是 iOS 的后台 App 会被暂停执行。
+iOS 的 App 不是一直在运行。用户回到主屏幕或切到别的 App 时，当前 App 进入后台，系统随后可能暂停它，也可能直接结束它，见 [App 进入后台之后](#app-进入后台之后)。
 
 `application.state` 有三种正常取值：
 
@@ -383,6 +492,8 @@ iOS 的 App 不是一直在运行。用户回到主屏幕或切到别的 App 时
 | 错误类事件 | `error`、`unhandledrejection` | `true` | 阻止运行时输出默认的错误日志 |
 
 系统通知不能取消，是因为监听器不是在系统发出通知的那一刻执行的。运行时稍后才派发，那时系统的处理已经结束。见[运行时怎么工作](how-it-works.md#事件)。
+
+错误类事件的 `preventDefault()` 取消的只是那条默认日志。异常已经发生，被中断的代码不会恢复执行。
 
 ## 成员说明
 
@@ -454,7 +565,7 @@ Info.plist 里不能用 JSON 表示的值（日期、二进制数据）会转成
 
 | 属性 | 类型 | 可读 | 可写 | 默认值 | 含义 | 变化时派发 |
 | --- | --- | --- | --- | --- | --- | --- |
-| `idleTimerDisabled` | 布尔 | 是 | 是 | `false` | `true`：设备不自动锁屏。`false`：按系统设置自动锁屏 | 没有。只有你的代码能改它 |
+| `idleTimerDisabled` | 布尔 | 是 | 是 | `false` | `true`：设备不自动锁屏。`false`：按系统设置自动锁屏 | 没有。只有 App 自己的代码能改它 |
 
 写入立刻生效，写完马上读得到新值。写入非布尔值时按 JS 的真假值规则转换。
 
@@ -500,7 +611,7 @@ application.addEventListener('memorywarning', () => {
 
 **效果**：第一次收到内存警告时输出 `内存不足`，之后不再输出。
 
-- **参数** `type`：事件名，见[事件](#事件)。也可以是你自己定的名字。
+- **参数** `type`：事件名，见[事件](#事件)。也可以是自己定的名字。
 - **参数** `callback`：函数，收到事件对象。传 `null` 时什么都不做。
 - **参数** `options`：可选。`{ once: true }` 表示触发一次后自动移除。
 - **返回**：无。
@@ -562,8 +673,8 @@ console.log(ok);
 
 | 事件 | 什么时候派发 | 事件对象上多出的字段 |
 | --- | --- | --- |
-| `sceneconnect` | 系统接入了一个场景。App 启动后会派发一次 | `scene`：接入的 [`UIWindowScene`](ui-window-scene.md) |
-| `scenedisconnect` | 系统断开了一个场景 | `scene`：断开的 [`UIWindowScene`](ui-window-scene.md) |
+| `sceneconnect` | 系统创建好了一个场景。App 启动后派发一次；场景被销毁后又重建时再派发 | `scene`：新的 [`UIWindowScene`](ui-window-scene.md) |
+| `scenedisconnect` | 系统销毁了一个场景。**未在模拟器验证** | `scene`：被销毁的 [`UIWindowScene`](ui-window-scene.md) |
 
 #### 前后台事件
 
@@ -639,7 +750,7 @@ console.log(ok);
 | `filename` | 字符串 | 是 | 否 | 出错的脚本名，例如 `'main.js'` |
 | `lineno` | 数字 | 是 | 否 | 出错的行号 |
 
-`filename` 和 `lineno` 指向打包后的 `main.js`，不是你的源文件。
+`filename` 和 `lineno` 指向打包后的 `main.js`，不是打包前的源文件。要找到出错的代码，打开打包产物看这一行。
 
 #### `PromiseRejectionEvent`
 
@@ -652,7 +763,7 @@ console.log(ok);
 
 ## 与 iOS 原生写法的对照
 
-`application` 不是 `UIApplication` 的逐项映射。它把 iOS 里分散在几处的 App 级能力放在一个对象上。如果你在看 Apple 的文档或 iOS 的示例代码，按这张表换成 JS 的写法。
+`application` 不是 `UIApplication` 的逐项映射。它把 iOS 里分散在几处的 App 级能力放在一个对象上。这张表供对照 Apple 的文档或 iOS 的示例代码时查 JS 的写法。
 
 | ObjC | JS |
 | --- | --- |
@@ -683,6 +794,20 @@ console.log(ok);
 | `UIApplicationBackgroundRefreshStatusDidChangeNotification` | `application.addEventListener('backgroundrefreshstatuschange', …)` |
 | `UIApplicationWillTerminateNotification` | `application.addEventListener('willterminate', …)` |
 
+## 与浏览器的对照
+
+这张表供熟悉浏览器 API 的人查对应关系。
+
+| 浏览器 | Nacre |
+| --- | --- |
+| `window.addEventListener('error', …)` | `application.addEventListener('error', …)` |
+| `window.addEventListener('unhandledrejection', …)` | `application.addEventListener('unhandledrejection', …)` |
+| `document.visibilityState` 和 `visibilitychange` | `application.state` 和四个前后台事件 |
+| `navigator.wakeLock.request('screen')` | `application.idleTimerDisabled = true` |
+| `addEventListener()` 的 `capture`、`passive`、`signal` 选项 | 没有。只有 `once` |
+| 监听器可以是带 `handleEvent()` 的对象 | 不可以。只能是函数 |
+| `rejectionhandled` 事件 | 没有 |
+
 ## 还不能做的
 
 | 想做的事 | 对应的原生能力 | 状态 |
@@ -692,16 +817,18 @@ console.log(ok);
 | 打开 URL 时带选项，比如只允许通用链接 | `openURL:options:` 的 `options` | 未实现 |
 | 打开之前先问系统能不能打开某个 URL | `canOpenURL:` | 不提供。直接调 `openURL()`，按兑现的值判断 |
 | 接收别的 App 或网页传给本 App 的 URL（深链接） | `scene:openURLContexts:` | 未实现 |
-| 读当前是深色还是浅色，并在切换时得到通知 | `UITraitCollection` | 未实现 |
 | 读系统语言和地区 | `NSLocale` | 未实现 |
-| 读屏幕的像素倍数 | `UIScreen.scale` | 未实现 |
 | 把字体大小档位读成 `'large'` 这类统一的名字 | `UIContentSizeCategory` 的映射 | 未实现。现在是 iOS 的原始字符串 |
 | 拒绝已经上报之后才补挂处理函数时得到更正通知 | Web 的 `rejectionhandled` | 未实现 |
 | 锁定或读取屏幕方向 | `UIWindowScene.effectiveGeometry` | 未实现 |
+| 收到内存警告时让运行时自己也释放内存 | — | 未实现。现在只派发 `memorywarning` 事件 |
 
 ## 参见
 
-- [`UIWindowScene`](ui-window-scene.md)：`sceneconnect` 给出的场景对象，以及场景自己的前后台事件
+- [运行时怎么工作](how-it-works.md)：代码怎么执行、事件什么时候派发
+- [`UIWindowScene`](ui-window-scene.md)：`sceneconnect` 给出的场景对象、启动代码的推荐组织方式、场景自己的前后台事件
+- [外观特征](ui-trait-collection.md)：深色还是浅色、屏幕几倍
+- [`UIDevice`](ui-device.md)：设备型号和系统版本
 - [`UIWindow`](ui-window.md)：完整例子里建的窗口
 - [`UIViewController`](ui-view-controller.md)：完整例子里建的页面
 - [本地存储](storage.md)：`application.storage`

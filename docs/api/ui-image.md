@@ -8,17 +8,72 @@ status: partial
 
 显示图片要用两个类：
 
-- `UIImage` 是图片对象：一张已经取到的图。它不是视图，自己不会出现在屏幕上。
-- `UIImageView` 是显示图片的视图。把 `UIImage` 赋给它的 `image` 属性，图片就显示出来。
+- **`UIImage`** 表示一张图片。它不是视图，自己不会出现在屏幕上。
+- **`UIImageView`** 表示显示图片的视图，称为图片视图。把一个 `UIImage` 赋给它的 `image` 属性，图片就显示出来。
 
-`UIImageView` 相当于 HTML 的 `<img>`，有四点不同：
+图片视图不会自己加载图片。显示一张图分两步：先用 `UIImage` 的类方法取到图片对象，再把它赋给图片视图。同一个图片对象可以同时赋给多个图片视图。
 
-- **没有 `src`。** 不能把地址交给视图让它自己加载。要先用 `UIImage` 的类方法取到图片对象，再赋给 `image`。网络图片要自己用 [`fetch`](fetch.md) 下载。
-- **图片和视图大小不一致时的摆法由 `contentMode` 决定。** 它相当于 CSS 的 `object-fit`。默认值是拉伸变形，相当于 `object-fit: fill`。
-- **超出视图的部分默认不裁剪。** CSS 的 `object-fit: cover` 自带裁剪，这里要另外设 `clipsToBounds = true`。
-- **图片尺寸的单位是点（pt），不是像素。** 见 [`size` 的单位是点](#size-的单位是点不是像素)。
+## 图片从哪里来
 
-这一页分三部分：先给一个[能直接运行的完整例子](#完整例子)，再按[你想做的事](#常见用法)给出写法和效果，最后是[每个成员的说明](#成员说明)。
+| 图片的来源 | 取图的方法 | 说明 |
+| --- | --- | --- |
+| 随 App 打包的图片文件 | `UIImage.imageNamed('JS/assets/名字')` | 文件放在项目的 `assets/` 目录里 |
+| 系统自带的图标 | `UIImage.systemImageNamed('star.fill')` | 不需要准备文件 |
+| 网络上的图片 | [`fetch`](fetch.md) 下载，再 `UIImage.imageWithData(blob)` | 下载由 App 的代码完成 |
+| 保存在设备上的文件 | `UIImage.imageWithContentsOfFile(路径)` | 路径是绝对路径 |
+
+**取不到图片时，四个方法都返回 `null`，不抛异常。** 名字不存在、文件读不到、下载到的内容不是图片，都是这样。所以取图之后要先判空再使用。把 `null` 赋给图片视图不会出错，结果是不显示图片。
+
+### 随 App 打包的图片放在哪
+
+图片文件放在项目根目录的 `assets/` 里。构建时这个目录被放进 App 包的 `JS/assets/`，所以取图时的名字要带上这段路径：`assets/logo.png` 对应 `UIImage.imageNamed('JS/assets/logo')`。扩展名可以不写。
+
+同一张图可以准备三个文件：`logo.png`、`logo@2x.png`、`logo@3x.png`，分别给一个点对应 1、2、3 个像素的屏幕使用。取图时只写 `'JS/assets/logo'`，不写 `@2x`、`@3x`，系统按当前屏幕选择对应的文件。只准备其中一个文件时，其他屏幕上的显示效果**未在模拟器验证**。
+
+### 支持哪些格式
+
+PNG、JPEG、HEIC、WebP、AVIF、GIF 等格式的文件都能取到图片，列表见[支持的图片格式](#支持的图片格式)。两种常见的情况例外：
+
+- **GIF 动图只显示第一帧。** 播放动图目前做不到。
+- **SVG 不能显示。** 把 SVG 的内容交给 `imageWithData()` 得到 `null`。
+
+## 图片会不会变形
+
+会。图片和图片视图的宽高比不一致时，默认的做法是把图片拉伸到填满视图，图片会变形。怎么摆放由视图的 `contentMode` 属性决定：
+
+| 想要的结果 | 写法 |
+| --- | --- |
+| 完整显示图片，不变形，视图里可以留空 | `contentMode = 'scaleAspectFit'` |
+| 填满视图，不变形，超出的部分裁掉 | `contentMode = 'scaleAspectFill'`，并且 `clipsToBounds = true` |
+| 填满视图，允许变形 | 默认值 `'scaleToFill'` |
+
+**推荐每个图片视图都明确写 `contentMode`**：照片、封面用 `'scaleAspectFill'` 加 `clipsToBounds = true`，图标用 `'scaleAspectFit'`。
+
+`'scaleAspectFill'` 不负责裁剪。不设 `clipsToBounds = true` 时，超出视图的部分会显示在视图外面，盖住旁边的内容。
+
+## 图片视图要不要写宽高
+
+图片视图有固有尺寸，等于图片的 `size`。用哪种方式定位，决定要不要写宽高：
+
+| 定位方式 | 不写宽高时 |
+| --- | --- |
+| [Auto Layout](auto-layout.md) 约束 | 视图和图片一样大 |
+| 直接写 `frame` | 视图宽高是 0，看不到图片 |
+
+网络图片在下载完成之前没有尺寸，视图的大小会在图片到达时变化。**推荐用约束给图片视图确定大小**（固定的宽高，或者固定的宽度加宽高比），不依赖图片的尺寸。写法见[用约束给图片视图定大小](#用约束给图片视图定大小)。
+
+## 大图和网络图片
+
+图片对象取到时还没有解码成像素。解码发生在图片第一次显示的时候，和界面更新在同一个线程上进行。`prepareForDisplay()` 把解码放到后台进行，完成后返回一张已经解码的图片。**从网络下载的图片推荐都先 `prepareForDisplay()` 再显示**，标准写法见[显示从网络下载的图](#显示从网络下载的图)。小图标不需要。
+
+解码一张大图需要多长时间，本文档没有实测数据。
+
+显示尺寸远小于原图时（比如列表里的头像），用 `prepareThumbnail(size)` 取一张缩小的图，见[生成缩略图](#生成缩略图)。
+
+运行时不提供图片缓存。`UIImage.imageWithData()` 每次都从字节生成一个新的图片对象，同一个地址再次 `fetch` 是否使用系统的 HTTP 缓存**未在模拟器验证**。需要缓存时有两种做法：
+
+- 在 App 运行期间重复使用：把取到的 `UIImage` 对象保存在一个 `Map` 里，按地址查找。
+- 下次启动仍然可用：把下载到的内容写进缓存目录，以后从文件读取，见[显示保存在本地文件里的图](#显示保存在本地文件里的图)。
 
 ## 完整例子
 
@@ -87,12 +142,12 @@ if (dot) {
 
 **效果**
 
-- 图片视图显示 `JS/assets/` 目录下的 `dot` 图片。
+- 图片视图显示项目 `assets/` 目录里的 `dot` 图片。
 - 控制台输出 `10 10 3`（在 @3x 屏幕的设备上）。
 
 名字是图片在 App 包里的路径，从包的根目录算起，可以不写扩展名。`imageNamed()` 不会到子目录里搜索，图片在 `JS/assets/` 里时只写 `'dot'` 找不到。
 
-目录里有 `dot.png`、`dot@2x.png`、`dot@3x.png` 三个文件时，系统按屏幕选其中一个。这相当于 `<img>` 的 `srcset`，差别是不用自己列出来，只要文件名按这个规则命名。
+目录里有 `dot.png`、`dot@2x.png`、`dot@3x.png` 三个文件时，系统按屏幕选其中一个。不需要在代码里列出这三个文件，只要文件名按这个规则命名。
 
 找不到图片时返回 `null`，不抛错，所以要先判空。完整的规则见 [`imageNamed` 的查找规则](#imagenamed-的查找规则实测)。
 
@@ -120,7 +175,7 @@ console.log(iv.tintColor);
 - 星形显示为红色。**未在模拟器验证。**
 - 控制台输出 `#FF3B30`。写入的颜色字符串原样读回。
 
-`tintColor` 只对模板图起作用。模板图是只使用形状、不使用自身颜色的图片，相当于用 `currentColor` 上色的 SVG。SF Symbols 的图标在图片视图里按模板图处理。
+`tintColor` 只对模板图起作用。模板图是只使用形状、不使用自身颜色的图片：图片里不透明的部分全部显示成 `tintColor`。SF Symbols 的图标在图片视图里按模板图处理。
 
 自己的图片默认显示原来的颜色。要让它也按 `tintColor` 上色，先转成模板图：
 
@@ -149,7 +204,7 @@ async function showRemoteImage() {
     return;
   }
 
-  // 在后台线程解码，解完再显示
+  // 在后台解码，解完再显示
   const ready = await img.prepareForDisplay();
   iv.image = ready ?? img;
   console.log(img.size.width, img.size.height, img.scale);
@@ -163,13 +218,16 @@ showRemoteImage();
 - 下载完成后，图片视图显示这张图。
 - 控制台输出 `200 200 1`。
 
-三步分别是：用 [`fetch`](fetch.md) 下载并取得 `Blob`，用 `imageWithData()` 把 `Blob` 变成图片，用 `prepareForDisplay()` 在后台解码。
+这是显示网络图片的标准写法。三步分别是：用 [`fetch`](fetch.md) 下载并取得 `Blob`，用 `imageWithData()` 把 `Blob` 变成图片，用 `prepareForDisplay()` 在后台解码。
 
-图片的数据不放在 JS 的内存里。几 MB 的图片不会增加 JS 的内存压力。
+- 下载要用 `res.blob()`，不要用 `res.arrayBuffer()`：`imageWithData()` 只接受 `Blob`。
+- 下载到的内容不是图片时（比如服务器返回了一个错误页面），`imageWithData()` 返回 `null`，不抛异常。网络不通时 `fetch` 会拒绝，要用 `try…catch` 处理，见 [`fetch`](fetch.md)。
+- `prepareForDisplay()` 的结果可能是 `null`，这时退回使用原图。
+- 下载期间图片视图是空的。可以先给它设一个 `backgroundColor` 占位。
 
 `imageWithData()` 得到的图片 `scale` 是 1：200 × 200 像素的图，`size` 是 200 × 200 pt。在 @3x 屏幕上它会被放大显示。要按 @2x 或 @3x 的图处理，传 `scale`，见 [`UIImage.imageWithData()`](#uiimageimagewithdata)。
 
-为什么要 `prepareForDisplay()`，见[解码发生在第一次显示时](#解码发生在第一次显示时)。
+`prepareForDisplay()` 的说明见[解码发生在第一次显示时](#解码发生在第一次显示时)。
 
 ### 显示保存在本地文件里的图
 
@@ -200,7 +258,7 @@ showCachedImage();
 
 ### 图片和视图比例不一致时怎么摆
 
-用 `contentMode` 选摆法。它是 [`UIView`](ui-view.md) 的属性，相当于 CSS 的 `object-fit`。
+用 `contentMode` 选摆法。它是 [`UIView`](ui-view.md) 的属性，决定内容和视图大小不一致时怎么缩放和对齐。
 
 ```js
 iv.contentMode = 'scaleAspectFill';
@@ -211,12 +269,14 @@ iv.clipsToBounds = true;
 
 以 100 × 100 pt 的图片放进 300 × 200 pt 的视图为例：
 
-| `contentMode` | 相当于 CSS | 结果 |
-| --- | --- | --- |
-| `'scaleToFill'`（默认） | `object-fit: fill` | 图片拉伸成 300 × 200 pt，变形 |
-| `'scaleAspectFit'` | `object-fit: contain` | 图片等比放大到 200 × 200 pt，左右各空出 50 pt |
-| `'scaleAspectFill'` | `object-fit: cover` | 图片等比放大到 300 × 300 pt，上下各超出 50 pt |
-| `'center'` | `object-fit: none` | 图片不缩放，按 100 × 100 pt 显示在视图正中 |
+| `contentMode` | 结果 |
+| --- | --- |
+| `'scaleToFill'`（默认） | 图片拉伸成 300 × 200 pt，变形 |
+| `'scaleAspectFit'` | 图片等比放大到 200 × 200 pt，左右各空出 50 pt |
+| `'scaleAspectFill'` | 图片等比放大到 300 × 300 pt，上下各超出 50 pt |
+| `'center'` | 图片不缩放，按 100 × 100 pt 显示在视图正中 |
+
+表里的尺寸是按各取值的定义算出来的，屏幕上的显示**未在模拟器验证**。
 
 > **注意**：`contentMode` 只决定图片怎么摆，不负责裁剪。用 `'scaleAspectFill'` 时如果不设 `clipsToBounds = true`，超出的部分会显示在视图外面，盖住旁边的内容。
 
@@ -238,11 +298,39 @@ if (dot) {
 
 **效果**：图片视图宽 200 pt，高度按图片的宽高比算出。图片刚好填满视图，不变形。**未在模拟器验证。**
 
-用 [Auto Layout](auto-layout.md) 时，图片视图的固有尺寸（`intrinsicContentSize`）等于图片的 `size`。不加宽高约束，视图就和图片一样大。
+用 [Auto Layout](auto-layout.md) 时的写法见下一节。
+
+### 用约束给图片视图定大小
+
+这是图片视图配合约束的推荐写法：位置和宽度用约束确定，高度按固定的宽高比跟着宽度走，再用 `contentMode` 处理图片和视图比例不一致的情况。
+
+```js
+const cover = new UIImageView();
+cover.contentMode = 'scaleAspectFill';
+cover.clipsToBounds = true;
+cover.backgroundColor = 'secondarySystemBackground';   // 图片到达之前的占位底色
+cover.translatesAutoresizingMaskIntoConstraints = false;
+page.view.addSubview(cover);
+
+const safe = page.view.safeAreaLayoutGuide;
+NSLayoutConstraint.activateConstraints([
+  cover.topAnchor.constraintEqualToAnchor(safe.topAnchor, { constant: 16 }),
+  cover.leadingAnchor.constraintEqualToAnchor(safe.leadingAnchor, { constant: 16 }),
+  cover.trailingAnchor.constraintEqualToAnchor(safe.trailingAnchor, { constant: -16 }),
+  // 高度 = 宽度 × 9/16
+  cover.heightAnchor.constraintEqualToAnchor(cover.widthAnchor, { multiplier: 9 / 16 }),
+]);
+```
+
+**效果**：页面顶部出现一块宽高比 16:9 的灰色区域，左右各离屏幕边缘 16 pt。之后把任何比例的图片赋给 `cover.image`，图片都填满这块区域，不变形，超出的部分不显示，视图的大小不变。**这段代码未在模拟器验证。**
+
+宽和高都被约束确定之后，图片的尺寸不再影响视图的大小。网络图片到达前后，页面上其他内容的位置不变。
+
+只约束位置、不约束宽高时，视图的大小等于图片的 `size`（固有尺寸，验收用例验证过）。这种写法适合尺寸已知的小图标。
 
 ### 做可拉伸的背景图（九宫格）
 
-气泡、带圆角的边框这类背景图，需要拉伸到任意大小而四个角不变形。做法是指定四条边各留多宽不参与拉伸，只拉伸中间的部分。这种做法叫九宫格，CSS 里最接近的是 `border-image` 的 `slice`。
+气泡、带圆角的边框这类背景图，需要拉伸到任意大小而四个角不变形。做法是指定四条边各留多宽不参与拉伸，只拉伸中间的部分。这种做法叫九宫格。
 
 ```js
 const frameImage = UIImage.imageNamed('JS/assets/frame');   // 20 × 20 pt 的圆角边框
@@ -289,7 +377,7 @@ iv.isHighlighted = true;
 
 **效果**：`isHighlighted` 设成 `true` 后，图片视图从空心星形换成实心星形。设回 `false` 换回空心星形。**换图的效果未在模拟器验证。**
 
-`UIImageView` 不接收触摸，系统不会自动改 `isHighlighted`，要由你的代码来设。需要「手指按住时自动换图」时，用 [`UIButton`](ui-button.md) 的 `setImage()` 给 `highlighted` 状态单独设一张图。
+`UIImageView` 默认不接收触摸，系统不会自动改 `isHighlighted`，要由 App 的代码来设。需要「手指按住时自动换图」时，用 [`UIButton`](ui-button.md) 的 `setImage()` 给 `highlighted` 状态单独设一张图。
 
 ### 清除图片
 
@@ -301,7 +389,7 @@ iv.image = null;
 
 ### 生成缩略图
 
-列表里显示很小的头像时，不需要完整解码原图。
+显示尺寸远小于原图时（比如列表里的头像），取一张缩小的图来显示。
 
 ```js
 async function showThumbnail() {
@@ -317,7 +405,7 @@ async function showThumbnail() {
 showThumbnail();
 ```
 
-**效果**：图片视图显示一张缩小过的图。缩略图在后台生成，不卡界面。**缩略图的实际尺寸未在模拟器验证。**
+**效果**：图片视图显示一张缩小过的图。缩略图在后台生成。**缩略图的实际尺寸未在模拟器验证。**
 
 ## 概念
 
@@ -362,9 +450,11 @@ UIImage.imageNamed('logo.png');          // 带扩展名也可以
 
 - 不递归搜索子目录。图片在 `JS/assets/` 里，写 `'logo'` 找不到。
 - `@2x`、`@3x` 的文件在子目录里也会被自动选中。
-- 仓库里放在 `acceptance/ios/JS/assets/` 的文件，在 App 包里的路径是 `JS/assets/`。
+- 项目 `assets/` 目录里的文件，在 App 包里的路径是 `JS/assets/`。
 
-iOS 还有另一种存放图片的方式，叫 Asset Catalog。它是 Xcode 管理图片的资源库，编译后合并成一个 `Assets.car` 文件。`imageNamed()` 先查 Asset Catalog，再查 App 包里的文件。两边有同名图片时使用 Asset Catalog 里的。
+iOS 还有另一种存放图片的方式，叫 Asset Catalog。它是 Xcode 管理图片的资源库，编译后合并成一个 `Assets.car` 文件。`imageNamed()` 先查 Asset Catalog，再查 App 包里的文件。两边有同名图片时使用 Asset Catalog 里的（**未在模拟器验证**）。
+
+**推荐把图片作为普通文件放在 `assets/` 里。** 用命令行工具生成的工程目前没有往 Asset Catalog 里添加图片的途径：生成的 `ios/` 目录每次都会重建，里面的 Asset Catalog 只有 App 图标。下面的对比适用于手工维护 Xcode 工程的 App。
 
 两种存放方式的差别：
 
@@ -392,6 +482,8 @@ public.jpeg-xl              com.microsoft.bmp    com.microsoft.ico
 ```
 
 GIF 动图只能得到第一帧。实测一个 2 帧的 GIF，得到的 `UIImage` 是静态图，`duration` 是 0。
+
+SVG 不在其中：把 SVG 的字节交给 `imageWithData()` 得到 `null`。
 
 ### `UIImage` 是不可变的
 
@@ -427,7 +519,7 @@ SF Symbols 图标的 `renderingMode` 实测是 `'automatic'`，不是 `'alwaysTe
 
 ### 解码发生在第一次显示时
 
-`imageWithData()`、`imageNamed()` 得到的图片还没有解码成像素。解码发生在图片第一次显示到屏幕上的时候。解码期间界面会卡住，大图尤其明显。
+`imageWithData()`、`imageNamed()` 得到的图片还没有解码成像素。解码发生在图片第一次显示到屏幕上的时候，和界面更新在同一个线程上进行。解码需要多长时间，本文档没有实测数据。
 
 `prepareForDisplay()` 把解码放到后台进行，完成后返回一张已经解码的新图：
 
@@ -443,9 +535,9 @@ async function showDecoded() {
 showDecoded();
 ```
 
-**效果**：图片显示出来，显示时不再需要解码，界面不卡。
+**效果**：图片显示出来，显示时不再需要解码。
 
-小图标不需要这样做。从网络下载的大图建议都这样做。
+小图标不需要这样做。从网络下载的图片推荐都这样做。
 
 ### 图片视图的大小
 
@@ -475,7 +567,7 @@ const logo = UIImage.imageNamed('JS/assets/dot');
 
 - **参数** `name`：字符串。图片在 App 包里的路径，可以不带扩展名。规则见 [`imageNamed` 的查找规则](#imagenamed-的查找规则实测)。
 - **返回**：`UIImage`。找不到时返回 `null`。
-- `name` 不是字符串时按 `String()` 转，规则见[传进来的值怎么转换](how-it-works.md#传进来的值怎么转换)。
+- `name` 不是字符串时按 `String()` 转，规则见[运行时怎么工作](how-it-works.md)。
 
 #### `UIImage.systemImageNamed()`
 
@@ -663,14 +755,14 @@ console.log(avatar.image);
 | `tintColor` | [颜色](ui-color.md)字符串 | 是 | 是 | 系统默认的强调色 | 模板图用这个颜色上色。写入时也接受 `UIColor` 对象。写 `null` 恢复成默认值。**默认值读出来的字符串未在模拟器验证** |
 | `isAnimating` | 布尔 | 是 | 否 | `false` | `true`：正在播放逐帧动画。逐帧动画还不能用，所以它一直是 `false` |
 
-- 这些属性变化时没有事件通知。它们只会被你自己的代码修改。
+- 这些属性变化时没有事件通知。它们只会被 App 的代码修改。
 - `tintColor` 写入不合法的颜色时不抛错。控制台输出一条警告，比如 `[Nacre] tintColor: "#GGG" is not a valid color, ignored`，颜色保持原值。
 - `tintColor` 读出来的是字符串。写入 `'systemPink'` 读回 `'systemPink'`。
 - 其余通用的出错情况见 [`UIView`](ui-view.md) 的成员说明。
 
 ## 与 iOS 原生写法的对照
 
-如果你在看 Apple 的文档或 iOS 的示例代码，按这张表换成 JS 的写法。
+这张表给照着 Apple 的文档或 iOS 示例代码写的人查对应的 JS 写法。
 
 | ObjC | JS |
 | --- | --- |
@@ -695,6 +787,24 @@ console.log(avatar.image);
 - ObjC 里用 completion handler 返回结果的方法，在 JS 里返回 Promise。
 - 多段的方法名，第一段是 JS 的方法名，其余各段是 `options` 对象的键。
 
+## 与浏览器写法的对照
+
+这张表给熟悉 HTML 和 CSS 的人查对应关系。
+
+| HTML / CSS | 这里 |
+| --- | --- |
+| `<img>` | `UIImageView` |
+| `src` 属性，由元素自己加载 | 没有。先取到 `UIImage`，再赋给 `image`；网络图片用 `fetch` 下载 |
+| `srcset` 列出多个倍率的文件 | 文件按 `名字@2x.png`、`名字@3x.png` 命名，系统自动选 |
+| `object-fit: fill` | `contentMode = 'scaleToFill'`（默认值） |
+| `object-fit: contain` | `contentMode = 'scaleAspectFit'` |
+| `object-fit: cover` | `contentMode = 'scaleAspectFill'` 加 `clipsToBounds = true` |
+| `object-fit: none` | `contentMode = 'center'` |
+| `border-image` 的 `slice` | `resizableImage({ withCapInsets })` |
+| 用 `currentColor` 上色的 SVG 图标 | 模板图加 `tintColor` |
+| 图片尺寸的单位是像素 | `size` 的单位是点，像素数等于 `size` 乘以 `scale` |
+| 浏览器自动缓存图片 | 运行时不提供图片缓存 |
+
 ## 还不能做的
 
 | 想做的事 | 对应的原生能力 | 状态 |
@@ -704,9 +814,9 @@ console.log(avatar.image);
 | 自己画一张图、把几张图合成一张、把视图截成图 | `UIGraphicsImageRenderer` | 未实现 |
 | 把图片编码成 PNG 或 JPEG 的字节 | `UIImagePNGRepresentation`、`UIImageJPEGRepresentation` | 未实现 |
 | 调整 SF Symbols 图标的粗细、大小，使用多色图标 | `UIImageSymbolConfiguration` | 未实现。图标的大小目前靠图片视图的大小和 `contentMode` 控制 |
-| 给图片视图以外的视图设 `tintColor`，让子视图继承 | `UIView.tintColor` | 未实现。`tintColor` 只在 `UIImageView` 上有 |
-| 深色模式切换时收到通知，自己换图 | `UITraitCollection` | 未实现 |
-| 读出屏幕是 @2x 还是 @3x | `UIScreen.scale` | 未实现。可以从 `imageNamed()` 取到的图片的 `scale` 间接得知 |
+| 给图片视图以外的视图设 `tintColor`，让子视图继承 | `UIView.tintColor` | 未实现。`tintColor` 只在 `UIImageView` 和标签栏（[`UITabBar`](ui-tab-bar-controller.md)）上有 |
+| 深色模式下自动换一张图 | Asset Catalog 的外观变体 | 命令行工具生成的工程里做不到。替代做法是监听 `traitchange` 事件，在回调里换图，见[外观特征](ui-trait-collection.md) |
+| 运行时提供图片缓存 | — | 未实现。做法见[大图和网络图片](#大图和网络图片) |
 
 ## 参见
 

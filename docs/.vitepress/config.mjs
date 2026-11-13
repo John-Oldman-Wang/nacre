@@ -44,6 +44,13 @@ export default defineConfig({
   base: '/nacre/',
 
   // 每个目录的 README.md 当那个目录的首页，GitHub 上照常能看
+  // 指南里有几处链接指向文档目录之外的仓库文件（比如 packages/ios/ 的说明）。
+  // 它们在 GitHub 上点得开，在站点上没有对应页面，构建时不当成死链。
+  ignoreDeadLinks: [/\/packages\//],
+
+  // 工作记录，不发布
+  srcExclude: ['findings.md'],
+
   rewrites: {
     'README.md': 'index.md',
     'guides/README.md': 'guides/index.md',

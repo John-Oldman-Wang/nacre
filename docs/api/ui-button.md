@@ -6,14 +6,49 @@ status: partial
 
 # `UIButton`
 
-`UIButton` 是按钮：屏幕上一块能点的区域，上面可以有文字和图标，点了之后执行你的代码。
+**`UIButton`** 表示一个按钮：屏幕上一块可以点击的区域，上面可以显示文字和图标。用户点击按钮时，按钮派发 `primaryActionTriggered` 事件，App 在这个事件的回调里执行自己的代码。
 
-它相当于 HTML 的 `<button>`，有两点不同：
+按钮的文字、文字颜色、图标和背景图都按**状态**分别设置。状态有四种：平常（`normal`）、手指按住（`highlighted`）、禁用（`disabled`）、选中（`selected`）。按钮按当前状态显示对应的那一套内容。没有单独设过的状态使用 `normal` 的内容，所以多数按钮只需要设 `normal`。
 
-- 文字、文字颜色、图标都是**分状态**设置的。「平常」「手指按住」「禁用」可以各有一套，系统按当前状态自动切换。
-- 没有 `click` 事件。点击对应的事件叫 `primaryActionTriggered`。
+按钮是[控件](ui-control.md)，也是[视图](ui-view.md)。禁用、状态和事件来自控件，位置、大小、底色、圆角来自视图。
 
-这一页分三部分：先给一个[能直接运行的完整例子](#完整例子)，再按[你想做的事](#常见用法)给出写法和效果，最后是[每个成员的说明](#成员说明)。
+## 新建的按钮为什么看不见
+
+按钮有两种创建方式，默认外观不同：
+
+- `UIButton.buttonWithType('system')` 得到系统外观的按钮。文字是蓝色，手指按住时自动变淡。
+- `new UIButton()` 得到 `custom` 类型的按钮。系统不给它任何默认外观，文字默认是白色，放在白色背景上看不见。**默认白色未在模拟器验证。**
+
+新建的按钮还没有文字，也没有大小。按钮显示不出来通常是以下原因之一：
+
+| 原因 | 处理 |
+| --- | --- |
+| 没有设文字和图标 | 调 `setTitle()` 或 `setImage()` |
+| `custom` 按钮的白色文字在浅色背景上 | 调 `setTitleColor()` |
+| 用 `frame` 定位但没给宽高，宽高是 0 | 给宽高，或者调 `sizeToFit()` 让按钮按内容算出大小 |
+| 没有加到页面上 | 调 `addSubview()` |
+
+用 Auto Layout 定位时不需要给宽高，按钮按文字和图标算出自己的大小，见[位置和大小](#位置和大小)。
+
+## 什么算一次点击
+
+手指按在按钮上，然后在按钮范围内松开，算一次点击，按钮派发一次 `primaryActionTriggered`。
+
+- **按下后滑到按钮外面再松手，不算点击。** 这时不派发 `primaryActionTriggered`。**未在模拟器验证。**
+- **连点两下是两次点击。** 回调执行两次，按钮不会合并或忽略连续的点击。实测连点两次时两次按下都派发了事件；`primaryActionTriggered` 派发两次**未在模拟器验证**。不希望重复执行时的写法见[防止重复提交](#防止重复提交)。
+- **禁用的按钮不响应触摸。** `isEnabled` 是 `false` 时点击没有反应，不派发任何事件。**未在模拟器验证。**
+- **回调不是在手指松开的那一刻执行的。** 事件排在当前这一轮代码之后执行，见[回调的执行时机](ui-control.md#回调的执行时机)。
+- **回调里抛出异常不影响按钮。** 运行时把异常输出到控制台，以 `Event listener threw:` 开头。同一个事件的其他回调照常执行，按钮之后还能点。
+
+## 推荐的做法
+
+**用 `UIButton.buttonWithType('system')` 创建，用 `primaryActionTriggered` 监听点击。** `system` 按钮自带按住和禁用时的外观变化，不需要另外写代码。`primaryActionTriggered` 表示「按钮被触发了」，是按钮点击的专用事件。
+
+`touchUpInside`（手指在按钮范围内松开）在点击时也会派发，同样可以用来监听点击。两者选一个，不要同时监听，否则一次点击执行两遍。需要触点位置时用 `touchUpInside`：它的事件对象带 `location`，`primaryActionTriggered` 的不带，见[触点位置](ui-control.md#触点位置)。
+
+**外观完全自己定的按钮用 `new UIButton()`**，代价是文字颜色、按住时的外观都要自己设。
+
+**可点击的范围就是按钮的范围。** 文字很短的按钮只有文字那么大，不容易点中。给按钮加宽高约束可以扩大点击范围，Apple 建议不小于 44 × 44 pt，写法见[加底色和圆角](#加底色和圆角)。
 
 ## 完整例子
 
@@ -74,9 +109,28 @@ button.addEventListener('primaryActionTriggered', () => {
 
 **效果**：用户点一次，回调执行一次。
 
-回调收到的事件对象只有 `type` 和 `target`（就是这个按钮），没有触摸位置。
+回调收到的事件对象上，`type` 是事件名，`target` 是这个按钮。`primaryActionTriggered` 的事件对象不带触点位置。要知道手指点在按钮的哪个位置，监听 `touchUpInside`，见[触点位置](ui-control.md#触点位置)。
 
 除了点击，还能监听按下、松开等更细的时刻，见[事件](#事件)。
+
+### 防止重复提交
+
+用户连点两下时回调执行两次。提交订单这类只应该执行一次的操作，在回调里用一个变量记住「正在处理」，同时禁用按钮。
+
+```js
+let submitting = false;
+button.addEventListener('primaryActionTriggered', () => {
+  if (submitting) return;
+  submitting = true;
+  button.isEnabled = false;
+  console.log('开始提交');
+  // 提交完成后：submitting = false; button.isEnabled = true;
+});
+```
+
+**效果**：第一次点击输出 `开始提交`，按钮进入禁用状态。之后的点击不再输出。**这个例子未在模拟器验证。**
+
+两样都要有。回调在点击之后才执行，按钮被禁用之前可能已经有第二次点击在等待执行，所以用变量判断。禁用按钮让用户看得出现在不能点。
 
 ### 改文字颜色
 
@@ -120,7 +174,9 @@ if (label) {
 
 **效果**：文字变成 20 pt、半粗体。
 
-`titleLabel` 的类型声明是「可能为 `null`」，所以要先判断。实际运行时它一直有值。
+`titleLabel` 的类型声明是「可能为 `null`」，所以要先判断。实测 `system` 按钮的 `titleLabel` 有值。
+
+文字比按钮宽时怎么显示，也由这个 `UILabel` 决定。行数、截断方式、自动缩小字号分别是它的 `numberOfLines`、`lineBreakMode`、`adjustsFontSizeToFitWidth`，见 [`UILabel`](ui-label.md)。按钮文字过长时默认的显示方式**未在模拟器验证**。
 
 > **注意**：文字内容和颜色不要通过 `titleLabel` 改，要用 `setTitle()` 和 `setTitleColor()`。直接改 `titleLabel.text`，按钮下次切换状态时会把它覆盖掉。
 
@@ -233,7 +289,16 @@ button.setTitle('已关注（不可取消）', { forState: ['selected', 'disable
 
 所有尺寸的单位都是[点（pt）](units.md)。
 
-Apple 建议可点击区域不小于 44 × 44 pt。
+可点击的范围等于按钮的范围。Apple 建议可点击区域不小于 44 × 44 pt。按钮按内容算出的大小不够时，加宽高约束：
+
+```js
+NSLayoutConstraint.activateConstraints([
+  button.widthAnchor.constraintGreaterThanOrEqualToConstant(44),
+  button.heightAnchor.constraintGreaterThanOrEqualToConstant(44),
+]);
+```
+
+**效果**：按钮的宽和高都不小于 44 pt。文字更长时按钮仍然按文字变宽。**这个例子未在模拟器验证。**
 
 ## 成员说明
 
@@ -357,10 +422,10 @@ button.currentTitle;        // '请先填写表单'
 | `touchUpOutside` | 手指按下后滑到按钮外面松开 |
 | `touchCancel` | 触摸被系统打断，比如来电 |
 
-- 事件对象只有 `type` 和 `target` 两个字段。
+- 事件对象的 `type` 是事件名，`target` 是这个按钮。`touch` 开头的事件另外带触点位置 `location` 和连击次数 `tapCount`，`primaryActionTriggered` 不带，见[触点位置](ui-control.md#触点位置)。
 - 事件不能取消，`preventDefault()` 不起作用。
-- 回调不是在触摸发生的那一刻同步执行，而是稍后执行，见[运行时怎么工作](how-it-works.md#事件)。
-- 监听不认识的事件名会抛 `TypeError`。
+- 回调不是在触摸发生的那一刻同步执行，而是稍后执行，见[回调的执行时机](ui-control.md#回调的执行时机)。
+- 目前只能监听 [`UIControl`](ui-control.md#控件事件) 列出的 16 个控件事件和 `traitchange`。监听其他名字会抛 `TypeError`，所以还不能在按钮上使用自定义事件。这是已知的限制，见[事件名的限制](ui-control.md#事件名的限制)。
 
 完整的 16 个事件见 [`UIControl`](ui-control.md)。
 
@@ -390,7 +455,7 @@ button.currentTitle;        // '请先填写表单'
 | 文字里混用多种字体和颜色 | `attributedTitle` | 未实现 |
 | 点按钮弹出菜单 | `menu`、`showsMenuAsPrimaryAction` | 未实现 |
 | 调整图标的粗细和大小 | `setPreferredSymbolConfiguration:` | 未实现 |
-| 知道触摸点在按钮上的位置 | 事件对象带触点坐标 | 未实现 |
+| 在按钮上监听自定义名字的事件 | 无 | 未实现，见[事件名的限制](ui-control.md#事件名的限制) |
 
 ## 参见
 
