@@ -1198,7 +1198,10 @@ nacre::NativeObjectRef CreateBlob(
   // 2. 执行内置脚本，装上 EventTarget / Event / Application / application
   [self postToJS:^{
     if (!*engine) return;
-    NSURL* url = [NSBundle.mainBundle URLForResource:@"nacre" withExtension:@"js" subdirectory:@"Builtin"];
+    // 内置脚本在**运行时自己的包**里，不在 App 的包里：运行时做成了
+    // framework，Builtin/nacre.js 跟着它走
+    NSBundle* runtimeBundle = [NSBundle bundleForClass:NacreRuntime.class];
+    NSURL* url = [runtimeBundle URLForResource:@"nacre" withExtension:@"js" subdirectory:@"Builtin"];
     NSString* source = url ? [NSString stringWithContentsOfURL:url encoding:NSUTF8StringEncoding error:nil] : nil;
     if (!source) {
       WriteRuntimeLog(@"builtin script Builtin/nacre.js is missing; the upper-layer API is unavailable");

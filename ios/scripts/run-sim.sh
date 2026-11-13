@@ -16,7 +16,7 @@ bash ./scripts/build-js.sh
 xcodegen generate --quiet
 
 mkdir -p build
-xcodebuild -project Nacre.xcodeproj -scheme Nacre -configuration Debug \
+xcodebuild -project Nacre.xcodeproj -scheme NacreApp -configuration Debug \
   -sdk iphonesimulator -destination "platform=iOS Simulator,id=$DEVICE" \
   -derivedDataPath build -quiet build 2>&1 | tee build/xcodebuild.log
 

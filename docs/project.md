@@ -543,14 +543,34 @@ types/
 
 所以**新写分发链时，每个类分支就返回「我认不认领」**，别依赖「在同一个函数里往下掉」。`NacreMethods.mm`（680 行）下次轮到它拆，先把签名改成这样，拆的时候才是纯搬家。
 
+### `ios/` 里是两个 target：运行时和宿主
+
+交付物定成 `Nacre.xcframework`（2026-11-13 定），所以工程拆成两个 target，**这条线就是交付面**：
+
+| target | 是什么 | 交付？ |
+| --- | --- | --- |
+| `Nacre` | framework，装 `Runtime/` 的全部代码和内置脚本 | **是**，它就是 `Nacre.xcframework` 的源 |
+| `NacreApp` | 验收 App，装 `App/`（启动壳）和 `JS/`（验收的产物和资源） | 否。这几个文件将来变成模板，由 CLI 铺进生成的工程 |
+
+拆出来之后定下的几条：
+
+- **公开面就是 `Runtime/Nacre.h` 这个 umbrella header**。今天它只 `#import` 了 `NacreRuntime.h`；`Bridge/` 和 `Engine/` 的头都是 project 可见性（它们带 C++，Swift 也读不了）。加一个公开接口 = 在 umbrella 里写一行 + 在 `project.yml` 里把那个头标成 public，**两处都做了才算暴露出去**。
+- **系统框架必须在 framework 上显式声明**：UIKit、QuartzCore、CoreGraphics、WebKit、Security。以前不用写——App target 里的 Swift 文件 `import UIKit` 顺带把它们链进来了；运行时里一个 Swift 文件都没有，而 ObjC++ 的 `#import` 不触发自动链接，第一次编 framework 直接撞了一屏 `Undefined symbols`。这张表是交付清单的一部分，用户的工程不用再写。
+- **`-Wl,-stack_size,0x800000` 留在 App target 上**，framework 替不了：它写进的是 `LC_MAIN`，而 `LC_MAIN` 只有主可执行文件有。真机上验过，二进制里 `stacksize 8388608`。`ENABLE_DEBUG_DYLIB: NO` 同理。**这两条是宿主必须照做的配置**，要写进交付文档。
+- **App 的 `PRODUCT_MODULE_NAME` 必须和 framework 的模块名区分开**。产物还叫 `Nacre.app`，但模块名设成了 `NacreApp`——不然 App 里的 `import Nacre` 变成导入它自己，Swift 报 `cannot find 'NacreRuntime' in scope`。
+- **内置脚本从运行时自己的包读**：`[NSBundle bundleForClass:NacreRuntime.class]`，不再是 `NSBundle.mainBundle`。`Builtin/nacre.js` 跟着 framework 走。
+
+先做的是 **dynamic framework**：资源跟着 framework 走，定位是确定的。static 的启动和体积可能更好，但得有数据才能比——这一步量到的见下。
+
 `ios/` 内部：
 
 | 目录 | 内容 | 是否提交 |
 | --- | --- | --- |
-| `project.yml` | XcodeGen 工程描述 | 提交 |
+| `project.yml` | XcodeGen 工程描述（两个 target） | 提交 |
 | `.gitignore` | 平台相关的忽略规则（根目录的 `.gitignore` 里不能出现平台目录名，所以放这里） | 提交 |
-| `App/` | 启动壳：AppDelegate、SceneDelegate | 提交 |
-| `Runtime/` | 运行时和能力暴露：`NacreRuntime`（ObjC++ 启动壳与接线）、`Bridge/`（能力暴露，按能力域分文件）、`Engine/`（纯 C++） | 提交 |
+| `App/` | `NacreApp` target：启动壳 AppDelegate、SceneDelegate | 提交 |
+| `Runtime/Nacre.h` | framework 的 umbrella header，**公开面** | 提交 |
+| `Runtime/` | `Nacre` target：`NacreRuntime`（ObjC++ 启动壳与接线）、`Bridge/`（能力暴露，按能力域分文件）、`Engine/`（纯 C++）、`Builtin/nacre.js` | 提交 |
 | `JS/assets/` | 图片等资源，整个目录进 App Bundle 的 `JS/` | 提交 |
 | `JS/main.js` | 由 `scripts/build-js.sh` 从 `app/` 打包生成 | 不提交 |
 | `scripts/` | `fetch-v8.sh`（下载 V8）、`run-sim.sh`（一键在模拟器运行） | 提交 |
@@ -652,6 +672,7 @@ Commit message 格式：
 | — | A17 补一步：`loadFile`（本地的网页文件） | 签名照 Electron；相对路径从 App 包的根开始，绝对路径原样用；`loadURL` 收到 `file:` 地址走同一条路 | 已在模拟器验证通过：iOS 27.2 上 1604 条通过、iOS 26.0 上 1607 条通过（两边各剩 2 条原有的图片下载网络问题），旧断言一条没少。实测本地网页里模块脚本不执行、`fetch` 读不了本地文件、所有本地网页同一个来源——三条限制都记成了断言。可读目录的范围模拟器不执行，只能真机验。真机（iPhone 14，iOS 27.0.1）上 WebView 这三步一起跑过：1596 条全过，可读范围符合预期（包里的读得到上一级，文档目录里的读不到）。顺带把父子控制器验收里一个写死一秒的等待改成了等条件 |
 | — | A17-3 执行脚本、预加载脚本、网页和 App 互发消息 | `executeJavaScript`、`webPreferences.preload`（`ipcRenderer` / `contextBridge`）、`ipc-message`、`contents.send`、`contents.ipc.handle`；名字照 Electron | 已在模拟器验证通过：iOS 26.0 上 1681 条全过，iOS 27.2 上 1679 条通过（剩 2 条是原有的图片下载网络问题），旧断言一条没少。实测有内容安全策略的网页会拦 `eval`，所以 `executeJavaScript` 分两种执行方式，「是不是表达式」在运行时自己的引擎里判断；预加载脚本不隔离（相当于 `contextIsolation: false`），隔离量过可行、没做。顺带把存储分区的隔离补成了常驻断言。真机（iPhone 14）上跑出一处模拟器查不到的问题：带回来的对象成员顺序变了（系统给的是不保证顺序的字典）。改成表达式方式下由网页先转成 JSON 文本，顺序保住；多条语句那种方式救不了，写进了文档。改完真机上 1669 条全过 |
 | — | A17-4 `session`：网页的 cookie 和清数据 | 全局的 `session`（`defaultSession`、`fromPartition`）、`contents.session`、`ses.cookies.get / set / remove`、`changed` 事件、`ses.clearStorageData`；名字照 Electron | 已验证通过：iPhone Air 模拟器（iOS 27.2）上 1749 条通过（剩 2 条是原有的图片下载网络问题），真机（iPhone 14）上 1735 条全过，旧断言一条没少。系统只有「读全部」，筛选在 JS 里做；`changed` 不带是哪一条变了（系统不说）；按站点清是按域名算的，不分协议和端口 |
+| — | 交付第 1 步：运行时拆成 framework target | `ios/project.yml` 拆成 `Nacre`（framework）和 `NacreApp`（验收 App）；umbrella header；系统框架显式声明；内置脚本改从 framework 自己的包读 | 已验证通过：iPhone Air 上 1749 条、真机 1735 条，断言标签和改之前一字不差。真机二进制里 `stacksize 8388608`，栈设置仍然生效。启动没变慢（真机 1.4/3.2 ms，改之前 1.2/2.7；模拟器冷启动 7.9–9.6 / 11.6–19.2 ms，改之前 6.8–9.7 / 10.6–34.5）。framework 14 MB（Debug 未 strip）。**没量到 dyld 加载 framework 的成本**，它发生在第一行日志之前，要另外埋点；static 的对比等真做了 static 才有 |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |
