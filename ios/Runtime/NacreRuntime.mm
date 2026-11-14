@@ -832,7 +832,7 @@ nacre::NativeObjectRef CreateBlob(
       std::vector<nacre::NativeObjectRef> refs;
       for (UIScene* scene in UIApplication.sharedApplication.connectedScenes) {
         if (!IsAppFacingScene(scene)) continue;
-        refs.push_back({(__bridge void*)scene, "UIWindowScene"});
+        refs.push_back({NacreKeep(scene), "UIWindowScene"});
       }
       return refs;
     };
@@ -974,7 +974,7 @@ nacre::NativeObjectRef CreateBlob(
         BOOL prevented = NO;
         if (*engine) {
           prevented = (*engine)->EmitObjectEventWithJSON(
-              {(__bridge void*)contents, "WebContents"}, t, payload);
+              {NacreKeep(contents), "WebContents"}, t, payload);
         }
         answer(prevented);
       }];
@@ -1366,7 +1366,7 @@ nacre::NativeObjectRef CreateBlob(
                   [strongSelf postToJS:^{
                     if (!*engine) return;
                     (*engine)->EmitAppEventWithObject(
-                        eventType, "scene", {(__bridge void*)scene, "UIWindowScene"});
+                        eventType, "scene", {NacreKeep(scene), "UIWindowScene"});
                   }];
                 }];
     [self->_observers addObject:token];
@@ -1394,7 +1394,7 @@ nacre::NativeObjectRef CreateBlob(
                   std::string eventType = type.UTF8String;
                   [strongSelf postToJS:^{
                     if (!*engine) return;
-                    (*engine)->EmitObjectEvent({(__bridge void*)scene, "UIWindowScene"},
+                    (*engine)->EmitObjectEvent({NacreKeep(scene), "UIWindowScene"},
                                                eventType);
                   }];
                 }];
@@ -1427,7 +1427,7 @@ nacre::NativeObjectRef CreateBlob(
                   std::string eventType = type.UTF8String;
                   [strongSelf postToJS:^{
                     if (!*engine) return;
-                    (*engine)->EmitObjectEvent({(__bridge void*)window, "UIWindow"},
+                    (*engine)->EmitObjectEvent({NacreKeep(window), "UIWindow"},
                                                eventType);
                   }];
                 }];
@@ -1494,7 +1494,7 @@ nacre::NativeObjectRef CreateBlob(
   std::string t = type.UTF8String;
   std::string cls = className;
   [self postToJS:^{
-    if (*engine) (*engine)->EmitObjectEvent({(__bridge void*)object, cls}, t);
+    if (*engine) (*engine)->EmitObjectEvent({NacreKeep(object), cls}, t);
     if (completion) completion();
   }];
 }
@@ -1511,8 +1511,8 @@ nacre::NativeObjectRef CreateBlob(
   std::string payloadCls = payloadClass;
   [self postToJS:^{
     if (*engine) {
-      (*engine)->EmitObjectEventWith({(__bridge void*)object, cls}, t,
-                                     {(__bridge void*)payload, payloadCls});
+      (*engine)->EmitObjectEventWith({NacreKeep(object), cls}, t,
+                                     {NacreKeep(payload), payloadCls});
     }
   }];
 }
@@ -1529,7 +1529,7 @@ nacre::NativeObjectRef CreateBlob(
   std::string payload = json;
   [self postToJS:^{
     if (*engine) {
-      (*engine)->EmitObjectEventWithJSON({(__bridge void*)object, cls}, t, payload);
+      (*engine)->EmitObjectEventWithJSON({NacreKeep(object), cls}, t, payload);
     }
   }];
 }
@@ -1897,7 +1897,7 @@ nacre::NativeObjectRef CreateBlob(
   // 捕获 object 本身而不是裸指针：block 要等下一轮主队列才跑，
   // 这中间必须有人持有它，否则 SettleObject 拿到的是野指针。
   [self postToJS:^{
-    if (*engine) (*engine)->SettleObject(callId, {(__bridge void*)object, name});
+    if (*engine) (*engine)->SettleObject(callId, {NacreKeep(object), name});
   }];
 }
 

@@ -240,7 +240,7 @@ BOOL WriteGestureProperty(id object, NSString* key, id value, std::string* error
 nacre::NativeObjectRef ReadGestureObjectProperty(id object, const std::string& name) {
   if (![object isKindOfClass:UIGestureRecognizer.class]) return {};
   if (name == "view") {
-    return {(__bridge void*)((UIGestureRecognizer*)object).view, "UIView"};
+    return {NacreKeep(((UIGestureRecognizer*)object).view), "UIView"};
   }
   return {};
 }
@@ -249,7 +249,7 @@ void ReadGestureObjectArray(id object, const std::string& name,
                             std::vector<nacre::NativeObjectRef>& refs) {
   if ([object isKindOfClass:UIView.class] && name == "gestureRecognizers") {
     for (UIGestureRecognizer* r in ((UIView*)object).gestureRecognizers) {
-      refs.push_back({(__bridge void*)r, GestureClassName(r)});
+      refs.push_back({NacreKeep(r), GestureClassName(r)});
     }
   }
 }

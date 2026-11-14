@@ -18,6 +18,14 @@
 bash ios/scripts/run-sim.sh
 ```
 
+动了原生代码的话，再用 Release 配置跑一遍：
+
+```bash
+bash ios/scripts/run-sim.sh --release
+```
+
+**两遍都要过。** 交付出去的 `Nacre.xcframework` 是 Release，而有一类问题只在开了优化之后才出现——比如把对象交成裸指针时没保活，Debug 下那个对象碰巧还在自动释放池里，Release 下已经没了。这条真的咬过一次。
+
 脚本依次做：下载并校验 V8 → 生成运行时工程 → 用 [`@nacre/ios`](../packages/ios/README.md) 的 CLI 生成验收 App 的 `ios/` → 打包验收 JS → 生成 App 工程 → 编译 → 装进模拟器并启动。JS 的 `console` 输出直接显示在终端（Ctrl+C 退出）。
 
 跑示例（引的是预编译的 `Nacre.xcframework`，用户拿到的就是这个）：

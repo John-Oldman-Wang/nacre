@@ -325,29 +325,29 @@ nacre::NativeObjectRef ReadControlObjectProperty(id object,
                                             const std::string& name) {
   if ([object isKindOfClass:UITabBarItem.class]) {
     UITabBarItem* item = (UITabBarItem*)object;
-    if (name == "image") return {(__bridge void*)item.image, "UIImage"};
-    if (name == "selectedImage") return {(__bridge void*)item.selectedImage, "UIImage"};
-    if (name == "badgeColor") return {(__bridge void*)item.badgeColor, "UIColor"};
+    if (name == "image") return {NacreKeep(item.image), "UIImage"};
+    if (name == "selectedImage") return {NacreKeep(item.selectedImage), "UIImage"};
+    if (name == "badgeColor") return {NacreKeep(item.badgeColor), "UIColor"};
   }
   if ([object isKindOfClass:UIBarButtonItem.class]) {
     UIBarButtonItem* item = (UIBarButtonItem*)object;
     if (name == "customView") {
-      return {(__bridge void*)item.customView, "UIView"};
+      return {NacreKeep(item.customView), "UIView"};
     }
     if (name == "image") {
-      return {(__bridge void*)item.image, "UIImage"};
+      return {NacreKeep(item.image), "UIImage"};
     }
   }
   if ([object isKindOfClass:UIButton.class]) {
     UIButton* button = (UIButton*)object;
-    if (name == "titleLabel") return {(__bridge void*)button.titleLabel, "UILabel"};
-    if (name == "imageView") return {(__bridge void*)button.imageView, "UIImageView"};
+    if (name == "titleLabel") return {NacreKeep(button.titleLabel), "UILabel"};
+    if (name == "imageView") return {NacreKeep(button.imageView), "UIImageView"};
     if (name == "currentTitleColor") {
-      return {(__bridge void*)button.currentTitleColor, "UIColor"};
+      return {NacreKeep(button.currentTitleColor), "UIColor"};
     }
-    if (name == "currentImage") return {(__bridge void*)button.currentImage, "UIImage"};
+    if (name == "currentImage") return {NacreKeep(button.currentImage), "UIImage"};
     if (name == "currentBackgroundImage") {
-      return {(__bridge void*)button.currentBackgroundImage, "UIImage"};
+      return {NacreKeep(button.currentBackgroundImage), "UIImage"};
     }
   }
   return {};

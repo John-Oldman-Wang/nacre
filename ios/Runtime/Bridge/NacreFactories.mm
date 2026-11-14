@@ -98,11 +98,11 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
       return {(void*)CFAutorelease(CFBridgingRetain(made)), "UIBarButtonItem"};
     }
     if ([sel isEqualToString:@"flexibleSpaceItem"]) {
-      return {(__bridge void*)[UIBarButtonItem flexibleSpaceItem], "UIBarButtonItem"};
+      return {NacreKeep([UIBarButtonItem flexibleSpaceItem]), "UIBarButtonItem"};
     }
     if ([sel isEqualToString:@"fixedSpaceItemOfWidth:"]) {
-      return {(__bridge void*)[UIBarButtonItem
-                  fixedSpaceItemOfWidth:NACRE_NUM(arg(0), sel)],
+      return {NacreKeep([UIBarButtonItem
+                  fixedSpaceItemOfWidth:NACRE_NUM(arg(0), sel)]),
               "UIBarButtonItem"};
     }
   }
@@ -113,7 +113,7 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
       *error = EnumError(@"buttonType", arg(0), NamesForButtonType());
       return {};
     }
-    return {(__bridge void*)[UIButton buttonWithType:type], "UIButton"};
+    return {NacreKeep([UIButton buttonWithType:type]), "UIButton"};
   }
 
   if (className == "UIFont") {
@@ -149,7 +149,7 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
       font = [UIFont preferredFontForTextStyle:style];
     }
     if (font == nil) return {};
-    return {(__bridge void*)font, "UIFont"};
+    return {NacreKeep(font), "UIFont"};
   }
 
   // UIImage 的四条取图路径。返回 nil 是**合法答案**（名字不存在、文件读不到、
@@ -194,7 +194,7 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
       }
     }
     if (image == nil) return {};
-    return {(__bridge void*)image, "UIImage"};
+    return {NacreKeep(image), "UIImage"};
   }
 
   // 时间曲线。两种来源：五个内置名字，或者四个控制点。
@@ -207,15 +207,15 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
         *error = EnumError(@"functionWithName", arg(0), NamesForTimingFunctionName());
         return {};
       }
-      return {(__bridge void*)[CAMediaTimingFunction functionWithName:name],
+      return {NacreKeep([CAMediaTimingFunction functionWithName:name]),
               "CAMediaTimingFunction"};
     }
     if ([sel isEqualToString:@"functionWithControlPoints:"]) {
-      return {(__bridge void*)[CAMediaTimingFunction
+      return {NacreKeep([CAMediaTimingFunction
                   functionWithControlPoints:NACRE_NUM(arg(0), sel)
                                            :NACRE_NUM(arg(1), sel)
                                            :NACRE_NUM(arg(2), sel)
-                                           :NACRE_NUM(arg(3), sel)],
+                                           :NACRE_NUM(arg(3), sel)]),
               "CAMediaTimingFunction"};
     }
   }
@@ -230,21 +230,21 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
       return {};
     }
     if (className == "CAKeyframeAnimation") {
-      return {(__bridge void*)[CAKeyframeAnimation animationWithKeyPath:arg(0)],
+      return {NacreKeep([CAKeyframeAnimation animationWithKeyPath:arg(0)]),
               "CAKeyframeAnimation"};
     }
     if (className == "CASpringAnimation") {
-      return {(__bridge void*)[CASpringAnimation animationWithKeyPath:arg(0)],
+      return {NacreKeep([CASpringAnimation animationWithKeyPath:arg(0)]),
               "CASpringAnimation"};
     }
-    return {(__bridge void*)[CABasicAnimation animationWithKeyPath:arg(0)],
+    return {NacreKeep([CABasicAnimation animationWithKeyPath:arg(0)]),
             "CABasicAnimation"};
   }
 
   if (className == "CATransaction" && [sel isEqualToString:@"animationTimingFunction"]) {
     CAMediaTimingFunction* fn = [CATransaction animationTimingFunction];
     if (fn == nil) return {nullptr, "CAMediaTimingFunction"};
-    return {(__bridge void*)fn, "CAMediaTimingFunction"};
+    return {NacreKeep(fn), "CAMediaTimingFunction"};
   }
 
   // 路径的类工厂。角度是弧度，UIKit y 轴朝下所以 0 在正右方、增大是顺时针。
@@ -252,16 +252,16 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
   // 要单独定。
   if (className == "UIBezierPath") {
     if ([sel isEqualToString:@"bezierPathWithRect:"]) {
-      return {(__bridge void*)[UIBezierPath bezierPathWithRect:JSONToRect(arg(0))],
+      return {NacreKeep([UIBezierPath bezierPathWithRect:JSONToRect(arg(0))]),
               "UIBezierPath"};
     }
     if ([sel isEqualToString:@"bezierPathWithOvalInRect:"]) {
-      return {(__bridge void*)[UIBezierPath bezierPathWithOvalInRect:JSONToRect(arg(0))],
+      return {NacreKeep([UIBezierPath bezierPathWithOvalInRect:JSONToRect(arg(0))]),
               "UIBezierPath"};
     }
     if ([sel isEqualToString:@"bezierPathWithRoundedRect:cornerRadius:"]) {
-      return {(__bridge void*)[UIBezierPath bezierPathWithRoundedRect:JSONToRect(arg(0))
-                                                         cornerRadius:NACRE_NUM(arg(1), sel)],
+      return {NacreKeep([UIBezierPath bezierPathWithRoundedRect:JSONToRect(arg(0))
+                                                         cornerRadius:NACRE_NUM(arg(1), sel)]),
               "UIBezierPath"};
     }
     if ([sel isEqualToString:@"bezierPathWithRoundedRect:byRoundingCorners:cornerRadii:"]) {
@@ -275,17 +275,17 @@ nacre::NativeObjectRef CallClassObjectMethod(const std::string& className,
                            NamesForRectCorner()].UTF8String;
         return {};
       }
-      return {(__bridge void*)[UIBezierPath bezierPathWithRoundedRect:JSONToRect(arg(0))
+      return {NacreKeep([UIBezierPath bezierPathWithRoundedRect:JSONToRect(arg(0))
                                                     byRoundingCorners:corners
-                                                          cornerRadii:JSONToSize(arg(2))],
+                                                          cornerRadii:JSONToSize(arg(2))]),
               "UIBezierPath"};
     }
     if ([sel isEqualToString:@"bezierPathWithArcCenter:radius:startAngle:endAngle:clockwise:"]) {
-      return {(__bridge void*)[UIBezierPath bezierPathWithArcCenter:JSONToPoint(arg(0))
+      return {NacreKeep([UIBezierPath bezierPathWithArcCenter:JSONToPoint(arg(0))
                                                              radius:NACRE_NUM(arg(1), sel)
                                                          startAngle:NACRE_NUM(arg(2), sel)
                                                            endAngle:NACRE_NUM(arg(3), sel)
-                                                          clockwise:NACRE_BOOL(arg(4), sel)],
+                                                          clockwise:NACRE_BOOL(arg(4), sel)]),
               "UIBezierPath"};
     }
   }

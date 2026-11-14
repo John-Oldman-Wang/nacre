@@ -119,7 +119,7 @@ bool AnimationCallObjectMethod(id object, const std::string& name, const NacreAr
     *out = {nullptr, "CAAnimation"};
     return true;
   }
-  *out = {(__bridge void*)anim, AnimationClassName(anim)};
+  *out = {NacreKeep(anim), AnimationClassName(anim)};
   return true;
 }
 

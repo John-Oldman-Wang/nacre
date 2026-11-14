@@ -45,8 +45,8 @@ bool FeedbackClassCall(const std::string& className, NSString* sel, NSArray* arg
     }
     UIView* view = BoundView(argPtrs, 1, "forView", error);
     if (view == nil) return true;
-    *out = {(__bridge void*)[UIImpactFeedbackGenerator feedbackGeneratorWithStyle:style
-                                                                          forView:view],
+    *out = {NacreKeep([UIImpactFeedbackGenerator feedbackGeneratorWithStyle:style
+                                                                          forView:view]),
             "UIImpactFeedbackGenerator"};
     return true;
   }
@@ -54,14 +54,14 @@ bool FeedbackClassCall(const std::string& className, NSString* sel, NSArray* arg
   if (className == "UISelectionFeedbackGenerator") {
     UIView* view = BoundView(argPtrs, 0, "feedbackGeneratorForView", error);
     if (view == nil) return true;
-    *out = {(__bridge void*)[UISelectionFeedbackGenerator feedbackGeneratorForView:view],
+    *out = {NacreKeep([UISelectionFeedbackGenerator feedbackGeneratorForView:view]),
             "UISelectionFeedbackGenerator"};
     return true;
   }
   if (className == "UINotificationFeedbackGenerator") {
     UIView* view = BoundView(argPtrs, 0, "feedbackGeneratorForView", error);
     if (view == nil) return true;
-    *out = {(__bridge void*)[UINotificationFeedbackGenerator feedbackGeneratorForView:view],
+    *out = {NacreKeep([UINotificationFeedbackGenerator feedbackGeneratorForView:view]),
             "UINotificationFeedbackGenerator"};
     return true;
   }

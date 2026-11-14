@@ -239,10 +239,10 @@ nacre::NativeObjectRef ReadScrollObjectProperty(id object,
   if ([object isKindOfClass:UIScrollView.class]) {
     UIScrollView* sv = (UIScrollView*)object;
     if (name == "contentLayoutGuide") {
-      return {(__bridge void*)sv.contentLayoutGuide, "UILayoutGuide"};
+      return {NacreKeep(sv.contentLayoutGuide), "UILayoutGuide"};
     }
     if (name == "frameLayoutGuide") {
-      return {(__bridge void*)sv.frameLayoutGuide, "UILayoutGuide"};
+      return {NacreKeep(sv.frameLayoutGuide), "UILayoutGuide"};
     }
   }
   return {};
@@ -254,7 +254,7 @@ void ReadScrollObjectArray(id object, const std::string& name,
   // 不是 subview 的 z 序，所以两个都要能读
   if ([object isKindOfClass:UIStackView.class] && name == "arrangedSubviews") {
     for (UIView* child in ((UIStackView*)object).arrangedSubviews) {
-      refs.push_back({(__bridge void*)child, "UIView"});
+      refs.push_back({NacreKeep(child), "UIView"});
     }
   }
 }

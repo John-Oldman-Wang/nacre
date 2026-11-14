@@ -88,7 +88,7 @@ bool PathCallObjectMethod(id object, const std::string& name, const NacreArgs& a
   UIBezierPath* path = (UIBezierPath*)object;
   if (name == "bezierPathByReversingPath") {
     // 新建一条，原路径不动。方向影响的是 nonZero 填充规则下的绕向
-    *out = {(__bridge void*)[path bezierPathByReversingPath], "UIBezierPath"};
+    *out = {NacreKeep([path bezierPathByReversingPath]), "UIBezierPath"};
     return true;
   }
   return false;

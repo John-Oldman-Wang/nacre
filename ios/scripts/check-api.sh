@@ -618,6 +618,25 @@ else:
                      f'{amb} 同时算 FileTimestamp 和 DiskSpace，看符号判不出用途，要人看')
         privacy_note = f'，隐私清单 {len(used)} 类'
 
+# ----------------------- 9. 把对象交成裸指针必须走 NacreKeep
+#
+# `{(__bridge void*)view.backgroundColor, "UIColor"}` 这种写法，__bridge 不
+# 转移所有权，那个临时对象语句一结束就可能被 ARC 释放，交出去的是悬空指针。
+# **Debug 下不崩、Release 下必崩**，而验收以前只跑 Debug——所以它在交付的
+# xcframework 里躺了很久，全仓库 137 处都是这个写法。
+#
+# 靠人记是记不住的：Debug 下一切正常，没有任何信号提醒你写错了。
+_keeps = len(re.findall(r'\bNacreKeep\(', mm))
+if _keeps == 0:
+    # 一处都没用上，说明助手改名了，不报的话这一节会永远「通过」
+    complain('脚本', 'NacreKeep 一处都没找到，check-api.sh 要更新')
+else:
+    for f in sorted(glob.glob('ios/Runtime/**/*.mm', recursive=True)):
+        for n, line in enumerate(open(f).read().split('\n'), 1):
+            if re.search(r'\(\s*__bridge\s+void\s*\*\s*\)', line) and not line.lstrip().startswith('//'):
+                complain('裸指针', f'{f}:{n} 用了 (__bridge void*)，对象可能在交出去之前就被释放，'
+                                   f'换成 NacreKeep(…)')
+
 # ------------------------------------------------------------------ 报告
 if problems:
     print('API 三边核对：发现 %d 处不一致\n' % len(problems))

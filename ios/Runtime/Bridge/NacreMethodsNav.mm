@@ -146,7 +146,7 @@ bool NavCallObjectMethod(id object, const std::string& name, const NacreArgs& ar
   BOOL animated = NACRE_BOOL(args.value(0), @"animated");
   // 栈底那一个弹不动，返回 nil —— 「没命中」和「你问错了」要分开，
   // 所以这里不填 error
-  *out = {(__bridge void*)[nav popViewControllerAnimated:animated], "UIViewController"};
+  *out = {NacreKeep([nav popViewControllerAnimated:animated]), "UIViewController"};
   return true;
 }
 
@@ -209,7 +209,7 @@ bool NavCallObjectArrayMethod(id object, const std::string& name, const NacreArg
   }
 
   for (UIViewController* vc in popped) {
-    out->push_back({(__bridge void*)vc, "UIViewController"});
+    out->push_back({NacreKeep(vc), "UIViewController"});
   }
   return true;
 }

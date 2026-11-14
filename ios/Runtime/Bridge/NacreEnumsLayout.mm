@@ -213,7 +213,7 @@ nacre::NativeObjectRef AnchorNamed(id owner, const std::string& name) {
     else if (name == "centerYAnchor") a = g.centerYAnchor;
   }
   if (a == nil) return {};
-  return {(__bridge void*)a, AnchorClassName(a)};
+  return {NacreKeep(a), AnchorClassName(a)};
 }
 
 }  // namespace nacre_bridge

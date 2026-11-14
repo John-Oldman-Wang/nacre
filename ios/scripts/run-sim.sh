@@ -2,8 +2,15 @@
 # 一键：下载 V8 → 生成 ios/ → 打包 JS → 编译 → 装进模拟器启动，终端显示 console 输出
 #
 #   bash ios/scripts/run-sim.sh                                     跑验收套件
+#   bash ios/scripts/run-sim.sh --release                           用 Release 配置跑验收
 #   bash ios/scripts/run-sim.sh examples/hello --runtime=framework  跑示例
 #   bash ios/scripts/run-sim.sh ~/my-app --runtime=framework        跑仓库外的项目
+#
+# **验收要 Debug 和 Release 各跑一遍。** 交付出去的 Nacre.xcframework 是
+# Release，而有一类问题只在开了优化之后出现——ARC 会更早释放临时对象，
+# Debug 下碰巧活着的悬空指针到 Release 就崩。这一条咬过一次：读
+# view.backgroundColor 在 Release 下必崩，而验收只跑 Debug，所以它在交付物
+# 里躺了很久。声称交付的那个配置，不能一次都不跑。
 #
 # 项目的 ios/ 由 packages/ios 的 CLI 生成，不在版本库里。两种运行时：
 #   source      引运行时的 Xcode 工程（我们自己开发用，改一行 C++ 就生效）
@@ -11,14 +18,22 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-PROJECT="${1:-acceptance}"
+PROJECT="acceptance"
 RUNTIME="source"
-for arg in "${@:2}"; do
+CONFIG="Debug"
+for arg in "$@"; do
   case "$arg" in
     --runtime=*) RUNTIME="${arg#*=}" ;;
-    *) echo "不认识的选项 $arg"; exit 1 ;;
+    --configuration=*) CONFIG="${arg#*=}" ;;
+    --release) CONFIG="Release" ;;
+    --*) echo "不认识的选项 $arg"; exit 1 ;;
+    *) PROJECT="$arg" ;;
   esac
 done
+case "$CONFIG" in
+  Debug|Release) ;;
+  *) echo "--configuration 只能是 Debug 或 Release，现在是 $CONFIG"; exit 1 ;;
+esac
 [ -f "$PROJECT/nacre.config.json" ] || { echo "$PROJECT 不是一个 Nacre 项目（没有 nacre.config.json）"; exit 1; }
 # 转成绝对路径：项目可以在仓库外面
 PROJECT=$(cd "$PROJECT" && pwd)
@@ -46,7 +61,7 @@ bash ios/scripts/build-js.sh "$PROJECT"
 
 BUILD="$PROJECT/ios/build"
 mkdir -p "$BUILD"
-xcodebuild -project "$PROJECT/ios/$APP_NAME.xcodeproj" -scheme App -configuration Debug \
+xcodebuild -project "$PROJECT/ios/$APP_NAME.xcodeproj" -scheme App -configuration "$CONFIG" \
   -sdk iphonesimulator -destination "platform=iOS Simulator,id=$DEVICE" \
   -derivedDataPath "$BUILD" -quiet build 2>&1 | tee "$BUILD/xcodebuild.log"
 
@@ -65,7 +80,7 @@ if [ -n "$AVAILABILITY" ]; then
   echo
 fi
 
-APP="$BUILD/Build/Products/Debug-iphonesimulator/$APP_NAME.app"
+APP="$BUILD/Build/Products/$CONFIG-iphonesimulator/$APP_NAME.app"
 xcrun simctl boot "$DEVICE" 2>/dev/null || true
 
 # 打开模拟器窗口。Xcode 26 及以前是 Simulator.app，Xcode 27 起改成 DeviceHub.app

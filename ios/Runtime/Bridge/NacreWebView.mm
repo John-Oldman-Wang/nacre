@@ -556,7 +556,7 @@ nacre::NativeObjectRef WebViewConstruct(id options) {
 
 nacre::NativeObjectRef ReadWebViewObjectProperty(id object, const std::string& name) {
   if ([object isKindOfClass:NacreWebView.class] && name == "webContents") {
-    return {(__bridge void*)((NacreWebView*)object).contents, "WebContents"};
+    return {NacreKeep(((NacreWebView*)object).contents), "WebContents"};
   }
   return {};
 }

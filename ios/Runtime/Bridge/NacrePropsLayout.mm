@@ -108,7 +108,7 @@ nacre::NativeObjectRef ReadLayoutObjectProperty(id object,
   // UIWindow 也是 UIView，所以这条放在 UIWindow 的分支之后，名字不重叠。
   if ([object isKindOfClass:UILayoutGuide.class]) {
     UILayoutGuide* guide = (UILayoutGuide*)object;
-    if (name == "owningView") return {(__bridge void*)guide.owningView, "UIView"};
+    if (name == "owningView") return {NacreKeep(guide.owningView), "UIView"};
     nacre::NativeObjectRef anchor = AnchorNamed(guide, name);
     if (anchor.ptr != nullptr) return anchor;
   }
@@ -118,10 +118,10 @@ nacre::NativeObjectRef ReadLayoutObjectProperty(id object,
     // firstItem / secondItem 刻意不暴露：它们是 assign，view 死了就是野指针，
     // 头文件自己写着「Access to these properties is not recommended」。
     if (name == "firstAnchor") {
-      return {(__bridge void*)c.firstAnchor, AnchorClassName(c.firstAnchor)};
+      return {NacreKeep(c.firstAnchor), AnchorClassName(c.firstAnchor)};
     }
     if (name == "secondAnchor") {
-      return {(__bridge void*)c.secondAnchor, AnchorClassName(c.secondAnchor)};
+      return {NacreKeep(c.secondAnchor), AnchorClassName(c.secondAnchor)};
     }
   }
   return {};

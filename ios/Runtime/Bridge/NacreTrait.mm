@@ -142,7 +142,7 @@ BOOL WriteTraitProperty(id object, NSString* key, id value, std::string* error) 
 nacre::NativeObjectRef ReadTraitObjectProperty(id object, const std::string& name) {
   if (name == "traitCollection" && HasTraits(object)) {
     UITraitCollection* traits = [(id<UITraitEnvironment>)object traitCollection];
-    return {(__bridge void*)traits, "UITraitCollection"};
+    return {NacreKeep(traits), "UITraitCollection"};
   }
   return {};
 }

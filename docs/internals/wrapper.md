@@ -476,6 +476,94 @@ if (handle) Object.defineProperty(this, kHandle, { value: handle[kHandle] });
 
 先跑出失败这一步不能省：这个问题的特点就是「不 GC 就看不出来」，一条从来没失败过的断言证明不了它盯的是对的地方。
 
+## 交接的那一段没人持有：只在 Release 下崩的悬空指针
+
+2026-11-14 第一次用 Release 配置跑验收时撞上的。**它在交付出去的 `Nacre.xcframework` 里躺了很久**——那份是 Release，而验收只跑 Debug。
+
+### 现象
+
+```js
+const box = new UIView();
+box.backgroundColor = '#f00';
+box.backgroundColor;          // Release 下，读到这里 App 就没了
+```
+
+真机和模拟器一样。崩溃栈：
+
+```
+libobjc.A.dylib  objc_retain                      ← KERN_INVALID_ADDRESS
+Nacre            Engine::Impl::WrapNative         (Engine.cpp:418)
+Nacre            Engine::Impl::NativeGetObjectProperty
+```
+
+崩溃报告里那句 `0xe9f1424a198 is not in any region` 说的就是：这个地址上已经没有对象了。
+
+### 根因
+
+`NativeObjectRef` 只是「指针 + 类名」，不持有对象。真正持有的是引擎的 `WrapNative`，它拿到指针之后才 `CFRetain`。**从宿主造出 ref 到引擎 retain 它，中间这一段没人管**：
+
+```objc
+// NacrePropsView.mm，改之前
+if (name == "backgroundColor") return {(__bridge void*)view.backgroundColor, "UIColor"};
+```
+
+`__bridge` 不转移所有权。`view.backgroundColor` 返回的是一个临时对象，这条语句一结束 ARC 就可以把它释放掉——如果 UIKit 这次返回的是一个现造的 `UIColor`（没有别人持有），它当场就销毁了，交出去的是悬空指针。
+
+### 为什么 Debug 下从来不崩
+
+不是 Debug 下没问题，是**碰巧**。ARC 对「方法返回的对象」有一套返回值握手（被调用方 `objc_autoreleaseReturnValue`，调用方 `objc_retainAutoreleasedReturnValue`）：握手成了，对象不进自动释放池，调用方用完立刻释放；握手不成，对象留在池里，活到这一轮 run loop 结束。没开优化时握手通常不成，所以那个临时对象碰巧还活着，`WrapNative` 来得及 retain。
+
+所以这是一个**在 Debug 下没有任何信号**的错：不崩、不警告、断言全过。
+
+### 不是新引入的，也不是一处
+
+发现它的时候正在做能力注册那一步，第一反应是「我改坏了」。分清楚用的是一个四行的探针，跑在**那两步之前**建的 xcframework 上（里面还是 `nacre.js` 的旧加载方式）：
+
+```
+[JS][log] 探针：写完了，现在读
+（没有下一行，App 崩了）
+```
+
+同样崩。所以是老问题。「大概率是老问题」不算证据，要拿一份没被新改动碰过的产物真跑一次。
+
+影响面是一类：`ios/Runtime` 里造 `NativeObjectRef` 的地方有 **137 处**，全部是 `{(__bridge void*)表达式, "类名"}` 这一个形态。其中哪些会崩，取决于那个属性返回的是「别人持有着的对象」还是「现造的对象」——而这是 UIKit 的实现细节，换个系统版本就可能变。`view.superview` 安全，`view.backgroundColor` 不安全，光看代码分不出来。
+
+### 修法：交成裸指针的那一刻保活
+
+```objc
+static inline void* NacreKeep(id _Nullable object) {
+  return object != nil ? (void*)CFAutorelease(CFBridgingRetain(object)) : nullptr;
+}
+```
+
+显式放进自动释放池：对象至少活到当前池排空。JS 调宿主是同步的，从造出 ref 到 `WrapNative` 持有它，都在同一个池的生命周期里。137 处全部换成 `{NacreKeep(表达式), "类名"}`，**不逐个判断哪些属性安全**。
+
+替换是脚本做的，按括号深度找表达式的结尾（表达式里有方括号、嵌套括号、逗号，正则配不住）。数量必须正好 137，换完文件里不许再剩裸的写法。
+
+**它不管跨轮的事。** 对象要等下一轮主队列才用（延后派发、异步兑现）时，自动释放池早就排空了。那种情况要让 block 捕获对象本身，在 block 里面再造 ref——这一半**原本就是对的**，`NacreRuntime.mm` 里早有注释：「捕获 object 本身而不是裸指针：block 要等下一轮主队列才跑，这中间必须有人持有它」。漏掉的只是同步返回这条路。
+
+### 为什么一直没发现，以及补上的两张网
+
+**验收从来只跑 Debug。** `run-sim.sh` 是 Debug，以前打真机包也是 Debug；`examples/hello` 用的倒是 Release 的 xcframework，但它只写颜色不读。我们声称交付的那个配置，验收一次都没跑过——和「支持 iOS 26+ 这句话从来没被验证过」是同一种缺口。
+
+| | |
+| --- | --- |
+| `run-sim.sh --release` | 验收用 Release 配置跑。SOP 第 6 步改成：动了原生代码，Debug 和 Release 各跑一遍 |
+| `check-api.sh` 第 9 节 | `.mm` 里再出现裸的 `(__bridge void*)` 就报错，给出文件和行号。靠人记是记不住的——Debug 下一切正常，没有任何东西提醒你写错了 |
+
+### 验证
+
+| | 修之前 | 修之后 |
+| --- | --- | --- |
+| 模拟器 Release | 跑到第 89 条断言就崩 | 1749 条通过 |
+| 模拟器 Debug | 1749 条通过 | 1749 条通过，**和 Release 的断言集合一字不差** |
+| 真机（iPhone 14）Release | 跑到第 89 条断言就崩 | 1735 条通过 |
+| 四行探针 + 预编译的 xcframework（用户拿到的就是这个形态） | 崩在读那一行 | `探针：读回来了 = #f00` |
+
+三处验收都只剩那 2 条原有的图片下载网络失败。
+
+真机那一遍顺带补上了能力注册没验到的一半：Keychain 的 `get` / `set` 走异步通道、经注册表，`✓ Keychain 记到的启动次数 = 27（上一次存的还在）`。它之前验不到，就是因为 App 先崩在这个问题上。
+
 ---
 
 ← 返回[实现原理](README.md) ・ [项目说明](../project.md)

@@ -109,7 +109,7 @@ nacre::NativeObjectRef FileSystemClassObject(const std::string& className,
   // 因为「读写文件」这个能力在 iOS 里散在 NSFileManager / NSData / NSString
   // 三个类上，没有一个原生对象能直接当它用。底下接的仍然是 defaultManager。
   if (className == "FileSystem" && name == "default") {
-    return {(__bridge void*)NSFileManager.defaultManager, "FileSystem"};
+    return {NacreKeep(NSFileManager.defaultManager), "FileSystem"};
   }
   return {};
 }

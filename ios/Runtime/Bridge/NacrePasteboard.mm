@@ -37,7 +37,7 @@ namespace nacre_bridge {
 nacre::NativeObjectRef PasteboardClassObject(const std::string& className,
                                              const std::string& name) {
   if (className == "UIPasteboard" && name == "generalPasteboard") {
-    return {(__bridge void*)UIPasteboard.generalPasteboard, "UIPasteboard"};
+    return {NacreKeep(UIPasteboard.generalPasteboard), "UIPasteboard"};
   }
   return {};
 }

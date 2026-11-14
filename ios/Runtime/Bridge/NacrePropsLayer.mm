@@ -293,36 +293,36 @@ nacre::NativeObjectRef ReadLayerObjectProperty(id object,
     // 「这个域不认识这个名字」，两件事不能再共用一个表示
     if (name == "borderColor") {
       if (layer.borderColor == NULL) return {nullptr, "UIColor"};
-      return {(__bridge void*)[UIColor colorWithCGColor:layer.borderColor], "UIColor"};
+      return {NacreKeep([UIColor colorWithCGColor:layer.borderColor]), "UIColor"};
     }
     if (name == "shadowColor") {
       if (layer.shadowColor == NULL) return {nullptr, "UIColor"};
-      return {(__bridge void*)[UIColor colorWithCGColor:layer.shadowColor], "UIColor"};
+      return {NacreKeep([UIColor colorWithCGColor:layer.shadowColor]), "UIColor"};
     }
     if (name == "backgroundColor") {
       if (layer.backgroundColor == NULL) return {nullptr, "UIColor"};
-      return {(__bridge void*)[UIColor colorWithCGColor:layer.backgroundColor], "UIColor"};
+      return {NacreKeep([UIColor colorWithCGColor:layer.backgroundColor]), "UIColor"};
     }
     if (name == "path" && [layer isKindOfClass:CAShapeLayer.class]) {
       CGPathRef cg = ((CAShapeLayer*)layer).path;
       if (cg == NULL) return {nullptr, "UIBezierPath"};
       // 每次都是新建的包装——JS 侧优先还镜像里那个对象，镜像没有才走这里
-      return {(__bridge void*)[UIBezierPath bezierPathWithCGPath:cg], "UIBezierPath"};
+      return {NacreKeep([UIBezierPath bezierPathWithCGPath:cg]), "UIBezierPath"};
     }
     if (name == "fillColor" && [layer isKindOfClass:CAShapeLayer.class]) {
       CGColorRef cg = ((CAShapeLayer*)layer).fillColor;
       if (cg == NULL) return {nullptr, "UIColor"};
-      return {(__bridge void*)[UIColor colorWithCGColor:cg], "UIColor"};
+      return {NacreKeep([UIColor colorWithCGColor:cg]), "UIColor"};
     }
     if (name == "strokeColor" && [layer isKindOfClass:CAShapeLayer.class]) {
       CGColorRef cg = ((CAShapeLayer*)layer).strokeColor;
       if (cg == NULL) return {nullptr, "UIColor"};
-      return {(__bridge void*)[UIColor colorWithCGColor:cg], "UIColor"};
+      return {NacreKeep([UIColor colorWithCGColor:cg]), "UIColor"};
     }
     if (name == "superlayer") {
       CALayer* super = layer.superlayer;
       if (super == nil) return {nullptr, "CALayer"};
-      return {(__bridge void*)super, LayerClassName(super)};
+      return {NacreKeep(super), LayerClassName(super)};
     }
   }
   return {};
@@ -384,12 +384,12 @@ void ReadLayerObjectArray(id object, const std::string& name,
     // 所以读出来的包装和写进去的那个不是同一个对象
     for (id c in ((CAGradientLayer*)object).colors) {
       CGColorRef cg = (__bridge CGColorRef)c;
-      refs.push_back({(__bridge void*)[UIColor colorWithCGColor:cg], "UIColor"});
+      refs.push_back({NacreKeep([UIColor colorWithCGColor:cg]), "UIColor"});
     }
   }
   if ([object isKindOfClass:CALayer.class] && name == "sublayers") {
     for (CALayer* child in ((CALayer*)object).sublayers) {
-      refs.push_back({(__bridge void*)child, LayerClassName(child)});
+      refs.push_back({NacreKeep(child), LayerClassName(child)});
     }
   }
 }

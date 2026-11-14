@@ -165,7 +165,7 @@ nacre::NativeObjectRef WebSocketConstruct(id urlValue, id options) {
   objc_setAssociatedObject(task, kNacreWebSocketStateKey, state,
                            OBJC_ASSOCIATION_RETAIN_NONATOMIC);
   [task resume];
-  return {(__bridge void*)task, "WebSocket"};
+  return {NacreKeep(task), "WebSocket"};
 }
 
 id ReadWebSocketProperty(id object, NSString* key) {

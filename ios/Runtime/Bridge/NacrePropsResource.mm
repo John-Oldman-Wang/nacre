@@ -239,7 +239,7 @@ bool ColorCallMethod(id object, const std::string& name, std::string* out) {
 static nacre::NativeObjectRef RunLoopClassObject(const std::string& className,
                                                  const std::string& name) {
   if (className == "NSRunLoop" && name == "mainRunLoop") {
-    return {(__bridge void*)NSRunLoop.mainRunLoop, "NSRunLoop"};
+    return {NacreKeep(NSRunLoop.mainRunLoop), "NSRunLoop"};
   }
   return {};
 }
@@ -263,7 +263,7 @@ nacre::NativeObjectRef ReadClassObjectProperty(const std::string& className,
   if (!registered.class_name.empty()) return registered;
   if (className == "UIColor") {
     UIColor* color = NamedColors()[@(name.c_str())];
-    if (color != nil) return {(__bridge void*)color, "UIColor"};
+    if (color != nil) return {NacreKeep(color), "UIColor"};
   }
   return {};
 }

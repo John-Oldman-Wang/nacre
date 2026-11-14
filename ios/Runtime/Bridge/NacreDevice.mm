@@ -22,7 +22,7 @@ NACRE_ENUM_MAP(UserInterfaceIdiom, UIUserInterfaceIdiom,
 nacre::NativeObjectRef DeviceClassObject(const std::string& className,
                                          const std::string& name) {
   if (className == "UIDevice" && name == "currentDevice") {
-    return {(__bridge void*)UIDevice.currentDevice, "UIDevice"};
+    return {NacreKeep(UIDevice.currentDevice), "UIDevice"};
   }
   return {};
 }

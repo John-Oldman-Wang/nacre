@@ -436,23 +436,23 @@ nacre::NativeObjectRef ReadAnimationObjectProperty(id object, const std::string&
     else value = basic.byValue;
     if (kind == NacreAnimValueColor) {
       if (value == nil) return {nullptr, "UIColor"};
-      return {(__bridge void*)[UIColor colorWithCGColor:(__bridge CGColorRef)value],
+      return {NacreKeep([UIColor colorWithCGColor:(__bridge CGColorRef)value]),
               "UIColor"};
     }
     if (value == nil) return {nullptr, "UIBezierPath"};
-    return {(__bridge void*)[UIBezierPath bezierPathWithCGPath:(__bridge CGPathRef)value],
+    return {NacreKeep([UIBezierPath bezierPathWithCGPath:(__bridge CGPathRef)value]),
             "UIBezierPath"};
   }
   if ([object isKindOfClass:CAKeyframeAnimation.class] && name == "path") {
     CGPathRef cg = ((CAKeyframeAnimation*)object).path;
     if (cg == NULL) return {nullptr, "UIBezierPath"};
     // 和 CAShapeLayer.path 一样每次新建一个包装，所以 JS 侧也记了镜像
-    return {(__bridge void*)[UIBezierPath bezierPathWithCGPath:cg], "UIBezierPath"};
+    return {NacreKeep([UIBezierPath bezierPathWithCGPath:cg]), "UIBezierPath"};
   }
   if ([object isKindOfClass:CAAnimation.class] && name == "timingFunction") {
     CAMediaTimingFunction* fn = ((CAAnimation*)object).timingFunction;
     if (fn == nil) return {nullptr, "CAMediaTimingFunction"};
-    return {(__bridge void*)fn, "CAMediaTimingFunction"};
+    return {NacreKeep(fn), "CAMediaTimingFunction"};
   }
   return {};
 }
@@ -497,13 +497,13 @@ void ReadAnimationObjectArray(id object, const std::string& name,
       if (!AnimValueKindForKeyPath(frames.keyPath, &kind)) return;
       if (kind == NacreAnimValueColor) {
         for (id item in frames.values) {
-          refs.push_back({(__bridge void*)[UIColor colorWithCGColor:(__bridge CGColorRef)item],
+          refs.push_back({NacreKeep([UIColor colorWithCGColor:(__bridge CGColorRef)item]),
                           "UIColor"});
         }
       } else if (kind == NacreAnimValuePath) {
         for (id item in frames.values) {
-          refs.push_back({(__bridge void*)[UIBezierPath
-                              bezierPathWithCGPath:(__bridge CGPathRef)item],
+          refs.push_back({NacreKeep([UIBezierPath
+                              bezierPathWithCGPath:(__bridge CGPathRef)item]),
                           "UIBezierPath"});
         }
       }
@@ -511,14 +511,14 @@ void ReadAnimationObjectArray(id object, const std::string& name,
     }
     if (name == "timingFunctions") {
       for (CAMediaTimingFunction* fn in frames.timingFunctions) {
-        refs.push_back({(__bridge void*)fn, "CAMediaTimingFunction"});
+        refs.push_back({NacreKeep(fn), "CAMediaTimingFunction"});
       }
       return;
     }
   }
   if ([object isKindOfClass:CAAnimationGroup.class] && name == "animations") {
     for (CAAnimation* a in ((CAAnimationGroup*)object).animations) {
-      refs.push_back({(__bridge void*)a, AnimationClassName(a)});
+      refs.push_back({NacreKeep(a), AnimationClassName(a)});
     }
   }
 }

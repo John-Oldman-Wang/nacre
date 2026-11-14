@@ -178,7 +178,7 @@ NSData* ReadItem(NSString* account, OSStatus* statusOut) {
 nacre::NativeObjectRef KeychainClassObject(const std::string& className,
                                            const std::string& name) {
   if (className == "Keychain" && name == "default") {
-    return {(__bridge void*)NacreKeychain.shared, "Keychain"};
+    return {NacreKeep(NacreKeychain.shared), "Keychain"};
   }
   return {};
 }

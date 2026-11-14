@@ -15,7 +15,7 @@ namespace nacre_bridge {
 nacre::NativeObjectRef StorageClassObject(const std::string& className,
                                           const std::string& name) {
   if (className == "NSUserDefaults" && name == "standardUserDefaults") {
-    return {(__bridge void*)NSUserDefaults.standardUserDefaults, "NSUserDefaults"};
+    return {NacreKeep(NSUserDefaults.standardUserDefaults), "NSUserDefaults"};
   }
   return {};
 }

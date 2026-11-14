@@ -806,7 +806,17 @@ part 的划分和 `Bridge/`、`types/ios/` 的域对齐，文件名的数字前�
    ```
 
    没有实际运行过的内容，要明确标注"未验证"。
-6. **验证**：在 Mac 上运行 `cd ios && bash scripts/run-sim.sh`（用户执行，或在 Claude Code 中由 AI 执行），根据终端输出或报错判断是否通过。
+6. **验证**：在 Mac 上跑验收（用户执行，或在 Claude Code 中由 AI 执行），根据终端输出或报错判断是否通过。**凡是动了原生代码，Debug 和 Release 各跑一遍**：
+
+   ```bash
+   bash ios/scripts/run-sim.sh              # Debug
+   ```
+
+   ```bash
+   bash ios/scripts/run-sim.sh --release    # Release —— 交付出去的就是这个配置
+   ```
+
+   有一类问题只在开了优化之后出现（ARC 更早释放临时对象），而交付的 `Nacre.xcframework` 是 Release。只跑 Debug 等于没验交付物——见待办里「Release 构建下读对象属性会崩」那一条。
 7. **提交**：验收通过后由用户提交，一步一个 commit。
 8. **记录**：新的决策写进本文件（`docs/project.md`），更新进度表。
 
@@ -885,7 +895,8 @@ Commit message 格式：
 | — | 交付第 4 步：入门指南 | `docs/guides/your-own-app.md`：三个必须的文件 + 一个 `tsconfig.json`，一条命令跑进模拟器 | 已验证通过：在仓库外（和 `nacre/` 并排）照着指南从零建了一个项目，`npm install`、`npm run check`、`run-sim.sh … --runtime=framework` 全部按指南写的那样，模拟器上出现文字、终端打出 `[JS][log]`。类型检查那三条说法（通过、枚举写错的报错原文、去掉 `/// <reference>` 全部 `Cannot find name`）都是跑出来的 |
 | — | 隐私清单 `PrivacyInfo.xcprivacy` | framework 自带一份；三类（UserDefaults、文件时间戳、系统启动时间）靠 `nm` 扫二进制定下来，后两类的符号来自 **V8**；`check-api.sh` 加第 8 节，两路扫（`nm` + `__objc_methname`）核对符号和声明 | 已在模拟器验证通过：1747 条通过、2 条失败（原有的图片下载网络问题），总数 1749 和上一步一字不差。清单在 `Nacre.framework` 包根和嵌进 App 之后都在。四种弄坏法（删一条、多一条、符号表过时、扫空二进制）各报一条，一条噪音都没有。实测宿主 App 的主可执行文件一个 required reason 符号都没碰 |
 | — | 内置脚本拆成 26 个 part | `Builtin/parts/`，每个整个是一个函数表达式；`Engine::RunBuiltinPart` 编译执行拿到函数、用共享的 `ctx` 调一次；任何一个失败都点名文件立刻停下。能力拆成边缘包的前置 | 已在模拟器验证通过：1749 条通过、2 条失败（原有的图片下载网络问题）；断言标签把实测数字规范化之后和拆之前**一字不差**，只多出两条——那两条上一次是 `! GC 没赶上，这一条未验证`，这次赶上了。正文**只改了 2 行**（那两处真跨 part 的 `application`）。报错行号实测指向 part 文件里的真实行号（`parts/00-core.js:137` 正是 `entry.callback.call(this, event)`）。内置脚本装载 23.0 ms |
-| — | 能力注册：核心不再认识 Keychain | `Bridge/NacreRegistry.mm`：异步方法和类对象两条通道改成运行时的表，能力在自己的 `+load` 里登记；Keychain 的接口、枚举 typedef 和枚举表全部搬回 `NacreKeychain.mm` | 模拟器（Debug）验证通过：1749 条通过、2 条失败（原有的图片下载网络问题），断言集合和上一步一字不差；核心四个文件里 grep 不到 Keychain 的声明或调用。**Release 下只验到一半**：注册类没被 `DEAD_CODE_STRIPPING` 裁掉（符号表里在、`__objc_nlclslist` 有条目），真机（iPhone 14）Release 包上类对象通道经注册表拿到了 Keychain；**异步通道在 Release 下未验证**——App 先崩在一个和这一步无关的老问题上，见下面「Release 构建下读对象属性会崩」 |
+| — | 能力注册：核心不再认识 Keychain | `Bridge/NacreRegistry.mm`：异步方法和类对象两条通道改成运行时的表，能力在自己的 `+load` 里登记；Keychain 的接口、枚举 typedef 和枚举表全部搬回 `NacreKeychain.mm` | 模拟器（Debug）验证通过：1749 条通过、2 条失败（原有的图片下载网络问题），断言集合和上一步一字不差；核心四个文件里 grep 不到 Keychain 的声明或调用。Release 下注册类没被 `DEAD_CODE_STRIPPING` 裁掉（符号表里在、`__objc_nlclslist` 有条目）。真机（iPhone 14）Release 包上两条通道都验到了：类对象通道 `✓ 它是 Keychain`，异步通道 `✓ Keychain 记到的启动次数 = 27（上一次存的还在）`——后一条是修掉下一行那个崩溃之后才跑得到的 |
+| — | 修复：Release 构建下读对象属性会崩 | `NacreKeep`：把对象交成裸指针的那一刻放进自动释放池，137 处 `{(__bridge void*)x, …}` 全部换掉；`run-sim.sh --release`；`check-api.sh` 第 9 节盯住裸的 `(__bridge void*)` | 已验证通过。修之前 Release 跑到第 89 条断言就崩（模拟器和真机一样）；修之后模拟器 Release 1749 条通过、Debug 1749 条通过，**两边断言集合一字不差**；真机（iPhone 14）Release 1735 条通过。三处都只剩那 2 条原有的图片下载网络失败。老问题的证据：拿能力拆分之前建的 xcframework 跑四行探针，同样崩 |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |
@@ -1246,33 +1257,17 @@ Web 能双向字符串化是因为 CSSOM 自己留着声明串，我们没有这
 
 没确认的：iOS 27 是不再有这个场景，还是只是没触发到。27.2 的模拟器上启动时那个键盘弹不出来。
 
-**TODO（严重，未修）：Release 构建下读对象属性会崩。**（2026-11-14 发现）
+**已修：Release 构建下读对象属性会崩。**（2026-11-14 发现并修掉）
 
-第一次用 Release 配置跑验收就撞上了：`box.backgroundColor = '#f00'` 之后读 `box.backgroundColor`，App 当场 `EXC_BREAKPOINT`。真机和模拟器一样，崩溃栈是
+第一次用 Release 配置跑验收就撞上了：`box.backgroundColor = '#f00'` 之后读 `box.backgroundColor`，App 当场崩在 `objc_retain ← WrapNative`。原因是造 `NativeObjectRef` 时写的 `{(__bridge void*)view.backgroundColor, "UIColor"}`——`__bridge` 不持有对象，那个临时 `UIColor` 语句一结束就可能被 ARC 释放。**Debug 下不崩是碰巧**（没开优化时它会留在自动释放池里），而交付出去的 `Nacre.xcframework` 是 Release。
 
-```
-CoreFoundation  CFRetain
-Nacre           Engine::Impl::WrapNative
-Nacre           Engine::Impl::NativeGetObjectProperty
-```
+修法是交成裸指针的那一刻统一保活（`NacreKeep`），全仓库 137 处一起换，不逐个判断哪些属性安全。详见[包装机制](internals/wrapper.md#交接的那一段没人持有只在-release-下崩的悬空指针)。
 
-原因在这一类写法上（`NacrePropsView.mm`）：
+留下三条：
 
-```objc
-if (name == "backgroundColor") return {(__bridge void*)view.backgroundColor, "UIColor"};
-```
-
-`(__bridge void*)` 不持有对象。`view.backgroundColor` 返回的那个临时 `UIColor` 在这条语句结束时就可能被 ARC 释放，交到 `WrapNative` 手里的是悬空指针，它一 `CFRetain` 就崩。**Debug 下不崩是碰巧**：没开优化时那个对象会留在自动释放池里，活到这一轮 run loop 结束。
-
-三件事要记住：
-
-- **用户拿到的 `Nacre.xcframework` 是 Release。** 所以交付物在这一点上是坏的。`examples/hello` 一直能跑，只因为它只写颜色不读。
-- **不是新引入的。** 拿两刀之前建的那份 xcframework（里面还是 `nacre.js` 的旧加载方式）跑一个四行的探针，同样崩在读那一行。
-- **影响面是一类，不是一处。** `ios/Runtime` 里把 ObjC 对象交成裸指针的地方有 137 处；凡是属性返回「每次新建的对象」而不是「别人持有着的对象」，都可能中。
-
-为什么一直没发现：**验收从来只跑 Debug**——`run-sim.sh` 是 Debug，以前打真机包也是 Debug。这和「支持 iOS 26+ 这句话从来没被验证过」是同一种缺口：我们声称交付的那个配置，一次都没跑过。所以修这个问题的同一步里，验收要加上 Release 这一遍。
-
-修法的方向（未确认）：在把对象交成裸指针的**那一刻**统一保活（`CFAutorelease(CFBridgingRetain(obj))`，让它至少活到当前自动释放池排空），不逐个判断哪些属性安全。JS 调用是同步的，从宿主返回到 `WrapNative` 持有它都在同一个池的生命周期里。
+- **验收要 Debug 和 Release 各跑一遍**（`run-sim.sh --release`，写进了 SOP 第 6 步）。声称交付的那个配置，以前一次都没跑过——和「支持 iOS 26+ 这句话从来没被验证过」是同一种缺口。
+- **「大概率是老问题」不算证据。** 发现它的时候正在做能力注册，分清楚靠的是拿一份没被新改动碰过的 xcframework 真跑一个四行的探针。
+- `check-api.sh` 盯着 `.mm` 里别再长出裸的 `(__bridge void*)`。Debug 下这种写法没有任何信号。
 
 **TODO：有一条验收断言在真机上不稳。** `网页开着的时候写的：不用刷新就看得到`（`acceptance/src/steps/webview.js` 的 cookie 那一段）：App 写一条 cookie，紧接着读网页里的 `document.cookie`。真机上三次里挂两次，模拟器上没见过挂。
 

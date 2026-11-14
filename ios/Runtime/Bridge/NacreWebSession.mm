@@ -209,7 +209,7 @@ bool WebSessionClassCall(const std::string& className, NSString* sel, NSArray* a
     session.store = WebStoreForPartition(partition);
     sessions[partition] = session;
   }
-  *out = {(__bridge void*)session, "Session"};
+  *out = {NacreKeep(session), "Session"};
   return true;
 }
 

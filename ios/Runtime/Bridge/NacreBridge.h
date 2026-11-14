@@ -17,6 +17,33 @@
 
 #include "../Engine/Engine.h"
 
+// 把一个 ObjC 对象交成 NativeObjectRef 里的裸指针，**同时让它活过这次交接**。
+//
+// NativeObjectRef 只是「指针 + 类名」，不持有对象；真正持有的是引擎的
+// WrapNative，它拿到指针之后才 CFRetain。中间这一段没人管。以前这里写的是
+// `{(__bridge void*)view.backgroundColor, "UIColor"}`——`__bridge` 不转移
+// 所有权，而 `view.backgroundColor` 返回的是一个临时对象，这条语句一结束
+// ARC 就可以把它释放掉，交出去的是悬空指针。
+//
+// **Debug 下从来不崩，Release 下必崩。** 没开优化时那个临时对象会留在自动
+// 释放池里（ARC 的返回值握手在 -O0 下不成立），碰巧活到这一轮 run loop
+// 结束；开了优化就直接销毁。而验收以前只跑 Debug，交付的 xcframework 是
+// Release——这个问题在交付物里躺了很久，`box.backgroundColor` 一读就崩。
+//
+// 做法是显式放进自动释放池：对象至少活到当前池排空。JS 调宿主是同步的，
+// 从这里返回到 WrapNative 持有它，都在同一个池的生命周期里。
+//
+// 不逐个判断「这个属性的对象有没有别人持有」——那是 UIKit 的实现细节，
+// 换个系统版本就可能变。所以凡是造 NativeObjectRef，一律走这里；
+// check-api.sh 盯着别再长出裸的 (__bridge void*)。
+//
+// 它**不管跨轮的事**：对象要等下一轮主队列才用（延后派发、异步兑现）时，
+// 让 block 捕获对象本身，在 block 里面再造 ref——见 NacreRuntime.mm 的
+// emitEvent:from:className:then:。
+static inline void* NacreKeep(id _Nullable object) {
+  return object != nil ? (void*)CFAutorelease(CFBridgingRetain(object)) : nullptr;
+}
+
 // Blob：JS 侧只拿一个句柄，字节留在这边的 NSData 里。
 //
 // Chrome 为此要跨进程、要 UUID、要配额管理，因为它的数据在 browser 进程、

@@ -221,72 +221,72 @@ nacre::NativeObjectRef ReadSceneObjectProperty(id object,
     UITabBarController* tabs = (UITabBarController*)object;
     if (name == "selectedViewController") {
       UIViewController* selected = tabs.selectedViewController;
-      return {(__bridge void*)selected, ControllerClassName(selected)};
+      return {NacreKeep(selected), ControllerClassName(selected)};
     }
-    if (name == "tabBar") return {(__bridge void*)tabs.tabBar, "UITabBar"};
+    if (name == "tabBar") return {NacreKeep(tabs.tabBar), "UITabBar"};
   }
   if ([object isKindOfClass:UITabBar.class]) {
     UITabBar* bar = (UITabBar*)object;
-    if (name == "tintColor") return {(__bridge void*)bar.tintColor, "UIColor"};
+    if (name == "tintColor") return {NacreKeep(bar.tintColor), "UIColor"};
     if (name == "unselectedItemTintColor") {
-      return {(__bridge void*)bar.unselectedItemTintColor, "UIColor"};
+      return {NacreKeep(bar.unselectedItemTintColor), "UIColor"};
     }
   }
   if ([object isKindOfClass:UIViewController.class]) {
     UIViewController* vc = (UIViewController*)object;
-    if (name == "tabBarItem") return {(__bridge void*)vc.tabBarItem, "UITabBarItem"};
+    if (name == "tabBarItem") return {NacreKeep(vc.tabBarItem), "UITabBarItem"};
     if (name == "tabBarController") {
-      return {(__bridge void*)vc.tabBarController, "UITabBarController"};
+      return {NacreKeep(vc.tabBarController), "UITabBarController"};
     }
   }
   if ([object isKindOfClass:UINavigationController.class]) {
     UINavigationController* nav = (UINavigationController*)object;
     if (name == "topViewController") {
-      return {(__bridge void*)nav.topViewController, "UIViewController"};
+      return {NacreKeep(nav.topViewController), "UIViewController"};
     }
     if (name == "visibleViewController") {
-      return {(__bridge void*)nav.visibleViewController, "UIViewController"};
+      return {NacreKeep(nav.visibleViewController), "UIViewController"};
     }
   }
   // 两条都是 ObjC 侧的 weak 回边，JS 侧要翻成 strong（见 internals/wrapper.md）
   if ([object isKindOfClass:UIViewController.class]) {
     UIViewController* vc = (UIViewController*)object;
     if (name == "navigationController") {
-      return {(__bridge void*)vc.navigationController, "UINavigationController"};
+      return {NacreKeep(vc.navigationController), "UINavigationController"};
     }
     if (name == "parentViewController") {
       UIViewController* parent = vc.parentViewController;
-      return {(__bridge void*)parent, ControllerClassName(parent)};
+      return {NacreKeep(parent), ControllerClassName(parent)};
     }
     if (name == "presentedViewController") {
-      return {(__bridge void*)vc.presentedViewController, "UIViewController"};
+      return {NacreKeep(vc.presentedViewController), "UIViewController"};
     }
     if (name == "presentingViewController") {
-      return {(__bridge void*)vc.presentingViewController, "UIViewController"};
+      return {NacreKeep(vc.presentingViewController), "UIViewController"};
     }
   }
   if ([object isKindOfClass:UINavigationItem.class] && name == "titleView") {
-    return {(__bridge void*)((UINavigationItem*)object).titleView, "UIView"};
+    return {NacreKeep(((UINavigationItem*)object).titleView), "UIView"};
   }
   // navigationItem 由 VC 自己懒加载，JS 第一次读到就要记边
   if ([object isKindOfClass:UIViewController.class] && name == "navigationItem") {
-    return {(__bridge void*)((UIViewController*)object).navigationItem,
+    return {NacreKeep(((UIViewController*)object).navigationItem),
             "UINavigationItem"};
   }
   if ([object isKindOfClass:UIScene.class] && name == "session") {
-    return {(__bridge void*)((UIScene*)object).session, "UISceneSession"};
+    return {NacreKeep(((UIScene*)object).session), "UISceneSession"};
   }
 
   if ([object isKindOfClass:UIWindow.class]) {
     UIWindow* window = (UIWindow*)object;
-    if (name == "windowScene") return {(__bridge void*)window.windowScene, "UIWindowScene"};
+    if (name == "windowScene") return {NacreKeep(window.windowScene), "UIWindowScene"};
     if (name == "rootViewController") {
-      return {(__bridge void*)window.rootViewController, "UIViewController"};
+      return {NacreKeep(window.rootViewController), "UIViewController"};
     }
   }
 
   if ([object isKindOfClass:UIViewController.class] && name == "view") {
-    return {(__bridge void*)((UIViewController*)object).view, "UIView"};
+    return {NacreKeep(((UIViewController*)object).view), "UIView"};
   }
   return {};
 }
@@ -345,23 +345,23 @@ void ReadSceneObjectArray(id object, const std::string& name,
     if (name == "leftBarButtonItems") list = item.leftBarButtonItems;
     else if (name == "rightBarButtonItems") list = item.rightBarButtonItems;
     for (UIBarButtonItem* b in list) {
-      refs.push_back({(__bridge void*)b, "UIBarButtonItem"});
+      refs.push_back({NacreKeep(b), "UIBarButtonItem"});
     }
   }
   if ([object isKindOfClass:UINavigationController.class] &&
       name == "viewControllers") {
     for (UIViewController* vc in ((UINavigationController*)object).viewControllers) {
-      refs.push_back({(__bridge void*)vc, "UIViewController"});
+      refs.push_back({NacreKeep(vc), "UIViewController"});
     }
   }
   if ([object isKindOfClass:UITabBarController.class] && name == "viewControllers") {
     for (UIViewController* vc in ((UITabBarController*)object).viewControllers) {
-      refs.push_back({(__bridge void*)vc, ControllerClassName(vc)});
+      refs.push_back({NacreKeep(vc), ControllerClassName(vc)});
     }
   }
   if ([object isKindOfClass:UIViewController.class] && name == "childViewControllers") {
     for (UIViewController* vc in ((UIViewController*)object).childViewControllers) {
-      refs.push_back({(__bridge void*)vc, ControllerClassName(vc)});
+      refs.push_back({NacreKeep(vc), ControllerClassName(vc)});
     }
   }
 }

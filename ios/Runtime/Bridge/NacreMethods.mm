@@ -413,10 +413,10 @@ nacre::NativeObjectRef CallObjectMethod(id object, const std::string& name,
   if ([object isKindOfClass:UIView.class]) {
     UIView* view = (UIView*)object;
     if ([sel isEqualToString:@"viewWithTag:"] && args.count > 0) {
-      return {(__bridge void*)[view viewWithTag:NACRE_INT(args[0], sel)], "UIView"};
+      return {NacreKeep([view viewWithTag:NACRE_INT(args[0], sel)]), "UIView"};
     }
     if ([sel isEqualToString:@"hitTest:withEvent:"] && args.count > 0) {
-      return {(__bridge void*)[view hitTest:JSONToPoint(args[0]) withEvent:nil], "UIView"};
+      return {NacreKeep([view hitTest:JSONToPoint(args[0]) withEvent:nil]), "UIView"};
     }
   }
   // UIButton 按状态取出来的颜色和图
@@ -438,12 +438,12 @@ nacre::NativeObjectRef CallObjectMethod(id object, const std::string& name,
         return {};
       }
       if ([sel isEqualToString:@"titleColorForState:"]) {
-        return {(__bridge void*)[button titleColorForState:state], "UIColor"};
+        return {NacreKeep([button titleColorForState:state]), "UIColor"};
       }
       if ([sel isEqualToString:@"imageForState:"]) {
-        return {(__bridge void*)[button imageForState:state], "UIImage"};
+        return {NacreKeep([button imageForState:state]), "UIImage"};
       }
-      return {(__bridge void*)[button backgroundImageForState:state], "UIImage"};
+      return {NacreKeep([button backgroundImageForState:state]), "UIImage"};
     }
   }
 
@@ -472,7 +472,7 @@ nacre::NativeObjectRef CallObjectMethod(id object, const std::string& name,
       } else if ([sel isEqualToString:@"constraintLessThanOrEqualToConstant:"]) {
         made = [dim constraintLessThanOrEqualToConstant:num(0)];
       }
-      if (made != nil) return {(__bridge void*)made, "NSLayoutConstraint"};
+      if (made != nil) return {NacreKeep(made), "NSLayoutConstraint"};
     }
 
     if (![otherRaw isKindOfClass:NSLayoutAnchor.class]) {
@@ -501,7 +501,7 @@ nacre::NativeObjectRef CallObjectMethod(id object, const std::string& name,
     } else if ([sel isEqualToString:@"constraintLessThanOrEqualToAnchor:constant:"]) {
       made = [anchor constraintLessThanOrEqualToAnchor:other constant:num(1)];
     }
-    if (made != nil) return {(__bridge void*)made, "NSLayoutConstraint"};
+    if (made != nil) return {NacreKeep(made), "NSLayoutConstraint"};
 
     if ([anchor isKindOfClass:NSLayoutDimension.class]) {
       NSLayoutDimension* dim = (NSLayoutDimension*)anchor;
@@ -525,7 +525,7 @@ nacre::NativeObjectRef CallObjectMethod(id object, const std::string& name,
                                            multiplier:num(1)
                                              constant:num(2)];
       }
-      if (made != nil) return {(__bridge void*)made, "NSLayoutConstraint"};
+      if (made != nil) return {NacreKeep(made), "NSLayoutConstraint"};
     }
 
     // 系统标准间距。两个锚点之间差多少由系统按上下文决定（8pt 起步，
@@ -547,7 +547,7 @@ nacre::NativeObjectRef CallObjectMethod(id object, const std::string& name,
         made = [x constraintLessThanOrEqualToSystemSpacingAfterAnchor:ox
                                                            multiplier:num(1)];
       } else if ([sel isEqualToString:@"anchorWithOffsetToAnchor:"]) {
-        return {(__bridge void*)[x anchorWithOffsetToAnchor:ox], "NSLayoutDimension"};
+        return {NacreKeep([x anchorWithOffsetToAnchor:ox]), "NSLayoutDimension"};
       }
     } else if ([anchor isKindOfClass:NSLayoutYAxisAnchor.class]) {
       NSLayoutYAxisAnchor* y = (NSLayoutYAxisAnchor*)anchor;
@@ -565,10 +565,10 @@ nacre::NativeObjectRef CallObjectMethod(id object, const std::string& name,
         made = [y constraintLessThanOrEqualToSystemSpacingBelowAnchor:oy
                                                            multiplier:num(1)];
       } else if ([sel isEqualToString:@"anchorWithOffsetToAnchor:"]) {
-        return {(__bridge void*)[y anchorWithOffsetToAnchor:oy], "NSLayoutDimension"};
+        return {NacreKeep([y anchorWithOffsetToAnchor:oy]), "NSLayoutDimension"};
       }
     }
-    if (made != nil) return {(__bridge void*)made, "NSLayoutConstraint"};
+    if (made != nil) return {NacreKeep(made), "NSLayoutConstraint"};
   }
 
   // UIImage 不可变：这些方法都返回一张新图，不改原图。
@@ -576,7 +576,7 @@ nacre::NativeObjectRef CallObjectMethod(id object, const std::string& name,
     UIImage* image = (UIImage*)object;
     auto arg = [&](NSUInteger i) -> id { return i < args.count ? args[i] : nil; };
     if ([sel isEqualToString:@"resizableImageWithCapInsets:"]) {
-      return {(__bridge void*)[image resizableImageWithCapInsets:JSONToInsets(arg(0))],
+      return {NacreKeep([image resizableImageWithCapInsets:JSONToInsets(arg(0))]),
               "UIImage"};
     }
     if ([sel isEqualToString:@"resizableImageWithCapInsets:resizingMode:"]) {
@@ -585,8 +585,8 @@ nacre::NativeObjectRef CallObjectMethod(id object, const std::string& name,
         *error = EnumError(@"resizingMode", arg(1), NamesForImageResizingMode());
         return {};
       }
-      return {(__bridge void*)[image resizableImageWithCapInsets:JSONToInsets(arg(0))
-                                                    resizingMode:mode],
+      return {NacreKeep([image resizableImageWithCapInsets:JSONToInsets(arg(0))
+                                                    resizingMode:mode]),
               "UIImage"};
     }
     if ([sel isEqualToString:@"imageWithRenderingMode:"]) {
@@ -595,7 +595,7 @@ nacre::NativeObjectRef CallObjectMethod(id object, const std::string& name,
         *error = EnumError(@"renderingMode", arg(0), NamesForImageRenderingMode());
         return {};
       }
-      return {(__bridge void*)[image imageWithRenderingMode:mode], "UIImage"};
+      return {NacreKeep([image imageWithRenderingMode:mode]), "UIImage"};
     }
   }
   return {};
@@ -630,7 +630,7 @@ std::vector<nacre::NativeObjectRef> CallObjectArrayMethod(
     }
     for (NSLayoutConstraint* c in
          [(UIView*)object constraintsAffectingLayoutForAxis:axis]) {
-      refs.push_back({(__bridge void*)c, "NSLayoutConstraint"});
+      refs.push_back({NacreKeep(c), "NSLayoutConstraint"});
     }
   }
   return refs;

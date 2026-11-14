@@ -230,52 +230,52 @@ nacre::NativeObjectRef ReadViewObjectProperty(id object,
                                             const std::string& name) {
   if ([object isKindOfClass:UIView.class]) {
     UIView* view = (UIView*)object;
-    if (name == "layer") return {(__bridge void*)view.layer, "CALayer"};
-    if (name == "backgroundColor") return {(__bridge void*)view.backgroundColor, "UIColor"};
+    if (name == "layer") return {NacreKeep(view.layer), "CALayer"};
+    if (name == "backgroundColor") return {NacreKeep(view.backgroundColor), "UIColor"};
     if (name == "safeAreaLayoutGuide") {
-      return {(__bridge void*)view.safeAreaLayoutGuide, "UILayoutGuide"};
+      return {NacreKeep(view.safeAreaLayoutGuide), "UILayoutGuide"};
     }
     if (name == "layoutMarginsGuide") {
-      return {(__bridge void*)view.layoutMarginsGuide, "UILayoutGuide"};
+      return {NacreKeep(view.layoutMarginsGuide), "UILayoutGuide"};
     }
     // 键盘避让：收起时它贴安全区底边，弹出时贴键盘顶边，所以一条约束
     // 管两种状态——不用听键盘通知，也不用自己算动画
     if (name == "keyboardLayoutGuide") {
-      return {(__bridge void*)view.keyboardLayoutGuide, "UIKeyboardLayoutGuide"};
+      return {NacreKeep(view.keyboardLayoutGuide), "UIKeyboardLayoutGuide"};
     }
     if (name == "readableContentGuide") {
-      return {(__bridge void*)view.readableContentGuide, "UILayoutGuide"};
+      return {NacreKeep(view.readableContentGuide), "UILayoutGuide"};
     }
     nacre::NativeObjectRef anchor = AnchorNamed(view, name);
     if (anchor.ptr != nullptr) return anchor;
-    if (name == "superview") return {(__bridge void*)view.superview, "UIView"};
-    if (name == "window") return {(__bridge void*)view.window, "UIWindow"};
+    if (name == "superview") return {NacreKeep(view.superview), "UIView"};
+    if (name == "window") return {NacreKeep(view.window), "UIWindow"};
   }
 
   if ([object isKindOfClass:UIImageView.class]) {
     UIImageView* iv = (UIImageView*)object;
-    if (name == "image") return {(__bridge void*)iv.image, "UIImage"};
+    if (name == "image") return {NacreKeep(iv.image), "UIImage"};
     if (name == "highlightedImage") {
-      return {(__bridge void*)iv.highlightedImage, "UIImage"};
+      return {NacreKeep(iv.highlightedImage), "UIImage"};
     }
-    if (name == "tintColor") return {(__bridge void*)iv.tintColor, "UIColor"};
+    if (name == "tintColor") return {NacreKeep(iv.tintColor), "UIColor"};
   }
 
   // 输入框的字体和文字色。和 UILabel 的同名属性是两个类上的两件事，
   // 所以分开写——UITextField 不是 UILabel 的子类
   if ([object isKindOfClass:UITextField.class]) {
     UITextField* field = (UITextField*)object;
-    if (name == "font") return {(__bridge void*)field.font, "UIFont"};
-    if (name == "textColor") return {(__bridge void*)field.textColor, "UIColor"};
+    if (name == "font") return {NacreKeep(field.font), "UIFont"};
+    if (name == "textColor") return {NacreKeep(field.textColor), "UIColor"};
   }
 
   if ([object isKindOfClass:UILabel.class]) {
     UILabel* label = (UILabel*)object;
-    if (name == "font") return {(__bridge void*)label.font, "UIFont"};
-    if (name == "textColor") return {(__bridge void*)label.textColor, "UIColor"};
-    if (name == "shadowColor") return {(__bridge void*)label.shadowColor, "UIColor"};
+    if (name == "font") return {NacreKeep(label.font), "UIFont"};
+    if (name == "textColor") return {NacreKeep(label.textColor), "UIColor"};
+    if (name == "shadowColor") return {NacreKeep(label.shadowColor), "UIColor"};
     if (name == "highlightedTextColor") {
-      return {(__bridge void*)label.highlightedTextColor, "UIColor"};
+      return {NacreKeep(label.highlightedTextColor), "UIColor"};
     }
   }
   return {};
@@ -285,19 +285,19 @@ void ReadViewObjectArray(id object, const std::string& name,
                         std::vector<nacre::NativeObjectRef>& refs) {
   if ([object isKindOfClass:UIView.class] && name == "subviews") {
     for (UIView* child in ((UIView*)object).subviews) {
-      refs.push_back({(__bridge void*)child, "UIView"});
+      refs.push_back({NacreKeep(child), "UIView"});
     }
   }
 
   if ([object isKindOfClass:UIView.class] && name == "constraints") {
     for (NSLayoutConstraint* c in ((UIView*)object).constraints) {
-      refs.push_back({(__bridge void*)c, "NSLayoutConstraint"});
+      refs.push_back({NacreKeep(c), "NSLayoutConstraint"});
     }
   }
 
   if ([object isKindOfClass:UIView.class] && name == "layoutGuides") {
     for (UILayoutGuide* g in ((UIView*)object).layoutGuides) {
-      refs.push_back({(__bridge void*)g, "UILayoutGuide"});
+      refs.push_back({NacreKeep(g), "UILayoutGuide"});
     }
   }
 }
