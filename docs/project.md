@@ -444,6 +444,90 @@ CLI 只有一个命令：`generate <项目目录> [--runtime=framework|source]`�
 
 清单里 `appSettings` 那三条是**宿主必须照做的**，哪条漏了都会出事：`-Wl,-stack_size,0x800000`（`LC_MAIN` 只有主可执行文件有，framework 带不了）、`ENABLE_DEBUG_DYLIB: NO`（不关上一条就报错）、`TARGETED_DEVICE_FAMILY: 1`。
 
+## 3.8 能力拆分：核心和边缘包
+
+（2026-11-14 定。起因是一个具体的问题：Face ID 这种能力要不要我们提供？它要求 App 的 Info.plist 里有 `NSFaceIDUsageDescription`，而不是每个 App 都用得到。）
+
+### 为什么不能把所有能力混在一个包里
+
+Apple 上传时的自动检查（ITMS-90683）扫的是**二进制里的符号**，不是源码。它的错误文案原话：
+
+> If you're using external libraries or SDKs, they may reference APIs that require a purpose string. **While your app might not use these APIs, a purpose string is still required.**
+
+所以只要 `Nacre.framework` 链接了 `LocalAuthentication`，**每一个**用 Nacre 的 App 都得写那句给用户看的话，哪怕它根本没有登录功能。这等于我们替用户做了选择。隐私清单是同一个道理：我们声明的三类里，UserDefaults 来自 `application.storage`、文件时间戳来自 `application.fileSystem`，不用存储的人本来不必背这两条。
+
+### 判据
+
+| 留在核心 | 可以拆出去 |
+| --- | --- |
+| **视图 + 交互 + 网络**——一个 App 一定有的 | 其余的，按需装 |
+| V8、事件循环、`EventTarget`、包装机制、参数转换 | WebView（独占 WebKit）、Keychain、文件读写、本地存储、剪贴板、触感反馈…… |
+
+「每个 App 都用得到吗」单独拿来当判据不够用——按它 Keychain、剪贴板、WebSocket 全该砍。实际看三样：**要不要额外的系统框架、带不带隐私类别或 usage description、有没有别的能力依赖它**。
+
+另一条边界：**iOS SDK 里有的归我们**（最终靠 bindgen 兜住），**不在 iOS SDK 里的走宿主扩展点**（推送、风控、支付、活体检测这些第三方 SDK）。社区拦不住别人用扩展点再包一份系统框架，但官方立场要明确，否则 `UIView` 会有三个版本。
+
+### 声明的单位是包，不是能力清单
+
+`npm i @nacre/local-authentication` 本身就是声明。不另设一份 `"capabilities": ["faceID"]`——那样「装了但忘了写」这个状态会存在，编译过、上传才被拒。包作单位时这个状态根本不存在：没装就没有那个类，类型检查当场报。
+
+**不做代码推断**（扫 JS 看用没用 `LAContext`）：JS 是动态的，`globalThis['LA' + 'Context']` 抓不到；而且 usage description 的文案推断不出来，那是一句给用户看的话，只能开发者自己写。Expo 也是声明式的。
+
+### bindgen 要按 framework 切片
+
+bindgen 管「符号怎么翻译成 JS」，边缘包管「这段能力进不进这个二进制」，两件事不冲突。但 bindgen 的产物必须**按 framework 分片**：核心只带那几个框架的绑定，其余各进各的包。**这条要在动手之前定**——做成「一次生成全 SDK」之后拆不回来，那时已经有人在写 `new LAContext()` 了。
+
+链接本身可以不发生。查过 NativeScript 的做法（`SymbolLoader.mm`）：App 只静态链接 5 个系统框架，metadata 覆盖全 SDK，JS 第一次读某个类名时 `objc_getClass` 返回 nil 就按 `/System/Library/Frameworks/<名字>.framework` 用 `CFBundleLoadExecutableAndReturnError` 加载，再问一次。所以「覆盖全 SDK」和「链接全 SDK」能彻底解耦。走不走这条路还没定——libffi 的 closure 在我们的 jitless 构建上行不行，没查证。
+
+### 拆的顺序：三刀
+
+拿 Keychain 先走通。它是最干净的一个——251 行原生、65 行 JS、没有任何别的能力依赖它。
+
+| | 做什么 | 状态 |
+| --- | --- | --- |
+| 1 | 内置脚本 part 化（见[下面那一节](#nacrejs-怎么拆已拆2026-11-14)） | 已做 |
+| 2 | 原生侧的注册点：核心不再认识 Keychain 的名字 | 已做 |
+| 3 | Keychain 真的挪成第二个 framework target，带自己的 part 和 d.ts | 待做 |
+
+**Keychain 拆出去并不会让核心少链一个框架**：`Security.framework` 被 `crypto.getRandomValues` 占着（`SecRandomCopyBytes`），而 crypto 留核心。真正能让核心变小的是 WebView——实测 WebKit 只有那三个文件用。所以 Keychain 是练机制，WebView 是拿收益。
+
+### 注册机制（第 2 刀）
+
+核心原来在六个地方写死了 Keychain（全是 grep 出来的）。第 2 刀处理原生那三处：
+
+| 原来 | 现在 |
+| --- | --- |
+| `NacreRuntime.mm`：`if (KeychainCallAsync(…)) return;` | `NacreDispatchAsyncMethod(…)` 挨个问注册进来的 |
+| `NacrePropsResource.mm`：`KeychainClassObject(className, name)` | `NacreDispatchClassObject(…)` |
+| `NacreBridge.h` 的接口和 typedef、`NacreEnumsScene.mm` 的枚举表 | 全部搬进 `NacreKeychain.mm` |
+
+能力在自己文件末尾用一个 `+load` 登记：
+
+```objc
+@implementation NacreKeychainRegistration
++ (void)load {
+  nacre_bridge::NacreRegisterAsyncMethodHandler(nacre_bridge::KeychainCallAsync);
+  nacre_bridge::NacreRegisterClassObjectHandler(nacre_bridge::KeychainClassObject);
+}
+@end
+```
+
+定下来的几条：
+
+- **用 `+load`，不让宿主调**。framework 被 embed 就一定会走到，宿主不用写任何代码——「启动壳要设计成不需要被改的」是 3.7 节定过的。
+- **注册表用函数内的静态局部变量，不用文件级的全局对象**。`+load` 比全局对象的构造早，用全局对象会撞上静态初始化顺序问题：注册进了一个还没构造的 `vector`，构造时又被清空，而且一声不吭。
+- **顺序自由**。注册顺序由链接顺序决定、不确定，但各能力域认的类互不重叠。和属性分发表拆开时的结论一样。
+- **枚举没有「注册」一说**。`NACRE_ENUM_MAP` 直接定义出那三个函数，同一个文件里定义在前、用在后就够了，连 `NACRE_ENUM_DECL` 都不用写。
+- **渐进**。别的能力域（文件、WebSocket、WebView、Session……）还是写死的 if 链，谁下次碰到哪个域就顺手改成注册。分发器里先问注册表、再走剩下的 if。
+
+**还没解决的是 JS 那一侧的第五处**：`application.keychain` 这个取值器写在 `Application` 的类体里。能力包要能往核心对象上挂属性，这是第 3 刀要定的。
+
+### 声明式的工程配置（方向已定，形状未确认）
+
+能力包需要的 Info.plist 键、entitlements、额外的系统框架，由包自己带一份片段，CLI 合并进生成的工程。今天 `nacre.config.json` 只认 7 个键，Info.plist 整个由模板写死，entitlements 连文件都没有——用户没有任何办法加一个键。
+
+方向是定了的（声明式、单位是包）。下面的形状是**建议，还没确认**：三个口子（`ios.infoPlist` / `ios.entitlements` / `ios.frameworks`）；合并顺序包先、用户最后，用户的值有否决权；数组类的键取并集；包要求了某个键而用户没填时，**生成时就报错**——把 ITMS-90683 从「上传才知道」提到「生成就知道」。照 NativeScript 的文件合并，不照 Expo 的「JS 函数改工程」（他们自己的文档警告那条路依赖正则、会把构建弄坏）。
+
 ## 4. Android 扩展计划（未开始，仅记录方向）
 
 iOS 的功能清单完成后再开始 Android。以下是目前的方向，开始前需要按 SOP 重新讨论确认：
@@ -801,6 +885,7 @@ Commit message 格式：
 | — | 交付第 4 步：入门指南 | `docs/guides/your-own-app.md`：三个必须的文件 + 一个 `tsconfig.json`，一条命令跑进模拟器 | 已验证通过：在仓库外（和 `nacre/` 并排）照着指南从零建了一个项目，`npm install`、`npm run check`、`run-sim.sh … --runtime=framework` 全部按指南写的那样，模拟器上出现文字、终端打出 `[JS][log]`。类型检查那三条说法（通过、枚举写错的报错原文、去掉 `/// <reference>` 全部 `Cannot find name`）都是跑出来的 |
 | — | 隐私清单 `PrivacyInfo.xcprivacy` | framework 自带一份；三类（UserDefaults、文件时间戳、系统启动时间）靠 `nm` 扫二进制定下来，后两类的符号来自 **V8**；`check-api.sh` 加第 8 节，两路扫（`nm` + `__objc_methname`）核对符号和声明 | 已在模拟器验证通过：1747 条通过、2 条失败（原有的图片下载网络问题），总数 1749 和上一步一字不差。清单在 `Nacre.framework` 包根和嵌进 App 之后都在。四种弄坏法（删一条、多一条、符号表过时、扫空二进制）各报一条，一条噪音都没有。实测宿主 App 的主可执行文件一个 required reason 符号都没碰 |
 | — | 内置脚本拆成 26 个 part | `Builtin/parts/`，每个整个是一个函数表达式；`Engine::RunBuiltinPart` 编译执行拿到函数、用共享的 `ctx` 调一次；任何一个失败都点名文件立刻停下。能力拆成边缘包的前置 | 已在模拟器验证通过：1749 条通过、2 条失败（原有的图片下载网络问题）；断言标签把实测数字规范化之后和拆之前**一字不差**，只多出两条——那两条上一次是 `! GC 没赶上，这一条未验证`，这次赶上了。正文**只改了 2 行**（那两处真跨 part 的 `application`）。报错行号实测指向 part 文件里的真实行号（`parts/00-core.js:137` 正是 `entry.callback.call(this, event)`）。内置脚本装载 23.0 ms |
+| — | 能力注册：核心不再认识 Keychain | `Bridge/NacreRegistry.mm`：异步方法和类对象两条通道改成运行时的表，能力在自己的 `+load` 里登记；Keychain 的接口、枚举 typedef 和枚举表全部搬回 `NacreKeychain.mm` | 模拟器（Debug）验证通过：1749 条通过、2 条失败（原有的图片下载网络问题），断言集合和上一步一字不差；核心四个文件里 grep 不到 Keychain 的声明或调用。**Release 下只验到一半**：注册类没被 `DEAD_CODE_STRIPPING` 裁掉（符号表里在、`__objc_nlclslist` 有条目），真机（iPhone 14）Release 包上类对象通道经注册表拿到了 Keychain；**异步通道在 Release 下未验证**——App 先崩在一个和这一步无关的老问题上，见下面「Release 构建下读对象属性会崩」 |
 | — | `transform` | CGAffineTransform、UIView.transform | 已在模拟器验证通过：屏幕上转了 30° 放大 1.2 倍，实测 frame 变成包围盒且 = 宽 × (\|a\|+\|c\|) |
 | — | 定时器：`setTimeout` 系列 + `queueMicrotask` | 到期堆、唤醒源、时间预算 | 已在模拟器验证通过：8 条断言全过，含同时到期的顺序、嵌套不饿死、`clearInterval` 自取消 |
 | **M1a** | **异步回调回 JS** | 订阅通道、trampoline 持有 handle、延后一轮派发 | 已在模拟器验证通过：真实触摸走通，一次点击一个 touchDown 一个 touchUpInside |
@@ -1160,6 +1245,34 @@ Web 能双向字符串化是因为 CSSOM 自己留着声明串，我们没有这
 **2026-11-13 起暂时不跑 iOS 26。** 能启动的 iOS 26 模拟器只有系统默认建的那台 iPhone 17，而模拟器约定只用 iPhone Air；另建的一台 iOS 26 的 iPhone Air 启动失败（Data Migration Failed）。那个 iOS 26.0 模拟器系统本身也有毛病：中文全部显示成方框，连系统桌面也是——它加载不了苹方字体，日志里是 `Requested font not available`，原因没查到。现在的验收跑 iPhone Air（iOS 27.2）加真机（iPhone 14）。编译期那一层还在：最低版本仍是 26.0，`run-sim.sh` 照常列出没加版本保护的调用。要恢复，得先有一台能用的 iOS 26 设备。
 
 没确认的：iOS 27 是不再有这个场景，还是只是没触发到。27.2 的模拟器上启动时那个键盘弹不出来。
+
+**TODO（严重，未修）：Release 构建下读对象属性会崩。**（2026-11-14 发现）
+
+第一次用 Release 配置跑验收就撞上了：`box.backgroundColor = '#f00'` 之后读 `box.backgroundColor`，App 当场 `EXC_BREAKPOINT`。真机和模拟器一样，崩溃栈是
+
+```
+CoreFoundation  CFRetain
+Nacre           Engine::Impl::WrapNative
+Nacre           Engine::Impl::NativeGetObjectProperty
+```
+
+原因在这一类写法上（`NacrePropsView.mm`）：
+
+```objc
+if (name == "backgroundColor") return {(__bridge void*)view.backgroundColor, "UIColor"};
+```
+
+`(__bridge void*)` 不持有对象。`view.backgroundColor` 返回的那个临时 `UIColor` 在这条语句结束时就可能被 ARC 释放，交到 `WrapNative` 手里的是悬空指针，它一 `CFRetain` 就崩。**Debug 下不崩是碰巧**：没开优化时那个对象会留在自动释放池里，活到这一轮 run loop 结束。
+
+三件事要记住：
+
+- **用户拿到的 `Nacre.xcframework` 是 Release。** 所以交付物在这一点上是坏的。`examples/hello` 一直能跑，只因为它只写颜色不读。
+- **不是新引入的。** 拿两刀之前建的那份 xcframework（里面还是 `nacre.js` 的旧加载方式）跑一个四行的探针，同样崩在读那一行。
+- **影响面是一类，不是一处。** `ios/Runtime` 里把 ObjC 对象交成裸指针的地方有 137 处；凡是属性返回「每次新建的对象」而不是「别人持有着的对象」，都可能中。
+
+为什么一直没发现：**验收从来只跑 Debug**——`run-sim.sh` 是 Debug，以前打真机包也是 Debug。这和「支持 iOS 26+ 这句话从来没被验证过」是同一种缺口：我们声称交付的那个配置，一次都没跑过。所以修这个问题的同一步里，验收要加上 Release 这一遍。
+
+修法的方向（未确认）：在把对象交成裸指针的**那一刻**统一保活（`CFAutorelease(CFBridgingRetain(obj))`，让它至少活到当前自动释放池排空），不逐个判断哪些属性安全。JS 调用是同步的，从宿主返回到 `WrapNative` 持有它都在同一个池的生命周期里。
 
 **TODO：有一条验收断言在真机上不稳。** `网页开着的时候写的：不用刷新就看得到`（`acceptance/src/steps/webview.js` 的 cookie 那一段）：App 写一条 cookie，紧接着读网页里的 `document.cookie`。真机上三次里挂两次，模拟器上没见过挂。
 

@@ -1,4 +1,4 @@
-// 模态呈现、导航事件、Keychain 的访问级别
+// 模态呈现、导航事件
 //
 // 字符串 ↔ 数值的映射。
 //
@@ -95,21 +95,5 @@ BOOL IsNavEventName(NSString* name) {
 NSString* NamesForNavEvent(void) {
   return [NavEventNamesList() componentsJoinedByString:@" / "];
 }
-
-// Keychain 的访问级别。原生侧那五个是 CFStringRef 常量，NACRE_ENUM_MAP 的
-// 值必须是数字，所以这里映射成序号，NacreKeychain.mm 再按序号换成常量。
-//
-// kSecAttrAccessibleAlways 和 AlwaysThisDeviceOnly **不暴露**：iOS 12 起
-// API_DEPRECATED，头文件原话是 "Use an accessibility level that provides
-// some user protection"。
-NACRE_ENUM_MAP(KeychainAccessible, NacreKeychainAccessible,
-               @"whenUnlocked": @(NacreKeychainAccessibleWhenUnlocked),
-               @"whenUnlockedThisDeviceOnly":
-                   @(NacreKeychainAccessibleWhenUnlockedThisDeviceOnly),
-               @"afterFirstUnlock": @(NacreKeychainAccessibleAfterFirstUnlock),
-               @"afterFirstUnlockThisDeviceOnly":
-                   @(NacreKeychainAccessibleAfterFirstUnlockThisDeviceOnly),
-               @"whenPasscodeSetThisDeviceOnly":
-                   @(NacreKeychainAccessibleWhenPasscodeSetThisDeviceOnly))
 
 }  // namespace nacre_bridge

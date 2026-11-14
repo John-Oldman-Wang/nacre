@@ -10,6 +10,15 @@
 #import <Foundation/Foundation.h>
 #import <Security/Security.h>
 
+// Keychain 的载体。iOS 上没有「钥匙串对象」这种东西，SecItem* 是一组 C 函数，
+// 所以自己给一个单例当包装表里的那个原生指针。
+//
+// 这个接口原来在共享的 NacreBridge.h 里，但只有这个文件用它——核心不该认识
+// Keychain，否则这个能力永远拆不出去。
+@interface NacreKeychain : NSObject
+@property(class, readonly) NacreKeychain* shared;
+@end
+
 @implementation NacreKeychain
 + (NacreKeychain*)shared {
   static NacreKeychain* shared;
@@ -20,6 +29,35 @@
 @end
 
 namespace nacre_bridge {
+
+// Keychain 的访问级别。顺序就是下面 NACRE_ENUM_MAP 里的值，别重排。
+typedef NS_ENUM(NSInteger, NacreKeychainAccessible) {
+  NacreKeychainAccessibleWhenUnlocked = 0,
+  NacreKeychainAccessibleWhenUnlockedThisDeviceOnly,
+  NacreKeychainAccessibleAfterFirstUnlock,
+  NacreKeychainAccessibleAfterFirstUnlockThisDeviceOnly,
+  NacreKeychainAccessibleWhenPasscodeSetThisDeviceOnly,
+};
+
+// 原生侧那五个是 CFStringRef 常量，NACRE_ENUM_MAP 的值必须是数字，所以这里
+// 映射成序号，下面的 AccessibleConstant 再按序号换成常量。
+//
+// kSecAttrAccessibleAlways 和 AlwaysThisDeviceOnly **不暴露**：iOS 12 起
+// API_DEPRECATED，头文件原话是 "Use an accessibility level that provides
+// some user protection"。
+//
+// 这张表原来在 NacreEnumsScene.mm 里（和模态、导航挤在一起），而只有这个文件
+// 用它。枚举没有「注册」一说——NACRE_ENUM_MAP 直接定义出那三个函数，同一个
+// 文件里定义在前、用在后就够了，不需要再写一份 NACRE_ENUM_DECL。
+NACRE_ENUM_MAP(KeychainAccessible, NacreKeychainAccessible,
+               @"whenUnlocked": @(NacreKeychainAccessibleWhenUnlocked),
+               @"whenUnlockedThisDeviceOnly":
+                   @(NacreKeychainAccessibleWhenUnlockedThisDeviceOnly),
+               @"afterFirstUnlock": @(NacreKeychainAccessibleAfterFirstUnlock),
+               @"afterFirstUnlockThisDeviceOnly":
+                   @(NacreKeychainAccessibleAfterFirstUnlockThisDeviceOnly),
+               @"whenPasscodeSetThisDeviceOnly":
+                   @(NacreKeychainAccessibleWhenPasscodeSetThisDeviceOnly))
 
 namespace {
 
@@ -249,3 +287,20 @@ bool KeychainCallAsync(id object, const std::string& name, const std::string& ar
 }
 
 }  // namespace nacre_bridge
+
+// 把这两条通道注册进核心。
+//
+// +load 在类被加载时自动调用——framework 被 embed 就一定会走到，宿主不用写
+// 任何代码。这是交付模型里定过的：启动壳要设计成不需要被改的。
+//
+// 放在文件末尾是因为 +load 里要取这两个函数的地址，它们得先定义出来。
+// 每个拆出去的能力都是这同一个形状。
+@interface NacreKeychainRegistration : NSObject
+@end
+
+@implementation NacreKeychainRegistration
++ (void)load {
+  nacre_bridge::NacreRegisterAsyncMethodHandler(nacre_bridge::KeychainCallAsync);
+  nacre_bridge::NacreRegisterClassObjectHandler(nacre_bridge::KeychainClassObject);
+}
+@end

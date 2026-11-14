@@ -1085,8 +1085,11 @@ nacre::NativeObjectRef CreateBlob(
                 }];
               }
         };
+        // 注册进来的能力域先问一轮。它们在自己的 +load 里登记，核心不认识
+        // 它们的名字——能力要能拆成独立的 framework，就不能再写死在这里。
+        // 下面那几条还是写死的，谁下次碰到哪个域就顺手把它改成注册。
+        if (NacreDispatchAsyncMethod(object, name, argsJSON, argPtrs, settle)) return;
         if (FileSystemCallAsync(object, name, argsJSON, argPtrs, settle)) return;
-        if (KeychainCallAsync(object, name, argsJSON, argPtrs, settle)) return;
         // WebSocket 的 send / ping。它们在**主线程**就完成了调用，
         // 回音在 NSURLSession 的队列上来，所以同样要回主线程兑现
         if (WebSocketCallAsync(object, name, argsJSON, argPtrs, settle)) return;

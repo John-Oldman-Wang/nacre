@@ -65,7 +65,6 @@ typedef void (^NacreWebContentsEmit)(id contents, NSString* type, NSString* json
 typedef void (^NacreWebContentsAsk)(id contents, NSString* type, NSString* json,
                                     void (^answer)(BOOL prevented));
 
-// Keychain 的载体。iOS 上没有「钥匙串对象」这种东西，SecItem* 是一组 C 函数，
 // 所以自己给一个单例当包装表里的那个原生指针。
 // CADisplayLink 的 trampoline。
 //
@@ -85,10 +84,6 @@ typedef void (^NacreWebContentsAsk)(id contents, NSString* type, NSString* json,
 // link 本来就强持有 target，但 CADisplayLink **没有公开的 target 属性**，
 // 所以订阅时要靠这个关联把 trampoline 找回来
 extern const void* kNacreDisplayLinkTargetKey;
-
-@interface NacreKeychain : NSObject
-@property(class, readonly) NacreKeychain* shared;
-@end
 
 // 剪贴板的事件出口。和手势同一个路子
 typedef void (^NacrePasteboardEmit)(UIPasteboard* pasteboard, NSString* type);
@@ -316,15 +311,6 @@ NSString* JoinEnumNames(NSDictionary<NSString*, NSNumber*>* table);
 
 std::string EnumError(NSString* what, id given, NSString* choices);
 
-// Keychain 的访问级别。顺序就是 NACRE_ENUM_MAP 里的值，别重排
-typedef NS_ENUM(NSInteger, NacreKeychainAccessible) {
-  NacreKeychainAccessibleWhenUnlocked = 0,
-  NacreKeychainAccessibleWhenUnlockedThisDeviceOnly,
-  NacreKeychainAccessibleAfterFirstUnlock,
-  NacreKeychainAccessibleAfterFirstUnlockThisDeviceOnly,
-  NacreKeychainAccessibleWhenPasscodeSetThisDeviceOnly,
-};
-
 // 字符串枚举的声明，和 NACRE_STRING_ENUM_MAP 配对
 #define NACRE_STRING_ENUM_DECL(FuncName)                \
   NSString* FuncName##FromName(NSString* name);         \
@@ -362,9 +348,6 @@ NACRE_ENUM_DECL(ControlHorizontalAlignment, UIControlContentHorizontalAlignment)
 NACRE_ENUM_DECL(ControlVerticalAlignment, UIControlContentVerticalAlignment)
 NACRE_ENUM_DECL(ButtonType, UIButtonType)
 NACRE_ENUM_DECL(ButtonRole, UIButtonRole)
-// Keychain 的访问级别。原生侧是 CFStringRef 常量，这里先映射成序号，
-// 再由 NacreKeychain.mm 换成常量——NACRE_ENUM_MAP 的值必须是数字
-NACRE_ENUM_DECL(KeychainAccessible, NacreKeychainAccessible)
 // ---- 输入框 ----
 NACRE_ENUM_DECL(KeyboardType, UIKeyboardType)
 NACRE_ENUM_DECL(ReturnKeyType, UIReturnKeyType)
@@ -748,11 +731,32 @@ UIColor* ColorFromSpec(id spec);
 NSDictionary* ColorToSpec(UIColor* color);
 bool ColorCallMethod(id object, const std::string& name, std::string* out);
 
-// ---- Keychain ----
-bool KeychainCallAsync(id object, const std::string& name, const std::string& argsJSON,
-                       const std::vector<void*>& argPtrs, NacreAsyncDone done);
-nacre::NativeObjectRef KeychainClassObject(const std::string& className,
-                                           const std::string& name);
+// ---- 能力域的注册 ----
+//
+// 分发链原来是一串写死的 if：每个能力域一个函数，按顺序问「认不认领」。
+// 能力要能拆成独立的 framework，这串 if 就得变成运行时的表——核心不能再
+// 认识 Keychain 这个名字。
+//
+// 注册在能力自己的 +load 里做：framework 被 embed 就一定会调到，宿主**不用
+// 写任何代码**。这是交付模型里定过的一条——启动壳要设计成不需要被改的，
+// 第三方原生 SDK 通过注册机制接进来。
+//
+// 注册表用函数内的静态局部变量，所以 +load 期间调用是安全的（它在第一次
+// 用到时才构造）。注册顺序由链接顺序决定、不确定，但各能力域认的类互不
+// 重叠，所以顺序自由——这一条和属性分发表拆开时的结论一样。
+using NacreAsyncMethodHandler = bool (*)(id, const std::string&, const std::string&,
+                                         const std::vector<void*>&, NacreAsyncDone);
+using NacreClassObjectHandler = nacre::NativeObjectRef (*)(const std::string&,
+                                                           const std::string&);
+void NacreRegisterAsyncMethodHandler(NacreAsyncMethodHandler handler);
+void NacreRegisterClassObjectHandler(NacreClassObjectHandler handler);
+
+/// 挨个问注册进来的能力域，谁认领就返回谁的结果
+bool NacreDispatchAsyncMethod(id object, const std::string& name, const std::string& argsJSON,
+                              const std::vector<void*>& argPtrs, NacreAsyncDone done);
+/// 没人认领时 class_name 是空的
+nacre::NativeObjectRef NacreDispatchClassObject(const std::string& className,
+                                                const std::string& name);
 
 // ---- 文件读写 ----
 /// 认不认领。认领了就自己派到后台队列做，做完在**后台线程**调 done——
