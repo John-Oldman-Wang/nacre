@@ -1,0 +1,24 @@
+{
+  "name": "@nacrejs/example-module",
+  "version": "0.0.1-beta.1",
+  "private": true,
+  "type": "module",
+  "description": "一个示例原生模块：用 Swift 写、只用 Nacre 公开的接口。它同时是验收用的模块",
+  "license": "FSL-1.1-MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/John-Oldman-Wang/nacre.git",
+    "directory": "packages/example-module"
+  },
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    }
+  },
+  "types": "./index.d.ts",
+  "peerDependencies": {
+    "@nacrejs/ios": "0.0.1-beta.1",
+    "@nacrejs/types": "0.0.1-beta.1"
+  }
+}

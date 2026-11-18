@@ -1,0 +1,19 @@
+{
+  "//": "一个原生模块的包的清单，和能力包是同一种。CLI 在项目的直接依赖里找带这个文件的包——找到了，就把它的 framework 加进生成的工程。",
+
+  "capability": "example-module",
+
+  "requires": {
+    "//": "它依赖运行时公开的原生模块接口（NacreModule.h）。CLI 在生成时核对版本。",
+    "runtimeVersion": "0.1.0"
+  },
+
+  "//target": "引运行时源码时用：运行时工程里的 target 名。只有在运行时仓库里的包才有；第三方的包不写这一项，两种方式都用下面的 xcframework",
+  "target": "NacreExampleModule",
+
+  "//xcframework": "预编译的 framework：这个包目录下的文件名（构建产物，不提交）",
+  "xcframework": "NacreExampleModule.xcframework",
+
+  "//systemFrameworks": "要 App 链接的系统框架或系统库（.framework 或 .tbd）。这个模块算 SHA-256 用的是 CryptoKit",
+  "systemFrameworks": ["CryptoKit.framework"]
+}
