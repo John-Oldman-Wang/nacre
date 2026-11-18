@@ -1,0 +1,13 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>loading</title>
+<link rel="stylesheet" href="style.css">
+<h3>另一个本地文件</h3>
+<p><a href="index.html">回去</a></p>
+<script>
+// 验收用。和 index.html 是同一个来源（file://），所以计数是接着的
+let n = 'ERR';
+try { localStorage.n = (+localStorage.n || 0) + 1; n = +localStorage.n; } catch (e) {}
+document.title = 'other n=' + n;
+</script>
