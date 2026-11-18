@@ -1,0 +1,194 @@
+import { customEventWorks } from '../support.js';
+// UIPasteboard：系统剪贴板上的字符串。
+
+/**
+ * 「剪贴板、触感反馈」那个区块里的面板：一个纵向的排列容器，每一步往里加一排按钮。
+ * 剪贴板和触感反馈都要真的点一下才看得出效果，所以给它们留一块地方。
+ *
+ * @param {import("../main.js").StepContext} ctx
+ * @returns {UIStackView}
+ */
+
+export function systemPanel(ctx) {
+  // 第一块面板放原来的三排（剪贴板一排、触感反馈两排），高度不动。能力包
+  // 加进来的按钮放第二块，第二块到用的时候才建，所以排在瀑布的后面。
+  //
+  // 试过把第一块直接加高到放得下九排，那一遍网页那一步有一条断言没过，
+  // 当时以为是加高把网页的区块挤出了屏幕。后来同一条断言在面板没动的时候
+  // 又失败过，查到的原因是它和全屏的模态页抢屏幕（见 main.js 里
+  // stepAppearance 那一行）。所以加高未必是原因；分成两块是留下来的做法
+  if (ctx.systemPanel) {
+    if (ctx.systemPanel.arrangedSubviews.length < 3) return ctx.systemPanel;
+    if (!extraPanel) extraPanel = makePanel(ctx, '能力包（点这些按钮）', 202);
+    return extraPanel;
+  }
+  ctx.systemPanel = makePanel(ctx, '剪贴板、触感反馈（点这些按钮）', 106);
+  return ctx.systemPanel;
+}
+
+/** 能力包的那一块面板，第一次有能力包要按钮时才建 @type {UIStackView | null} */
+let extraPanel = null;
+
+/**
+ * 建一块面板：一张圆角卡片，里面的排平分高度。
+ *
+ * @param {import("../main.js").StepContext} ctx
+ * @param {string} title 区块的小标题
+ * @param {number} height 区块的高，pt。每排大约 26，排之间 6，上下各留 8
+ * @returns {UIStackView}
+ */
+function makePanel(ctx, title, height) {
+  // 面板横向铺满区块（左右各留 16），不再写死宽度——以前按 iPhone Air 的
+  // 宽度摆在右上角，iPhone 14 上最右一列被切掉一截
+  const host = ctx.section(title, height);
+  const card = new UIView();
+  card.translatesAutoresizingMaskIntoConstraints = false;
+  card.backgroundColor = 'secondarySystemBackground';
+  card.layer.cornerRadius = 10;
+  host.addSubview(card);
+  const column = new UIStackView();
+  column.axis = 'vertical';
+  column.distribution = 'fillEqually';
+  column.spacing = 6;
+  // 四周留 8 点：内边距那一步做的能力，这里是第一处真用上的
+  column.isLayoutMarginsRelativeArrangement = true;
+  column.directionalLayoutMargins = { top: 8, leading: 8, bottom: 8, trailing: 8 };
+  column.translatesAutoresizingMaskIntoConstraints = false;
+  card.addSubview(column);
+  NSLayoutConstraint.activateConstraints([
+    card.leadingAnchor.constraintEqualToAnchor(host.leadingAnchor, { constant: 16 }),
+    card.trailingAnchor.constraintEqualToAnchor(host.trailingAnchor, { constant: -16 }),
+    card.topAnchor.constraintEqualToAnchor(host.topAnchor),
+    card.bottomAnchor.constraintEqualToAnchor(host.bottomAnchor),
+    column.leadingAnchor.constraintEqualToAnchor(card.leadingAnchor),
+    column.trailingAnchor.constraintEqualToAnchor(card.trailingAnchor),
+    column.topAnchor.constraintEqualToAnchor(card.topAnchor),
+    column.bottomAnchor.constraintEqualToAnchor(card.bottomAnchor),
+  ]);
+  return column;
+}
+
+/**
+ * 面板里的一排按钮。
+ *
+ * @param {UIStackView} panel
+ * @param {Array<[string, () => void]>} items 标题和点击时做的事
+ */
+export function panelRow(panel, items) {
+  const row = new UIStackView();
+  row.axis = 'horizontal';
+  row.distribution = 'fillEqually';
+  row.spacing = 6;
+  for (const [title, onTap] of items) {
+    const button = UIButton.buttonWithType('system');
+    button.setTitle(title, { forState: ['normal'] });
+    // 颜色表里还没有 systemFill 那一组，先用背景色
+    button.backgroundColor = 'systemBackground';
+    button.layer.cornerRadius = 6;
+    button.addEventListener('touchupinside', onTap);
+    row.addArrangedSubview(button);
+  }
+  panel.addArrangedSubview(row);
+}
+
+/** @param {import("../main.js").StepContext} ctx */
+export function stepPasteboard(ctx) {
+  const { assert } = ctx;
+  // ===== UIPasteboard =====
+  //
+  // 复制订单号、粘贴验证码。在这之前 JS 碰不到剪贴板。
+  console.log('--- UIPasteboard ---');
+
+  const pasteboard = UIPasteboard.generalPasteboard;
+  assert('generalPasteboard 是 UIPasteboard', pasteboard instanceof UIPasteboard, true);
+  assert('每次读是同一个包装', UIPasteboard.generalPasteboard === pasteboard, true);
+  try {
+    // @ts-expect-error 构造函数是私有的
+    new UIPasteboard();
+    console.log('  ✗ UIPasteboard 居然能 new');
+  } catch (err) {
+    console.log('  ✓ UIPasteboard 不能 new:', err.message);
+  }
+  // 这两个只是查询，不取内容，在真机上也不会引出系统提示
+  assert('hasStrings 是布尔', typeof pasteboard.hasStrings, 'boolean');
+  assert('changeCount 是数', typeof pasteboard.changeCount, 'number');
+  try {
+    // @ts-expect-error 只读
+    pasteboard.changeCount = 0;
+    console.log('  ✗ changeCount 居然能写');
+  } catch (err) {
+    console.log('  ✓ changeCount 只读:', err instanceof TypeError);
+  }
+  // 不认识的事件名不拒绝，当自定义事件（和浏览器里的 EventTarget 一样）
+  assert('剪贴板：不认识的事件名当自定义事件', customEventWorks(pasteboard, 'not-a-real-event'), '收到一次');
+
+  // ---- 屏幕上：两个按钮，等真实点击 ----
+  let changes = 0;
+  pasteboard.addEventListener('change', () => {
+    changes += 1;
+    console.log('  ✓ 剪贴板 change 事件（第 ' + changes + ' 次），changeCount = ' +
+                pasteboard.changeCount);
+  });
+  panelRow(systemPanel(ctx), [
+    ['复制', () => {
+      const text = 'NACRE-' + crypto.randomUUID().slice(0, 8);
+      pasteboard.string = text;
+      console.log('  ✓ 真实触摸：已复制 ' + text + '，changeCount = ' + pasteboard.changeCount +
+                  '（到别的 App 里粘贴看看）');
+    }],
+    ['粘贴', () => {
+      const before = performance.now();
+      const text = pasteboard.string;
+      const cost = performance.now() - before;
+      console.log('  ✓ 真实触摸：读到 ' +
+                  (text === null ? 'null' : JSON.stringify(text.slice(0, 40))) +
+                  '，hasStrings = ' + pasteboard.hasStrings +
+                  '，changeCount = ' + pasteboard.changeCount +
+                  '，读这一下用了 ' + cost.toFixed(1) + ' ms');
+    }],
+  ]);
+  console.log('  ✓ 面板里有「复制」「粘贴」两个按钮');
+
+  // ---- 自动的读写断言：只在模拟器上跑 ----
+  //
+  // 真机上不跑：一是会把用户剪贴板里的东西冲掉，二是读别的 App 复制的内容
+  // 系统可能弹提示，卡住启动。分清模拟器和真机靠 Info.plist 里的事实
+  if (application.info.DTPlatformName !== 'iphonesimulator') {
+    console.log('  ! 不在模拟器上，自动的读写断言不跑（免得冲掉剪贴板），请用面板里的按钮');
+    return;
+  }
+
+  const countBefore = pasteboard.changeCount;
+  const changesBefore = changes;
+  const text = 'nacre 剪贴板 ' + crypto.randomUUID();
+  pasteboard.string = text;
+  assert('写进去读出来', pasteboard.string, text);
+  assert('写了之后 hasStrings', pasteboard.hasStrings, true);
+  assert('写了之后 changeCount 变大', pasteboard.changeCount > countBefore, true);
+
+  // 写的不是字符串：按 String() 转（project.md 原则 13）
+  // @ts-expect-error 类型定义仍然要字符串，运行时会转
+  pasteboard.string = 42;
+  assert('写数字：转成字符串', pasteboard.string, '42');
+
+  // 写 null 原样交给 UIKit。实测它的效果是清空，所以固化成断言
+  const countMid = pasteboard.changeCount;
+  pasteboard.string = null;
+  assert('写 null 之后读到 null', pasteboard.string, null);
+  assert('写 null 之后 hasStrings 是 false', pasteboard.hasStrings, false);
+  assert('写 null 也算一次变化', pasteboard.changeCount > countMid, true);
+
+  // change 事件延后一轮才到，等它；到点没来就报未验证
+  const deadline = Date.now() + 3000;
+  (function wait() {
+    if (changes > changesBefore) {
+      assert('自己写剪贴板也会收到 change', changes > changesBefore, true);
+      return;
+    }
+    if (Date.now() > deadline) {
+      console.log('  ! 3 秒内没等到 change 事件，「自己写也会收到」这一条未验证');
+      return;
+    }
+    setTimeout(wait, 50);
+  })();
+}
