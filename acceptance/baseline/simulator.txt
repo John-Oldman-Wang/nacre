@@ -1,0 +1,5741 @@
+# 验收的断言名单（iPhone Air 模拟器）。由 scripts/verify.mjs --update-baseline 生成。
+#
+# 一行一个断言的名字，名字里的数字统一换成了 #。开头的记号：
+#   +  每一遍都必须出现，少了算失败
+#   ?  可以缺：那几组对时序敏感的检查有时自己报未验证，它们的断言那一遍就不出现
++ # MB 的 Blob：头、中、尾三个字节都对
++ # MB 的 Blob：长度
++ # 不拒绝，只是 ok=false
++ # 个字节不全是 #
++ # 个字节里 # 个取值都出现了
++ # 个请求全都有结果
++ # 位以内的 BigInt 一位不丢
++ # 到 # 每个字节值编了再解，原样回来
++ # 向零取整成 #
++ # 和 "#" 是两个标识
++ # 字节正好可以
++ # 的 status
++ # 的网页：httpResponseCode 是 #
++ # 的网页：加载本身算成功，状态码在 did-navigate 上
++ # 转成 false
++ # 间隔的重复每次都回一趟队列（别的定时器插得进来）
++ #x# 像素、scale # → size #x#
++ '#' 转成 #
++ 'false' 是非空字符串，转成 true
++ 'false' 转成 true
++ (#, #) 正好盖住那个表情
++ -#：存下来了
++ <iframe> 里够得着通道
++ <iframe> 里的加载：不派发 will-navigate
++ @ 开头的名字是运行时保留的
++ @#x/@#x 被自动选中（倍率 > #）
++ APNG：不带扩展名也找得到，帧数
++ APNG：播 # 遍
++ ASIdentifierManager 不能 new
++ ASIdentifierManager 是全局的类
++ ATTrackingManager 不能 new
++ ATTrackingManager 不能继承
++ ATTrackingManager 是全局的类
++ AbortSignal.timeout 到点中止
++ App 发起的 loadFile 不派发 will-navigate
++ ArrayBuffer body 不加 Content-Type
++ BigInt.prototype.toLocaleString
++ Blob body 用 Blob 的 type
++ Blob 的 size 不变
++ Blob 的 type 是 undefined：默认空串
++ Blob 能取出字节
++ Blob 解得出图
++ CALayer.borderColor 过了 CGColor，读回合成值
++ CAMediaTimingFunction 不可构造
++ CAShapeLayer 也是 CALayer
++ CATransaction 不可构造
++ CLOSED
++ CLOSING
++ CNContact 不能 new
++ CNContactFormatter 不能 new
++ CNContactProperty 不能 new
++ CNLabeledValue 不能 new
++ CNPhoneNumber 不能 new
++ CONNECTING
++ Crypto 不能 new: Illegal constructor
++ DataCloneError 是 Error 的实例
++ DataCloneError 的 name
++ DataCloneError 的信息里说了不能克隆
++ DataView 被拒: TypeMismatchError
++ Date 抛（第一版不支持）
++ Date.prototype.toLocaleString 认地区了
++ GC 之后用孤儿锚点建约束并激活
++ GC 之后：actions 里还是原来那个按钮的包装
++ GC 之后：textFields 里还是原来那个输入框的包装
++ GIF：一直循环读出来是 Infinity
++ GIF：帧数
++ GIF：播一遍的时长（秒）
++ GIF：每帧时长（秒）
++ HTTP 状态
++ Infinity 抛
++ Infinity 被拒
++ Info.plist 里声明了 nacre-acceptance 这个协议
++ Info.plist 里有 NSUserTrackingUsageDescription
++ Intl 是个对象
++ Intl.DateTimeFormat 是个函数
++ Intl.DateTimeFormat 比对完了：# 条和网页比，# 条断言抛
++ Intl.NumberFormat 比对完了：# 条和网页比，# 条断言抛
++ Intl.NumberFormat 没被这一步弄坏
++ JSON 里是两个数
++ Keychain 记到的启动次数
++ LAContext 是全局的类
++ NFC 不动连字 ﬁ
++ NFC 把三个谚文字母拼成音节
++ NFC 把假名和浊点合成一个字
++ NFC 把埃的符号换成字母 Å
++ NFD 把 é 拆成 e + 组合记号
++ NFD 把谚文音节拆成三个字母
++ NFKC 把半角片假名换成全角
++ NFKC 把连字 ﬁ 拆成 f、i
++ NFKD 把带圈的 ① 换成 #
++ NSItemProvider 上没有 loadDataRepresentationForTypeIdentifier
++ NSItemProvider 上没有 loadFileRepresentationForTypeIdentifier
++ NSItemProvider 上没有 loadItemForTypeIdentifier
++ NSItemProvider 上没有 registerObject
++ NSItemProvider 不给东西：new NSItemProvider supports only a UIImage for now, got undefined
++ NSItemProvider 给字符串：new NSItemProvider supports only a UIImage for now, got "hello"
++ NSRunLoop 不可构造
++ NSTextContainer 不能 new
++ NaN 抛
++ NaN 被拒
++ Number.prototype.toLocaleString 认地区了
++ OPEN
++ Object.create 当参数传
++ Object.create 挂监听器
++ Object.create 派发事件
++ Object.create 的原型链本来就该是对的
++ Object.create 读属性
++ OpenURLEvent 是全局的类
++ PHPhotoLibrary 上没有 authorizationStatus
++ PHPhotoLibrary 上没有 presentLimitedLibraryPickerFromViewController
++ PHPhotoLibrary 上没有 requestAuthorization
++ PHPhotoLibrary 不能 new：Illegal constructor: PHPhotoLibrary is created by the runtime, not by new
++ PHPickerConfiguration 上没有 disabledCapabilities
++ PHPickerConfiguration 上没有 edgesWithoutContentMargins
++ PHPickerConfiguration 上没有 metadataOptions
++ PHPickerConfiguration 上没有 preselectedAssetIdentifiers
++ PHPickerConfiguration 上没有 searchText
++ PHPickerFilter 不能 new：Illegal constructor: PHPickerFilter is created by the runtime, not by new
++ PHPickerResult 不能 new：Illegal constructor: PHPickerResult is created by the runtime, not by new
++ PHPickerResult 有 itemProvider
++ PHPickerViewController 上没有 delegate
++ PHPickerViewController 上没有 deselectAssetsWithIdentifiers
++ PHPickerViewController 上没有 moveAssetWithIdentifier
++ PHPickerViewController 上没有 scrollToInitialPosition
++ PHPickerViewController 上没有 updatePickerUsingConfiguration
++ PHPickerViewController 上没有 zoomIn
++ PHPickerViewController 上没有 zoomOut
++ PHPickerViewController 不给配置：new PHPickerViewController needs a PHPickerConfiguration, got undefined
++ PHPickerViewController 给别的原生对象：new PHPickerViewController needs a PHPickerConfiguration, got an object
++ PHPickerViewController 给的不是配置：new PHPickerViewController needs a PHPickerConfiguration, got an object
++ POST 的 body 到了服务器（含中文）
++ POST 的 method 到了服务器
++ Performance 不能 new: Illegal constructor
++ Request 上的 signal 中止：fetch(request) 以 AbortError 被拒
++ Request 上的 signal 中止：服务端看到连接断了
++ Request 上的 signal 在读内容时中止：在等的 read 以 AbortError 被拒
++ Request 上的 signal 在读内容时中止：服务端看到连接断了
++ Request 同样加默认的 Content-Type
++ Request 的 method 是 undefined：默认 GET
++ Request 的 signal：clone() 保留
++ Request 的 signal：init 里写 null 是去掉
++ Request 的 signal：init 里带了就用 init 的
++ Request 的 signal：init 里是 undefined 视为没带
++ Request 的 signal：不是 AbortSignal 抛 TypeError
++ Request 的 signal：两个没带的 Request 各有各的
++ Request 的 signal：中止之后从 Request 上读到的也是中止的
++ Request 的 signal：从已有的 Request 构造，跟着它
++ Request 的 signal：去掉之后不跟着原来的中止
++ Request 的 signal：只读，写了抛 TypeError
++ Request 的 signal：带了哪个就是哪个
++ Request 的 signal：每次读是同一个对象
++ Request 的 signal：没带也有一个 AbortSignal
++ Request 的 signal：没带的那个没有中止
++ Request：arrayBuffer() 是 UTF-# 字节
++ Request：blob() 的大小
++ Request：body 是 Blob，blob() 读回同样的字节
++ Request：body 是类型数组
++ Request：json()
++ Request：text()
++ Request：第二次读被拒
++ Request：读之前 bodyUsed
++ Request：读之后 bodyUsed
++ Response 的 status 是 undefined：默认 #
++ Response 的 statusText 是 undefined：默认空串
++ Response 给的 Blob：改读出的缓冲区不影响它
++ Response：arrayBuffer()
++ Response：blob() 的大小
++ Response：body 是 ArrayBuffer
++ Response：body 是 Blob
++ Response：body 是类型数组
++ Response：json()
++ Response：text()
++ Response：第二次读被拒
++ Response：读之后 bodyUsed
++ SF Symbol 拿得到
++ Session 不能自己建
++ Set-Cookie 不合并
++ String.prototype.normalize 比对完了：# 条和网页比，# 条断言抛
++ TextDecoder 不带 new 调用抛 TypeError
++ TextDecoder 的 encoding 只读，写它抛 TypeError
++ TextDecoder 的 fatal 只读，写它抛 TypeError
++ TextDecoder 的 ignoreBOM 只读，写它抛 TypeError
++ TextDecoder 的 toString 标签
++ TextDecoder 的默认值
++ TextEncoder 不带 new 调用抛 TypeError
++ TextEncoder 和 TextDecoder 都是函数
++ TextEncoder 的 encoding 只读，写它抛 TypeError
++ TextEncoder 的 encoding 是 utf-#
++ TextEncoder 的 toString 标签
++ TypeError: Illegal constructor
++ UIAlertAction 不能 new：Illegal constructor: UIAlertAction has no public initializer; use UIAlertAction.actionWithTitle(title, { style })
++ UIAlertController 不能 new：Illegal constructor: UIAlertController has no public initializer; use UIAlertController.alertControllerWithTitle(title, { message, preferredStyle })
++ UIBlurEffect 不能 new，报错里指到工厂方法
++ UIButton.setTitleColor
++ UIButton：traitchange 能订也能退
++ UICollectionReusableView 不能 new
++ UICollectionViewCell 不能 new
++ UICollectionViewCompositionalLayout 不能 new
++ UICollectionViewLayout 不能 new
++ UICollectionViewListCell 不能 new
++ UIColor 不可直接构造: Illegal constructor: UIColor is created by the runtime, not by new
++ UIColorWell.maximumLinearExposure 写回原值，读到的不变
++ UIColorWell.maximumLinearExposure 读出来是数
++ UIColorWell.selectedColor 写回原值，读到的不变
++ UIColorWell.selectedColor 读出来是颜色的字符串或 null
++ UIColorWell.supportsAlpha 写回原值，读到的不变
++ UIColorWell.supportsAlpha 读出来是布尔
++ UIColorWell.supportsEyedropper 写回原值，读到的不变
++ UIColorWell.supportsEyedropper 读出来是布尔
++ UIColorWell.title 写回原值，读到的不变
++ UIColorWell.title 读出来是字符串或 null
++ UIControl：traitchange 能订也能退
++ UIDatePicker 收到主动触发的 change
++ UIDatePicker 是 UIControl
++ UIDevice 不能 new: Illegal constructor: UIDevice is created by the runtime, not by new
++ UIFeedbackGenerator 不能 new: Illegal constructor: UIFeedbackGenerator has no public initializer; use one of its subclasses, e.g. UIImpactFeedbackGenerator.feedbackGeneratorWithStyle(style, { forView: view })
++ UIFont 不可直接构造: Illegal constructor: UIFont is created by the runtime, not by new
++ UIGlassEffect 不能 new，报错里指到工厂方法
++ UIImageView 是 UIView
++ UIImageView.tintColor
++ UIImpactFeedbackGenerator 不能 new: Illegal constructor: UIImpactFeedbackGenerator has no public initializer; use UIImpactFeedbackGenerator.feedbackGeneratorWithStyle(style, { forView: view })
++ UIKit 抛的异常被接住，变成 TypeError
++ UILabel.highlightedTextColor
++ UILabel.shadowColor
++ UILabel.textColor
++ UILabel：traitchange 能订也能退
++ UIListContentConfiguration 不能 new
++ UINavigationController：traitchange 能订也能退
++ UINotificationFeedbackGenerator 不能 new: Illegal constructor: UINotificationFeedbackGenerator has no public initializer; use UINotificationFeedbackGenerator.feedbackGeneratorForView(view)
++ UIPageControl 收到主动触发的 change
++ UIPageControl 是 UIControl
++ UIPasteboard 不能 new: Illegal constructor: UIPasteboard is created by the runtime, not by new
++ UIScrollView 手写的 contentSize 照常
++ UIScrollView.allowsKeyboardScrolling 写回原值，读到的不变
++ UIScrollView.allowsKeyboardScrolling 读出来是布尔
++ UIScrollView.bouncesHorizontally 写回原值，读到的不变
++ UIScrollView.bouncesHorizontally 读出来是布尔
++ UIScrollView.bouncesVertically 写回原值，读到的不变
++ UIScrollView.bouncesVertically 读出来是布尔
++ UIScrollView.bouncesZoom 写回原值，读到的不变
++ UIScrollView.bouncesZoom 读出来是布尔
++ UIScrollView.contentAlignmentPoint 写回原值，读到的不变
++ UIScrollView.contentAlignmentPoint 读出来是 CGPoint
++ UIScrollView.directionalPressGestureRecognizer 读出来是 UIGestureRecognizer 或 null
++ UIScrollView.indexDisplayMode 写回原值，读到的不变
++ UIScrollView.indexDisplayMode 读出来是 automatic / alwaysHidden 里的一个
++ UIScrollView.isZoomAnimating 读出来是布尔
++ UIScrollView.isZoomBouncing 读出来是布尔
++ UIScrollView.isZooming 读出来是布尔
++ UIScrollView.maximumZoomScale 写回原值，读到的不变
++ UIScrollView.maximumZoomScale 读出来是数
++ UIScrollView.minimumZoomScale 写回原值，读到的不变
++ UIScrollView.minimumZoomScale 读出来是数
++ UIScrollView.panGestureRecognizer 读出来是 UIPanGestureRecognizer 或 null
++ UIScrollView.pinchGestureRecognizer 读出来是 UIPinchGestureRecognizer 或 null
++ UIScrollView.scrollIndicatorInsets 写回原值，读到的不变
++ UIScrollView.scrollIndicatorInsets 读出来是 UIEdgeInsets
++ UIScrollView.transfersHorizontalScrollingToParent 写回原值，读到的不变
++ UIScrollView.transfersHorizontalScrollingToParent 读出来是布尔
++ UIScrollView.transfersVerticalScrollingToParent 写回原值，读到的不变
++ UIScrollView.transfersVerticalScrollingToParent 读出来是布尔
++ UIScrollView.zoomScale 写回原值，读到的不变
++ UIScrollView.zoomScale 读出来是数
++ UIScrollView：traitchange 能订也能退
++ UISegmentedControl 收到主动触发的 change
++ UISegmentedControl 是 UIControl
++ UISelectionFeedbackGenerator 不能 new: Illegal constructor: UISelectionFeedbackGenerator has no public initializer; use UISelectionFeedbackGenerator.feedbackGeneratorForView(view)
++ UISlider 收到主动触发的 change
++ UISlider 是 UIControl
++ UIStepper 收到主动触发的 change
++ UIStepper 是 UIControl
++ UISwitch 收到主动触发的 change
++ UISwitch 是 UIControl
++ UITabBar 不能自己建
++ UITabBarController：traitchange 能订也能退
++ UITabBarItem 不带参数也能建
++ UITextField 手写的 placeholder 照常
++ UITextField.allowedWritingToolsResultOptions 写回原值，读到的不变
++ UITextField.allowedWritingToolsResultOptions 读出来是名字的数组
++ UITextField.allowsEditingTextAttributes 写回原值，读到的不变
++ UITextField.allowsEditingTextAttributes 读出来是布尔
++ UITextField.allowsNumberPadPopover 写回原值，读到的不变
++ UITextField.allowsNumberPadPopover 读出来是布尔
++ UITextField.background 写回原值不抛
++ UITextField.background 读出来是 UIImage 或 null
++ UITextField.clearsOnInsertion 写回原值，读到的不变
++ UITextField.clearsOnInsertion 读出来是布尔
++ UITextField.disabledBackground 写回原值不抛
++ UITextField.disabledBackground 读出来是 UIImage 或 null
++ UITextField.inlinePredictionType 写回原值，读到的不变
++ UITextField.inlinePredictionType 读出来是 default / no / yes 里的一个
++ UITextField.inputView 写回原值不抛
++ UITextField.inputView 读出来是 UIView 或 null
++ UITextField.leftView 写回原值不抛
++ UITextField.leftView 读出来是 UIView 或 null
++ UITextField.leftViewMode 写回原值，读到的不变
++ UITextField.leftViewMode 读出来是 never / whileEditing / unlessEditing / always 里的一个
++ UITextField.mathExpressionCompletionType 写回原值，读到的不变
++ UITextField.mathExpressionCompletionType 读出来是 default / no / yes 里的一个
++ UITextField.rightView 写回原值不抛
++ UITextField.rightView 读出来是 UIView 或 null
++ UITextField.rightViewMode 写回原值，读到的不变
++ UITextField.rightViewMode 读出来是 never / whileEditing / unlessEditing / always 里的一个
++ UITextField.smartDashesType 写 default
++ UITextField.smartDashesType 写 no
++ UITextField.smartDashesType 写 yes
++ UITextField.smartDashesType 写回原值，读到的不变
++ UITextField.smartDashesType 读出来是 default / no / yes 里的一个
++ UITextField.smartInsertDeleteType 写 default
++ UITextField.smartInsertDeleteType 写 no
++ UITextField.smartInsertDeleteType 写 yes
++ UITextField.smartInsertDeleteType 写回原值，读到的不变
++ UITextField.smartInsertDeleteType 读出来是 default / no / yes 里的一个
++ UITextField.smartQuotesType 写 default
++ UITextField.smartQuotesType 写 no
++ UITextField.smartQuotesType 写 yes
++ UITextField.smartQuotesType 写回原值，读到的不变
++ UITextField.smartQuotesType 读出来是 default / no / yes 里的一个
++ UITextField.writingToolsBehavior 写回原值，读到的不变
++ UITextField.writingToolsBehavior 读出来是 none / default / complete / limited 里的一个
++ UITextView.allowedWritingToolsResultOptions 写回原值，读到的不变
++ UITextView.allowedWritingToolsResultOptions 读出来是名字的数组
++ UITextView.allowsEditingTextAttributes 写回原值，读到的不变
++ UITextView.allowsEditingTextAttributes 读出来是布尔
++ UITextView.allowsNumberPadPopover 写回原值，读到的不变
++ UITextView.allowsNumberPadPopover 读出来是布尔
++ UITextView.clearsOnInsertion 写回原值，读到的不变
++ UITextView.clearsOnInsertion 读出来是布尔
++ UITextView.dataDetectorTypes 写回原值，读到的不变
++ UITextView.dataDetectorTypes 读出来是名字的数组
++ UITextView.inlinePredictionType 写 no
++ UITextView.inlinePredictionType 写回原值，读到的不变
++ UITextView.inlinePredictionType 读出来是 default / no / yes 里的一个
++ UITextView.inputView 写回原值不抛
++ UITextView.inputView 读出来是 UIView 或 null
++ UITextView.isFindInteractionEnabled 写回原值，读到的不变
++ UITextView.isFindInteractionEnabled 读出来是布尔
++ UITextView.isWritingToolsActive 读出来是布尔
++ UITextView.mathExpressionCompletionType 写回原值，读到的不变
++ UITextView.mathExpressionCompletionType 读出来是 default / no / yes 里的一个
++ UITextView.smartDashesType 写回原值，读到的不变
++ UITextView.smartDashesType 读出来是 default / no / yes 里的一个
++ UITextView.smartInsertDeleteType 写回原值，读到的不变
++ UITextView.smartInsertDeleteType 读出来是 default / no / yes 里的一个
++ UITextView.smartQuotesType 写 no
++ UITextView.smartQuotesType 写回原值，读到的不变
++ UITextView.smartQuotesType 读出来是 default / no / yes 里的一个
++ UITextView.usesStandardTextScaling 写回原值，读到的不变
++ UITextView.usesStandardTextScaling 读出来是布尔
++ UITextView.writingToolsBehavior 写回原值，读到的不变
++ UITextView.writingToolsBehavior 读出来是 none / default / complete / limited 里的一个
++ UITraitCollection 不能自己建
++ UIVibrancyEffect 不能 new，报错里指到工厂方法
++ UIView.accessibilityIgnoresInvertColors 写回原值，读到的不变
++ UIView.accessibilityIgnoresInvertColors 读出来是布尔
++ UIView.alignmentRectInsets 读出来是 UIEdgeInsets
++ UIView.anchorPoint 写回原值，读到的不变
++ UIView.anchorPoint 读出来是 CGPoint
++ UIView.appliedContentSizeCategoryLimitsDescription 读出来是字符串或 null
++ UIView.autoresizesSubviews 写回原值，读到的不变
++ UIView.autoresizesSubviews 读出来是布尔
++ UIView.autoresizingMask 写回原值，读到的不变
++ UIView.autoresizingMask 读出来是名字的数组
++ UIView.canBecomeFocused 读出来是布尔
++ UIView.clearsContextBeforeDrawing 写回原值，读到的不变
++ UIView.clearsContextBeforeDrawing 读出来是布尔
++ UIView.contentScaleFactor 写回原值，读到的不变
++ UIView.contentScaleFactor 读出来是数
++ UIView.effectiveUserInterfaceLayoutDirection 读出来是 leftToRight / rightToLeft 里的一个
++ UIView.focusGroupIdentifier 写回原值，读到的不变
++ UIView.focusGroupIdentifier 读出来是字符串或 null
++ UIView.isExclusiveTouch 写回原值，读到的不变
++ UIView.isExclusiveTouch 读出来是布尔
++ UIView.isFocused 读出来是布尔
++ UIView.isMultipleTouchEnabled 写回原值，读到的不变
++ UIView.isMultipleTouchEnabled 读出来是布尔
++ UIView.largeContentImage 写回原值不抛
++ UIView.largeContentImage 读出来是 UIImage 或 null
++ UIView.largeContentImageInsets 写回原值，读到的不变
++ UIView.largeContentImageInsets 读出来是 UIEdgeInsets
++ UIView.largeContentTitle 写回原值，读到的不变
++ UIView.largeContentTitle 读出来是字符串或 null
++ UIView.maskView 写回原值不抛
++ UIView.maskView 读出来是 UIView 或 null
++ UIView.restorationIdentifier 写回原值，读到的不变
++ UIView.restorationIdentifier 读出来是字符串或 null
++ UIView.scalesLargeContentImage 写回原值，读到的不变
++ UIView.scalesLargeContentImage 读出来是布尔
++ UIView.semanticContentAttribute 写回原值，读到的不变
++ UIView.semanticContentAttribute 读出来是 unspecified / playback / spatial / forceLeftToRight / forceRightToLeft 里的一个
++ UIView.showsLargeContentViewer 写回原值，读到的不变
++ UIView.showsLargeContentViewer 读出来是布尔
++ UIView.tintAdjustmentMode 写回原值，读到的不变
++ UIView.tintAdjustmentMode 读出来是 automatic / normal / dimmed 里的一个
++ UIView.tintColor 写回原值，读到的不变
++ UIView.tintColor 读出来是颜色的字符串或 null
++ UIView.viewForFirstBaselineLayout 读出来是 UIView 或 null
++ UIView.viewForLastBaselineLayout 读出来是 UIView 或 null
++ UIViewController：traitchange 能订也能退
++ UIVisualEffect 是基类，不能 new
++ UIWindowScene：traitchange 能订也能退
++ UIWindow：traitchange 能订也能退
++ URLSearchParams body 的默认 Content-Type
++ URLSearchParams 当 body：得到序列化之后的串
++ UUID 是第 # 版的格式
++ Web 全局和网页一致：TextDecoder.decode 一次给完（# 条里不同的）
++ Web 全局和网页一致：TextDecoder.decode 分段给（# 条里不同的）
++ Web 全局和网页一致：TextDecoder.decode 逐个字节值扫（# 条里不同的）
++ Web 全局和网页一致：TextEncoder 和 TextDecoder 的构造、属性、标签（# 条里不同的）
++ Web 全局和网页一致：TextEncoder.encodeInto（# 条里不同的）
++ Web 全局和网页一致：TextEncoder.encode（# 条里不同的）
++ Web 全局和网页一致：atob（# 条里不同的）
++ Web 全局和网页一致：btoa（# 条里不同的）
++ Web 全局和网页一致：structuredClone 不能克隆的和参数不对的（# 条里不同的）
++ Web 全局和网页一致：structuredClone 克隆出来的形状（# 条里不同的）
++ Web 标准的五个全局 比对完了：# 条和网页比，# 条断言抛
++ WebContents 不能自己建
++ WebP：帧数
++ WebP：播 # 遍
++ WebP：播一遍的时长（秒）
++ WebP：每帧时长不一样也读得出来
++ WebSocket：不认识的事件名当自定义事件
++ WebView 不能继承
++ WebView 是 UIView
++ WebView 本身还是一个能用的视图
++ abort 事件派发了
++ above 把它挪到 b 后面
++ accuracyAuthorization 只读
++ accuracyAuthorization 是两个值之一
++ actionWithTitle 给的是 UIAlertAction
++ activateConstraints([#, #, #])
++ activateConstraints([约束, 视图])：混进一个别的也抛
++ addAction 给的不是按钮（字符串）：addAction needs a UIAlertAction
++ addAction 给的不是按钮（颜色）：addAction needs a UIAlertAction
++ addArrangedSubview(不是视图)
++ addAttribute 没给 range
++ addAttribute 没给 value
++ addAttribute 的名字不认识
++ addAttribute 越界
++ addAttributes：原来的属性还在
++ addAttribute：范围里有了
++ addChildViewController 给 null
++ addChildViewController 给的不是页面
++ addLayoutGuide(不是 layout guide)
++ addSublayer 拿到非图层就抛
++ addSubview 直接加到效果视图上被拒
++ addSubview(#)
++ addSubview()
++ addSubview(null)
++ addSubview(不是视图的原生对象)
++ addTextField 返回 UITextField
++ additionalSafeAreaInsets 写进去读得回来
++ additionalSafeAreaInsets 生效：子页面的安全区底边
++ additionalSafeAreaInsets 生效：贴着安全区的那行字离页面底边 # pt
++ additionalSafeAreaInsets 给的不是结构体
++ additionalSafeAreaInsets 读回来的是 UIEdgeInsets
++ additionalSafeAreaInsets 默认四边都是 #
++ adjustedContentInset 这里等于 contentInset
++ advertisingIdentifier 只读，写了抛 TypeError
++ advertisingIdentifier 是字符串
++ alert 是 dark 的别名，读回来是 dark
++ alignment 写错：不抛、值不变
++ alignment 读写
++ allFilterMatchingSubfilters 不收空数组：allFilterMatchingSubfilters needs at least one PHPickerFilter
++ allFilterMatchingSubfilters 给的是 PHPickerFilter
++ allowableMovement 可写
++ allowedScrollTypesMask 不是数组被拒
++ allowedScrollTypesMask 不认识的名字：不抛、值不变
++ allowedScrollTypesMask 写回空数组
++ allowedScrollTypesMask 只留一个
++ allowedScrollTypesMask 可写
++ allowsContinuousInteraction 可写
++ allowsDefaultTighteningForTruncation 写 false
++ allowsDefaultTighteningForTruncation 写 true
++ allowsEditing
++ allowsEditing 写得进去
++ allowsEditing 默认 false
++ allowsMultipleSelection 可写
++ allowsProminentActivity 写得进去
++ allowsSelection 可写
++ altitude 是有限的数或 null
++ animated 是 undefined 视为没带
++ animations 不是函数
++ animations 当场执行：调用返回之前已经跑过一次
++ animations 里抛的异常原样传给调用方
++ animations 里能调别的原生接口，写进去当场读得回来
++ anyFilterMatchingSubfilters 不收空数组：anyFilterMatchingSubfilters needs at least one PHPickerFilter
++ anyFilterMatchingSubfilters 给的是 PHPickerFilter
++ anyFilterMatchingSubfilters 要数组：anyFilterMatchingSubfilters needs an array of PHPickerFilter, got an object
++ appearance 只读
++ appearance 是建的时候给的
++ appendAttributedString
++ appendAttributedString 给字符串
++ appendPath 之后 bounds 扩大
++ application.keychain 是能力包挂在原型上的取值器
++ application.scenes 里也只有一个
++ applySnapshot 给的不是快照
++ applySnapshot 返回 Promise
++ applySnapshotUsingReloadData 给的不是快照
++ applySnapshotUsingReloadData：两个分区
++ applyTransform 就地平移
++ apportionsSegmentWidthsByContent 可写
++ arrayBuffer 内容对得上
++ arrayBuffer 是 ArrayBuffer
++ arrayBuffer 长度
++ arrayForKey 对非数组给 null
++ assetIdentifier 没有接
++ atIndex 插到最前
++ atIndex 是负数：atIndex must be a non-negative integer, got -#
++ atIndex 超过段数：插在最后
++ atIndex 转不出数：atIndex must be a finite number, got NaN
++ atob 不给参数：抛 TypeError
++ atob 抛的是 Error 的实例
++ atob 抛的错 name 是 InvalidCharacterError
++ atob(null) 按字符串转成 "null"，正好是合法的四个字符
++ atob：ASCII 空白先去掉（空格、制表、换行、换页、回车）
++ atob：URL 安全的那两个字符（- 和 _）不认，抛
++ atob：三个等号，抛
++ atob：不带补位也行
++ atob：不间断空格不算空白，抛
++ atob：丢掉的那几位不是 # 也照常解
++ atob：两段拼起来中间有补位，抛
++ atob：五个字符也是余 #
++ atob：只有空白是空串
++ atob：四个字符三个字节
++ atob：字母表之外的字符，抛
++ atob：带补位
++ atob：汉字，抛
++ atob：空串
++ atob：空白夹在补位中间也行
++ atob：等号在中间，抛
++ atob：纵向制表符不算空白，抛
++ atob：补位只给一个等号、总长不是 # 的倍数，抛
++ atob：返回的字符串每个字符是一个字节
++ atob：长度除以 # 余 #，抛 InvalidCharacterError
++ attachment 给图片
++ attachment：读回来是写进去的那个对象
++ attribute() 没给 atIndex
++ attribute() 的名字不认识
++ attribute()：对象属性给对象
++ attribute()：有的给值
++ attribute()：没有的给 null
++ attributedPlaceholder 写 null
++ attributedPlaceholder 给字符串
++ attributedStringWithAttachment 带属性
++ attributedStringWithAttachment 给图片
++ attributedStringWithAttachment：长度 #
++ attributedSubstringFromRange 越界
++ attributedTitleForState 的状态写错
++ attributesAtIndex 给负数
++ attributesAtIndex 越界
++ authorizationStatus 只读
++ authorizationStatus 是五个值之一
++ authorizationStatusForAccessLevel(addOnly) 是五个状态之一（现在是 notDetermined）
++ autocapitalizationType
++ autocapitalizationType 写错：不抛、值不变
++ autocorrectionType
++ autocorrectionType 写错：不抛、值不变
++ automatic 样式下切到年月：可以
++ autorepeat 可写
++ autoreverses 写得进去
++ backgroundColor 写 null 退回默认
++ backgroundColor 可写
++ backgroundColor：语义色读回短名
++ backgroundStyle
++ backgroundStyle 可写
++ badgeColor 写得进去
++ badgeColor 默认是 null（系统的红色）
++ badgeValue 写 null 是去掉角标
++ badgeValue 写得进去
++ badgeValue 给数：按 String() 转
++ badgeValue 默认是 null
++ bar 样式比 # 细
++ bar.text 写的，输入框读得到
++ barStyle 写得进去
++ barStyle 给数字：不抛、值不变
++ barTintColor 写 null：清掉
++ barTintColor 写得进去，读回原来的写法
++ barTintColor 写颜色名
++ base 下的点段
++ baseWritingDirection 写错：不抛、值不变
++ baseWritingDirection 读写
++ baselineOffset
++ becomeFirstResponder 之后搜索框是 first responder
++ beforedisplay 不能取消
++ beforedisplay 带 indexPath，是 NSIndexPath
++ below 把它挪到 a 前面
++ biometryType 只读
++ biometryType 是四个名字之一
++ blob() 返回 Blob
++ blob.size
++ body 不能读第二次
++ body 流：# 的 status
++ body 流：# 的响应 arrayBuffer() 是 # 字节
++ body 流：# 的响应 body 是 null
++ body 流：AbortSignal.timeout 到时间，在等的 read 以 AbortError 被拒
++ body 流：HEAD 的响应 Content-Length 照样读得到
++ body 流：HEAD 的响应 body 是 null
++ body 流：HEAD 的响应 text() 是空串
++ body 流：HEAD 的响应读了也不算 bodyUsed
++ body 流：ReadableStream 是全局的类
++ body 流：ReadableStreamDefaultReader 是全局的类
++ body 流：Request 上没有 body
++ body 流：Response 上没有 clone
++ body 流：Symbol.asyncIterator 和 values 是同一个函数
++ body 流：arrayBuffer() 一调用 body 就是锁住的
++ body 流：arrayBuffer() 一调用就算读过
++ body 流：arrayBuffer() 之后 getReader() 抛
++ body 流：arrayBuffer() 之后 stream.cancel() 被拒
++ body 流：arrayBuffer() 的结果不受影响
++ body 流：blob() 照常
++ body 流：body 是 Blob
++ body 流：body 是中文，给的是 UTF-# 的字节
++ body 流：body 是类型数组
++ body 流：break 之前走了两轮
++ body 流：break 之后不再 locked
++ body 流：break 之后再读是 done（流被取消了）
++ body 流：break 之后服务端看到连接断了
++ body 流：cancel 之后 closed 兑现
++ body 流：cancel 之后 read 是 done
++ body 流：cancel 之后 text() 被拒
++ body 流：cancel 之后服务端看到连接断了（请求真的停了）
++ body 流：cancel 也算读过
++ body 流：cancel 时在等的 read 以 done 结束
++ body 流：cancel 时在等的 read 没有被拒
++ body 流：cancel 第二次照样兑现
++ body 流：fetch() 兑现不晚于第一块内容到达
++ body 流：for await 拿到每一块
++ body 流：for await 期间是 locked
++ body 流：for await 走完之后 bodyUsed
++ body 流：for await 走完之后不再 locked
++ body 流：getReader() 给的是 ReadableStreamDefaultReader
++ body 流：getReader(undefined) 和不带参数一样
++ body 流：getReader({ mode: "byob" }) 抛 TypeError
++ body 流：new ReadableStream() 抛 TypeError
++ body 流：new ReadableStreamDefaultReader(不是流) 抛
++ body 流：new ReadableStreamDefaultReader(流) 等于 getReader()
++ body 流：new Response("abc").body 是 ReadableStream
++ body 流：new Response() 的 body 是 null
++ body 流：new Response(null) 的 body 是 null
++ body 流：preventCancel 时 break 之后不再 locked
++ body 流：preventCancel 时 break 之后还能接着读
++ body 流：read 过之后 bodyUsed
++ body 流：reader.cancel() 兑现成 undefined
++ body 流：releaseLock 之后不再 locked
++ body 流：releaseLock 第二次不抛
++ body 流：stream.cancel() 之后读是 done
++ body 流：stream.cancel() 也算读过
++ body 流：text() 之后 body 是锁住的
++ body 流：text() 之后 bodyUsed
++ body 流：text() 之后 getReader() 抛
++ body 流：value 是 Uint#Array
++ body 流：values() 一调用就锁住
++ body 流：一开始 bodyUsed 是 false
++ body 流：一开始没锁
++ body 流：不停发的响应读得到第一块
++ body 流：不是攒到最后一次给的（至少分两次）
++ body 流：丢掉之前请求还在跑
++ body 流：中止之后 closed 被拒，也是 AbortError
++ body 流：中止之后再 read 还是 AbortError
++ body 流：中止之后服务端看到连接断了
++ body 流：中止时在等的 read 被拒
++ body 流：中止时没人在等，下一次 read 被拒
++ body 流：中止的异常 name 是 AbortError
++ body 流：先发的 # 个字节和后发的都读得到
++ body 流：内容一块给完
++ body 流：内容到齐了但还没读就中止，read 也被拒
++ body 流：内容和顺序对得上
++ body 流：内容没到时 read 一直等着
++ body 流：分块传输的响应中途连接被重置，closed 也以 TypeError 被拒
++ body 流：分块传输的响应中途连接被重置，read 以 TypeError 被拒
++ body 流：分块传输的响应中途连接被重置，报错是网络失败那一句
++ body 流：分块传输的响应中途连接被重置，读到的不超过服务端发出的
++ body 流：分块传输的响应没有 Content-Length
++ body 流：分块传输被对端正常关闭截断，读到断开之前的 # 字节
++ body 流：切在汉字中间的那一行拼回来是对的
++ body 流：只取过 body 不影响 arrayBuffer()
++ body 流：只取过 body 不影响 text()
++ body 流：只拿读取器不算读过
++ body 流：只来了这一块
++ body 流：后发的那个字节不会提前到
++ body 流：已读字节数加起来等于 Content-Length
++ body 流：带 Content-Length 的响应没发完就断，closed 也以 TypeError 被拒
++ body 流：带 Content-Length 的响应没发完就断，read 以 TypeError 被拒
++ body 流：带 Content-Length 的响应没发完就断，报错是网络失败那一句
++ body 流：带 Content-Length 的响应没发完就断，读到的不超过服务端发出的
++ body 流：带 Content-Length 的响应读得到它
++ body 流：总共 # 字节
++ body 流：拼出四行，顺序对
++ body 流：拿了读取器之后 locked
++ body 流：换一个读取器，内容还在
++ body 流：换的读取器接着读到头
++ body 流：接着读，请求继续（服务端又发了新的）
++ body 流：改了读出来的块，Blob 的内容不变
++ body 流：放开之后（没读过）text() 照常
++ body 流：放开的读取器 cancel() 被拒
++ body 流：放开的读取器 closed 被拒
++ body 流：放开的读取器 read() 被拒
++ body 流：暂停之后接着读到了 # MB
++ body 流：暂停前后的内容是连着的（不是从头再传）
++ body 流：最后 cancel 掉，服务端看到连接断了
++ body 流：最后没有剩下半行
++ body 流：有 read 在等时放开，那个 read 被拒
++ body 流：每一块都不是空的
++ body 流：每次读 body 是同一个对象
++ body 流：没有 EventSource
++ body 流：没有 ReadableStream.from
++ body 流：没有 ReadableStreamBYOBReader
++ body 流：没有 TransformStream
++ body 流：没有 WritableStream
++ body 流：没有 body 时 bodyUsed 保持 false
++ body 流：没有 body 时 text() 还是空串
++ body 流：没有 pipeThrough
++ body 流：没有 pipeTo
++ body 流：没有 tee
++ body 流：没碰 body 时 text() 照常
++ body 流：没锁时 stream.cancel() 兑现
++ body 流：流没读完就没人拿着了，回收之后请求被停掉
++ body 流：空串的 body 不是 null
++ body 流：空串第一次 read 就是 done
++ body 流：空串读过也算 bodyUsed
++ body 流：第一块比最后一块早到 # ms 以上
++ body 流：第一次 read 的 done
++ body 流：等到的那一块
++ body 流：网络响应 cancel 之后 closed 兑现
++ body 流：网络响应 cancel 之后 read 是 done
++ body 流：网络响应 cancel() 兑现成 undefined
++ body 流：网络响应 text() 之后 body 是锁住的
++ body 流：网络响应的 body 是 ReadableStream
++ body 流：网络响应读过一块之后 text() 被拒
++ body 流：背压那个请求取消之后服务端看到连接断了
++ body 流：被拒的读法不算读过
++ body 流：读到头之后 bodyUsed
++ body 流：读到头之后 closed 兑现
++ body 流：读取期间丢掉 Response，read 照常结算
++ body 流：读取期间丢掉 Response，内容完整
++ body 流：读完之后 closed 兑现成 undefined
++ body 流：读完之后 done 是 true
++ body 流：读完之后 value 是 undefined
++ body 流：读完之后再读还是 done
++ body 流：读完之后才中止，closed 还是兑现的
++ body 流：读得慢时服务端被挡住（请求被暂停了）
++ body 流：读过一块再放开，text() 被拒
++ body 流：这一块占满它自己的缓冲区
++ body 流：这种截断系统不报错，流正常结束
++ body 流：进度是递增的
++ body 流：进度最后到 #
++ body 流：连着调两次 read，第一次拿到内容
++ body 流：连着调两次 read，第二次是 done
++ body 流：迭代器 return 之后放开了锁
++ body 流：迭代器 return 把值带回来
++ body 流：迭代器 return 把流取消了（之后读是 done）
++ body 流：迭代器 return 的 done
++ body 流：迭代器到头
++ body 流：迭代器到头之后放开了锁
++ body 流：迭代器的 next 给出一块
++ body 流：那句报错和以前「读过第二次」是同一句
++ body 流：那句报错说的是还不能自己造
++ body 流：锁住时 arrayBuffer() 被拒
++ body 流：锁住时 blob() 被拒
++ body 流：锁住时 for await 被拒
++ body 流：锁住时 json() 被拒
++ body 流：锁住时 new ReadableStreamDefaultReader(流) 抛
++ body 流：锁住时 stream.cancel() 被拒
++ body 流：锁住时 text() 被拒
++ body 流：锁住时再 getReader() 抛
++ body 读过之后 bodyUsed
++ boolForKey 对真布尔给 true
++ borderColor 默认是不透明黑，不是 null
++ borderStyle 写错：不抛、值不变
++ borderWidth 写进去了
++ borderWidth 默认 #
++ bouncesZoom 写得进去
++ boundingRectWithSize 没给大小
++ boundingRectWithSize 的选项写错：列出能用的
++ boundingRectWithSize 给的是 CGRect
++ bounds 不受 transform 影响
++ bounds 包住整条折线
++ bounds 是 CGRect
++ bounds 读写
++ bounds 跟着 frame 走
++ bringSubviewToFront(不是视图)
++ btoa 不给参数：抛 TypeError
++ btoa 和 atob 都是函数
++ btoa 抛的是 Error 的实例
++ btoa 抛的错 name 是 InvalidCharacterError
++ btoa 给 Symbol：抛 TypeError
++ btoa 给数字，按字符串转
++ btoa(null) 按字符串转成 "null"
++ btoa：# 到 # 的字符都能编
++ btoa：一个字节补两个等号
++ btoa：三个字节正好四个字符
++ btoa：两个字节补一个等号
++ btoa：刚好超过的 U+# 也抛
++ btoa：有超过 #xFF 的字符，抛 InvalidCharacterError
++ btoa：用到 + 和 / 的那两个值
++ btoa：空串
++ btoa：表情抛 InvalidCharacterError
++ buttonType 读回来
++ buttonWithType 给的是 UIButton
++ calculationMode 写得进去
++ calculationMode 写错：不抛、值不变
++ canEvaluatePolicy(生物认证) 是布尔
++ canEvaluatePolicy(生物认证或密码) 是布尔
++ canEvaluatePolicyError(deviceOwnerAuthentication) 不抛
++ canEvaluatePolicyError(deviceOwnerAuthentication)：能认证时是 null，不能时不是
++ canEvaluatePolicyError(deviceOwnerAuthenticationWithBiometrics) 不抛
++ canEvaluatePolicyError(deviceOwnerAuthenticationWithBiometrics)：能认证时是 null，不能时不是
++ canEvaluatePolicyError：不带策略抛
++ canEvaluatePolicyError：不认识的策略抛，并列出可选值
++ canEvaluatePolicyError：策略给数字抛
++ canEvaluatePolicyError：配套设备的策略不支持
++ canEvaluatePolicy：不带策略抛
++ canEvaluatePolicy：不认识的策略抛，并列出可选值
++ canEvaluatePolicy：策略给数字抛
++ canEvaluatePolicy：配套设备的策略不支持
++ canLoadObjectOfClass 只认 UIImage：canLoadObjectOfClass supports only UIImage for now, got UIColor
++ canLoadObjectOfClass(UIImage)
++ canParse 不抛
++ cancelsTouchesInView 可写
++ capInsets 收普通对象
++ card 宽
++ card 自己身上有约束
++ card 高
++ cellConfiguration 给的是 UIListContentConfiguration
++ cellForItemAtIndexPath 给的就是 cellProvider 返回的那个对象
++ cellProvider 之外 insideProvider 是 false（它确实是成对执行的）
++ cellProvider 抛了：App 没崩，列表里还是有这一项
++ cellProvider 没返回单元格：App 没崩
++ cellProvider 的第一个参数就是这个列表
++ cellProvider 被调过了
++ center 也不受影响
++ change 上也没有 tapCount
++ change 上根本没有 location 这个字段
++ change 事件到了
++ changeCount 只读: true
++ changeCount 是数
++ child.parentViewController 是它
++ clear 之后一个键都没有
++ clear 也建得出来
++ clearTimeout 生效
++ clone() 出来的 Request：中止照样取消
++ clone() 出来的 Request：服务端看到连接断了
++ clone：副本不受原件影响
++ clone：副本也读得出
++ clone：原件读得出
++ clone：读过之后再 clone 抛（和 Web 一致）
++ close 之后是 CLOSING
++ close() 之后 isDestroyed() 是 true
++ close() 时还在加载的那次：拒绝，AbortError
++ collectionViewLayout 是建的时候给的那个
++ colors 读回来两个
++ colors 读回来是字符串，而且是原样
++ compact
++ compact 样式下切到倒计时：datePickerMode "countDownTimer" only works with the wheels style, but preferredDatePickerStyle is "compact"; set it to "wheels" or "automatic" first
++ compact 样式下切到年月：datePickerMode "yearAndMonth" only works with the wheels style, but preferredDatePickerStyle is "compact"; set it to "wheels" or "automatic" first
++ complete：target 是分享面板
++ complete：没有完成
++ complete：没有选任何动作
++ complete：没有错误
++ configuration 是只读的：Cannot set property configuration of #<PHPickerViewController> which has only a getter
++ containsAttachmentsInRange：有
++ containsAttachmentsInRange：没有
++ containsPoint：外面
++ containsPoint：里面
++ contentConfiguration 读得回来
++ contentLayoutGuide 是 UILayoutGuide
++ contentMode 写入生效
++ contentOffsetForSegmentAtIndex 给的是 CGSize
++ contentOffsetForSegmentAtIndex 越界：contentOffsetForSegmentAtIndex: segment # is out of range; expected # to #
++ contentSize 宽
++ contentSize 由约束算出来
++ contentView 不是效果视图自己
++ contentView 只读
++ contentView 是 UIView
++ contentView 每次读是同一个对象
++ contentView 的父视图是效果视图
++ contentView 读两次是同一个包装
++ contentView 跟着效果视图的大小走
++ contentView 里的内容没受影响
++ contentView 里能放自己的视图
++ contents 写 null 是清空
++ contents 写进去的对象原样读回来
++ contents 的 values 给数字会抛
++ contents 给字符串会抛
++ contents.send 带了函数：当场抛
++ contents.send：网页的 ipcRenderer.on 收到了，once 只收一次
++ contentsScale 写得进去
++ convertPoint 的 toView 不是视图
++ convertPoint 的 toView 是 null：换算到窗口坐标，不抛
++ cookie 变了会派发 changed
++ cookies：不认识的事件名当自定义事件
++ coordinate 是 CLLocationCoordinate#D
++ copy()：不可改
++ copy()：值相同
++ copy()：内容相同
++ cornerCurve 写进去了
++ cornerCurve 实测默认 continuous
++ cornerRadius 默认 #
++ countDownDuration 是负数：countDownDuration must be between # and # seconds, got -#
++ countDownDuration 超过 #:#：countDownDuration must be between # and # seconds, got #
++ countDownDuration 转不出数：countDownDuration must be a finite number, got "an hour"
++ course 是 # 到 # 的数或 null
++ courseAccuracy 是不小于 # 的数或 null
++ crypto 是 Crypto 的实例
++ currentAttributedTitle 是 normal 的那个
++ currentAttributedTitle 是只读的
++ currentDevice 是 UIDevice
++ currentMaximumTrackImage 同上
++ currentMinimumTrackImage 是当前状态那张
++ currentPage 可写
++ currentPageIndicatorImageForPage 页码越界：currentPageIndicatorImageForPage: page # is out of range; expected # to #
++ currentPageIndicatorTintColor 可写
++ currentPoint 跟着走
++ currentTitle 用的是当前状态那个
++ currentTitleColor 永远非空
++ customView 读回来是同一个包装
++ dataSource 只读
++ date 写 null：date must be a Date, got null
++ date 写字符串：date must be a Date, got "#-#-#"
++ date 写无效的 Date：date must be a valid Date, got an invalid one
++ date 写时间戳：date must be a Date, got #
++ date 可写，毫秒不丢
++ date 读出来是 Date
++ datePickerMode
++ datePickerMode 可写
++ datePickerStyle 只读：Cannot set property datePickerStyle of #<UIDatePicker> which has only a getter
++ dateStyle + timeStyle，换到纽约是前一天晚上
++ dateStyle 不能和单个字段一起用，抛 TypeError
++ de-DE 欧元（中间是不换行空格）
++ decode 不改输入
++ decode 不给参数是空串
++ decode 在别的对象上调用：抛 TypeError
++ decode 的 options 给 null 视为空对象
++ decode 的 options 给数字：抛 TypeError
++ decode 给 null：抛 TypeError
++ decode 给字符串：抛 TypeError
++ decode 给数字：抛 TypeError
++ decode 给普通数组：抛 TypeError
++ decode(undefined) 也是空串
++ decode：ArrayBuffer
++ decode：DataView
++ decode：DataView 带偏移和长度
++ decode：Int#Array
++ decode：SharedArrayBuffer 和建在它上面的视图
++ decode：Uint#Array
++ decode：Uint#Array 按它底下的字节读
++ decode：带偏移的子视图只读它覆盖的那一段
++ decode：建在缓冲区中间的 Uint#Array
++ decode：空的数组
++ defaultParagraphStyle 是 NSParagraphStyle
++ defaultParagraphStyle 的 alignment
++ defaultTabInterval 读写
++ delaysTouchesBegan 可写
++ delaysTouchesEnded 可写
++ delete
++ delete 大小写不敏感
++ deleteAllItems 连分区一起清掉
++ deleteBackward 也是
++ deleteBackward 也派发 input
++ deleteBackward 删光标前面那一个
++ deleteCharactersInRange
++ deleteCharactersInRange 越界
++ deselectItemAtIndexPath
++ destroyed 不会来第二次
++ deviceOwnerAuthenticationWithBiometrics 的原因：code 是数
++ deviceOwnerAuthenticationWithBiometrics 的原因：domain
++ deviceOwnerAuthenticationWithBiometrics 的原因：message 是非空字符串
++ deviceOwnerAuthenticationWithBiometrics 的原因：name 是「开始不了」的四种之一
++ deviceOwnerAuthenticationWithBiometrics 的原因：name 是约定的十二个之一
++ deviceOwnerAuthenticationWithBiometrics 的原因：两次问到的是同一种
++ deviceOwnerAuthenticationWithBiometrics 的原因：是 Error
++ deviceOwnerAuthenticationWithBiometrics 的原因：每次问得到一个新的对象
++ did-fail-load 的 errorCode 和拒绝的 code 是同一个数
++ did-navigate 在 did-finish-load 之前
++ did-navigate 带着地址
++ did-start-loading 在 did-navigate 之前
++ didMoveToParentViewController 给的不是页面
++ didselectcontactproperties 还不支持，当自定义事件
++ direction 不是数组被拒
++ direction 不认识的名字：不抛、值不变
++ direction 可以给多个
++ direction 可写
++ direction 四个都给
++ direction 给空数组：收下
++ direction 读出来按固定顺序
++ dismiss 兑现
++ dispatchEvent 照常返回 true
++ dispatchEvent 返回 true
++ dispatchEvent 返回之前，error 事件已经派发了
++ display link：不认识的事件名当自定义事件
++ displayScale 是正数
++ displayedPropertyKeys 默认是 null
++ domain 筛：这个域名和它的子域名
++ doubleForKey 同样强制
++ duration 写得进去
++ edges 不是数组被拒
++ edges 写回空数组
++ edges 可写
++ edges 四条边都给
++ edges 没有 'all' 这个名字：不抛、值不变
++ edges 读出来按固定顺序
++ effect
++ effect 写样式名被拒（要的是效果对象）
++ effect 写模糊，读回来是同一个对象
++ effect 写视图被拒
++ effect 写颜色对象被拒
++ effect 写鲜明，读回来是同一个对象
++ effect 可以清掉
++ ellipsoidalAltitude 是有限的数或 null
++ en-IN 的分组是 #-#-#
++ en-US 千分位
++ enablesReturnKeyAutomatically
++ encode 不给参数是空的
++ encode 在别的对象上调用：抛 TypeError
++ encode 每次返回一个新的数组
++ encode 给 Symbol 抛 TypeError
++ encode 给数字，按字符串转
++ encode 返回的是 Uint#Array
++ encode(null) 按字符串转成 "null"
++ encode(undefined) 也是空的
++ encodeInto 不给目标：抛 TypeError
++ encodeInto 的目标是 ArrayBuffer：抛 TypeError
++ encodeInto 的目标是 DataView：抛 TypeError
++ encodeInto 的目标是 Uint#ClampedArray：抛 TypeError
++ encodeInto 的目标是普通数组：抛 TypeError
++ encodeInto 返回的对象只有 read 和 written
++ encodeInto：只写在子视图覆盖的那一段
++ encodeInto：容量是 #
++ encodeInto：放不下时不写半个字
++ encodeInto：放得下，read 是码元数、written 是字节数
++ encodeInto：空串
++ encodeInto：落单的代理项写成 U+FFFD
++ encodeInto：表情算两个码元
++ encodeInto：表情要四个字节，只有三个字节的空位时一个都不写
++ encode：ASCII 一个字符一个字节
++ encode：夹在中间的落单代理项，两边照常
++ encode：带重音的字母两个字节
++ encode：很长的字符串
++ encode：汉字三个字节
++ encode：空字符照常编码
++ encode：落单的低位代理项也换成 U+FFFD
++ encode：落单的高位代理项换成 U+FFFD 的三个字节
++ encode：表情四个字节
++ encode：顺序反了的一对代理项是两个落单的
++ endEditing 之后不再是 first responder
++ enumerateAttributesInRange 没给回调
++ enumerateAttributesInRange 越界
++ enumerateAttributesInRange：两段
++ error 事件带着抛出来的那个对象
++ error 的监听器自己抛：只被调一次，没有绕回来
++ error 这个名字当自定义事件（出错的事件叫 locationerror）
++ errorDescription 是字符串
++ evaluatePolicy：localizedReason 是 null 同步抛（转成空串）
++ evaluatePolicy：localizedReason 是 undefined 视为没带
++ evaluatePolicy：localizedReason 是空串同步抛
++ evaluatePolicy：options 给 null 同步抛
++ evaluatePolicy：options 里没有 localizedReason 同步抛
++ evaluatePolicy：不带 options 同步抛
++ evaluatePolicy：不带策略同步抛
++ evaluatePolicy：不认识的策略同步抛，并列出可选值
++ event.target 是这个文本视图
++ event.type
++ executeJavaScript：Map 带回来是空对象
++ executeJavaScript：NaN 变成 null
++ executeJavaScript：null
++ executeJavaScript：undefined
++ executeJavaScript：函数声明进了网页的全局
++ executeJavaScript：多条语句取最后的值
++ executeJavaScript：多条语句带回的对象，值是对的
++ executeJavaScript：多条语句的结果是 Promise，不等，带不回来
++ executeJavaScript：字符串
++ executeJavaScript：对象的成员顺序和网页里一样（表达式）
++ executeJavaScript：对象里的函数成员没有了
++ executeJavaScript：对象（undefined 的成员没有了）
++ executeJavaScript：布尔
++ executeJavaScript：改了网页再返回值
++ executeJavaScript：数
++ executeJavaScript：数组
++ executeJavaScript：无穷大也变成 null
++ executeJavaScript：日期变成字符串
++ executeJavaScript：结尾带分号也算表达式
++ executeJavaScript：结尾有行注释
++ executeJavaScript：结果是 DOM 节点，带不回来
++ executeJavaScript：结果是 Promise 就等它
++ executeJavaScript：结果是函数，带不回来
++ executeJavaScript：网页确实被改了
++ executeJavaScript：网页里抛了就拒绝，带着原文
++ executeJavaScript：表达式里可以写 await
++ executeJavaScript：被拒绝的 Promise，这边也拒绝
++ executeJavaScript：语法错也拒绝
++ executeJavaScript：过一会儿才兑现的 Promise
++ executeJavaScript：还没加载时也能执行
++ expirationDate 不是数
++ extraDark 只有 tvOS 有，这里不认
++ f# 开头的：每个字节一个 U+FFFD
++ fast 读回字符串
++ fatal + stream：结尾没凑齐的，到冲的那一次才抛
++ fatal 不影响去 BOM
++ fatal 和 ignoreBOM 都给 true
++ fatal 抛的是 TypeError 的实例
++ fatal 按布尔转换：# 是 true
++ fatal 按布尔转换：字符串 "false" 是 true
++ fatal 给 undefined 视为没带
++ fatal：代理项范围抛 TypeError
++ fatal：合法的输入照常解
++ fatal：抛过之后同一个解码器还能用
++ fatal：结尾截断抛 TypeError
++ fatal：过长编码抛 TypeError
++ fatal：非法的字节抛 TypeError
++ fetch 的 signal 不是 AbortSignal：返回被拒绝的 Promise（TypeError），不当场抛
++ fillEqually：三项等宽
++ fillMode 写得进去
++ fillRule 写得进去
++ fillRule 写错：不抛、值不变
++ filter 写 null（所有类型）
++ filter 写别的原生对象：filter needs a PHPickerFilter or null
++ filter 写字符串：filter needs a native object or null, got "images"
++ filter 写进去读得回来（系统存的是副本，用 isEqual 比）
++ filter 换成组合的
++ firstAnchor 就是建它的那个锚点
++ firstAttribute
++ firstLineHeadIndent 读写
++ fixedSpace 的宽度
++ flexibleSpace 也是
++ followsUndockedKeyboard 写得进去
++ font
++ font 给 null
++ font 给字符串
++ font：读回来是写进去的那个对象
++ foregroundColor：写的字符串原样读回
++ formatRange 还不能用，抛 TypeError
++ formatRangeToParts 还不能用，抛 TypeError
++ formatRangeToParts 还不能用，抛 TypeError 并点名
++ formatRange：同一个月里的两天
++ formatToParts 的类型
++ formatToParts 还不能用，抛 TypeError
++ frame 不能动画（它是推出来的）
++ frame 写得进去
++ frame 变成了变换后的包围盒
++ frame 的宽按 |a|+|c| 算
++ frame 的高写得进去
++ fromPartition('') 就是默认的那一份
++ fromPartition('persist:') 也是
++ fromValue 收图片，读出来是 UIImage
++ generalPasteboard 是 UIPasteboard
++ get 取第一个
++ get 的 url 不合法
++ get 给字符串
++ getAll 取全部
++ guide 不画东西但有尺寸
++ guide 占的就是那 #pt 间距
++ guide 的 owningView 就是它
++ guide 读两次是同一个包装
++ hasItemConformingToTypeIdentifier(public.image)
++ hasItemConformingToTypeIdentifier(public.movie)
++ hasStrings 是布尔
++ hasText 只读
++ hash 带井号
++ hash 拼成 # 后面的部分
++ hash 自己带了 # 也行
++ headIndent 读写
++ headerMode 写 supplementary 被拒（还不支持）
++ headerMode 写错值：不抛、值不变
++ headerMode 可写
++ hidesForSinglePage 可写
++ hidesWhenStopped 写得进去
++ highlighted 单独设了就用它自己的
++ highlighted 的读回来内容相同
++ highlightedImage 读回来
++ horizontalAccuracy 是不小于 # 的数（这个位置有效）
++ host 小写化且去掉默认端口
++ hour#: false 换成 # 小时制
++ href 能拼回去
++ httpOnly 筛
++ hyphenationFactor 读写
++ hyphenationFactor 超出 # 到 #
++ iOS # 专属的 cellularIMEI# 可用
++ iOS # 专属的 cellularNAL 可用
++ iOS # 的副标题
++ identifier
++ identifier 能写能读
++ identifierForVendor 是 UUID
++ identity 是单位矩阵
++ identity 的 a
++ ignoreBOM 为真：开头的 BOM 留着
++ ignoreBOM 按布尔转换：# 是 false
++ image
++ image 写 null
++ image 写 null 清掉
++ image 写别的对象被拒
++ image 可写
++ image 给字符串
++ image 读写：读回来是同一个对象
++ imageForSegmentAtIndex 越界：imageForSegmentAtIndex: segment # is out of range; expected # to #
++ imageNamed(#)：名字按字符串用，找不到是 null，不抛
++ imageView 也在
++ imageWithContentsOfFile：帧数
++ imageWithData 带 scale：帧的 size 减半
++ imageWithData 带 scale：帧跟着是 # 倍
++ imageWithData 的 scale
++ imageWithData 的 scale 是 undefined：等于没带
++ imageWithData 给的不是 Blob
++ imageWithData：帧数
++ indexForSectionIdentifier
++ indexForSectionIdentifier 没有：-#
++ indexOfItemIdentifier
++ indexOfItemIdentifier 没有：-#
++ indexOfSectionIdentifier
++ indexOfSectionIdentifier 没有：-#
++ indexPathForCell
++ indexPathForCell 给的不是单元格
++ indexPathForItem
++ indexPathForItem 没给 inSection 抛
++ indexPathForItemAtPoint：没落在任何一项上
++ indexPathForItemAtPoint：第 # 项的中心
++ indexPathForItemIdentifier
++ indexPathForItemIdentifier 没有这一项
++ indexPathForRow
++ indexPathsForSelectedItems 是空数组
++ indexPathsForVisibleItems 是空数组
++ indexPathsForVisibleItems 的个数和 visibleCells 相同
++ indicatorImageForPage 页码越界：indicatorImageForPage: page # is out of range; expected # to #
++ initialVelocity 写得进去
++ inline
++ input 不带文字，回头读 text
++ inputAccessoryView 写得进去，读回原来的包装
++ inputAccessoryView 给数字被拒
++ inputAccessoryView 给颜色对象被拒
++ inputAccessoryView：GC 后读回来还是原来那个包装
++ insertArrangedSubview 的 atIndex 是 undefined：必填的没带
++ insertAttributedString
++ insertAttributedString 没给 atIndex
++ insertAttributedString 越界
++ insertAttributedString：atIndex 等于长度是接在末尾
++ insertSegmentWithImage
++ insertSegmentWithImage 给的不是图：insertSegmentWithImage needs a UIImage or null
++ insertSegmentWithTitle 之后多一段
++ insertSegmentWithTitle 缺 atIndex：insertSegmentWithTitle needs { atIndex }
++ insertSublayer 不给插法就抛
++ insertSublayer 的 atIndex
++ insertSubview { aboveSubview } 也被拒
++ insertSubview { atIndex } 也被拒
++ insertSubview { belowSubview } 也被拒
++ insertSubview 的 atIndex
++ insertSubview 的 atIndex 是 undefined：等于没带，走到「三选一」的报错
++ insertSubview 的 belowSubview 不是视图
++ insertText 加到六行，高度跟着变成 #
++ insertText 插在光标处（写 text 之后光标在末尾）
++ insertText 派发 input，写 text 不派发：一共 # 次
++ insertText 的参数按 String() 转
++ insertText(null) 插的是空串
++ insetsLayoutMarginsFromSafeArea 可写
++ integerForKey 强制成数字
++ interactionNotAllowed 写 #：转成 false
++ interactionNotAllowed 写 'false'：是 true（和 Web 一致）
++ interactionNotAllowed 写 true 读回 true
++ interactionNotAllowed 时 evaluatePolicy：err.code 是数
++ interactionNotAllowed 时 evaluatePolicy：err.domain
++ interactionNotAllowed 时 evaluatePolicy：err.message 是非空字符串
++ interactionNotAllowed 时 evaluatePolicy：err.name 是约定的十二个之一
++ interactionNotAllowed 时 evaluatePolicy：拒绝的是 Error
++ interactionNotAllowed 时 evaluatePolicy：被拒绝，err.name 在约定的名字里
++ interactionNotAllowed 时 evaluatePolicy：返回的是 Promise
++ interactionNotAllowed 默认 false
++ interactionState 只读：Cannot set property interactionState of #<UIPageControl> which has only a getter
++ intrinsicContentSize 等于图片尺寸
++ invalidate 之后的 display link 被回收
++ invalidate() 没有返回值
++ ipc-message 带着参数
++ ipc-message 带着频道名
++ ipc-message 的 target 是 webContents
++ ipcRenderer 不是网页里的全局
++ ipcRenderer.invoke：拿到处理函数的返回值
++ ipcRenderer.removeAllListeners 之后不再收到
++ ipcRenderer.send 带了函数：网页里当场抛
++ ipcRenderer.send：App 收到一次 ipc-message
++ isActive
++ isAnimating 不反映动图文件的播放
++ isAnimating 只读
++ isCameraDeviceAvailable("front") 是布尔
++ isCameraDeviceAvailable("rear") 是布尔
++ isCameraDeviceAvailable：不认识的摄像头：isCameraDeviceAvailable has no value "back"; expected one of: rear / front
++ isContinuous 可写
++ isCrashed() 是 false
++ isDescendantOfView(不是视图)
++ isDestroyed() 是 false
++ isEditable
++ isEditable 为假时 insertText 照样改得动
++ isEditable 写得进去
++ isEditing 跟着为真
++ isEnabled 写得进去
++ isEnabled 可写
++ isEnabledForSegmentAtIndex 越界：isEnabledForSegmentAtIndex: segment # is out of range; expected # to #
++ isEqualToAttributedString 给字符串
++ isEqualToAttributedString：内容相同
++ isEqual：和 null 比是 false
++ isEqual：和不是筛选条件的东西比是 false
++ isEqual：图片
++ isEqual：图片 ≠ 视频
++ isFlashAvailableForCameraDevice("front") 是布尔
++ isFlashAvailableForCameraDevice("rear") 是布尔
++ isFlashAvailableForCameraDevice：不认识的摄像头：isFlashAvailableForCameraDevice has no value #; expected one of: rear / front
++ isHidden 写得进去
++ isHighlighted 写入生效
++ isInteractive
++ isInteractive 写得进去
++ isMainFrame 是 true
++ isMomentary 可写
++ isOn
++ isOn 可写
++ isPaused 写得进去
++ isSearchResultsButtonSelected 写得进去
++ isSecureTextEntry
++ isSelectable 写得进去
++ isSourceTypeAvailable("camera") 是布尔
++ isSourceTypeAvailable("photoLibrary") 是布尔
++ isSourceTypeAvailable("savedPhotosAlbum") 是布尔
++ isSourceTypeAvailable：不认识的来源：isSourceTypeAvailable has no value "video"; expected one of: photoLibrary / camera / savedPhotosAlbum
++ isSourceTypeAvailable：没给参数：isSourceTypeAvailable has no value <null>; expected one of: photoLibrary / camera / savedPhotosAlbum
++ isSymbolImage 为真
++ isTabBarHidden 写得进去
++ isTabBarHidden 默认
++ isTranslucent 写得进去
++ item
++ itemIdentifierForIndexPath
++ itemIdentifierForIndexPath 没有这个位置
++ itemIdentifiers 按分区的顺序接起来
++ itemProvider 只读
++ items 写进去的项：GC 后读回来还是原来那个包装
++ items 接受可迭代对象
++ items 给数字被拒
++ items 里有 null 被拒
++ items 里有别的类的对象被拒
++ items 里有字符串被拒
++ json() 解析出数组
++ kern
++ kern 给 "#"：按数转
++ kern 给转不成数的字符串
++ keyPath 读得回来
++ keyTimes 往返
++ keyTimes 按每帧时长排
++ keyboardAppearance
++ keyboardAppearance 写错：不抛、值不变
++ keyboardDismissMode
++ keyboardDismissMode 写错：不抛、值不变
++ keyboardDismissPadding 写得进去
++ keyboardLayoutGuide 是 UIKeyboardLayoutGuide
++ keyboardType
++ keyboardType 写错：不抛、值不变
++ keys 列得出来
++ large 自己想要的大小是 #×#
++ latitude
++ latitude 写入即抛
++ layer 取两次是同一个对象
++ layoutGuides 里有它
++ layoutMargins 跟着变
++ leftView 写不是视图的抛 TypeError
++ leftView 写进去读回来是同一个对象
++ leftViewMode 写得进去
++ length
++ length 是 UTF-# 码元数
++ length 是只读的
++ ligature
++ lineBreakMode 写得进去
++ lineBreakMode 写错：不抛、值不变
++ lineBreakMode 读写
++ lineCap 写得进去
++ lineCap 写错：不抛、值不变
++ lineDashPattern 的元素给数字字符串：按数用
++ lineDashPattern 的元素转不出数就抛
++ lineFragmentPadding 写得进去
++ lineFragmentPadding 给不出有限数被拒
++ lineHeightMultiple 读写
++ lineJoin 写得进去
++ lineJoin 写错：不抛、值不变
++ lineSpacing 给 "#"：按数转
++ lineSpacing 给负数
++ lineSpacing 给转不成数的
++ lineSpacing 读写
++ link 给 URL 对象：读出来是它的地址
++ link：字符串进、字符串出
++ loadFile 返回 Promise，兑现 undefined
++ loadObjectOfClass 不给类：loadObjectOfClass supports only UIImage for now, got undefined
++ loadObjectOfClass 兑现成 UIImage
++ loadObjectOfClass 只认 UIImage：同步抛：loadObjectOfClass supports only UIImage for now, got UIView
++ loadObjectOfClass 返回 Promise
++ loadURL 到一个会重定向的地址：不派发 will-navigate
++ loadURL 到一个会重定向的地址：落在重定向之后的地址
++ loadURL 给 file:// 地址：一样加载得出来
++ loadURL 返回 Promise
++ loadURL、后退、前进、reload()：都不派发 will-navigate
++ localStorage 能用
++ localizedCancelTitle 写 null 读回 null
++ localizedCancelTitle 写进去读出来
++ localizedCancelTitle 默认 null
++ localizedFallbackTitle 写 null 读回 null
++ localizedFallbackTitle 写 undefined 读回 null
++ localizedFallbackTitle 写数字：转成字符串
++ localizedFallbackTitle 写空串读回空串（隐藏那个按钮）
++ localizedFallbackTitle 写进去读出来
++ localizedFallbackTitle 默认 null
++ localizedModel 是非空字符串
++ location
++ location 不是 null
++ location 只读
++ locations 写得进去
++ locations 可以清回 null
++ locations 收到非数字就抛
++ locations 是数组，至少一个
++ locations 这个字段只读
++ longitude
++ longitude 写入即抛
++ loopCount 直接赋给 repeatCount
++ maskView 写 null
++ maskView 写进去读回来是同一个对象
++ maskedCorners 默认四个角全圆
++ masksToBounds 写得进去
++ mass 写得进去
++ maximumDate 写无效的 Date：maximumDate must be a valid Date, got an invalid one
++ maximumDate 可写
++ maximumLineHeight 读写
++ maximumLinearExposure 写 #
++ maximumLinearExposure 写 '#' 得到 #
++ maximumLinearExposure 写不是数的抛 TypeError
++ maximumLinearExposure 读出来是数
++ maximumMessageSize 写得进去
++ maximumMessageSize 是正数
++ maximumNumberOfLines 写得进去
++ maximumNumberOfTouches 写回默认值
++ maximumNumberOfTouches 可写
++ maximumTrackTintColor 可写
++ maximumValue 可写
++ maximumValueImage 同上
++ maximumValueImageRectForBounds 同上
++ medium 自己想要的大小是 #×#
++ message 里有异常的文字
++ minimumDate 写 undefined：也是不限
++ minimumDate 写字符串：minimumDate must be a Date, got "yesterday"
++ minimumDate 可写
++ minimumLineHeight 读写
++ minimumNumberOfTouches 可写
++ minimumPressDuration 可写
++ minimumTrackTintColor 可写
++ minimumValue 可写
++ minimumValueImage 写进去的对象原样读回来
++ minimumValueImage 给别的原生对象：minimumValueImage needs a UIImage or null
++ minimumValueImage 给字符串：minimumValueImage needs a native object or null, got "star.fill"
++ minuteInterval
++ minuteInterval 可写
++ minuteInterval 超过 #：minuteInterval must divide # evenly and be between # and #, got #
++ minuteInterval 转不出数：minuteInterval must be a finite number, got "quarter"
++ minuteInterval 除不尽 #：minuteInterval must divide # evenly and be between # and #, got #
++ mode 写 compact
++ mode 写 default
++ mode 写错：不抛、值不变
++ model
++ moveToPoint 之后不再是空的
++ multiplier 默认 #
++ mutableCopy()：可改
++ name 是非空字符串
++ name 筛
++ navigationItem 不是 null
++ new Blob 吃 TypedArray
++ new Blob 拼字符串
++ new Blob 的 size（UTF-# 字节数）
++ new Blob 的 type
++ new Blob()：GC 之后数据还在
++ new Blob([# MB]) 平均 # ms（# MB/s）
++ new Blob([...])
++ new CALayer() 建得出来
++ new CAShapeLayer() 建得出来
++ new CGPoint('#', null)
++ new CGPoint()：不给的参数是 #
++ new CGPoint(NaN, #)：以前静默变成 #，现在抛
++ new NSItemProvider(image) 建得出来
++ new NSObject()
++ new NSTextAttachment()：没有图片
++ new PHPickerConfiguration() 建得出来
++ new PHPickerViewController(config) 建得出来
++ new UIBarButtonItem({...})
++ new UIBarItem()
++ new UIBezierPath() 建得出来
++ new UIButton()
++ new UICollectionView 没给布局
++ new UICollectionView 给的不是布局
++ new UIColor()
++ new UIImageView()
++ new UILabel()
++ new UILayoutGuide()
++ new UINavigationController(root)
++ new UIResponder()
++ new UIScene()
++ new UIScrollView()
++ new UIStackView([...])
++ new UIView()
++ new UIViewController()
++ new UIVisualEffectView(blur)：effect 就是它
++ new UIVisualEffectView(null)：effect 是 null
++ new UIVisualEffectView(undefined)：effect 是 null
++ new UIWindow() 读属性仍报「还没连接到场景」
++ new UIWindow(scene) 成功
++ new WebView(null) 等于不传
++ new 出来的是 CLLocationManager
++ new 出来的是 LAContext
++ new 出来的是 UIActivityViewController
++ new 出来的是 UIImagePickerController
++ new 数据源：没给 cellProvider
++ new 数据源：没给 options
++ new 数据源：给的不是列表
++ normal 的读回来内容相同
++ normalize 和网页一致：参数和 this 不合法时（# 条里不同的）
++ normalize 和网页一致：基字 + 组合记号 NFC（# 条里不同的）
++ normalize 和网页一致：基字 + 组合记号 NFD（# 条里不同的）
++ normalize 和网页一致：基字 + 组合记号 NFKC（# 条里不同的）
++ normalize 和网页一致：基字 + 组合记号 NFKD（# 条里不同的）
++ normalize 和网页一致：挑出来的词 NFC（# 条里不同的）
++ normalize 和网页一致：挑出来的词 NFD（# 条里不同的）
++ normalize 和网页一致：挑出来的词 NFKC（# 条里不同的）
++ normalize 和网页一致：挑出来的词 NFKD（# 条里不同的）
++ normalize 和网页一致：挑出来的词 undefined（# 条里不同的）
++ normalize 和网页一致：落单的代理项、空字符、很长的字符串（# 条里不同的）
++ normalize 和网页一致：谚文字母和音节（# 条里不同的）
++ normalize 和网页一致：逐个码位扫 NFC（# 条里不同的）
++ normalize 和网页一致：逐个码位扫 NFD（# 条里不同的）
++ normalize 和网页一致：逐个码位扫 NFKC（# 条里不同的）
++ normalize 和网页一致：逐个码位扫 NFKD（# 条里不同的）
++ notFilterOfSubfilter 给的是 PHPickerFilter
++ notFilterOfSubfilter 要一个筛选条件：notFilterOfSubfilter needs a PHPickerFilter, got null
++ now() 大于 #（零点是运行时启动）
++ now() 是从启动算起的，不是从开机算起的
++ now() 是数
++ null 当空串
++ null 照旧是清空
++ null 被拒
++ null 转成 #
++ numberOfItems
++ numberOfItemsInSection
++ numberOfItemsInSection 没有这个分区
++ numberOfPages 可写
++ numberOfPages 是负数：numberOfPages must be a non-negative integer, got -#
++ numberOfPages 转不出数：numberOfPages must be a finite number, got "many"
++ numberOfSections
++ numberOfSegments 只读：Cannot set property numberOfSegments of #<UISegmentedControl> which has only a getter
++ numberOfTapsRequired 可写
++ numberOfTouchesRequired 可写
++ observedProgress 没接：属性不存在
++ ok
++ onTintColor 写 UIColor，读回名字
++ onTintColor 写 null：回到系统默认
++ onTintColor 写了不合法的颜色：警告，保留旧值
++ onTintColor 写字符串，读回原样
++ once 只收一次
++ once 的监听器只收一次
++ once 的监听器轮到之前被移除：不调
++ opacity 写得进去
++ openURL 兑现
++ options 不是数组
++ options 传 null 可以
++ options 传 null 视为没带
++ options 传 {} 可以
++ options 给 null：照常
++ options 给 undefined：照常
++ options 给字符串而不是数组
++ options 给数字：抛 TypeError
++ options 给空对象：照常
++ options 里值是 undefined 的成员视为没带
++ options 里的字符串：U+FEFF 和落单的代理项都在
++ options.transfer 给了 ArrayBuffer：抛 DataCloneError（还不支持）
++ options.transfer 给数字：抛 TypeError
++ options.transfer 给空数组：照常
++ origin 不合法
++ origin 不含 userinfo
++ overrideUserInterfaceStyle 写得进去
++ overrideUserInterfaceStyle 写错：不抛、值不变
++ overrideUserInterfaceStyle 默认
++ owningView 是加它的那个 view
++ page-title-updated 带着标题
++ pageIndicatorTintColor 可写
++ paragraphSpacing 读写
++ paragraphSpacingBefore 读写
++ paragraphStyle 给普通对象
++ paragraphStyle：读出来是 NSParagraphStyle
++ parentViewController 也是它
++ parse 失败返回 null
++ partition 给数字，按字符串转
++ partition: undefined 视为没带
++ path
++ path 筛：路径一模一样的
++ path 能清掉
++ path 设成 null 读回来是 null
++ path、secure、httpOnly、sameSite 的默认值
++ performChanges 不给参数：performChanges needs { creationRequestForAssetFromImage: image }, got undefined
++ performChanges 的图片不是 UIImage：creationRequestForAssetFromImage must be a UIImage, got "dot.png"
++ performChanges 的图片是别的原生对象：creationRequestForAssetFromImage must be a UIImage, got an object
++ performChanges 给函数（ObjC 那种写法）：performChanges needs { creationRequestForAssetFromImage: image }, got a function
++ performChanges 给空对象：performChanges needs { creationRequestForAssetFromImage: image }
++ performChanges 里有不支持的修改：performChanges does not support "deleteAssets" yet; the only supported change is creationRequestForAssetFromImage
++ performWithoutAnimation 单独用
++ performWithoutAnimation 的那段代码也是当场执行
++ performWithoutAnimation 给的不是函数
++ performWithoutAnimation 里抛的也原样传出来
++ performance 是 Performance 的实例
++ pick 和 cancel 都订得上
++ picker.configuration 是 PHPickerConfiguration
++ ping 拿到 pong
++ placeholder 也是同一份
++ placeholder 写得进去
++ placeholder 给数字：转成字符串
++ playbackStyleFilter 没有接
++ pop 之后栈深 #
++ pop 返回被弹出的那一个
++ popToRoot 一次弹掉两个
++ port 为默认时读出空串
++ position 是中心点
++ preferredAssetRepresentationMode 写 automatic
++ preferredAssetRepresentationMode 写 compatible
++ preferredAssetRepresentationMode 写 current
++ preferredAssetRepresentationMode 写错：不抛、值不变
++ preferredCurrentPageIndicatorImage 同上
++ preferredDatePickerStyle 可写
++ preferredIndicatorImage 写 null
++ preferredIndicatorImage 原样读回来
++ preferredIndicatorImage 给的不是图：preferredIndicatorImage needs a native object or null, got "circle.fill"
++ preload-error 带着路径
++ preload-error 带着错误
++ prepareForDisplay 给回一张图
++ prepareForDisplay：动图给回来的不是 null
++ prepareForDisplay：帧数还在
++ prepareForDisplay：帧自己还是静态图
++ prepareForDisplay：循环次数还在
++ prepareForDisplay：是一张新图
++ prepareForDisplay：每帧时长还在
++ prepareForDisplay：静态图照旧
++ prepareThumbnail 给回一张图
++ present 兑现
++ presentedViewController 是它
++ preservesSuperviewLayoutMargins 可写
++ preventDefault() 不起作用：defaultPrevented 还是 false
++ prominent
++ prompt 写 null
++ prompt 写得进去
++ prompt 写空串：读回空串
++ prompt 是空串时高回到 #
++ protocol 带冒号
++ push 之后栈深 #
++ query 拼成地址里 ? 后面的部分
++ readWrite 不支持：它要另一句权限文案：accessLevel "readWrite" is not supported: reading the photo library needs a different usage description; expected one of: addOnly. To let the user choose photos, use PHPickerViewController, which needs no permission
++ reason 默认是 AbortError
++ reconfigure 用的还是原来那个单元格
++ reconfigure 的那一项内容更新了
++ reconfigureItemsWithIdentifiers 不抛
++ registerClass 不抛
++ registerClass 标识是空串
++ registerClass 没给标识
++ registerClass 给的不是单元格的类
++ registerClass 给的不是类
++ registeredTypeIdentifiers 是字符串数组
++ relation 是字符串
++ reload() 之后还是第二页
++ reloadItemsWithIdentifiers 不抛
++ reloadSectionsWithIdentifiers 不抛
++ remove 一条不存在的：不报错
++ removeAllAnimations 清空
++ removeAllPoints 之后空了
++ removeAllSegments 之后一段都没有
++ removeAttribute 的名字不认识
++ removeAttribute：去掉了
++ removeAttribute：本来没有也不报错
++ removeEventListener 之后收不到
++ removeEventListener 之后收不到 scroll
++ removeEventListener 之后收不到了
++ removeFromSuperview 顺带出排列
++ removeHandler 之后：又变成没登记
++ removeSegmentAtIndex 之后少一段
++ removeSegmentAtIndex 是负数：removeSegmentAtIndex: segment -# is out of range; expected # to #
++ removeSegmentAtIndex 越界：removeSegmentAtIndex: segment # is out of range; expected # to #
++ remove：这个地址下的那条没了，别的域名同名的还在
++ repeatCount
++ repeatCount 可以是小数
++ replaceCharactersInRange withAttributedString
++ replaceCharactersInRange withString
++ replaceCharactersInRange 两种都没给
++ replaceCharactersInRange 越界
++ requestAuthorizationForAccessLevel 不给级别：accessLevel has no value <null>; expected one of: addOnly
++ requestAuthorizationForAccessLevel 写错级别：同步抛：accessLevel "readWrite" is not supported: reading the photo library needs a different usage description; expected one of: addOnly. To let the user choose photos, use PHPickerViewController, which needs no permission
++ requestTrackingAuthorization 是类上的方法
++ requireGestureRecognizerToFail 没有返回值
++ requireGestureRecognizerToFail 给 null 被拒
++ requireGestureRecognizerToFail 给的是视图被拒
++ resignFirstResponder 返回 true
++ resolvedOptions 的键和顺序
++ return 不是同步派发的：刚触发完还是 #
++ returnKeyType
++ returnKeyType 写错：不抛、值不变
++ return：event.target 是这个输入框
++ return：event.type
++ return：不可取消
++ role 默认 normal
++ rotation 可以是负的，也不按一圈折回去
++ rotation 可写
++ rotation 给 NaN 被拒
++ rotation(π/#) 的 a
++ rotation(π/#) 的 b
++ rotation(π/#) 的 c
++ rotation(π/#) 的 d
++ rotationMode 写得进去
++ rotationMode 写错：不抛、值不变
++ rotationMode 能设回 null
++ roundsToMinuteInterval 可写
++ router 一开始在根上
++ router 的栈深和原生一致
++ row 和 item 是同一个数
++ sameSite 写错：列出能用的
++ scale 不动平移
++ scale 可写
++ scale 给 Infinity 被拒
++ scale 给数字字符串：按数用
++ scale(#) 两轴都是 #
++ scale(#) 的逆是 #
++ scale(#, #) 分开给
++ scene 不是场景：抛 TypeError
++ scene 就是这个场景
++ scene.openURL 兑现
++ scene.traitCollection 是 UITraitCollection
++ sceneconnect 只来了一次（键盘的内部场景不算数）
++ scopeButtonTitles 写得进去
++ scopeButtonTitles 给字符串被拒
++ scopeButtonTitles 给数字被拒
++ scrollPosition 写错值
++ scrollToItemAtIndexPath 之后往下滚了
++ scrollToItemAtIndexPath 没给 atScrollPosition
++ search 带问号
++ search 直接给字符串，和 query 都给时用 search
++ searchBarStyle 写得进去
++ searchBarStyle 给数字：不抛、值不变
++ searchTextField 只读
++ searchTextField 是 UITextField
++ searchTextField：GC 后读回来还是原来那个包装
++ secondaryText 可写
++ section
++ sectionIdentifierForIndex
++ sectionIdentifierForIndex 没有
++ sectionIdentifiers 是空数组
++ secure 筛
++ secure、httpOnly、sameSite 写得进去
++ selectItemAtIndexPath 之后读得到
++ selectItemAtIndexPath 给的不是位置
++ selectItemAtIndexPath(null) 取消全部选中
++ selectedColor 写 null 得到 null
++ selectedColor 写色值，原样读回
++ selectedColor 写错
++ selectedColor 写颜色名，原样读回
++ selectedImage：两次读是同一个对象
++ selectedImage：尺寸和写进去的一样
++ selectedIndex 给负数
++ selectedIndex 越界
++ selectedScopeButtonIndex 写得进去
++ selectedScopeButtonIndex 给 NaN 被拒
++ selectedScopeButtonIndex 给 undefined 被拒
++ selectedSegmentIndex 可写
++ selectedSegmentIndex 小于 -#：selectedSegmentIndex -# is out of range; expected # to #, or -# for none selected
++ selectedSegmentIndex 越界：selectedSegmentIndex # is out of range; expected # to #, or -# for none selected
++ selectedSegmentIndex 转不出数：selectedSegmentIndex must be a finite number, got "first"
++ selectedSegmentTintColor 写 null
++ selectedSegmentTintColor 可写
++ selectedViewController 给不在里面的页面
++ selectedViewController 跟着
++ selection 写 continuous
++ selection 写 continuousAndOrdered
++ selection 写 default
++ selection 写 ordered
++ selection 写错：不抛、值不变
++ selectionLimit 写 #
++ selectionLimit 写 # 向零取整
++ selectionLimit 写 #（不限）
++ selectionLimit 写 '#' 得到 #
++ selectionLimit 写 NaN：selectionLimit must be a finite number, got NaN
++ selectionLimit 写 undefined：selectionLimit must be a finite number, got undefined
++ selectionLimit 写负数：selectionLimit must not be negative, got -#
++ sendActionsForControlEvents 不认回车事件的旧名字
++ sendActionsForControlEvents 不认旧名字
++ sendActionsForControlEvents 认新名字 input
++ sendActionsForControlEvents 认新名字 return
++ session 筛：false 是有过期时间的
++ session.defaultSession 每次是同一个对象
++ set 传了 null
++ set 替换首个、删其余、位置不变
++ set 没给 url
++ set 的 url 不是 http(s)
++ set 覆盖全部同名
++ setAttributedString 给 null
++ setAttributedString：属性
++ setAttributedString：文字
++ setAttributedTitle 没给 forState
++ setAttributedTitle 的状态写错
++ setAttributedTitle 给字符串
++ setAttributes 没给 range
++ setAttributes(null)：清空这一段的属性
++ setAttributes：整个换掉，原来的不在了
++ setContentOffset
++ setContentOffset 下标越界：setContentOffset: segment # is out of range; expected # to #
++ setContentOffset 给的不是 size：setContentOffset needs an object with all of: width, height
++ setCurrentPageIndicatorImage
++ setCurrentPageIndicatorImage 页码越界：setCurrentPageIndicatorImage: page # is out of range; expected # to #
++ setDate
++ setDate 带 animated：值当场就变
++ setDate 给的不是 Date：setDate must be a Date, got #
++ setEnabled 下标越界：setEnabled: segment # is out of range; expected # to #
++ setEnabled(false)
++ setImage 下标越界：setImage: segment # is out of range; expected # to #
++ setImage 给的不是图：setImage needs a UIImage or null
++ setImage(null)：清掉这个状态的图，不抛
++ setImage(不是图)
++ setIndicatorImage
++ setIndicatorImage 给的不是图：setIndicatorImage needs a UIImage or null
++ setIndicatorImage 缺 forPage：setIndicatorImage needs { forPage }
++ setIndicatorImage 页码是负数：setIndicatorImage: page -# is out of range; expected # to #
++ setIndicatorImage 页码越界：setIndicatorImage: page # is out of range; expected # to #
++ setIndicatorImage(null)：回到默认
++ setInterval 被自己的 clearInterval 停住
++ setInterval(fn, #) 也重复，并且停得住
++ setItems 不带 options
++ setItems 带动画：items 当场就是新的
++ setItems 没有返回值
++ setItems 给数字被拒
++ setItems 给的项：GC 后读回来还是原来那个包装
++ setItems 里有别的类的对象被拒
++ setItems(null)：清空
++ setItems：顺序照给的
++ setMaximumTrackImage
++ setMinimumTrackImage
++ setOn(false, { animated: true })：值当场就变
++ setOn(true)
++ setParagraphStyle 给普通对象
++ setParagraphStyle：全部抄过来
++ setProgress 不给进度被拒
++ setProgress 没有返回值
++ setProgress 给转不出数的值被拒
++ setShowsCancelButton 不带 options
++ setShowsCancelButton 带动画：属性当场就是新值
++ setShowsCancelButton 没有返回值
++ setShowsCancelButton(#)：转成 false
++ setShowsScopeBar 不带 options
++ setShowsScopeBar 带动画：属性当场就是新值
++ setShowsScopeBar 没有返回值
++ setTabBarHidden 改回来
++ setThumbImage 之后按状态取回来是同一个对象
++ setThumbImage 状态名写错：forState has no value "pressed"; expected one of: normal / highlighted / disabled / selected / focused
++ setThumbImage 给的不是图：setThumbImage needs a UIImage or null
++ setThumbImage 缺 forState：setThumbImage needs { forState }
++ setTimeout 拒绝非函数: TypeError
++ setTimeout(#) 之后量到的时间不少于 # ms
++ setTitle
++ setTitle 下标越界：setTitle: segment # is out of range; expected # to #
++ setTitle 缺 forSegmentAtIndex：setTitle needs { forSegmentAtIndex }
++ setTitle(#)：标题是 '#'
++ setTranslation 不带 inView 被拒
++ setTranslation 收普通对象，inView 可以是 null
++ setTranslation 没有返回值
++ setTranslation 的 inView 不是视图被拒
++ setTranslation 的点缺字段被拒
++ setValue 也会被钉住
++ setValue 转不出数：setValue must be a finite number, got "max"
++ setValue(#)
++ setValue(#, { animated: true })：值当场就变
++ setViewControllers 换成两个
++ setWidth
++ setWidth 下标越界：setWidth: segment # is out of range; expected # to #
++ setWidth 转不出数：setWidth must be a finite number, got "wide"
++ setZoomScale 缺 animated 不抛（它可以不带）
++ setter 会规范化
++ settlingDuration 是算出来的正数
++ shadow 给颜色
++ shadowBlurRadius 给负数
++ shadowBlurRadius 读写
++ shadowColor 写 null
++ shadowColor 写错：不抛，保留原值
++ shadowColor 读写
++ shadowOffset 写进去了
++ shadowOffset 是 CGSize
++ shadowOffset 缺字段
++ shadowOffset 读写（收普通对象）
++ shadowOffset 默认 (#, -#)
++ shadowOpacity 默认 #——只设颜色看不见东西
++ shadowRadius 默认 #
++ shadow：读出来是 NSShadow
++ sharedManager() 给的是 ASIdentifierManager
++ sharedPhotoLibrary 是 PHPhotoLibrary
++ showsBookmarkButton 写得进去
++ showsCancelButton 写得进去
++ showsScopeBar 写得进去
++ showsSearchResultsButton 写得进去
++ showsSeparators 可写
++ signDisplay: always
++ signal 初始未中止
++ size
++ size 是点，不随倍率变
++ size() 给的是 CGSize
++ sizeForNumberOfPages 给的是 CGSize
++ sizeForNumberOfPages 给负数：sizeForNumberOfPages must be a non-negative integer, got -#
++ sizeThatFits 给宽 #：#×#
++ sizeToFit 之后 frame 是 #×#
++ sizeToFit 之后高回到 #，宽不动
++ sizeToFit 之后高是 #，宽不动
++ sliderStyle 可写
++ snapshot() 是现在的数据
++ snapshot() 给的是副本，改它不影响列表
++ sourceApplication 是字符串或者 null
++ sourceInformation 是 null 或者两个布尔
++ sourceType
++ sourceType 默认是 photoLibrary（系统的默认值，照实给）
++ sourceType：不认识的值：不抛、值不变
++ sourceType：给 null：不抛、值不变
++ sourceType：给数字：不抛、值不变
++ spacing
++ spacing  写 default：不抛、值不变
++ spacing 写得进去
++ spacing 是负数被拒
++ spacing 转不出数被拒
++ speed 是不小于 # 的数或 null
++ speedAccuracy 是不小于 # 的数或 null
++ spellCheckingType
++ spellCheckingType 写错：不抛、值不变
++ stack 宽
++ startAnimating 没有返回值
++ stat 不存在的文件
++ stat.modified 是个像样的时间戳
++ stat.size 和实际字节数一致
++ state 只读: true
++ status
++ stepValue
++ stepValue 可写
++ stepValue 是负数：stepValue must be greater than #, got -#
++ stop() 停掉的加载：拒绝，AbortError
++ stopAnimating 没有返回值
++ storages 不是数组
++ storages 里的名字写错：列出能用的
++ stream 按布尔转换
++ stream：BOM 切在两段里也去掉
++ stream：一个字切成两段，第一段不出字、第二段出
++ stream：不带 stream 的那次带着数据，接在没凑齐的后面
++ stream：冲完之后是新的一个流，BOM 又去掉
++ stream：同一个流后面几段里的 BOM 留着
++ stream：在每一个位置切开，拼起来都等于一次解完
++ stream：最后不带 stream 调一次，没凑齐的冲成一个 U+FFFD
++ stream：没凑齐的后面接不上，一个 U+FFFD 再照常
++ stream：空的一段不动没凑齐的
++ stream：表情一个字节一段
++ strikethroughColor：写的是 UIColor，读出来是字符串
++ strikethroughStyle
++ string 是只读的
++ stringArrayForKey 全是字符串时给数组
++ stringArrayForKey 混了非字符串给 null
++ stringForKey 给字符串
++ stringFromContact 不带 style 被拒，并且列出可选值
++ stringFromContact 的 style 写错被拒
++ stringFromContact 第一个参数不是联系人被拒
++ stringFromContact 给 null 被拒
++ strokeColor 给颜色对象：照常（别被 path 的检查误伤）
++ strokeColor：带透明度的写法原样读回
++ strokeWidth
++ structuredClone 不给参数：抛 TypeError
++ structuredClone 是个函数
++ subtitleCellConfiguration
++ subviews 里还有三个
++ suggestedName 是字符串或 null
++ superlayer 指回去
++ superlayer 读两次是同一个包装
++ supportsAlpha 写 # 得到 false
++ supportsAlpha 写 false
++ supportsAlpha 写 true
++ supportsAlpha 读出来是布尔
++ supportsEyedropper 写 false
++ symbol 的渲染模式是 automatic
++ system 按钮也有 titleLabel
++ system 间距读回字符串
++ systemFontOfSize 的 weight 是 undefined：用默认字重
++ systemFontOfSize('#')
++ systemFontOfSize(NaN)：以前是闪退
++ systemItem 给的是 UIBarButtonItem
++ systemLayoutSizeFittingSize 解出高度
++ systemName
++ systemVersion 只读: true
++ systemVersion 形如 # 或 #.#
++ systemVersion 是字符串
++ tab 控制器的页面：没被回收，读回来还是原来那个包装
++ tabBar 是 UITabBar
++ tabBar 每次读是同一个
++ tabBar.tintColor 写得进去
++ tabBar.tintColor 默认
++ tabBar.unselectedItemTintColor 写得进去
++ tabBar.unselectedItemTintColor 默认
++ tabBarItem 给的不是 UITabBarItem
++ tabBarMinimizeBehavior 写得进去
++ tabBarMinimizeBehavior 写错：不抛、值不变
++ tabBarMinimizeBehavior 默认
++ tailIndent 读写（负数是从右边量）
++ target 是 application
++ target 是那个 manager
++ tel: 链接：地址原样给
++ tel: 链接：拦住了，没有加载失败
++ tel: 链接：派发一次 will-navigate
++ text 写 null 清掉
++ text 写 null：空串
++ text 写 undefined：空串
++ text 写得进去
++ text 写数字转成字符串
++ text 可写
++ text 给数字：转成字符串
++ text()
++ textAttachmentWithImage 给 null
++ textAttachmentWithImage：是 NSTextAttachment
++ textContainer 只读
++ textContainer 是 NSTextContainer
++ textContainer：GC 后读回来还是原来那个包装
++ textContentType
++ textContentType 写错：不抛、值不变
++ textContentType 能清掉
++ textFields 里就是返回的那个
++ this 不是字符串时先转成字符串
++ this 是 null 抛 TypeError
++ throwIfAborted 抛的是 reason
++ thumbImageForState 状态名写错：state has no value "pressed"; expected one of: normal / highlighted / disabled / selected / focused
++ thumbRectForBounds 给的是 CGRect
++ thumbRectForBounds 缺 trackRect：thumbRectForBounds needs { trackRect }
++ thumbRectForBounds 缺 value：thumbRectForBounds needs { value }
++ thumbTintColor 写 null
++ thumbTintColor 可写
++ timeOrigin + now() 约等于 Date.now()（差 # ms 以内）
++ timeOrigin 只读: true
++ timeOrigin 是数
++ timer 和窗口事件都到了 JS
++ timestamp 是 Date
++ timestamp 是有效的时间
++ tintAdjustmentMode 写了不认识的值
++ tintAdjustmentMode 写得进去
++ tintAdjustmentMode 是三个名字里的一个
++ tintColor 写 null：退回原来的颜色
++ tintColor 写了不合法的颜色，保留旧值
++ tintColor 写字符串，读回来是原样
++ tintColor 写得进去
++ tintColor 写颜色名，原样读回
++ tintColor 写颜色对象，读回来是它的名字
++ tintColor 可以清掉
++ tintColor 读出来永远有值
++ tintColor 读回来是语义色的名字
++ title 写 # 得到 '#'
++ title 写 null 得到 null
++ title 写得进去
++ title 读回来
++ titleForSegmentAtIndex 是负数：titleForSegmentAtIndex: segment -# is out of range; expected # to #
++ titleForSegmentAtIndex 越界：titleForSegmentAtIndex: segment # is out of range; expected # to #
++ titleForState 不受影响
++ titleForState(highlighted)
++ titleForState(normal)
++ titleLabel.text 就是当前标题
++ titleView 读回同一个包装
++ toJSON 给出 timeOrigin
++ toLocaleDateString 只有日期
++ toLocaleString 认选项了
++ toLocaleTimeString 只有时间
++ toString
++ touchIDAuthenticationAllowableReuseDuration 写 # 读回 #
++ touchIDAuthenticationAllowableReuseDuration 默认 #
++ trackRectForBounds 给的不是矩形：trackRectForBounds needs an object with all of: x, y, width, height
++ trackRectForBounds 给的是 CGRect
++ tracking
++ trackingAuthorizationStatus 只读，写了抛 TypeError
++ trackingAuthorizationStatus 是字符串
++ traitchange 是继承来的，照常订得上
++ transfer 没成，那个 ArrayBuffer 还能用
++ transfer 的报错里写明了是 transfer 还不支持
++ translation 只动 tx/ty
++ translation 的对角线还是 #
++ translationInView 给的不是视图被拒
++ translationInView 返回 CGPoint
++ translationInView(null)：窗口坐标系，也是 (#, #)
++ type
++ type 写得进去
++ type 是 openurl
++ undefined 抛
++ undefined 被拒
++ underlineColor
++ underlineStyle 给字符串而不是数组
++ underlineStyle 里有不认识的名字：列出能用的
++ underlineStyle：线型、虚线、byWord 的顺序
++ url 是绝对的
++ url 筛：http 的地址拿不到 secure 的
++ url 筛：子域名拿得到带点的那条，拿不到只属于别的主机的
++ url 筛：路径在 /x 下面，deep 也带上
++ url 筛：这个地址的请求会带上的（路径不对的 deep 不在）
++ url 给了数：转成字符串
++ url 读得回来
++ userInterfaceIdiom
++ userInterfaceStyle 是 light 或 dark
++ username
++ usesEvenOddFillRule 写得进去
++ validatedURL 是失败的那个地址
++ value
++ value 也跟着
++ value 可写
++ value 是双精度，# 就是 #；也不按 stepValue 取整
++ value 给数字字符串：按数用
++ value 转不出数：value must be a finite number, got "half"
++ value 转不出数：value must be a finite number, got "many"
++ valueCellConfiguration
++ values 收图片
++ values 能清掉
++ values 读出来是 UIImage
++ values 配不上 keyPath 就抛
++ vc.title 透到了 navigationItem.title
++ velocityInView 给的是别的原生对象被拒
++ velocityInView 返回 CGPoint
++ verticalAccuracy 是不小于 # 的数或 null
++ view 默认是单位矩阵
++ view.layer 在场景接入时也还是 #
++ viewControllers 里混了不是页面的
++ viewWithTag('#')
++ viewdidload 不是运行时的事件（页面是 JS 自己建的），当自定义事件
++ visibleCells 不为空，个数不超过请求的次数
++ visibleCells 是空数组
++ visibleCells 里每一个都是 cellProvider 返回过的那些对象
++ visibleViewController 同栈顶
++ webContents 是 WebContents
++ webContents：不认识的事件名当自定义事件
++ webPreferences 传 null 等于不传
++ widthForSegmentAtIndex 越界：widthForSegmentAtIndex: segment # is out of range; expected # to #
++ will-navigate 带着要去的地址
++ will-navigate 是可取消的
++ willMoveToParentViewController 可以给 null
++ wraps 可写
++ writeBytes 发起平均 # ms，端到端平均 # ms（# 次 # MB 串行，端到端含排队）
++ zPosition 写得进去
++ zh-CN 紧凑写法
++ zoomToRect 给的不是矩形抛 TypeError
++ { style: undefined } 等于没带
++ ẛ̣ 的 NFC
++ ẛ̣ 的 NFD
++ ẛ̣ 的 NFKC
++ ẛ̣ 的 NFKD
++ 「相册」区块里有两排按钮：选一张图 / 最多选三项，存图权限 / 存一张图
++ 一个弹窗只能有一个取消样式的按钮：addAction: an alert can have only one action with the cancel style
++ 一个效果对象可以给多个视图用
++ 一个监听器抛了：后面的照常跑
++ 一个表情在 JS 里长度是 #
++ 一个都没加进去
++ 一共派发了四个事件，没有多的
++ 一帧一个值
++ 一开始偏移是 #
++ 一开始在顶上
++ 一开始没在减速
++ 一开始没在拖
++ 一开始没有动画
++ 一开始没有子控制器
++ 一开始没有父控制器
++ 一开始没有页面
++ 一直循环的动图：次数是 Infinity
++ 一页都没有时写 currentPage：钉在 #
++ 一项在哪个分区
++ 三个事件名订得上也退得掉
++ 三个事件都订得上、退得掉
++ 三个按钮，顺序就是加进去的顺序
++ 三个颜色都能写回 null
++ 三块效果视图都放上去了
++ 三块板子上一共挂了 # 个识别器
++ 三块板子已上屏，等着被拖、捏、转、扫（这些要人来点）
++ 三块等高（上下各留 #）
++ 三字节的序列只给了两个就结束：一个 U+FFFD（最大有效前缀算一个）
++ 三张图都能用 null 清掉
++ 三次贝塞尔之后 currentPoint
++ 三页的宽和高都大于 #
++ 三项宽 + 两个间距
++ 上一级目录的图片也加载出来了（包里的文件，整个包可读）
++ 上限 #:#
++ 上限按字节算，不按元素个数: QuotaExceededError
++ 下一次派发它也不在
++ 下一轮照常调
++ 下一轮调
++ 下划线 double 读回来还是 double，不拆成两个
++ 下划线 single
++ 下划线 single + patternDashDotDot + byWord
++ 下划线 single + patternDot
++ 下划线 thick
++ 下划线 thick + patternDashDot
++ 下划线给空数组：键在，值是空数组
++ 下标给小数：向零取整
++ 下标转不出数：titleForSegmentAtIndex must be a finite number, got "first"
++ 下载完成 # 字节，type
++ 下限写得比上限大：上限被抬上来
++ 不传 options 就是不带动画
++ 不传形式是 NFC：e + 组合记号合成 é
++ 不再是 first responder
++ 不写 animatingDifferences（默认带动画）：Promise 兑现，数据已经是新的
++ 不写间隔的 setInterval 也重复，并且停得住
++ 不可取消
++ 不可改的段落样式：写属性抛
++ 不可改的那个不是 NSMutableAttributedString
++ 不可改的那个没有 addAttribute
++ 不可构造
++ 不可构造: TypeError: Illegal constructor: UIWindowScene is created by the runtime, not by new
++ 不可枚举的、Symbol 做键的、继承来的属性都不带
++ 不可空字符串：# 是 '#'
++ 不可空字符串：null 是空串，不是 'null'
++ 不可逆时返回 null
++ 不合法**不抛**
++ 不合法保留旧值
++ 不合法的颜色不抛
++ 不合法的颜色保留旧值
++ 不合法的颜色保留旧值（已完成部分）
++ 不合法的颜色保留旧值（未完成部分）
++ 不同的分区是不同的对象
++ 不同种类的识别器之间也能建这个关系
++ 不同锚点不是同一个
++ 不在 application 自己身上（在原型上）
++ 不在 cellProvider 里取单元格被拒
++ 不在倒计时模式时 countDownDuration 读出来是 #
++ 不在倒计时模式时写 countDownDuration：countDownDuration can only be set while datePickerMode is "countDownTimer"; it is "dateAndTime"
++ 不在屏幕上的项：null
++ 不在开头的 BOM 留着
++ 不在界面里的网页 visibilityState 是 hidden
++ 不在界面里的网页，定时器被放慢了（# 秒不到 # 次）
++ 不在窗口里：不是 first responder
++ 不在里面的页面 tabBarController 是 null
++ 不带动画
++ 不带动画呈现：animated 是 false
++ 不拦 tel: 链接：加载失败，errorCode 是 -#
++ 不指定分区：加到最后一个
++ 不指定时不可取消
++ 不接 loadURL 的 Promise，失败时也不报未处理的拒绝
++ 不支持的 compactDisplay: long 抛 RangeError
++ 不支持的 notation 抛 RangeError，并点名
++ 不支持的 roundingMode 抛 RangeError
++ 不支持的 roundingPriority 抛 RangeError
++ 不支持的 style: unit 抛 RangeError
++ 不支持的 trailingZeroDisplay 抛 RangeError
++ 不支持的值要抛 RangeError：别的入口（toLocaleString、BigInt、字符串、不带 new）（# 条里不同的）
++ 不支持的方法要抛 TypeError：formatRangeToParts（# 条里不同的）
++ 不支持的编码：报错里写了它的名字
++ 不支持的编码：报错里列出了支持的
++ 不支持的选项要抛 RangeError：format {"minimumIntegerDigits":#,"maximumSignificantDigits":#}（# 条里不同的）
++ 不支持的选项要抛 RangeError：format {"notation":"compact","compactDisplay":"long"}（# 条里不同的）
++ 不支持的选项要抛 RangeError：format {"notation":"engineering"}（# 条里不同的）
++ 不支持的选项要抛 RangeError：format {"roundingMode":"halfCeil","maximumFractionDigits":#}（# 条里不同的）
++ 不支持的选项要抛 RangeError：format {"roundingMode":"halfFloor","maximumFractionDigits":#}（# 条里不同的）
++ 不支持的选项要抛 RangeError：format {"roundingMode":"halfTrunc","maximumFractionDigits":#}（# 条里不同的）
++ 不支持的选项要抛 RangeError：format {"roundingPriority":"morePrecision","maximumSignificantDigits":#,"maximumFractionDigits":#}（# 条里不同的）
++ 不支持的选项要抛 RangeError：format {"style":"unit","unit":"kilometer"}（# 条里不同的）
++ 不支持的选项要抛 RangeError：format {"trailingZeroDisplay":"stripIfInteger","minimumFractionDigits":#}（# 条里不同的）
++ 不支持的选项要抛 RangeError：resolvedOptions（全部选项组）（# 条里不同的）
++ 不是 CABasicAnimation
++ 不是 HTTP 的导航，httpResponseCode 是 -#
++ 不是 UIView
++ 不是图片的字节返回 null
++ 不是对象被拒
++ 不是控件
++ 不是数抛
++ 不是数组被拒
++ 不是视图也不是页面的对象上，traitchange 当自定义事件
++ 不给 options：按一行算，高度和 size() 差不多
++ 不给 scene：抛 TypeError
++ 不给 sourceApplication：是 null
++ 不给 url：抛 TypeError
++ 不给分段：numberOfSegments
++ 不给参数是 (#, #)
++ 不给参数被拒
++ 不给参数：空的富文本
++ 不给效果：effect 是 null
++ 不能 new
++ 不能加字段
++ 不能后退时 goBack() 是空操作
++ 不能往上加字段
++ 不能继承
++ 不能继承选择器
++ 不能继承：Illegal constructor: Mine extends UIImagePickerController, but subclassing native classes is not supported yet
++ 不自动大写
++ 不自动纠错
++ 不认识的 alignment：不抛、值不变
++ 不认识的 backgroundStyle：不抛、值不变
++ 不认识的 barStyle：不抛、值不变
++ 不认识的 cornerCurve：不抛、值不变
++ 不认识的 datePickerMode：不抛、值不变
++ 不认识的 direction：不抛、值不变
++ 不认识的 distribution：不抛、值不变
++ 不认识的 fillMode：不抛、值不变
++ 不认识的 indicatorStyle：不抛、值不变
++ 不认识的 preferredDatePickerStyle：不抛、值不变
++ 不认识的 run loop 模式当场抛
++ 不认识的 searchBarStyle：不抛、值不变
++ 不认识的 sliderStyle：不抛、值不变
++ 不认识的 systemItem 被拒: systemItem has no value "explode"; expected …
++ 不认识的严重程度：不抛、值不变
++ 不认识的事件名当自定义事件
++ 不认识的事件名：当自定义事件
++ 不认识的优先级名字：不抛、值不变
++ 不认识的减速速率：不抛、值不变
++ 不认识的分享动作：不抛、值不变
++ 不认识的分区：不抛、值不变
++ 不认识的力度被拒: style has no value "strong"; expected one of: light / medium / heavy / soft / rigid
++ 不认识的名字：不抛、值不变
++ 不认识的呈现方式：不抛、值不变
++ 不认识的字段名：不抛、值不变
++ 不认识的对齐方式：不抛、值不变
++ 不认识的弹窗样式：preferredStyle has no value "modal"; expected one of: actionSheet / alert
++ 不认识的形式抛 RangeError
++ 不认识的按钮样式：style has no value "primary"; expected one of: default / cancel / destructive
++ 不认识的按钮类型被拒: buttonType has no value "squishy"; expec…
++ 不认识的时区抛 RangeError
++ 不认识的曲线名当场抛
++ 不认识的样式：不抛、值不变
++ 不认识的模糊样式被拒，可选值列出来了
++ 不认识的渐变类型：不抛、值不变
++ 不认识的状态名被拒: forState has no value "pressed"; expected on…
++ 不认识的玻璃样式被拒，可选值列出来了
++ 不认识的角名当场抛
++ 不认识的角名：不抛、值不变
++ 不认识的访问级别：accessLevel has no value "all"; expected one of: addOnly
++ 不认识的轴被拒: forAxis has no value "斜着"; expected …
++ 不认识的选项，报错里列出可选的
++ 不认识的通知类型被拒: notificationOccurred has no value "info"; expected one of: success / warning / error
++ 不认识的键：抛，并列出能用的键
++ 不认识的颜色串不改旧值
++ 不认识的颜色：保留旧值
++ 不认识的鲜明样式被拒，可选值列出来了
++ 不许合成的字拆开之后不再合回去
++ 不设也有一个 tabBarItem
++ 不调 preventDefault()：defaultPrevented 是 false
++ 不调 preventDefault()：照样派发一次
++ 不调 preventDefault()：跳转照常发生（解析不了，收到 did-fail-load）
++ 两个 BOM：只去掉第一个
++ 两个 UUID 不一样
++ 两个 guide 不是同一个
++ 两个 view 的 layer 不是同一个
++ 两个动画都挂上了
++ 两个模式摘掉一个：还在另一个上，没被回收
++ 两个模式都摘掉之后被回收
++ 两个监听器都抛：报两次，先后和监听器一致
++ 两个视图建在同一个缓冲区上：克隆之后还是同一个
++ 两个都是同一个包装
++ 两个颜色都能写回 null
++ 两侧互不影响：已完成部分的图片还在
++ 两头的图没设时，minimumValueImageRectForBounds 是空的
++ 两次的结果不一样
++ 两次读出来的是两个对象
++ 两次读到的 identifierForVendor 相同
++ 两次读回来是同一个包装
++ 两次读是同一个对象
++ 两种写法规范化之后相等
++ 两边都带：中止 Request 上的那个，请求不受影响
++ 两边都带：中止第二个参数里的那个，请求被取消
++ 两边都带：服务端看到连接断了
++ 两项宽 + 一个间距
++ 严重程度写得进去
++ 中文 小时 numeric + 分钟 #-digit：小时一位
++ 中文 小时 numeric + 分钟 numeric：小时两位
++ 中止后 aborted
++ 中间自动占满剩下的
++ 为新出现的项又调了 cellProvider
++ 主动触发是异步的，当场还没到
++ 主动触发的 change 收到一次
++ 主动触发的 return 到了
++ 主动触发的 touchdown 到了
++ 主动触发的两个事件都到了
++ 主版本号不小于 #（工程的最低版本）
++ 之后再改原来的样式，富文本里的不变
++ 之后再改原来的阴影，富文本里的不变
++ 之后再改富文本，标签上的不变
++ 之后照常能用
++ 乘回去是单位矩阵
++ 九宫格得到的新图是静态的
++ 九宫格边距读得回来
++ 九种整数类型数组都被填了
++ 也不再是 subview
++ 也收 UIColor 对象
++ 也收 UIColor 对象，读出来是字符串
++ 也收普通对象
++ 也改不了高
++ 也是 NSObject
++ 也是 UIControl
++ 也是 UIView
++ 也是个 CAAnimation
++ 也是视图
++ 也没有选中的了
++ 书签按钮关得掉
++ 事件上不带状态（从 manager 上读）
++ 事件不可取消
++ 事件不是同步派发的：刚触发完还是 #
++ 事件不能取消
++ 事件延后一轮派发：发完当场还没收到
++ 事件延后一轮，同步读不到
++ 事件是 ErrorEvent
++ 事件是可取消的
++ 事件的 target 是 application
++ 事件的 target 是 webContents
++ 事件的 target 是搜索框
++ 事件的 target 是这个输入框
++ 事件的 target 是这个页面
++ 事件的 target 是这个颜色井
++ 事件的 target 都是控件自己
++ 事件的 type
++ 事务外面 disableActions 回到假
++ 事务的时长写得进去
++ 事务里 disableActions 为真
++ 二十个动作名都写得进去、读得回来
++ 二十种模糊样式都建得出来
++ 二次贝塞尔之后 currentPoint
++ 二进制内容一致
++ 二进制发得出去
++ 二进制往返一致
++ 二进制消息回来了是 Blob
++ 二进制消息的长度对
++ 二进制的 stat.size
++ 二进制长度一致
++ 五个 should… 事件都订得上、退得掉
++ 五个方向都写得进去
++ 五个都挂上了
++ 五种力度都建得出来
++ 交还之后不再是 first responder
++ 什么都不给：抛 TypeError
++ 从 Request 再构造一个：signal 跟过去了，中止照样取消
++ 从 Request 再构造一个：服务端看到连接断了
++ 从字节建的 Blob：改读出的缓冲区不影响它
++ 从来不合法的字节 ff：一个 U+FFFD
++ 从界面上拿掉：网页收到 visibilitychange，变成 hidden
++ 代理项范围 ed a# #：三个 U+FFFD
++ 代理项范围之前的 ed #f bf 合法
++ 会计格式的负数用括号
++ 但 <iframe> 里塞进来的消息不收
++ 但 navigationItem 自己是新值（导航条显示的是它）
++ 但仍然是 subview
++ 但没有建动画
++ 位掩码给非数组被拒: maskedCorners needs an array of names; e…
++ 位置越界：停在末尾
++ 低于下限：钉在 minimumValue
++ 作废两次不抛
++ 作废之后 biometryType 还读得到
++ 作废之后 canEvaluatePolicy 是 false
++ 作废之后 canEvaluatePolicyError 的原因是 InvalidContextError
++ 作废之后 evaluatePolicy：err.code 是数
++ 作废之后 evaluatePolicy：err.domain
++ 作废之后 evaluatePolicy：err.message 是非空字符串
++ 作废之后 evaluatePolicy：err.name 是约定的十二个之一
++ 作废之后 evaluatePolicy：拒绝的是 Error
++ 作废之后 evaluatePolicy：被拒绝，err.name 在约定的名字里
++ 作废之后 evaluatePolicy：返回的是 Promise
++ 保留的事件名：同一个回调再注册，照样抛
++ 保留的事件名：换一个回调注册，照样抛
++ 保留的事件名：没有留下监听器
++ 保留的事件名：第一次注册抛
++ 倒计时模式下 countDownDuration 起步是 # 秒
++ 倒计时模式下把样式改成 compact：preferredDatePickerStyle "compact" does not support datePickerMode "countDownTimer"; that mode only works with "wheels" or "automatic"
++ 倒计时模式下把样式改成 inline：preferredDatePickerStyle "inline" does not support datePickerMode "countDownTimer"; that mode only works with "wheels" or "automatic"
++ 值以 U+FEFF 开头：读回来还在
++ 值是 undefined 的键视为没带
++ 值是数组的枚举属性给了字符串：类型不对，照旧抛
++ 值能清掉
++ 值越大滑块越靠右
++ 值配不上 keyPath 就抛
++ 偏移写进去了
++ 停下之后不转了
++ 停下之后仍然显示
++ 停下之后自己隐藏
++ 停在后一次的那一页
++ 停用后 isActive 变 false
++ 像数的字符串按数转
++ 像素
++ 先拦住再自己 loadURL：只派发了一次（loadURL 不会再绕回来）
++ 先拦住再自己 loadURL：最后到了自己加载的那一页
++ 先缩放再平移：平移不被缩放
++ 先缩放再平移：缩放部分
++ 光标在开头时 deleteBackward 什么都不删
++ 光标挪到开头再插
++ 克隆 -# 和 NaN
++ 克隆 AbortController：抛 DataCloneError
++ 克隆 ArrayBuffer：字节拷了一份
++ 克隆 BigInt
++ 克隆 Blob：抛 DataCloneError
++ 克隆 DataView
++ 克隆 Date：是 Date，时间一样，不是同一个
++ 克隆 Error：cause 和 stack 带着
++ 克隆 Error：还是这个类，信息在
++ 克隆 EvalError：还是这个类，信息在
++ 克隆 EventTarget：抛 DataCloneError
++ 克隆 Event：抛 DataCloneError
++ 克隆 Headers：抛 DataCloneError
++ 克隆 Map：键可以是对象，顺序不变
++ 克隆 Promise：抛 DataCloneError
++ 克隆 Proxy：抛 DataCloneError
++ 克隆 RangeError：还是这个类，信息在
++ 克隆 ReferenceError：还是这个类，信息在
++ 克隆 RegExp：源和标志都在，lastIndex 归零
++ 克隆 Response：抛 DataCloneError
++ 克隆 Set
++ 克隆 SharedArrayBuffer：抛 DataCloneError（还不支持）
++ 克隆 Symbol：抛 DataCloneError
++ 克隆 SyntaxError：还是这个类，信息在
++ 克隆 TextDecoder：抛 DataCloneError
++ 克隆 TextEncoder：抛 DataCloneError
++ 克隆 TypeError：还是这个类，信息在
++ 克隆 UIColor：抛 DataCloneError
++ 克隆 URIError：还是这个类，信息在
++ 克隆 URLSearchParams：抛 DataCloneError
++ 克隆 URL：抛 DataCloneError
++ 克隆 WeakMap：抛 DataCloneError
++ 克隆 WeakRef：抛 DataCloneError
++ 克隆 WeakSet：抛 DataCloneError
++ 克隆 application：抛 DataCloneError
++ 克隆 name 改过的 Error：name 变回 Error，自己加的字段不带
++ 克隆三十二位无符号整数的类型数组：类型和字节都对
++ 克隆三十二位有符号整数的类型数组：类型和字节都对
++ 克隆三十二位浮点数的类型数组：类型和字节都对
++ 克隆不合法的 Date
++ 克隆八位无符号整数的类型数组：类型和字节都对
++ 克隆八位无符号整数（截断的那种）的类型数组：类型和字节都对
++ 克隆八位有符号整数的类型数组：类型和字节都对
++ 克隆六十四位无符号整数的类型数组：类型和字节都对
++ 克隆六十四位有符号整数的类型数组：类型和字节都对
++ 克隆六十四位浮点数的类型数组：类型和字节都对
++ 克隆出来的对象，原型是 Object.prototype
++ 克隆函数：抛 DataCloneError
++ 克隆包装成对象的基本类型
++ 克隆十六位有符号整数的类型数组：类型和字节都对
++ 克隆原生对象的包装（UIView）：抛 DataCloneError
++ 克隆原生对象的包装：报错里写了类名
++ 克隆基本类型：原样
++ 克隆已经转移走的 ArrayBuffer：抛 DataCloneError
++ 克隆带偏移的类型数组：偏移和长度都在，整个缓冲区一起拷
++ 克隆带落单代理项的字符串
++ 克隆普通对象：值是 undefined 的键还在
++ 克隆普通对象：内容一样
++ 克隆普通对象：是另一个对象
++ 克隆普通对象：里面的数组也是另一个
++ 克隆稀疏数组：洞还是洞，长度不变
++ 克隆结构体（CGRect）：抛 DataCloneError
++ 兑现的是 CLLocation
++ 全名不合法，保留旧值
++ 全局上有 CLLocation
++ 全局上有 CLLocationManager
++ 全屏的页关掉：底下的页再派发出现
++ 全清：已经打开的网页里 localStorage 当场变空
++ 八个事件名都订得上、退得掉
++ 八种鲜明样式都建得出来
++ 六个类都在全局上
++ 六行字不限行数时想要的高度（# pt 的字）
++ 关完是 CLOSED
++ 关掉之后 presentedViewController 清了
++ 关掉之后不生成隐式动画
++ 关掉取整之后日期写什么是什么
++ 关掉导航控制器：它和栈顶的页都消失
++ 关掉滚动之后有固有大小：三行 # pt 的字高 #
++ 关掉结果列表按钮，选中状态还在
++ 关掉选中会连带关掉编辑
++ 关掉：先 beforedisappear 再 disappear，各一次
++ 关掉：写多少就是多少
++ 关闭之后的 WebSocket 被回收
++ 关闭码是我们给的
++ 兼容汉字换成统一的那个字
++ 内存分区写的，落盘分区里没有
++ 内存分区自己能写能读
++ 内存分区里没有这些
++ 内容加到 contentView 上
++ 内容对齐能写
++ 内容比可视区高，所以能滚
++ 内容类型
++ 内容类型能清掉
++ 内边距也收普通对象
++ 内边距写得进去
++ 内边距缺字段被拒
++ 内边距读出来是 UIEdgeInsets
++ 再 close() 一次是空操作
++ 再写 placeholder：attributedPlaceholder 的文字跟着变
++ 再写 text：底色没了
++ 再写 vc.title 又透下去了
++ 再写着色，同一侧的图片没了
++ 再加一个：两个输入框
++ 再打开选中，编辑不会自己回来
++ 再换回动图：又挂上
++ 再插回来
++ 再禁用后 state 两个位都在
++ 再调一次还是在转
++ 写 # 秒：零头被丢掉，剩整分钟
++ 写 # 读回 #
++ 写 '#' 读回数 #
++ 写 -#：取消选中
++ 写 NaN 抛
++ 写 UIColor 对象，读回语义色的名字
++ 写 best 读回这个名字
++ 写 bestForNavigation 读回这个名字
++ 写 bottom 读回 trailing
++ 写 done 读回 prominent
++ 写 frame 改不了开关的宽
++ 写 frame：宽度进去了
++ 写 frame：高度没进去，还是 #
++ 写 leading 当然也读回 leading
++ 写 none 读回这个名字
++ 写 null 不是清空：系统又建了一个
++ 写 null 之后 hasStrings 是 false
++ 写 null 之后 text 是 null
++ 写 null 之后读到 null
++ 写 null 也算一次变化
++ 写 null 得到空串
++ 写 null 清掉
++ 写 null 清掉：读回 null
++ 写 null 等于删除
++ 写 null 等于清空
++ 写 null 读回 null
++ 写 null 退回默认颜色
++ 写 null：不限
++ 写 null：去掉这个状态的，读到的回到 normal 的那个
++ 写 null：没有标题
++ 写 null：清掉
++ 写 null：清空
++ 写 position 把 frame 挪走了
++ 写 prominent 也读回 prominent
++ 写 reduced 读回这个名字
++ 写 selectedIndex
++ 写 selectedViewController
++ 写 text 之后光标在末尾
++ 写 text 改成五行，高度跟着变成 #
++ 写 top 读回 leading
++ 写 undefined 得到空串
++ 写 undefined 抛
++ 写 url：抛 TypeError
++ 写不进去
++ 写不进去，值没变
++ 写不进去，还是没在转
++ 写两个字段名，读回来一样
++ 写了 'shadercache'（iOS 上没有对应的东西）：不报错
++ 写了 attributedPlaceholder，placeholder 读出来是其中的文字
++ 写了之后 changeCount 变大
++ 写了之后 hasStrings
++ 写了五条，读出来五条
++ 写了分区的网页，session 是那个分区的
++ 写了标题不会自己显示范围条
++ 写了标题，选中的还是 #
++ 写了落单的代理项之后，别的属性照常
++ 写只读属性被拒: TypeError
++ 写名字读数字
++ 写图片之后，同一侧的着色没了
++ 写字段抛
++ 写字段被拒: a is read-only: structs are values, assign a whole…
++ 写字符串 "#"：转成数
++ 写完 has 为真
++ 写完就存在
++ 写对的时候没有警告，照常生效
++ 写对象读回同一个短名
++ 写对象，读回语义色的名字
++ 写属性：中间和结尾的 U+FEFF（对照，以前就不丢）
++ 写属性：只有一个 U+FEFF 的字符串
++ 写属性：开头两个 U+FEFF 都在
++ 写属性：开头的 U+FEFF 还在
++ 写属性：成对的代理项（对照）
++ 写属性：落单的代理项原样到了
++ 写数字按 String() 转
++ 写数字：转成字符串
++ 写文件：字节数
++ 写文件：开头的 BOM 写进去了（EF BB BF）
++ 写空串清掉：读回空串
++ 写空数组：没有标题
++ 写空数组：清空
++ 写负数抛（取值范围由这个属性自己拒）
++ 写转不出数的值抛
++ 写过之后状态没变
++ 写过之后盖掉注册值
++ 写进三个页面
++ 写进去三个
++ 写进去之后 has 为真
++ 写进去的 tabBarItem 读回来是同一个
++ 写进去的图原样读回来
++ 写进去的路径原样还回来
++ 写进去读出来
++ 写进去读回来是同一个对象
++ 写错之后原值不动
++ 写错之后原值没动
++ 写错之后原值没被动过
++ 写错之后原来的值没动
++ 写错之后字体没被动过
++ 写错之后行数没被动过
++ 写错之后选区没被动过
++ 几个条件一起
++ 出错之后快照没变
++ 出错的构造没有接上数据源
++ 出错的那一次什么都没加进去
++ 出错的那几次没有写进去东西
++ 函数抛
++ 分享不了的东西（null）：activityItems[#] must be a string, a URL or a UIImage, got null
++ 分享不了的东西（视图）：activityItems[#] must be a string, a URL or a UIImage, got an object
++ 分享面板上不认识的事件名：当自定义事件
++ 分享面板关掉之后 presentedViewController 清了
++ 分享面板呈现中：presentedViewController 是它
++ 分享面板必须给要分享的东西：new UIActivityViewController: activityItems must be an array of strings, URLs and UIImages, got undefined
++ 分享面板：complete 和 dismiss 都订得上
++ 分享面板：dismiss 兑现
++ 分享面板：present 兑现
++ 分享面板：默认不排除任何动作
++ 分享面板：默认不隐藏任何分区
++ 分享面板：默认允许突出显示一个动作
++ 分区的标识重复
++ 分区：不写分区的（默认那一份）读不到
++ 分区：不同名的读不到
++ 分区：内存分区，不同名的读不到
++ 分区：内存分区，同名的另一张读得到
++ 分区：写的那张自己读得到
++ 分区：只在内存里的那一种也读不到落盘分区的
++ 分区：同名的另一张网页读得到
++ 分区：落盘分区里的值没被内存分区的写入影响
++ 分段曲线的个数
++ 切到倒计时
++ 切换之后是第二页
++ 切换之后还是一个
++ 切换标签：原来的消失、新的出现
++ 列不存在的目录
++ 列出来的东西齐了
++ 列目录只给名字不含路径
++ 列表已上屏，等着被滑
++ 列表的标识：带 U+FEFF 的和不带的是两个标识
++ 列表的标识：读回来各是各的
++ 刚建好还没被呈现
++ 删不存在的键也算成功
++ 删分区连同里面的项
++ 删分区，不存在的忽略
++ 删掉之后 get 给 null
++ 删掉之后 has 为假
++ 删掉之后又回到注册值
++ 删掉的项不在了
++ 删掉选中的那段：变成没有选中的
++ 删除，不存在的忽略
++ 别的 error 监听器照常收到起因
++ 别的事件不可取消，preventDefault() 无效
++ 别的控件上没有输入框的拦截事件，当自定义事件
++ 别的段不受影响
++ 别的页不受影响
++ 前一个监听器抛异常不影响后续
++ 前一个监听器移除了后一个：后一个不再被调
++ 前进之后是第二页
++ 剩下两项平分
++ 剪贴板 change 事件（第 # 次），changeCount
++ 剪贴板：不认识的事件名当自定义事件
++ 副本不可改
++ 副本带着赋值时的 isInteractive
++ 副本带着赋值时的 spacing
++ 副本带着赋值时的 tintColor
++ 副本的 alignment
++ 副本的 filter
++ 副本的 lineSpacing
++ 副本的 selection
++ 副本的 selectionLimit
++ 副本的 shadowBlurRadius
++ 副本的 shadowOffset
++ 副本自己变了
++ 加了一个按钮
++ 加了两个分区
++ 加了两层
++ 加到不存在的分区
++ 加回去之后还在
++ 加回界面：网页收到 visibilitychange，变回 visible
++ 加载完，Promise 兑现的值是 undefined
++ 加载完：getTitle()
++ 加载完：getURL() 是那个地址
++ 加载完：isLoading() 是 false
++ 加进去之后 childViewControllers 有一个
++ 加进去的视图，父视图是 contentView
++ 动图的 size 还是那张图的大小
++ 动图这一组跑完了
++ 动态色读回来还是那个串
++ 动画期间 scroll 也在发
++ 动画组建得出来
++ 动画组收到非动画就抛
++ 动画组读回来还是 CAAnimationGroup
++ 动画结束发了 scrollanimationend
++ 动画跑完时兑现，值是 true
++ 动画：不认识的事件名当自定义事件
++ 包装身份一致
++ 区块上挂了边缘拖动
++ 十一次调用都没抛
++ 十七个属性都读得回来
++ 十二个现成的筛选条件都是 PHPickerFilter
++ 十八个没做的成员都不存在
++ 十页比三页宽
++ 半圆弧的 bounds 宽是直径
++ 单例 generalPasteboard：GC 后还是原来那个包装
++ 单例 mainRunLoop：GC 后还是原来那个包装
++ 单元格有 contentView
++ 单元格的 reuseIdentifier
++ 单参重载默认平铺
++ 单次 # ms，# 个并发 # ms，其中 # 的有 # 个（其余被 httpbin 限流）
++ 单行内容：deleteBackward 删光标前面那一个
++ 单行内容：deleteBackward 删空之后 hasText 为假
++ 单行内容：hasText 只读
++ 单行内容：input 不是同步派发的：刚插完还是 #
++ 单行内容：input 的 target 是这个输入框
++ 单行内容：insertText 的参数按 String() 转
++ 单行内容：insertText() 不给参数也是空串
++ 单行内容：insertText(null) 插的是空串
++ 单行内容：不在编辑时 deleteBackward 也派发 input
++ 单行内容：不在编辑时 insertText 和 deleteBackward 不经过 beforeinput
++ 单行内容：不在编辑时 insertText 派发 input，写 text 不派发：一共 # 次
++ 单行内容：不在编辑时 insertText 照样插得进去，插在光标处
++ 单行内容：光标在开头时 deleteBackward 什么都不删
++ 单行内容：光标挪到开头再插
++ 单行内容：往空的输入框里 insertText 之后 hasText 为真
++ 单行内容：换完选区收成光标
++ 单行内容：插完光标在插入的内容后面
++ 单行内容：有内容时 hasText 为真
++ 单行内容：有选区时 deleteBackward 删掉选中的
++ 单行内容：有选区时 insertText 换掉选中的
++ 单行内容：清空之后 hasText 为假
++ 单行内容：这时文字已经是改过的
++ 单行内容：默认 hasText 为假
++ 单行输入框：alert 是 dark 的别名，写得进去，读回来是 dark
++ 单行输入框：inputAccessoryView 也收普通的视图
++ 单行输入框：inputAccessoryView 写 null：去掉
++ 单行输入框：inputAccessoryView 写 undefined 也是去掉
++ 单行输入框：inputAccessoryView 写得进去，读回原来的包装
++ 单行输入框：inputAccessoryView 给别的原生对象被拒
++ 单行输入框：inputAccessoryView 给字符串被拒
++ 单行输入框：inputAccessoryView 给数字被拒
++ 单行输入框：inputAccessoryView 被拒之后原值没动
++ 单行输入框：keyboardAppearance
++ 单行输入框：去掉其中一个的，另一个的还在
++ 单行输入框：同一个视图可以给两个输入框
++ 单行输入框：已经有父视图的视图也写得进去
++ 单行输入框：搜索框里的输入框读到的是搜索框的那一个
++ 单行输入框：旧的事件名 editingChanged 当自定义事件
++ 单行输入框：旧的事件名 editingDidBegin 当自定义事件
++ 单行输入框：旧的事件名 editingDidEnd 当自定义事件
++ 单行输入框：旧的事件名 editingDidEndOnExit 当自定义事件
++ 单行输入框：旧的事件名 shouldchange 当自定义事件
++ 单行输入框：这时它还在原来的父视图里（还没有键盘）
++ 单行输入框：默认没有 inputAccessoryView
++ 单行选区：(#, #) 正好盖住那个表情
++ 单行选区：event.target 是这个输入框
++ 单行选区：event.type
++ 单行选区：length 为 # 是光标
++ 单行选区：null 被拒：选区没有「清掉」这回事
++ 单行选区：removeEventListener 之后收不到了
++ 单行选区：selectedRange 是输入框上的属性
++ 单行选区：selectionchange 和 beforeinput 一起订、先后退掉
++ 单行选区：selectionchange 订得上也退得掉
++ 单行选区：selectionchange 退掉之后 beforeblur 照常被问到
++ 单行选区：不可取消
++ 单行选区：不在编辑时写进去的读得回来
++ 单行选区：不在编辑时写选区：不抛
++ 单行选区：不在编辑时读到的也是 NSRange
++ 单行选区：不是对象被拒
++ 单行选区：也收普通对象
++ 单行选区：事件不是同步派发的：刚写完还是 #
++ 单行选区：从没编辑过的输入框，选区是 (#, #)
++ 单行选区：代码写 selectedRange 派发 selectionchange
++ 单行选区：位置在表情中间：不抛
++ 单行选区：位置在表情中间：读回来还是 (#, #)
++ 单行选区：位置越界：停在末尾
++ 单行选区：写错之后原来的选区没被动过
++ 单行选区：写错之后选区没被动过
++ 单行选区：大到溢出的位置不崩，停在末尾
++ 单行选区：大到溢出的长度不崩
++ 单行选区：委托装着的时候控件事件照常：focus 到了
++ 单行选区：字段按整数转（向零取整）
++ 单行选区：正在编辑时读到的是 NSRange
++ 单行选区：正在编辑时负的 location 照样被拒
++ 单行选区：监听器里读 selectedRange 就是现在的选区
++ 单行选区：缺字段被拒
++ 单行选区：负的 length 被拒
++ 单行选区：负的 location 被拒
++ 单行选区：选区写得进去
++ 单行选区：长度越界：位置留着，长度变成 #
++ 单选：选了另一项，前一项不再选中
++ 占位字符是 U+FFFC
++ 占位文字读回来的颜色
++ 占位符写得进去
++ 卡片上三个图层都挂了动画
++ 卡片上挂了两个形状图层
++ 卡片关掉：底下的页也不派发出现
++ 卡片收到 traitchange：dark → light，previousTraitCollection 是 UITraitCollection
++ 卡片收到 traitchange：light → dark，previousTraitCollection 是 UITraitCollection
++ 卡片里的子视图也跟着变了
++ 压低上限，value 跟着被钉下来
++ 压非 UIViewController 被拒: pushViewController: expects a UIViewControll…
++ 原图没有 capInsets
++ 原图没被改
++ 原来的往后挪
++ 原来的第 # 项挪到了第 # 个位置
++ 原来那个根页面成了第一页
++ 原来那个视图上没有了
++ 原样读回：#f#
++ 原样读回：#f#a
++ 原样读回：#ff#
++ 原样读回：black
++ 原样读回：label
++ 原样读回：light-dark(#fff, ##)
++ 原样读回：light-dark(systemBackground, ##)
++ 原样读回：rgb(# # # / #%)
++ 原样读回：rgb(# # #)
++ 原样读回：rgb(#, #, #)
++ 原样读回：rgba(#,#,#,.#)
++ 原样读回：systemBackground
++ 原样读回：systemBlue
++ 原生对象上的监听器抛了：照样报、后面的照常跑
++ 原生对象抛
++ 原生模块 ArrayBuffer 整个传
++ 原生模块 JS 自己 dispatchEvent 也收得到
++ 原生模块 Uint#Array 按它的字节传
++ 原生模块 add(#, #)
++ 原生模块 application 上有 nativeModules
++ 原生模块 call 不给方法名：抛 TypeError
++ 原生模块 callAsync 调不存在的方法：当场抛 TypeError
++ 原生模块 callAsync 返回 Promise
++ 原生模块 data 事件到了 data 的监听器
++ 原生模块 echo(# + #)：双精度不走样
++ 原生模块 echo(#)
++ 原生模块 echo(#e#)
++ 原生模块 echo() 不带参数是 null
++ 原生模块 echo(-#)
++ 原生模块 echo(false)
++ 原生模块 echo(null)
++ 原生模块 echo(true)
++ 原生模块 echo(undefined) 是 null
++ 原生模块 echo(中文和表情)
++ 原生模块 echo(字符串)
++ 原生模块 echo(对象)
++ 原生模块 echo(数组)
++ 原生模块 echo(最大的安全整数)
++ 原生模块 echo(空串)
++ 原生模块 echo(空对象)
++ 原生模块 echo(空数组)
++ 原生模块 echoAll 把全部参数交回来
++ 原生模块 events 是冻结的
++ 原生模块 events 的内容
++ 原生模块 get 没登记过的名字：抛 TypeError
++ 原生模块 get 给的是 NativeModule
++ 原生模块 has：不是字符串的名字按字符串看
++ 原生模块 has：没登记过的名字
++ 原生模块 has：登记过的名字
++ 原生模块 methods 本身是冻结的
++ 原生模块 methods 每次读是同一个对象
++ 原生模块 methods.async 是冻结的数组
++ 原生模块 methods.async 的内容
++ 原生模块 methods.sync 是冻结的数组
++ 原生模块 methods.sync 的内容
++ 原生模块 name
++ 原生模块 name 是 RangeError：是真的 RangeError
++ 原生模块 name 是 TypeError：message
++ 原生模块 name 是 TypeError：是真的 TypeError
++ 原生模块 names 按名字排好了
++ 原生模块 names 是冻结的
++ 原生模块 names 是数组
++ 原生模块 names 里有示例模块
++ 原生模块 nativeModules 不可枚举
++ 原生模块 nativeModules 是原型上的取值器
++ 原生模块 nativeModules 没有 setter
++ 原生模块 new NativeModule() 抛 TypeError
++ 原生模块 new NativeModules() 抛 TypeError
++ 原生模块 sha#("abc")（走示例包的 JS）
++ 原生模块 sha#(空)
++ 原生模块 tick 的监听器没收到 data
++ 原生模块 两个回调都没调就丢了：Promise 被拒绝
++ 原生模块 两次交回来的不是同一块内存
++ 原生模块 事件不可取消
++ 原生模块 事件不是当场到的（延后一轮）
++ 原生模块 事件到了
++ 原生模块 事件对象是 Event
++ 原生模块 事件带的数据
++ 原生模块 事件没带数据：detail 是 null
++ 原生模块 事件的 target 是模块对象
++ 原生模块 事件的 type
++ 原生模块 事件里的二进制是 ArrayBuffer
++ 原生模块 二进制交回来是 ArrayBuffer
++ 原生模块 二进制可以在数组和对象里面
++ 原生模块 先成功再失败：成功算数
++ 原生模块 全部跑完之后模块照常能用
++ 原生模块 再来一遍没声明的事件：还是当自定义事件
++ 原生模块 写 methods 抛 TypeError
++ 原生模块 写 name 抛 TypeError
++ 原生模块 别处来的 NSError：code
++ 原生模块 别处来的 NSError：domain
++ 原生模块 别处来的 NSError：message
++ 原生模块 别处来的 NSError：name 是 Error
++ 原生模块 别处来的 NSError：是 Error
++ 原生模块 原生当场兑现的，JS 这边也不是当场拿到
++ 原生模块 原生报错带 code：code
++ 原生模块 原生报错带 code：name
++ 原生模块 原生报错：code 给的是 # 也带上
++ 原生模块 原生报错：message
++ 原生模块 原生报错：name
++ 原生模块 原生报错：抛出来的是 Error
++ 原生模块 原生报错：没给 code 就没有 code
++ 原生模块 原生报错：没给 code 就没有 domain
++ 原生模块 原生看到的类型：#
++ 原生模块 原生看到的类型：#（不是布尔）
++ 原生模块 原生看到的类型：ArrayBuffer
++ 原生模块 原生看到的类型：DataView
++ 原生模块 原生看到的类型：Uint#Array
++ 原生模块 原生看到的类型：false
++ 原生模块 原生看到的类型：null
++ 原生模块 原生看到的类型：true
++ 原生模块 原生看到的类型：字符串
++ 原生模块 原生看到的类型：对象
++ 原生模块 原生看到的类型：数组
++ 原生模块 原生返回了 NaN：抛 TypeError
++ 原生模块 原生返回了过不了桥的值：抛 TypeError
++ 原生模块 原生造的 # 个字节
++ 原生模块 参数个数：不带参数
++ 原生模块 参数个数：中间的 undefined 占一个位置
++ 原生模块 参数是BigInt：抛 TypeError
++ 原生模块 参数是Blob：抛 TypeError
++ 原生模块 参数是Date：抛 TypeError
++ 原生模块 参数是Error：抛 TypeError
++ 原生模块 参数是Map：抛 TypeError
++ 原生模块 参数是NaN：抛 TypeError
++ 原生模块 参数是Promise：抛 TypeError
++ 原生模块 参数是Set：抛 TypeError
++ 原生模块 参数是Symbol：抛 TypeError
++ 原生模块 参数是函数：抛 TypeError
++ 原生模块 参数是原生对象：抛 TypeError
++ 原生模块 参数是对象里面的函数：抛 TypeError
++ 原生模块 参数是带环的对象：抛 TypeError
++ 原生模块 参数是带环的数组：抛 TypeError
++ 原生模块 参数是数组里面的 NaN：抛 TypeError
++ 原生模块 参数是模块对象自己：抛 TypeError
++ 原生模块 参数是正则：抛 TypeError
++ 原生模块 参数是正无穷：抛 TypeError
++ 原生模块 参数是类的实例：抛 TypeError
++ 原生模块 参数是落单的代理项：抛 TypeError
++ 原生模块 参数是负无穷：抛 TypeError
++ 原生模块 参数是键是落单的代理项：抛 TypeError
++ 原生模块 发一个没声明的事件：原生那边丢掉，调用本身不报错
++ 原生模块 同一个名字只登记上一个
++ 原生模块 同一个名字每次给同一个对象
++ 原生模块 同一个对象出现两次（不是环）
++ 原生模块 同名的第二个模块没有盖掉先登记的
++ 原生模块 同时在跑的调用各回各的
++ 原生模块 同步方法在主线程上执行
++ 原生模块 后台线程上兑现的值
++ 原生模块 后台线程上还没兑现时，JS 照常往下跑
++ 原生模块 后台线程发的事件到了
++ 原生模块 回调调了两次：第一次算数
++ 原生模块 字节一个不差
++ 原生模块 它也是 EventTarget
++ 原生模块 它是 NativeModules
++ 原生模块 它是在后台线程上兑现的
++ 原生模块 对象里值是 undefined 的成员等于没写
++ 原生模块 异步交回过不了桥的值：拒绝，TypeError
++ 原生模块 异步报错：Promise 被拒绝，原因是 Error
++ 原生模块 异步报错：code
++ 原生模块 异步报错：message
++ 原生模块 异步报错：name
++ 原生模块 异步报错：name 是 TypeError 时是真的 TypeError
++ 原生模块 异步报错：没给 code 就没有 code
++ 原生模块 异步方法的参数也一样查：当场抛 TypeError
++ 原生模块 异步方法的处理函数在主线程上被调
++ 原生模块 异步：不带参数是 null
++ 原生模块 异步：二进制在对象和数组里面
++ 原生模块 异步：二进制的内容
++ 原生模块 异步：二进制的长度
++ 原生模块 异步：兑现的值
++ 原生模块 异步：各种值来回一遍
++ 原生模块 异步：模块留着的数据交回来是 ArrayBuffer
++ 原生模块 异步：模块留着的数据的内容
++ 原生模块 异步：直接交回二进制是 ArrayBuffer
++ 原生模块 异步：空的二进制
++ 原生模块 把 call 摘下来调：抛 TypeError
++ 原生模块 报错之后模块照常能用
++ 原生模块 报错里列了有哪些方法
++ 原生模块 报错里列了登记过的名字
++ 原生模块 报错里点了方法名
++ 原生模块 报错里点了是哪个方法
++ 原生模块 报错里点了要的名字
++ 原生模块 报错里说了原因
++ 原生模块 报错里说了是哪个参数的哪个位置
++ 原生模块 报错里说该用 call
++ 原生模块 报错里说该用 callAsync
++ 原生模块 摘掉监听器之后不再收到
++ 原生模块 改了交回来的缓冲区：模块留着的那份没变
++ 原生模块 改了第一次交回来的：第二次交回来的不受影响
++ 原生模块 数据过不了桥的事件被丢掉，后面的照常到
++ 原生模块 数组里的 undefined 是 null
++ 原生模块 模块自己查参数报的错
++ 原生模块 模块自己查参数报的错：message
++ 原生模块 每次读是同一个对象
++ 原生模块 没人听的时候发的事件不补发
++ 原生模块 没有原型的对象也能传
++ 原生模块 用 call 调异步方法：抛 TypeError
++ 原生模块 用 callAsync 调同步方法：当场抛 TypeError
++ 原生模块 用错之后模块照常能用
++ 原生模块 监听 @ 开头的名字：抛 TypeError
++ 原生模块 监听没声明的事件：当自定义事件
++ 原生模块 示例包导出的名字就是登记的名字
++ 原生模块 示例包的 onTick 停了之后不再收到
++ 原生模块 示例包的 onTick 收到了
++ 原生模块 空的二进制交回来还是 ArrayBuffer
++ 原生模块 空的二进制长度是 #
++ 原生模块 第 # 个字节
++ 原生模块 视图只传它盖住的那一段
++ 原生模块 调不存在的方法：抛 TypeError
++ 原生模块 连发三个事件：按发的先后到
++ 原生模块：嵌在对象和数组里的也一样
++ 原生模块：开头的 U+FEFF 往返之后还在
++ 原生模块：落单的代理项照旧被拒
++ 原生派发的不可取消
++ 参数不够也保留旧值
++ 参数不是视图被拒: feedbackGeneratorForView needs a UIView
++ 参数不是识别器被拒: addGestureRecognizer needs a UIGestureRecognizer
++ 反转不改形状
++ 反转给的是另一条路径
++ 反过来写，directional 也跟着变
++ 发送：Blob 的 type 成了 Content-Type
++ 发送：Blob 的字节原样到了服务器
++ 发送：fetch(Request 对象) 带上了它的 body
++ 发送：字符串 body 到了服务器
++ 发送：字符串 body 的 Content-Type
++ 发送：类型数组的字节原样到了服务器
++ 取一次之后马上 stopUpdatingLocation()：那一次拒绝
++ 取值器自己抛的错原样出来，不改成 DataCloneError
++ 取值器被读一次，克隆出来的是普通的值
++ 取出来的图有尺寸
++ 取到的是登记的那个类
++ 取子串：属性跟着走
++ 取子串：收普通对象写的范围
++ 取子串：长度 # 的范围给空的
++ 取没登记过的标识：在 cellProvider 里抛 TypeError，能接住
++ 取消后拒绝，name 是 AbortError
++ 取消样式读得回来
++ 取消选中不存在的项
++ 取消高亮：停
++ 另一侧也一样：写图片，着色没了
++ 另一侧也一样：写着色，图片没了
++ 只为屏幕上放得下的那几行调，不是 # 行全调
++ 只关编辑，选中还开着
++ 只剩一个标题：选中的变成 #
++ 只剩根页面
++ 只圆上面两个角
++ 只在内存里的分区是 false
++ 只弹掉了 B
++ 只改 #：不派发 will-navigate
++ 只改 #：地址确实变了
++ 只有 BOM：空串
++ 只清 cookie：cookie 全没了
++ 只清 cookie：localStorage 还在
++ 只给 url：属于那一个主机，hostOnly 是 true
++ 只给文字：string 读得回来
++ 只要星期几
++ 只设边距不开开关：还是贴边
++ 只遍历一部分：范围不超出给的那一段
++ 可以嵌套
++ 可改的不给参数：空的
++ 可改的也是 NSAttributedString
++ 可改的是 NSMutableAttributedString
++ 可改的是 NSParagraphStyle
++ 可改的照不可改的抄一份
++ 可改的：string
++ 可改的：构造时给的属性在
++ 可空字符串：# 是 '#'（和 textContent 一样）
++ 可空字符串：null 是 null
++ 可空字符串：true 是 'true'
++ 可空字符串：undefined 是 null
++ 右侧按钮进去了
++ 右块固定宽
++ 叶子类 UILabel 也一样（以前能用）
++ 各个长度的边界都合法
++ 同一个不认识的名字再来一遍，还是当自定义事件
++ 同一个串读回来一样
++ 同一个分区名是同一个对象
++ 同一个对象出现两次：克隆之后还是同一个
++ 同一个筛选条件读两次是同一个对象
++ 同一个解码器解两次：每次都去 BOM
++ 同一个锚点取两次是同一个对象
++ 同一个项放两次：两个都在
++ 同一个项放进第二个工具条
++ 同一个频道登记两次：抛
++ 同一事件的下一个监听器照常执行
++ 同一帧读两次是同一个对象
++ 同一次打开只派发一次
++ 同一种样式调两次，得到两个对象
++ 同一轮三次滚动合并成一个 scroll 事件
++ 同一页再呈现一次，照样派发
++ 同一项没有重复派发
++ 同名同域同路径再写一次：盖掉，不多一条
++ 同名多值合并
++ 同时也收得到 input
++ 同时到期按注册顺序
++ 同时收到一次 did-fail-load
++ 同样的组合再建一次 isEqual
++ 同步 → 微任务 → 宏任务
++ 同步的 beforefocus 排在延后的 focus 前面
++ 名字不存在返回 null
++ 名字大小写不敏感
++ 后台解码后尺寸不变
++ 后退之后回到第一页
++ 后退之后能前进
++ 后退到头了，不能再退
++ 后面的往前补
++ 呈现一页：先 beforeappear 再 appear，各一次
++ 呈现方式写得进去
++ 和网页一致：format {"maximumFractionDigits":#}（# 条里不同的）
++ 和网页一致：format {"maximumSignificantDigits":#}（# 条里不同的）
++ 和网页一致：format {"minimumFractionDigits":#,"maximumFractionDigits":#}（# 条里不同的）
++ 和网页一致：format {"minimumFractionDigits":#}（# 条里不同的）
++ 和网页一致：format {"minimumIntegerDigits":#,"useGrouping":false,"minimumFractionDigits":#}（# 条里不同的）
++ 和网页一致：format {"minimumIntegerDigits":#}（# 条里不同的）
++ 和网页一致：format {"minimumSignificantDigits":#}（# 条里不同的）
++ 和网页一致：format {"notation":"compact","maximumFractionDigits":#}（# 条里不同的）
++ 和网页一致：format {"notation":"compact","maximumSignificantDigits":#}（# 条里不同的）
++ 和网页一致：format {"notation":"compact","signDisplay":"always"}（# 条里不同的）
++ 和网页一致：format {"notation":"compact","style":"currency","currency":"USD"}（# 条里不同的）
++ 和网页一致：format {"notation":"compact","style":"percent"}（# 条里不同的）
++ 和网页一致：format {"notation":"compact","useGrouping":"always"}（# 条里不同的）
++ 和网页一致：format {"notation":"compact"}（# 条里不同的）
++ 和网页一致：format {"notation":"scientific","maximumFractionDigits":#}（# 条里不同的）
++ 和网页一致：format {"notation":"scientific","maximumSignificantDigits":#}（# 条里不同的）
++ 和网页一致：format {"notation":"scientific"}（# 条里不同的）
++ 和网页一致：format {"numberingSystem":"arab","style":"currency","currency":"USD"}（# 条里不同的）
++ 和网页一致：format {"numberingSystem":"arab"}（# 条里不同的）
++ 和网页一致：format {"numberingSystem":"deva"}（# 条里不同的）
++ 和网页一致：format {"numberingSystem":"fullwide"}（# 条里不同的）
++ 和网页一致：format {"numberingSystem":"hanidec"}（# 条里不同的）
++ 和网页一致：format {"numberingSystem":"latn"}（# 条里不同的）
++ 和网页一致：format {"numberingSystem":"thai"}（# 条里不同的）
++ 和网页一致：format {"roundingIncrement":#,"maximumFractionDigits":#,"minimumFractionDigits":#}（# 条里不同的）
++ 和网页一致：format {"roundingMode":"ceil","maximumFractionDigits":#}（# 条里不同的）
++ 和网页一致：format {"roundingMode":"ceil","style":"percent","maximumFractionDigits":#}（# 条里不同的）
++ 和网页一致：format {"roundingMode":"expand","maximumFractionDigits":#}（# 条里不同的）
++ 和网页一致：format {"roundingMode":"floor","maximumFractionDigits":#}（# 条里不同的）
++ 和网页一致：format {"roundingMode":"floor","style":"currency","currency":"USD"}（# 条里不同的）
++ 和网页一致：format {"roundingMode":"halfEven","maximumFractionDigits":#}（# 条里不同的）
++ 和网页一致：format {"roundingMode":"trunc","maximumFractionDigits":#}（# 条里不同的）
++ 和网页一致：format {"signDisplay":"always"}（# 条里不同的）
++ 和网页一致：format {"signDisplay":"exceptZero"}（# 条里不同的）
++ 和网页一致：format {"signDisplay":"negative","maximumFractionDigits":#}（# 条里不同的）
++ 和网页一致：format {"signDisplay":"negative","style":"currency","currency":"USD"}（# 条里不同的）
++ 和网页一致：format {"signDisplay":"negative"}（# 条里不同的）
++ 和网页一致：format {"signDisplay":"never"}（# 条里不同的）
++ 和网页一致：format {"style":"currency","currency":"CNY","currencyDisplay":"narrowSymbol","useGrouping":false}（# 条里不同的）
++ 和网页一致：format {"style":"currency","currency":"CNY"}（# 条里不同的）
++ 和网页一致：format {"style":"currency","currency":"EUR","roundingIncrement":#,"minimumFractionDigits":#,"maximumFractionDigits":#}（# 条里不同的）
++ 和网页一致：format {"style":"currency","currency":"EUR"}（# 条里不同的）
++ 和网页一致：format {"style":"currency","currency":"JPY","currencyDisplay":"name","signDisplay":"always"}（# 条里不同的）
++ 和网页一致：format {"style":"currency","currency":"JPY"}（# 条里不同的）
++ 和网页一致：format {"style":"currency","currency":"KWD"}（# 条里不同的）
++ 和网页一致：format {"style":"currency","currency":"USD","currencyDisplay":"code"}（# 条里不同的）
++ 和网页一致：format {"style":"currency","currency":"USD","currencyDisplay":"name"}（# 条里不同的）
++ 和网页一致：format {"style":"currency","currency":"USD","currencyDisplay":"narrowSymbol"}（# 条里不同的）
++ 和网页一致：format {"style":"currency","currency":"USD","currencySign":"accounting","signDisplay":"exceptZero"}（# 条里不同的）
++ 和网页一致：format {"style":"currency","currency":"USD","currencySign":"accounting","signDisplay":"never"}（# 条里不同的）
++ 和网页一致：format {"style":"currency","currency":"USD","currencySign":"accounting"}（# 条里不同的）
++ 和网页一致：format {"style":"currency","currency":"USD","maximumFractionDigits":#}（# 条里不同的）
++ 和网页一致：format {"style":"currency","currency":"USD","maximumSignificantDigits":#}（# 条里不同的）
++ 和网页一致：format {"style":"currency","currency":"USD","signDisplay":"always"}（# 条里不同的）
++ 和网页一致：format {"style":"currency","currency":"USD"}（# 条里不同的）
++ 和网页一致：format {"style":"currency","currency":"usd"}（# 条里不同的）
++ 和网页一致：format {"style":"percent","maximumFractionDigits":#}（# 条里不同的）
++ 和网页一致：format {"style":"percent","minimumFractionDigits":#}（# 条里不同的）
++ 和网页一致：format {"style":"percent","numberingSystem":"thai"}（# 条里不同的）
++ 和网页一致：format {"style":"percent","signDisplay":"exceptZero"}（# 条里不同的）
++ 和网页一致：format {"style":"percent","signDisplay":"negative"}（# 条里不同的）
++ 和网页一致：format {"style":"percent"}（# 条里不同的）
++ 和网页一致：format {"useGrouping":"always","style":"currency","currency":"EUR"}（# 条里不同的）
++ 和网页一致：format {"useGrouping":"always"}（# 条里不同的）
++ 和网页一致：format {"useGrouping":"min#","style":"percent"}（# 条里不同的）
++ 和网页一致：format {"useGrouping":"min#"}（# 条里不同的）
++ 和网页一致：format {"useGrouping":false}（# 条里不同的）
++ 和网页一致：format {"useGrouping":true}（# 条里不同的）
++ 和网页一致：format {}（# 条里不同的）
++ 和网页一致：resolvedOptions（全部选项组）（# 条里不同的）
++ 和网页一致：supportedLocalesOf / getCanonicalLocales（# 条里不同的）
++ 和网页一致：不合法的选项该抛什么（# 条里不同的）
++ 和网页一致：别的入口（toLocaleString、BigInt、字符串、不带 new）（# 条里不同的）
++ 和网页一致：各种地区标签的格式化结果（# 条里不同的）
++ 和网页一致：地区标签解析成什么（# 条里不同的）
++ 响应首部大小写不敏感
++ 四个事件名都能订、能退，state 没被碰
++ 四个事件都订得上、退得掉
++ 四个事件都订得上，自己派发的事件监听器收得到
++ 四个加载事件各来一次
++ 四个目录互不相同
++ 四个目录都是绝对路径
++ 四字节的序列只给了三个就结束：一个 U+FFFD
++ 回调拿到的范围是 NSRange
++ 回调捕获着自己的 UIControl：被回收
++ 回调里抛的异常原样传出来
++ 回车键写在输入框上
++ 回车键文字
++ 回车键默认是 search
++ 回边：页面能找回导航控制器
++ 图写 null
++ 图层上因此多了一个透明度的动画
++ 图层背景色读回来是原样
++ 图没了
++ 图片也能分享
++ 图片和视频不是同一个
++ 图片段没有标题
++ 图片段的图是给的那个对象
++ 图片给字符串被拒
++ 图片给颜色对象被拒
++ 圆弧缺选项就抛
++ 圆角写进去了
++ 圆角矩形不给选项就抛
++ 圆角矩形的 bounds
++ 圆角边框
++ 在 appear 的回调里聚焦：成了，不用定时器
++ 在 run loop 上的 display link 没被回收
++ 在 will-navigate 里 close()：监听器跑到了
++ 在 will-navigate 里 close()：销毁了，App 还在
++ 在两个模式上的 display link 没被回收
++ 在区块里
++ 在安全区里面的网页，env(safe-area-inset-top) 是 #
++ 在某一项的前后插
++ 在某个分区的前后插分区
++ 在树上的 UIControl：GC 之后监听器还在，事件照常到
++ 在树上的 UIControl：没被回收
++ 在界面里但隐藏的网页 visibilityState 是 visible
++ 在界面里但隐藏的网页，定时器照常（# 秒至少 # 次）
++ 在窗口里，开了开关：缩进去
++ 在窗口里，没开开关：贴边
++ 在选中的那段前面插入：选中的下标跟着加一
++ 地址不对时没有发起加载（没有新的事件）
++ 地址没带协议：拒绝，TypeError
++ 地址落在包里那个文件上
++ 场景事件: active | activationState
++ 场景事件: foreground | activationState
++ 均值在 # ± # 以内
++ 垂直精度无效时 altitude 是 null，有效时是数
++ 垂直精度无效时 ellipsoidalAltitude 是 null，有效时是数
++ 域名解析不了：Promise 拒绝
++ 基类不能 new: Illegal constructor: UIGestureRecognizer is abstract; construct one of its subclasses instead: UITapGestureRecognizer, UILongPressGestureRecognizer, UIPanGestureRecognizer, UIPinchGestureRecognizer, UIRotationGestureRecognizer, UISwipeGestureRecognizer, UIScreenEdgePanGestureRecognizer
++ 基类的报错里点了 UIPanGestureRecognizer
++ 基类的报错里点了 UIPinchGestureRecognizer
++ 基类的报错里点了 UIRotationGestureRecognizer
++ 基类的报错里点了 UIScreenEdgePanGestureRecognizer
++ 基类的报错里点了 UISwipeGestureRecognizer
++ 基线：setImage 之后读回来就是同一个包装
++ 基线：刚建的 Blob 有 # 个字节
++ 基线：这张图解得出来
++ 塞非 UIBarButtonItem 被拒: bar button items only accept UIBarButtonItem…
++ 填充色能设成 null
++ 壳是根页面的子控制器
++ 壳里一次只有一个子控制器
++ 处理函数不是函数：抛
++ 处理函数抛了：网页那边被拒绝，说明里带着原因
++ 处理函数拿到的 event.sender 是这张网页
++ 处理函数没有返回值：网页那边是 undefined
++ 外观 grouped 建得出来
++ 外观 insetGrouped 建得出来
++ 外观 plain 建得出来
++ 外观 sidebar 建得出来
++ 外观 sidebarPlain 建得出来
++ 外观写错值
++ 多行输入框：旧的事件名 editingbegin 当自定义事件
++ 多行输入框：旧的事件名 editingend 当自定义事件
++ 多行输入框：旧的事件名 textchange 当自定义事件
++ 多行输入：inputAccessoryView 写 null：去掉
++ 多行输入：inputAccessoryView 写得进去，读回原来的包装
++ 多行输入：inputAccessoryView 给别的原生对象被拒
++ 多行输入：inputAccessoryView 给数字被拒
++ 多行输入：inputAccessoryView 被拒之后原值没动
++ 多行输入：去掉之后，单行输入框的那一个还在
++ 多行输入：同一个视图可以同时给单行和多行输入框
++ 多行输入：默认没有 inputAccessoryView
++ 多页面已上屏：第一页的「进入路由 →」，进去能点、能左滑返回
++ 大一点的结构：两千个对象
++ 大于 # 被收到 #
++ 大到溢出的位置不崩，停在末尾
++ 大到溢出的长度不崩
++ 大小写不一样就是另一个名字，当自定义事件
++ 大文件的 size 对
++ 失效之后的 display link（监听器没移）：被回收
++ 失焦派发 blur
++ 失败之后还停在原来那一页
++ 失败之后：once 只收到一次
++ 失败之后：合法事件重复注册只算一次
++ 失败之后：移除了就不再收到
++ 子图层：GC 后包装还是原来那个
++ 子块也圆了
++ 子目录里的图片加载出来了
++ 子目录里的普通脚本执行了
++ 子类上也能用 tintColor
++ 子视图还是原来那一个
++ 子视图：范围以内被填了
++ 子视图：范围以外的字节没被碰
++ 子页面加进来：派发出现
++ 字体写得进去，读回来是同一个对象
++ 字体给别的原生对象被拒
++ 字体给字符串被拒
++ 字体能写回 null
++ 字体：GC 后读回来还是原来那个包装
++ 字号大的量出来更宽更高
++ 字段写入即抛
++ 字段只读
++ 字段只读：写 length 抛
++ 字段只读：写 location 抛
++ 字段按整数转（向零取整）
++ 字段的顺序是固定的
++ 字符串
++ 字符串 body 的默认 Content-Type
++ 字符串按数转
++ 它不收参数
++ 它不是 JS 里的 UINavigationController
++ 它不是 UIBlurEffect
++ 它不是传进去的那个对象（是副本）
++ 它不是写进去的那个对象
++ 它不是写进去的那个对象（放进去的是副本）
++ 它不是视图
++ 它不是边缘拖动
++ 它也是 NSObject
++ 它也是 UICollectionViewCell
++ 它也是 UICollectionViewLayout
++ 它也是 UIFeedbackGenerator
++ 它也是 UILayoutGuide（所以锚点能用）
++ 它也是 UIViewController
++ 它也是 UIVisualEffect
++ 它又成了 subview
++ 它挂在那个滚动视图上
++ 它是 Event
++ 它是 FileSystem
++ 它是 Keychain
++ 它是 NSObject
++ 它是 NSObject，不是视图
++ 它是 NSUserDefaults
++ 它是 OpenURLEvent
++ 它是 Session
++ 它是 UIView
++ 它是一个页面
++ 它是四个状态之一
++ 它是类上的取值器，没有 setter
++ 它是页面（UIViewController）
++ 它没有 setter、不可枚举
++ 它的 image 是给的那张
++ 它的 view 还活着
++ 它的长度是 #
++ 它继承 NSObject
++ 它能挂监听器（EventTarget）
++ 它里面的改动生效了
++ 定时器全部跑完（从注册到跑满 # ms，含启动时的主线程繁忙）
++ 实例上没有这个属性（它是类的）
++ 实测：# 被吸附成 fast
++ 实测：# 被吸附成 normal（两值的中点往上）
++ 实测：ArrayBuffer body 不给 Content-Type 时，服务器看到的是 "application/x-www-form-urlencoded" ，data
++ 实测：boolForKey 对字符串 "#" 给
++ 实测：boolForKey 对字符串 "#" 给 false
++ 实测：boolForKey 对字符串 "YES" 给
++ 实测：presentingViewController 是导航控制器
++ 实测：selectedImage 读回来不是写进去的那个对象
++ 实测：上层按值兜了一层，所以读两次给同一个串
++ 实测：反过来不通，vc.title 不跟着变
++ 实测：同一个按钮加两次，系统里是两个
++ 实测：后写的拼法会盖掉先写的
++ 实测：已经不是 systemBlue 了
++ 实测：清掉也不回落，就是 null
++ 实测：用代码关掉也会派发 complete，只派发一次
++ 实测：空数组建得出来
++ 实测：语义色经过 CGColor 之后读回来是定死的十六进制
++ 实测：超范围也不抛，吸附成 normal
++ 实测：默认读回解析后的具体样式
++ 实际样式自动落到滚轮
++ 实际样式跟着变
++ 实际样式还是滚轮
++ 容器上挂了两个识别器
++ 宽写回 #：自动
++ 对比度
++ 对照排：两块平分，中间那块不占位
++ 对照组（无所有者）GC 后身份丢失
++ 对照组（没人持有的效果）被回收了
++ 对照组（没人持有的文本视图）被回收了
++ 对照组（没人持有的项）被回收了
++ 对照：options 里的枚举写错照旧抛（字重）
++ 对照：富文本属性里的线型写错照旧抛
++ 对照：方法参数里的枚举写错照旧抛（按钮的状态）
++ 对照：构造参数里的枚举写错照旧抛（列表的外观）
++ 对照：没进 run loop 的 display link 被回收
++ 对照：真的带了 scale 是另一个结果
++ 对象里有函数：抛 DataCloneError
++ 对象里有原生对象的包装：抛 DataCloneError
++ 对齐
++ 对齐写得进去
++ 对齐写错：不抛、值不变
++ 导航控制器上也订得上
++ 导航控制器自己也派发出现
++ 导航控制器：不认识的事件名当自定义事件
++ 导航栈：GC 后栈顶还是原来那个包装
++ 导航栈：标题也还在
++ 小于 # 被收到 #
++ 小数向零取整
++ 少了参数被拒
++ 屏幕上从上到下：开关、滑块、步进器、分段、页码、日期，等着被拨
++ 屏幕上有一张网页、四个按钮和一个开关：点链接或按钮会打出加载事件，开关开着时点链接不会跳
++ 屏幕上有第 # 项
++ 屏幕上的每一项都派发过 beforedisplay
++ 屏幕上（要人看）：① 「到手价」黑色小字、「¥#」红色大字、「¥#」灰色带删除线；② 四段下划线依次是实线、双线、虚线、红色粗线；③ 「评分」后面一颗星，后半句字距拉开；④ 两行居中、行距明显、浅灰底、有阴影；⑤ 一个空心字的按钮
++ 屏幕上：一个圆角卡片样式的列表，# 行，每行主文字「订单 N」、副文字是标识；能滚，点一行高亮并在日志里打出位置和标识（肉眼看）
++ 屏幕上：一个纵向滚动的瀑布，每一步一个区块，带小标题；输入框那张卡片贴在底部
++ 屏幕上：一个转了 #° 放大 # 倍的黄块
++ 屏幕上：一块灰底的多行输入，点它弹键盘、能打字能换行、往下拖收键盘；下面一块带边框的，打字时跟着内容长高，清空时出现灰色的占位文字（肉眼看）
++ 屏幕上：一排彩条，上面三块圆角的效果——模糊（字是鲜明效果）、玻璃、带粉色的玻璃。看起来对不对这里验不了
++ 屏幕上：一条工具条（加、分享、删），下面一个带范围按钮的搜索框
++ 屏幕上：两个单行输入框和一块多行输入，点任意一个，键盘上面有一条工具条，右端的按钮能收键盘（肉眼看）
++ 屏幕底部有一个输入框：点它弹键盘、框会被顶上去、回车收起
++ 属性写进去的效果：GC 后读回来还是原来那个包装
++ 属性给 null 等于没给
++ 属性给的不是对象
++ 属性赋值也能换栈
++ 属性边：GC 后颜色属性还是那个值
++ 嵌套对象
++ 嵌套派发：外层移除了的，里外两层都不调
++ 嵌套的 null 抛（plist 没有 null）
++ 嵌套的里层被撑满高
++ 嵌套的顺序
++ 嵌套跑满且每次一轮唤醒
++ 嵌套里的函数也抛
++ 嵌套：两层的改动都生效
++ 嵌套：里层还是 UIStackView
++ 工具条横向铺满区块
++ 工具条的父视图是区块
++ 工具条的高是它自己想要的高
++ 工厂建的 CALayer 可用
++ 工厂建的 UIColor 还是同一个包装
++ 工厂建的锚点可用
++ 工厂给的是 UIAlertController
++ 左侧按钮也进去了
++ 左块固定宽
++ 已中止的 signal 直接拒绝
++ 已完成部分的图片可以清掉
++ 已完成部分的图片读回来是同一个对象
++ 已完成部分的着色可以清掉
++ 已完成部分的着色读回来是原样
++ 已经中止的 signal 带在 Request 上：拒绝的原因是它的 reason
++ 已经中止的 signal 带在 Request 上：直接被拒
++ 已经是 null 时写空串：还是 null
++ 已经是空串时写 null：还是空串
++ 已经有的名字不能再暴露（改不掉）
++ 已编码的不重复编码
++ 布尔
++ 布尔 false
++ 布尔 true
++ 布尔：# / # / 'false' / '' / null / undefined / {} / NaN 都按真假值
++ 布局是 UICollectionViewCompositionalLayout
++ 带 animated 也是当场就少
++ 带 delay 和 options：animations 照样当场执行
++ 带动画呈现：animated 是 true
++ 带动画地显回来
++ 带动画：读回来当场是目标值
++ 带时区的名字
++ 帧与帧之间不过渡
++ 帧动画动的是 contents
++ 帧动画的时长
++ 帧动画的次数
++ 帧是 UIImage
++ 帧率区间往返
++ 帧的大小和整张图一样
++ 帧自己是静态图
++ 常数约束没有第二个锚点
++ 并发取两次都兑现成 UIImage
++ 应用之后项数变了
++ 底部菜单上 dismiss 也当自定义事件
++ 底部菜单不能加输入框：addTextField: text fields can only be added to an alert whose preferredStyle is "alert"
++ 底部菜单关掉之后 presentedViewController 清了
++ 底部菜单呈现中：presentedViewController 是它
++ 底部菜单：dismiss 兑现
++ 底部菜单：present 兑现
++ 底部菜单：textFields 是空数组
++ 底部菜单：样式
++ 底部菜单：没给标题就是 null
++ 底部菜单：没给说明就是 null
++ 废弃的 always 不在可选值里
++ 废弃的 barStyle blackOpaque：不抛、值不变
++ 废弃的 barStyle blackTranslucent：不抛、值不变
++ 废弃的样式 gray：不抛、值不变
++ 废弃的样式 whiteLarge：不抛、值不变
++ 废弃的样式 white：不抛、值不变
++ 废弃的样式：不抛、值不变
++ 建了关系，两边的 state 都没被碰
++ 建出来没有被呈现
++ 建好之后收到了 authorizationchange
++ 建完是 CONNECTING
++ 建完目录就存在
++ 建得出来
++ 开了 wraps，程序写超出的值仍然是钉住
++ 开了开关：排列项缩进去
++ 开关没开：排列项贴边
++ 开头的 BOM 默认去掉
++ 开头的 deleteBackward 不派发，insertText('') 派发：到 # 次
++ 开始之后在转
++ 开始之后自己显示出来
++ 开着：上边距
++ 开结果列表按钮不会关掉书签按钮
++ 异常不从 dispatchEvent 冒出来
++ 异常从 application 的 error 事件报出来
++ 异步方法（能力包）：开头的 U+FEFF 还在
++ 弹出来的页面不再属于导航
++ 弹出的顺序是栈底在前
++ 弹到 A 在栈顶
++ 弹窗没给 options：preferredStyle has no value <null>; expected one of: actionSheet / alert
++ 弹窗没给样式：preferredStyle has no value <null>; expected one of: actionSheet / alert
++ 弹窗的样式是只读的：Cannot set property preferredStyle of #<UIAlertController> which has only a getter
++ 弹窗自己没有按钮的那个事件，当自定义事件
++ 弹窗里有一个输入框
++ 弹簧也能设 toValue
++ 弹簧动画跑完时兑现
++ 弹簧动画：animations 当场执行
++ 弹簧是 CABasicAnimation 的子类
++ 弹簧的两个参数要一起给
++ 弹簧读回来还是 CASpringAnimation
++ 强制之后立刻读 traitCollection：还是原来的
++ 强制卡片换外观：收到一次 traitchange
++ 强制卡片换外观：立刻读还是旧的
++ 强制卡片换外观：这时读到的是新的
++ 强制视图换外观：网页的 prefers-color-scheme 跟着变
++ 强度超出 # 到 # 被拒: intensity must be a number between # and #
++ 强度转不出数被拒: intensity must be a finite number, got "max"
++ 形如大写的 UUID
++ 形式分大小写
++ 形状图层从 sublayers 读回来还是 CAShapeLayer
++ 形状图层的填充色
++ 形状图层的描边色
++ 影响横向布局的约束不止一条
++ 循环引用：Map 和 Set 里放着自己
++ 循环引用：两个对象互相指
++ 循环引用：对象指向自己，克隆之后指向克隆出来的那个
++ 循环引用：数组里放着自己
++ 循环结构抛
++ 恢复之后收触摸
++ 恢复后又回到 normal 的标题
++ 恢复后又是 normal
++ 想要的大小回到 #
++ 成了 first responder
++ 截断之后接 ASCII：一个 U+FFFD，后面的字符照常
++ 截断之后接另一个完整的字：那个字照常
++ 所以新建的转圈是隐藏的
++ 所有本地网页是同一个来源：另一个文件里的计数是接着的
++ 手写的 keyboardType 照常
++ 手势识别器：GC 后包装还是原来那个
++ 手势识别器：不认识的事件名当自定义事件
++ 手指数给小数：向零取整
++ 打开着的 WebSocket 没被回收
++ 打开编辑会连带打开选中
++ 抄出来的文字
++ 把方法摘下来单独调，也是同一个对象
++ 把正当窗口根的 VC 塞进导航控制器被拒: cannot construct UINavigationController with these a…
++ 把祖先加成子控制器
++ 把自己加成自己的子控制器
++ 抗压缩也接受数字
++ 折行之后比一行高
++ 抛之前的那几句执行了，网页照常加载
++ 抛了之后值没变
++ 抛了之后原值没动（以前 undefined 会把它静默写成 #）
++ 抛的不是 Error 对象：照样报，error 就是那个值
++ 抛过之后照常能用
++ 抛过之后那个键还是空的
++ 报了一个错，说的是 cellProvider
++ 报错说它不能用 new 创建
++ 报错里带着 UIKit 给的原因
++ 报错里点出是哪个标识
++ 抬高下限，value 跟着被钉上来
++ 拆开之后长度变了
++ 拍照界面上 beforedismiss 当自定义事件
++ 拍照界面上 beforeshow 当自定义事件
++ 拍照界面上 dismiss 当自定义事件
++ 拍照界面上 dismissattempt 当自定义事件
++ 拍照界面上 show 当自定义事件
++ 拒绝的错误 name 是 NetworkError
++ 拖动上没有 edges
++ 拖动不是边缘拖动
++ 拖动是 UIGestureRecognizer
++ 拖动：allowedScrollTypesMask 默认是空数组
++ 拖动：四个事件名都能订、能退
++ 拖动：没挂时 view 是 null
++ 拖动：没有触摸时 numberOfTouches
++ 拖动：默认 cancelsTouchesInView
++ 拖动：默认 delaysTouchesBegan
++ 拖动：默认 delaysTouchesEnded
++ 拖动：默认 isEnabled
++ 拖动：默认 state
++ 拖动：默认最多 # 根（UINT_MAX）
++ 拖动：默认最少 # 根手指
++ 拦住之后 defaultPrevented 是 true
++ 拦住之后 isLoading() 是 false
++ 拦住之后一个加载事件都没有
++ 拦住之后网页留在原地
++ 拷贝出来的内容一样
++ 拿得到主 run loop
++ 挂上之后 view 指回来
++ 挂上之后查得到 key
++ 挂上去之后 superlayer 是卡片的图层
++ 挂到另一个视图：view 换过去
++ 挂在单元格上的数据读得回来（同一个包装）
++ 挂在它下面的子图层：也按它的外观解析
++ 指定分区
++ 指示条边距往返
++ 按 keyPath 建得出来
++ 按 origin 只清 localStorage：cookie 还在
++ 按 origin 只清 localStorage：那个站点的没了
++ 按 origin 清：别的站点的 cookie 还在
++ 按 origin 清：这个主机自己的 cookie 没了
++ 按名字拿得到曲线
++ 按字段选：德语的年月日
++ 按状态：setBackgroundImage 的图 GC 后还在
++ 按状态：setImage 的图 GC 后还在
++ 按状态：setTitleColor 的颜色 GC 后还在
++ 按钮上不认识的事件名：当自定义事件
++ 按钮没给 options：style has no value <null>; expected one of: default / cancel / destructive
++ 按钮没给样式：style has no value <null>; expected one of: default / cancel / destructive
++ 按钮的标题是只读的：Cannot set property title of #<UIAlertAction> which has only a getter
++ 按钮的样式是只读的：Cannot set property style of #<UIAlertAction> which has only a getter
++ 按钮：isEnabled
++ 按钮：isEnabled 写得进去
++ 按钮：标题
++ 按钮：样式
++ 按钮：监听器接得上（自己派发一次）
++ 按钮：退订之后不再收到
++ 按钮：默认可以点
++ 挑角的圆角矩形也建得出来
++ 挪不存在的分区
++ 挪不存在的项
++ 挪分区
++ 挪到自己旁边
++ 挪动，可以跨分区
++ 捏合上没有 translationInView
++ 捏合不是拖动
++ 捏合是 UIGestureRecognizer
++ 捏合的 velocity 只读: true
++ 捏合的手势识别器是手写的那个类
++ 捏合：四个事件名都能订、能退
++ 捏合：没挂时 view 是 null
++ 捏合：没有手势时 velocity
++ 捏合：没有触摸时 numberOfTouches
++ 捏合：默认 cancelsTouchesInView
++ 捏合：默认 delaysTouchesBegan
++ 捏合：默认 delaysTouchesEnded
++ 捏合：默认 isEnabled
++ 捏合：默认 scale
++ 捏合：默认 state
++ 换 barStyle 不动 isTranslucent
++ 换个顺序，平移就被缩放了
++ 换了父控制器：原来那边没有了
++ 换了父控制器：新的那边有了
++ 换了网页，预加载脚本又执行了一遍
++ 换回 default
++ 换回 default 高度回到 #
++ 换回 medium
++ 换回单位矩阵，frame 恢复
++ 换完选区收成光标
++ 换成两个标题：选中的还是 #
++ 换成静态图：帧动画摘掉
++ 换掉之后
++ 换效果之后 contentView 还是原来那个
++ 换效果之后内容还在
++ 换数字系统
++ 换日历：日本年号
++ 换样式不会把颜色改回去
++ 换样式不改 frame
++ 换进来的富文本带着自己的属性
++ 换进来的文字沿用原来的属性
++ 排出来宽 #
++ 排列项同时也是 subview
++ 排列项的 translatesAutoresizing 被关掉
++ 排进栈视图：large 是 #×#
++ 排进栈视图：medium 是 #×#
++ 排除的动作不是数组：excludedActivityTypes must be an array of names, got "airDrop"
++ 排除的动作写得进去
++ 排除的动作可以写回 null
++ 排除的动作可以写成空数组
++ 接上了：list.dataSource 就是它
++ 接上的那一段的属性
++ 接住之后照常取登记过的，这一项正常显示
++ 接受可迭代对象
++ 控件的事件名在搜索框上当自定义事件（它不是控件）
++ 控件：不认识的事件名当自定义事件
++ 控件：主动触发不认回车事件的旧名字，报错里列出 return
++ 控件：主动触发认 return
++ 控件：回车事件的旧名字当自定义事件
++ 控制点建得出来
++ 推入不让导航控制器自己再出现一次
++ 推入时「将」都排在「已」前面
++ 推入：旧的一页消失两个、新的一页出现两个
++ 描边色原样还回来
++ 提交表单的 navigationType 是 formSubmitted
++ 提交表单：地址是表单的 action
++ 提交表单：派发一次 will-navigate
++ 提示框上 beforedismiss 当自定义事件
++ 提示框上 dismiss 再来一遍，还是当自定义事件
++ 提示框上 dismiss 当自定义事件
++ 提示框上 dismissattempt 当自定义事件
++ 提示框关掉之后 presentedViewController 清了
++ 提示框呈现中：presentedViewController 是它
++ 提示框：dismiss 兑现
++ 提示框：present 兑现
++ 提示框：一开始没有按钮
++ 提示框：一开始没有输入框
++ 提示框：一开始没有首选按钮
++ 提示框：标题
++ 提示框：样式
++ 提示框：说明
++ 提示框：默认严重程度
++ 插入两个键都给了
++ 插入没说插在哪
++ 插分区到不存在的分区旁边
++ 插到不存在的项旁边
++ 插回原位
++ 插在了第 # 段
++ 插完光标在插入的内容后面
++ 搜索框 autocapitalizationType 写 "all"：不抛、值不变
++ 搜索框 autocapitalizationType 写得进去
++ 搜索框 autocorrectionType 写 "off"：不抛、值不变
++ 搜索框 autocorrectionType 写 null：不抛、值不变
++ 搜索框 autocorrectionType 写得进去
++ 搜索框 enablesReturnKeyAutomatically 写回 true
++ 搜索框 enablesReturnKeyAutomatically 写得进去
++ 搜索框 enablesReturnKeyAutomatically：# 转成 true
++ 搜索框 enablesReturnKeyAutomatically：null 转成 false
++ 搜索框 isSecureTextEntry 写回 false
++ 搜索框 isSecureTextEntry 写得进去
++ 搜索框 isSecureTextEntry：# 转成 false
++ 搜索框 isSecureTextEntry：'false' 转成 true
++ 搜索框 keyboardAppearance
++ 搜索框 keyboardAppearance 写 "black"：不抛、值不变
++ 搜索框 keyboardAppearance 写得进去
++ 搜索框 keyboardAppearance 换回 default
++ 搜索框 keyboardType 写 "numeric"：不抛、值不变
++ 搜索框 keyboardType 写 #：不抛、值不变
++ 搜索框 keyboardType 写 null：不抛、值不变
++ 搜索框 keyboardType 写得进去
++ 搜索框 returnKeyType 写 "enter"：不抛、值不变
++ 搜索框 returnKeyType 写 true：不抛、值不变
++ 搜索框 returnKeyType 写得进去
++ 搜索框 spellCheckingType 写 "off"：不抛、值不变
++ 搜索框 spellCheckingType 写得进去
++ 搜索框 textContentType 写 "passwd"：不抛、值不变
++ 搜索框 textContentType 写 #：不抛、值不变
++ 搜索框 textContentType 写 null：清掉
++ 搜索框 textContentType 写得进去
++ 搜索框上 alert 是 dark 的别名，读回来是 dark
++ 搜索框上有 autocapitalizationType
++ 搜索框上有 autocorrectionType
++ 搜索框上有 enablesReturnKeyAutomatically
++ 搜索框上有 isSecureTextEntry
++ 搜索框上有 keyboardAppearance
++ 搜索框上有 keyboardType
++ 搜索框上有 returnKeyType
++ 搜索框上有 spellCheckingType
++ 搜索框上有 textContentType
++ 搜索框写的 autocapitalizationType，输入框读得到
++ 搜索框写的 autocorrectionType，输入框读得到
++ 搜索框写的 enablesReturnKeyAutomatically，输入框读得到
++ 搜索框写的 isSecureTextEntry，输入框读得到
++ 搜索框写的 keyboardAppearance，输入框读得到
++ 搜索框写的 keyboardType，输入框读得到
++ 搜索框写的 returnKeyType，输入框读得到
++ 搜索框写的 spellCheckingType，输入框读得到
++ 搜索框写的 textContentType，输入框读得到
++ 搜索框排在工具条下面 #
++ 搜索框横向铺满区块
++ 搜索框清掉 textContentType，输入框上也没了
++ 搜索框的高是它自己想要的高
++ 搜索框键盘设置写错之后原值没被动过
++ 搜索框键盘设置写错之后输入框上的值也没动
++ 搜索框默认不自动纠错
++ 搜索框默认没有内容时回车键是灰的
++ 搜索框默认的 autocapitalizationType
++ 搜索框默认的 autocapitalizationType 和 searchTextField 上的一样
++ 搜索框默认的 autocorrectionType 和 searchTextField 上的一样
++ 搜索框默认的 enablesReturnKeyAutomatically 和 searchTextField 上的一样
++ 搜索框默认的 isSecureTextEntry
++ 搜索框默认的 isSecureTextEntry 和 searchTextField 上的一样
++ 搜索框默认的 keyboardAppearance
++ 搜索框默认的 keyboardAppearance 和 searchTextField 上的一样
++ 搜索框默认的 keyboardType
++ 搜索框默认的 keyboardType 和 searchTextField 上的一样
++ 搜索框默认的 returnKeyType 和 searchTextField 上的一样
++ 搜索框默认的 spellCheckingType
++ 搜索框默认的 spellCheckingType 和 searchTextField 上的一样
++ 搜索框默认的 textContentType
++ 搜索框默认的 textContentType 和 searchTextField 上的一样
++ 搜索框默认的回车键是 search
++ 搜索框：旧的事件名 editingbegin 当自定义事件
++ 搜索框：旧的事件名 editingend 当自定义事件
++ 搜索框：旧的事件名 textchange 当自定义事件
++ 摘下来的 UIControl：被回收
++ 摘掉 scroll 的监听器之后，beforedisplay 照常派发
++ 摘掉之后 animationForKey 给 null
++ 摘掉之后 key 没了
++ 摘掉之后 view 是 null
++ 摘掉之后收不到
++ 摘掉之后视图上没有了
++ 摘掉监听器之后不再收到
++ 摘掉监听器之后，消失的两个不再派发
++ 撞击：工厂给的是 UIImpactFeedbackGenerator
++ 撤回后回到 spacing
++ 撤掉高度约束后塌成上下两个间距
++ 播完停在最后一帧
++ 收任何可迭代的东西（Set）
++ 收到 close 事件
++ 收到 error | message
++ 收到 input 时读得到 text
++ 收到 sceneconnect
++ 收到 unhandledrejection | reason
++ 收到一次 destroyed
++ 收到了 blur
++ 收到了 focus
++ 收到的 url 和打开的一字不差
++ 收到的事件和顺序
++ 收尾 clear 干净
++ 收尾：# 行
++ 收普通对象写的大小，选项可以给多个
++ 改 constant 后重新布局
++ 改 isHidden：网页收不到 visibilitychange
++ 改 searchParams，search 跟着变
++ 改 search，searchParams 跟着变
++ 改了读出来的缓冲区：Blob 自己的内容不变
++ 改克隆出来的，原来的不变
++ 改副本不影响原来的
++ 改回 true 当场隐藏
++ 改回跟随：又收到一次
++ 改成 false 当场显示出来
++ 改成对角渐变
++ 改渲染模式得到的新图是静态的
++ 改渲染模式返回新对象
++ 改第二次读出的：第一次读出的不跟着变
++ 改结构体字段被拒: x is read-only: structs are values, assign a whole new one instead
++ 改结构体被拒: x is read-only: structs are values, assign a whole new one instead
++ 改视图的宽：网页收到 resize
++ 改视图的宽：网页的 innerWidth 跟着变
++ 改读出来的数组不影响工具条
++ 改读回来的副本，视图里的也不变
++ 改路径之后 JS 这边的 bounds 变了
++ 改过的缓冲区自己留着改动
++ 放行之后交出了焦点
++ 放行之后拿到了焦点
++ 效果视图：new 得出来
++ 数字
++ 数字 values 往返
++ 数字值往返
++ 数字转成了字符串
++ 数字间距读回数字
++ 数当 body：按 String() 转
++ 数的数组：null 就是 null
++ 数的数组：元素转不出来，点名是第几个
++ 数的数组：元素逐个转
++ 数的数组：给的不是数组
++ 数组
++ 数组的 toLocaleString 把地区传给每个成员
++ 数组里不是字符串：不抛、值不变
++ 数组里不是筛选条件：anyFilterMatchingSubfilters: subfilters[#] must be a PHPickerFilter, got "videos"
++ 数组里是别的原生对象：allFilterMatchingSubfilters: subfilters[#] must be a PHPickerFilter, got an object
++ 数组里有 Symbol：抛 DataCloneError
++ 数组里有 null：new UISegmentedControl: items[#] must be a string or a UIImage, got null
++ 数组里有别的原生对象：new UISegmentedControl: items[#] must be a string or a UIImage, got an object
++ 数组里有普通对象：new UISegmentedControl: items[#] must be a string or a UIImage, got an object
++ 数转成字符串
++ 数：#^# - # 这样的大整数
++ 数：'#' 是 #
++ 数：'abc' 抛
++ 数：Infinity 抛
++ 数：NaN 抛
++ 数：null 是 #（和 audio.volume
++ 数：true 是 #
++ 数：undefined 转不出来，抛
++ 数：对象抛
++ 数：小数原样（单精度范围内）
++ 数：整数属性
++ 数：结构体的四个数
++ 数：负整数
++ 数：转不成数照旧抛
++ 整个 options 传 null：当成空对象
++ 整批都没激活
++ 整数和字符串可以混用，读回来类型不变
++ 整数至少几位和有效数字一起用，抛 RangeError
++ 整数：# 向零取整是 #
++ 整数：'#' 是 #
++ 整数：-# 向零取整是 -#
++ 整数：NaN 抛，不学 Web 老接口的「当成 #」
++ 整数：numberOfLines
++ 整栈替换
++ 文件不存在：code 是 -#
++ 文件不存在：同时派发 did-fail-load
++ 文件不存在：拒绝，NetworkError
++ 文件不是目录
++ 文件记到的启动次数
++ 文字写得进去
++ 文字写得进去，换行留着
++ 文字大小是表里的一档
++ 文字按字符串转：# 是 "#"
++ 文字方向
++ 文字段没有图
++ 文字相同、属性不同：不相等
++ 文字给 null 是空串
++ 文字颜色也是字符串
++ 文字颜色是字符串，原样读回来
++ 文字颜色能写成 null
++ 文本消息回来了
++ 文本消息是字符串
++ 文本视图上写的，按滚动视图的取值器读是同一个值
++ 文本视图上收得到 scroll
++ 文本视图：再写 text：attributedText 的文字跟着变
++ 文本视图：写 null：清空
++ 文本视图：写了 attributedText，text 读出来是其中的文字
++ 文本视图：给字符串
++ 文本视图：读回来的不可改
++ 新图层没有内容
++ 新图的渲染模式变了
++ 新处有了
++ 新建的快照没有分区
++ 新建的快照没有项
++ 新滚进来的项派发了 beforedisplay
++ 新的一项在最前面
++ 新的一项显示出来了
++ 方向默认朝上
++ 方法参数：开头的 U+FEFF 还在
++ 方法参数：落单的代理项原样到了
++ 旁边的样式表生效了
++ 旋转是 UIGestureRecognizer
++ 旋转的 velocity 只读: true
++ 旋转：四个事件名都能订、能退
++ 旋转：没挂时 view 是 null
++ 旋转：没有手势时 velocity
++ 旋转：没有触摸时 numberOfTouches
++ 旋转：默认 cancelsTouchesInView
++ 旋转：默认 delaysTouchesBegan
++ 旋转：默认 delaysTouchesEnded
++ 旋转：默认 isEnabled
++ 旋转：默认 rotation
++ 旋转：默认 state
++ 无效日期的 format 抛 RangeError
++ 无效日期的 toLocaleString 不抛
++ 无限循环
++ 日期和网页一致：format {"calendar":"buddhist"}（# 条里不同的）
++ 日期和网页一致：format {"calendar":"chinese","dateStyle":"medium"}（# 条里不同的）
++ 日期和网页一致：format {"calendar":"gregory","dateStyle":"short"}（# 条里不同的）
++ 日期和网页一致：format {"calendar":"islamic-umalqura"}（# 条里不同的）
++ 日期和网页一致：format {"calendar":"japanese","dateStyle":"long"}（# 条里不同的）
++ 日期和网页一致：format {"calendar":"persian","year":"numeric","month":"long","day":"numeric"}（# 条里不同的）
++ 日期和网页一致：format {"dateStyle":"full","timeStyle":"full"}（# 条里不同的）
++ 日期和网页一致：format {"dateStyle":"full"}（# 条里不同的）
++ 日期和网页一致：format {"dateStyle":"long","timeStyle":"long"}（# 条里不同的）
++ 日期和网页一致：format {"dateStyle":"long","timeStyle":"short"}（# 条里不同的）
++ 日期和网页一致：format {"dateStyle":"long"}（# 条里不同的）
++ 日期和网页一致：format {"dateStyle":"medium","timeStyle":"medium"}（# 条里不同的）
++ 日期和网页一致：format {"dateStyle":"medium","timeStyle":"short"}（# 条里不同的）
++ 日期和网页一致：format {"dateStyle":"medium"}（# 条里不同的）
++ 日期和网页一致：format {"dateStyle":"short","timeStyle":"medium"}（# 条里不同的）
++ 日期和网页一致：format {"dateStyle":"short","timeStyle":"short","hour#":false}（# 条里不同的）
++ 日期和网页一致：format {"dateStyle":"short","timeStyle":"short"}（# 条里不同的）
++ 日期和网页一致：format {"dateStyle":"short"}（# 条里不同的）
++ 日期和网页一致：format {"day":"numeric"}（# 条里不同的）
++ 日期和网页一致：format {"dayPeriod":"long"}（# 条里不同的）
++ 日期和网页一致：format {"era":"long","year":"numeric"}（# 条里不同的）
++ 日期和网页一致：format {"era":"short"}（# 条里不同的）
++ 日期和网页一致：format {"fractionalSecondDigits":#}（# 条里不同的）
++ 日期和网页一致：format {"hour":"#-digit","minute":"#-digit","hour#":false}（# 条里不同的）
++ 日期和网页一致：format {"hour":"#-digit","minute":"#-digit","hour#":true}（# 条里不同的）
++ 日期和网页一致：format {"hour":"#-digit","minute":"#-digit"}（# 条里不同的）
++ 日期和网页一致：format {"hour":"#-digit"}（# 条里不同的）
++ 日期和网页一致：format {"hour":"numeric","dayPeriod":"narrow","hour#":true}（# 条里不同的）
++ 日期和网页一致：format {"hour":"numeric","dayPeriod":"short"}（# 条里不同的）
++ 日期和网页一致：format {"hour":"numeric","minute":"#-digit","hour#":false}（# 条里不同的）
++ 日期和网页一致：format {"hour":"numeric","minute":"#-digit","hour#":true}（# 条里不同的）
++ 日期和网页一致：format {"hour":"numeric","minute":"#-digit","hourCycle":"h#"}（# 条里不同的）
++ 日期和网页一致：format {"hour":"numeric","minute":"#-digit","second":"#-digit","fractionalSecondDigits":#}（# 条里不同的）
++ 日期和网页一致：format {"hour":"numeric","minute":"#-digit","second":"#-digit"}（# 条里不同的）
++ 日期和网页一致：format {"hour":"numeric","minute":"#-digit","timeZoneName":"long"}（# 条里不同的）
++ 日期和网页一致：format {"hour":"numeric","minute":"#-digit","timeZoneName":"longGeneric"}（# 条里不同的）
++ 日期和网页一致：format {"hour":"numeric","minute":"#-digit","timeZoneName":"longOffset"}（# 条里不同的）
++ 日期和网页一致：format {"hour":"numeric","minute":"#-digit","timeZoneName":"short"}（# 条里不同的）
++ 日期和网页一致：format {"hour":"numeric","minute":"#-digit","timeZoneName":"shortGeneric"}（# 条里不同的）
++ 日期和网页一致：format {"hour":"numeric","minute":"#-digit","timeZoneName":"shortOffset"}（# 条里不同的）
++ 日期和网页一致：format {"hour":"numeric","minute":"#-digit"}（# 条里不同的）
++ 日期和网页一致：format {"hour":"numeric","minute":"numeric"}（# 条里不同的）
++ 日期和网页一致：format {"hour":"numeric"}（# 条里不同的）
++ 日期和网页一致：format {"minute":"#-digit","second":"#-digit"}（# 条里不同的）
++ 日期和网页一致：format {"minute":"numeric"}（# 条里不同的）
++ 日期和网页一致：format {"month":"long","day":"numeric"}（# 条里不同的）
++ 日期和网页一致：format {"month":"long"}（# 条里不同的）
++ 日期和网页一致：format {"month":"narrow"}（# 条里不同的）
++ 日期和网页一致：format {"month":"numeric","day":"numeric"}（# 条里不同的）
++ 日期和网页一致：format {"month":"short","day":"numeric"}（# 条里不同的）
++ 日期和网页一致：format {"numberingSystem":"arab","dateStyle":"short"}（# 条里不同的）
++ 日期和网页一致：format {"numberingSystem":"hanidec","year":"numeric","month":"long","day":"numeric"}（# 条里不同的）
++ 日期和网页一致：format {"second":"#-digit","fractionalSecondDigits":#}（# 条里不同的）
++ 日期和网页一致：format {"second":"numeric"}（# 条里不同的）
++ 日期和网页一致：format {"timeStyle":"full"}（# 条里不同的）
++ 日期和网页一致：format {"timeStyle":"long"}（# 条里不同的）
++ 日期和网页一致：format {"timeStyle":"medium","hour#":true}（# 条里不同的）
++ 日期和网页一致：format {"timeStyle":"medium"}（# 条里不同的）
++ 日期和网页一致：format {"timeStyle":"short","hourCycle":"h#"}（# 条里不同的）
++ 日期和网页一致：format {"timeStyle":"short"}（# 条里不同的）
++ 日期和网页一致：format {"timeZoneName":"short"}（# 条里不同的）
++ 日期和网页一致：format {"weekday":"long","hour":"numeric","minute":"#-digit"}（# 条里不同的）
++ 日期和网页一致：format {"weekday":"long","year":"numeric","month":"long","day":"numeric"}（# 条里不同的）
++ 日期和网页一致：format {"weekday":"long"}（# 条里不同的）
++ 日期和网页一致：format {"weekday":"narrow"}（# 条里不同的）
++ 日期和网页一致：format {"weekday":"short","month":"short","day":"numeric"}（# 条里不同的）
++ 日期和网页一致：format {"weekday":"short"}（# 条里不同的）
++ 日期和网页一致：format {"year":"#-digit","month":"numeric","day":"numeric"}（# 条里不同的）
++ 日期和网页一致：format {"year":"numeric","era":"narrow","month":"long"}（# 条里不同的）
++ 日期和网页一致：format {"year":"numeric","month":"#-digit","day":"#-digit"}（# 条里不同的）
++ 日期和网页一致：format {"year":"numeric","month":"long","day":"numeric"}（# 条里不同的）
++ 日期和网页一致：format {"year":"numeric","month":"long"}（# 条里不同的）
++ 日期和网页一致：format {"year":"numeric","month":"numeric","day":"numeric","hour":"numeric","minute":"#-digit","second":"#-digit"}（# 条里不同的）
++ 日期和网页一致：format {"year":"numeric","month":"short","day":"numeric","hour":"numeric","minute":"#-digit"}（# 条里不同的）
++ 日期和网页一致：format {"year":"numeric","month":"short","day":"numeric"}（# 条里不同的）
++ 日期和网页一致：format {"year":"numeric"}（# 条里不同的）
++ 日期和网页一致：format {}（# 条里不同的）
++ 日期和网页一致：formatRange {"dateStyle":"long","timeStyle":"short"}（# 条里不同的）
++ 日期和网页一致：formatRange {"dateStyle":"medium"}（# 条里不同的）
++ 日期和网页一致：formatRange {"dateStyle":"short","timeStyle":"short","hour#":true}（# 条里不同的）
++ 日期和网页一致：formatRange {"hour":"numeric","hourCycle":"h#"}（# 条里不同的）
++ 日期和网页一致：formatRange {"hour":"numeric","minute":"#-digit","hour#":false}（# 条里不同的）
++ 日期和网页一致：formatRange {"hour":"numeric","minute":"#-digit","hour#":true}（# 条里不同的）
++ 日期和网页一致：formatRange {"hour":"numeric","minute":"#-digit"}（# 条里不同的）
++ 日期和网页一致：formatRange {"month":"long","day":"numeric"}（# 条里不同的）
++ 日期和网页一致：formatRange {"timeStyle":"short","hourCycle":"h#"}（# 条里不同的）
++ 日期和网页一致：formatRange {"timeStyle":"short"}（# 条里不同的）
++ 日期和网页一致：formatRange {"year":"numeric","month":"long","day":"numeric","calendar":"buddhist"}（# 条里不同的）
++ 日期和网页一致：formatRange {"year":"numeric","month":"long"}（# 条里不同的）
++ 日期和网页一致：formatRange {"year":"numeric","month":"short","day":"numeric"}（# 条里不同的）
++ 日期和网页一致：formatRange {}（# 条里不同的）
++ 日期和网页一致：formatToParts（全部选项组）（# 条里不同的）
++ 日期和网页一致：resolvedOptions（全部选项组）（# 条里不同的）
++ 日期和网页一致：supportedLocalesOf（# 条里不同的）
++ 日期和网页一致：不合法的选项该抛什么（# 条里不同的）
++ 日期和网页一致：别的入口（Date 的 toLocale*String、无效日期、不带 new）（# 条里不同的）
++ 日期和网页一致：地区标签里的日历、小时制、数字系统（# 条里不同的）
++ 日期和网页一致：时区名认不认、认成什么（# 条里不同的）
++ 日期被取整到间隔上
++ 早于 minimumDate：钉在 minimumDate
++ 时区名大小写不敏感，读出来是规范的写法
++ 时长不是数
++ 时长为 #：照样兑现
++ 时长是负数
++ 时长给数字字符串：按数用
++ 明确不支持：advertisingTrackingEnabled 不存在
++ 明确不支持：isAdvertisingTrackingEnabled 不存在
++ 明确不支持：requestTrackingAuthorizationPreferringExpandedInterface 不存在
++ 是 NSAttributedString
++ 是 UIBarItem 的子类
++ 是 UIControl 的子类
++ 是 UIScrollView 的子类
++ 是 UIView 的子类
++ 是 UIViewController 的子类
++ 是 null 或者 CLLocation
++ 是个 CAAnimation
++ 是个 CAPropertyAnimation
++ 是个 NSObject
++ 是干净关闭
++ 是控件
++ 显式指定 stretch 才拉伸
++ 显示回来又是三等分
++ 显示范围条时自己想要的高是 #
++ 晚于 maximumDate：钉在 maximumDate
++ 普通图片不是 symbol
++ 普通图片没有九宫格边距
++ 普通数组被拒: TypeError: getRandomValues needs an integer typed array
++ 普通的滚动视图上也有 keyboardDismissMode
++ 普通视图：traitchange 能订也能退
++ 曲线写进去读回来是同一个
++ 最后一项到了屏幕上
++ 最后一项有单元格了
++ 最大的码点 f# #f bf bf 合法
++ 最大缩放写得进去
++ 最小缩放写得进去
++ 有 base 就能解析
++ 有 prompt 时自己想要的高是 #
++ 有内容时 hasText 为真
++ 有宽有高
++ 有选区时 deleteBackward 删掉选中的
++ 有选区时 insertText 换掉选中的
++ 服务器写的，App 这边读得到
++ 未声明的赋值被拒: ReferenceError
++ 未完成部分的图片可以清掉
++ 未完成部分的图片读回来是同一个对象
++ 未完成部分的着色可以清掉
++ 未完成部分的着色读回来是原样
++ 未连接时调方法被拒: makeKeyAndVisible(): this object is not connected to a scene yet, so no native object exists
++ 末尾不带斜杠
++ 本地网页的 httpResponseCode 是 -#
++ 本地网页的 origin 是 file://
++ 本地网页里点链接：地址是另一个本地文件
++ 本地网页里点链接：派发一次 will-navigate
++ 本地网页里点链接：跳过去了
++ 本来就不合法的 notation 也是 RangeError
++ 条件是 undefined 视为没给
++ 来源不是相机：写 cameraDevice 抛：cameraDevice is only available when sourceType is "camera"; set sourceType first
++ 来源不是相机：写 cameraFlashMode 抛：cameraFlashMode is only available when sourceType is "camera"; set sourceType first
++ 来源不是相机：读 cameraDevice 抛：cameraDevice is only available when sourceType is "camera"; set sourceType first
++ 来源不是相机：读 cameraFlashMode 抛：cameraFlashMode is only available when sourceType is "camera"; set sourceType first
++ 来源可用：sourceType 写得进去
++ 来源可用：重复写 camera 不抛
++ 来源是相机但没有 front 摄像头：cameraDevice
++ 来源是相机但没有 rear 摄像头：cameraDevice
++ 来源是相机：cameraDevice 默认 rear
++ 来源是相机：cameraFlashMode
++ 来源是相机：cameraFlashMode 默认 auto
++ 来源是相机：photoLibrary 还是被拒：sourceType "photoLibrary" is not supported: @nacrejs/camera only takes photos with the camera (sourceType "camera"). Picking from the photo library is a separate package, @nacrejs/photos
++ 来源是相机：不认识的摄像头：不抛、值不变
++ 来源是相机：不认识的闪光灯模式：不抛、值不变
++ 来源是相机：被拒之后还是 camera
++ 来源是相机：被拒之后闪光灯模式没变
++ 构造之后改原来的配置，选择器里的不变
++ 构造参数进了排列
++ 构造参数进了栈
++ 构造参数：富文本的文字原样
++ 构造参数：开头的 U+FEFF 还在
++ 构造参数：长度按码元算
++ 构造完没有选中的
++ 构造时给四段
++ 构造时给样式名被拒（要的是效果对象）
++ 构造时给的 image
++ 构造时给的 selectedImage：读得回来
++ 构造时给的 tag
++ 构造时给的 title
++ 构造时给的不是数组：new UISegmentedControl needs an array of strings and UIImages, got "日周月"
++ 构造时给的效果：GC 后读回来还是原来那个包装
++ 构造时给视图被拒
++ 构造的 options 给 null 视为空对象
++ 构造的 options 给数字：抛 TypeError
++ 枚举写数字：不抛、值不变
++ 枚举写错 CAAnimation.fillMode
++ 枚举写错 CAGradientLayer.type
++ 枚举写错 CAKeyframeAnimation.calculationMode
++ 枚举写错 CAKeyframeAnimation.rotationMode
++ 枚举写错 CALayer.cornerCurve
++ 枚举写错 CALayer.maskedCorners
++ 枚举写错 CAPropertyAnimation.keyPath
++ 枚举写错 CAShapeLayer.fillRule
++ 枚举写错 CAShapeLayer.lineCap
++ 枚举写错 CAShapeLayer.lineJoin
++ 枚举写错 CNContactPickerViewController.displayedPropertyKeys
++ 枚举写错 NSMutableParagraphStyle.alignment
++ 枚举写错 NSMutableParagraphStyle.baseWritingDirection
++ 枚举写错 NSMutableParagraphStyle.lineBreakMode
++ 枚举写错 NSTextContainer.lineBreakMode
++ 枚举写错 UIActivityIndicatorView.activityIndicatorViewStyle
++ 枚举写错 UIActivityViewController.excludedActivityTypes
++ 枚举写错 UIAlertController.severity
++ 枚举写错 UIBarButtonItem.style
++ 枚举写错 UIButton.role
++ 枚举写错 UICollectionLayoutListConfiguration.headerMode
++ 枚举写错 UIControl.contentHorizontalAlignment
++ 枚举写错 UIControl.contentVerticalAlignment
++ 枚举写错 UIDatePicker.datePickerMode
++ 枚举写错 UIDatePicker.preferredDatePickerStyle
++ 枚举写错 UILabel.baselineAdjustment
++ 枚举写错 UILabel.lineBreakMode
++ 枚举写错 UILabel.textAlignment
++ 枚举写错 UIPageControl.backgroundStyle
++ 枚举写错 UIPageControl.direction
++ 枚举写错 UIPanGestureRecognizer.allowedScrollTypesMask
++ 枚举写错 UIProgressView.progressViewStyle
++ 枚举写错 UIScreenEdgePanGestureRecognizer.edges
++ 枚举写错 UIScrollView.contentInsetAdjustmentBehavior
++ 枚举写错 UIScrollView.indicatorStyle
++ 枚举写错 UIScrollView.keyboardDismissMode
++ 枚举写错 UISearchBar.autocapitalizationType
++ 枚举写错 UISearchBar.autocorrectionType
++ 枚举写错 UISearchBar.barStyle
++ 枚举写错 UISearchBar.keyboardAppearance
++ 枚举写错 UISearchBar.keyboardType
++ 枚举写错 UISearchBar.returnKeyType
++ 枚举写错 UISearchBar.searchBarStyle
++ 枚举写错 UISearchBar.spellCheckingType
++ 枚举写错 UISearchBar.textContentType
++ 枚举写错 UISlider.sliderStyle
++ 枚举写错 UIStackView.alignment
++ 枚举写错 UIStackView.axis
++ 枚举写错 UIStackView.distribution
++ 枚举写错 UISwipeGestureRecognizer.direction
++ 枚举写错 UITabBarController.tabBarMinimizeBehavior
++ 枚举写错 UITextField.autocapitalizationType
++ 枚举写错 UITextField.autocorrectionType
++ 枚举写错 UITextField.borderStyle
++ 枚举写错 UITextField.clearButtonMode
++ 枚举写错 UITextField.keyboardAppearance
++ 枚举写错 UITextField.keyboardType
++ 枚举写错 UITextField.returnKeyType
++ 枚举写错 UITextField.spellCheckingType
++ 枚举写错 UITextField.textAlignment
++ 枚举写错 UITextField.textContentType
++ 枚举写错 UITextView.autocapitalizationType
++ 枚举写错 UITextView.autocorrectionType
++ 枚举写错 UITextView.keyboardAppearance
++ 枚举写错 UITextView.keyboardType
++ 枚举写错 UITextView.returnKeyType
++ 枚举写错 UITextView.spellCheckingType
++ 枚举写错 UITextView.textAlignment
++ 枚举写错 UITextView.textContentType
++ 枚举写错 UIToolbar.barStyle
++ 枚举写错 UIView.contentMode
++ 枚举写错 UIView.overrideUserInterfaceStyle
++ 枚举写错 UIViewController.modalPresentationStyle
++ 枚举写错 UIViewController.modalTransitionStyle
++ 枚举写错 UIViewController.overrideUserInterfaceStyle
++ 枚举写错 UNUserNotificationCenter.foregroundPresentationOptions
++ 枚举写错：给null也是不抛、值不变
++ 枚举写错：给大小写不对也是不抛、值不变
++ 枚举写错：给对象也是不抛、值不变
++ 枚举写错：给数也是不抛、值不变
++ 枚举写错：给空串也是不抛、值不变
++ 标签 "  utf-#\n" 认成 utf-#
++ 标签 "" 抛 RangeError
++ 标签 "UTF-#" 认成 utf-#
++ 标签 "Utf#" 认成 utf-#
++ 标签 "\tUTF# " 认成 utf-#
++ 标签 "ascii" 抛 RangeError
++ 标签 "gbk" 抛 RangeError
++ 标签 "latin#" 抛 RangeError
++ 标签 "nope" 抛 RangeError
++ 标签 "shift_jis" 抛 RangeError
++ 标签 "unicode-#-#-utf-#" 认成 utf-#
++ 标签 "utf #" 抛 RangeError
++ 标签 "utf#" 认成 utf-#
++ 标签 "utf-#" 抛 RangeError
++ 标签 "utf-#" 认成 utf-#
++ 标签 "utf-#le" 抛 RangeError
++ 标签栏控制器上也订得上
++ 标签栏控制器：不认识的事件名当自定义事件
++ 标签栏：选中的那一页出现
++ 标签给 null：按字符串转成 "null"，不认，抛 RangeError
++ 标签给 undefined：用默认的 utf-#
++ 标签默认水平抗压缩
++ 标签默认水平抱紧
++ 标签：再写 text，原来的下划线还留着
++ 标签：再写 text：attributedText 的文字跟着变
++ 标签：写 null：清空
++ 标签：写了 attributedText，text 读出来是其中的文字
++ 标签：给字符串
++ 标签：读回来的不可改
++ 标签：读回来的文字
++ 标识是 null
++ 标识是对象
++ 标识是小数
++ 标题写 null
++ 标题写得进去
++ 标题可以写成 null
++ 标题没了
++ 标题给 null：空串
++ 标题给数字：转成字符串
++ 标题里的数字和 null 转成字符串
++ 栈底弹不动，返回 null
++ 栈还是 # 深
++ 栈里塞非 UIViewController 被拒: viewControllers only accepts UIViewControlle…
++ 栈顶就是它
++ 栈顶换成了详情
++ 栈顶的那一页跟着出现
++ 样式不给被拒
++ 样式写得进去
++ 样式给数字被拒（枚举只认名字）
++ 样式给数字：不抛、值不变
++ 椭圆路径的 bounds
++ 模态的事件名也能订
++ 模态页：不认识的事件名当自定义事件
++ 模糊：工厂给的是 UIBlurEffect
++ 横向的 size class
++ 次数给小数：向零取整
++ 段落样式 copy()：不可改
++ 段落样式 mutableCopy()：可改
++ 每一种形式都往返得回去
++ 每次 new 得到新的对象
++ 每次 new 是新的对象
++ 每次读 coordinate 是同一个对象
++ 每次读 timestamp 是新的 Date（改它不影响位置）
++ 每次读是一个新数组
++ 每次读是一个新的 Date 对象
++ 每次读是同一个包装
++ 每次读是新的对象（位置是值，不是同一个包装）
++ 每次调工厂得到新的对象
++ 每次调得到同一个对象
++ 每段默认可用
++ 每段默认宽 #（自动）
++ 汉字要先编成 UTF-# 再 btoa，解的时候反过来
++ 没上屏的第二页不派发
++ 没上过屏的页面不派发任何事件（订了也一样）
++ 没做的成员不存在：distanceFromLocation
++ 没做的成员不存在：floor
++ 没写分区的网页，session 是默认的那一份
++ 没写循环信息的 GIF：播 # 遍
++ 没写过的键读到注册值
++ 没加进去
++ 没加进图层的动画：被回收
++ 没加进界面的网页也加载得完
++ 没单独设的状态读到的是 normal 的那个
++ 没单独设过的页：indicatorImageForPage 是 null
++ 没在缩放
++ 没在转时再停一次不出错
++ 没开始跑时 duration 是 #
++ 没开始跑时 timestamp 是 #
++ 没开就发被拒
++ 没挂时 view 是 null
++ 没挂识别器的视图：空数组
++ 没授权（notDetermined）时是全零的标识
++ 没接数据源时系统报 # 个分区
++ 没插进去
++ 没显示范围条时高还是 #
++ 没有 CLCircularRegion
++ 没有 CLGeocoder
++ 没有 CLHeading
++ 没有 body 不加 Content-Type
++ 没有 body：GET 请求的 text()
++ 没有 body：arrayBuffer() 是 # 字节
++ 没有 body：blob() 是空的
++ 没有 body：bodyUsed 保持 false
++ 没有 body：json() 因为解析空串被拒
++ 没有 body：text()
++ 没有 body：可以再读一次
++ 没有 domainState 这个成员
++ 没有 evaluateAccessControl 这个成员
++ 没有 evaluatedPolicyDomainState 这个成员
++ 没有 isCredentialSet 这个成员
++ 没有 keyPath 的动画也建得出来
++ 没有 localizedReason 这个成员
++ 没有 maxBiometryFailures 这个成员
++ 没有 setCredential 这个成员
++ 没有 type 的 Blob 不加 Content-Type
++ 没有串行（# 个的耗时 < 单次的 # 倍）
++ 没有做成 CNContact 成员的字段名也能写（只是让详情页显示它）
++ 没有内容时回车键是灰的
++ 没有内容时是 null
++ 没有名字的值只能用数字
++ 没有导航栈的成员
++ 没有手势时 setTranslation 不生效，读回还是 (#, #)
++ 没有手势时位移是 (#, #)
++ 没有手势时速度是 (#, #)
++ 没有标题时 showsScopeBar 也写得进去
++ 没有标题时显示范围条：高还是 #
++ 没有父控制器时再移除一次不出错
++ 没有的键 boolForKey 给 false
++ 没有的键 get 给 null
++ 没有的键 getBytes 也给 null
++ 没有的键 has 为假
++ 没有的键 integerForKey 给 # 不是 null
++ 没有的键给 null，不 reject
++ 没有真实触点时 location 是 null
++ 没有真实触点时 tapCount 是 #
++ 没有第二端时 secondAttribute
++ 没有触摸时 numberOfTouches
++ 没有这一项：null
++ 没有进入编辑
++ 没有页面时 selectedIndex
++ 没有页面时 selectedViewController
++ 没登记处理函数：网页那边被拒绝
++ 没登记的路径被拒: no route matches /nope
++ 没绑场景的 UIWindow 被拒: addSubview:: UIWindow has no native object yet, so it cannot be passed as an argument
++ 没给 animations
++ 没给 options 对象
++ 没给 scale 时按 # 算
++ 没给 scale，按 # 算
++ 没给外观
++ 没给属性：这一处一个属性都没有
++ 没给过期时间：session 是 true，没有 expirationDate 这个字段
++ 没给高度约束的那条高 #
++ 没给高度约束，三行字排出来就是 #
++ 没设 keyPath 就设 values 要抛
++ 没设 keyPath 就设值要抛
++ 没设过 attributedPlaceholder 是 null
++ 没设过时写空串：还是 null
++ 没设过的状态回退到 normal
++ 没设过自定义间距就是 default
++ 没设过：attributedTitleForState 是 null
++ 没设过：currentAttributedTitle 是 null
++ 没进 run loop 的 display link：被回收
++ 没退的监听器照常收到
++ 没选中的那一页不派发
++ 没配预加载脚本：网页里没有通道
++ 注册之后收得到
++ 注册过的键 has 为真
++ 派发中新加的监听器：这一轮不调
++ 浮点数组被拒: TypeMismatchError: getRandomValues needs an integer typed array; Float arrays and DataView are not accepted
++ 清掉图片：帧动画摘掉
++ 清空
++ 清空之后 hasText 为假
++ 清空之后剩一行的高度 #
++ 清空按钮一直显示
++ 清空标题之后选中的是 -#
++ 清过 cookie 之后读出来是空的
++ 渐变图层的颜色数组
++ 渐变层也是 CALayer
++ 渐变层的大小就是卡片的大小
++ 渐变挂到卡片的图层上了
++ 渲染模式写错被拒: renderingMode has no value "template"; expected one of: automatic / alwaysOriginal / alwaysTemplate
++ 游离的 UIBarButtonItem：被回收
++ 游离的 UIControl：被回收
++ 游离的 UINavigationController：被回收
++ 游离的 UIScrollView：被回收
++ 游离的 UIViewController：被回收
++ 游离的手势识别器：被回收
++ 滚出去的项派发了 displayend
++ 滚到不存在的项
++ 滚到末尾那一段之后往下走了
++ 滚动事件照常派发（和列表的事件同时订着）
++ 滚动的手势识别器是手写的那个类
++ 滚动视图的八个事件和 traitchange 照常订得上
++ 滚动视图自带一个拖动识别器，读出来是 UIPanGestureRecognizer
++ 滚动视图：UICollectionView 也继承到了
++ 滚动视图：UITextView 靠继承得到，自己不再定义一份
++ 滚动视图：keyboardDismissMode
++ 滚动视图：keyboardDismissMode 写错：不抛、值不变
++ 滚动视图：keyboardDismissMode 定义在 UIScrollView 上
++ 滚动视图：keyboardDismissMode 给数字：不抛、值不变
++ 滚动视图：不认识的事件名当自定义事件
++ 滚动视图：写错之后还是写错之前的 onDrag
++ 滚动视图：默认拖动时不收键盘
++ 滚进来的是后面的项
++ 激活被拒: failed to activate constraint: Unable to activat…
++ 瀑布里多了「提示框 / 底部菜单 / 分享」三个按钮，点了之后看终端
++ 点 values 的个数
++ 点 values 读回来是结构体
++ 点值往返
++ 点按是 UIGestureRecognizer
++ 点按：默认 # 根手指
++ 点按：默认点 # 下
++ 点段规范化
++ 点链接的 navigationType 是 linkActivated
++ 点链接：地址是链接的地址
++ 点链接：拦住了，没有加载事件
++ 点链接：派发一次 will-navigate
++ 焦点还在
++ 照另一个抄一份：内容相同
++ 父类手写的 alpha 写得进去
++ 父类手写的 isEnabled 写得进去
++ 父页面关掉：子页面跟着派发消失
++ 状态已定时 requestWhenInUseAuthorization() 兑现成现在的状态
++ 现在七段
++ 现在能后退
++ 玻璃容器：new 得出来
++ 玻璃容器：spacing 默认 #
++ 玻璃容器：读回来的也是副本
++ 玻璃容器：读回来的是 UIGlassContainerEffect
++ 玻璃：isInteractive 默认 false
++ 玻璃：tintColor 默认 null
++ 玻璃：工厂给的是 UIGlassEffect
++ 玻璃：读两次也不是同一个对象
++ 玻璃：读回来的不是写进去的那个对象
++ 玻璃：读回来的是 UIGlassEffect
++ 生命周期事件: active | 此刻 state
++ 生命周期事件: foreground | 此刻 state
++ 用代码关掉不算点了按钮：事件没有派发
++ 用代码改 text 和选中的范围没有派发事件
++ 用代码选中和取消，不派发 itemselect / itemdeselect
++ 用户自己起的标签原样还回来
++ 画完三点的 currentPoint
++ 界面上放了五行
++ 百分比
++ 监听器取消了：becomeFirstResponder 返回 false
++ 监听器取消了：resignFirstResponder 返回 false
++ 监听器抛了：按放行处理，照样拿到焦点
++ 监听器抛了：跳转照常发生
++ 监听器都摘掉之后照常能拿焦点
++ 监听器里移除自己：只跑这一次
++ 目录的 isDirectory 为真
++ 目录连里面的东西一起删掉了
++ 直接建的控件：不认识的事件名当自定义事件
++ 相对 URL 无 base 时抛
++ 相对 URL 被拒（没有 base）
++ 相对路径相对 App 包：地址是 file:// 开头
++ 看着像数的字符串按数转
++ 真的聚焦和交还：先 focus 再 blur
++ 着色写成 null 不影响图片
++ 瞎写的枚举值：不抛、值不变
++ 矩形路径的 bounds
++ 破坏性样式读得回来
++ 禁止脚本的网页：Promise 照常等
++ 禁止脚本的网页：executeJavaScript 照常
++ 禁止脚本的网页：消息照常
++ 禁止脚本的网页：网页自己的脚本没执行
++ 禁止脚本的网页：预加载脚本照常执行
++ 禁用之后不收触摸
++ 离开的那一页没有父控制器了
++ 离开窗口也不摘（removedOnCompletion 是 false）
++ 科学计数
++ 移出排列
++ 移出父视图 # 秒后帧动画还挂着
++ 移走之后原处没了
++ 移走之后只剩两层
++ 移走之后没有父层
++ 移走监听器之后不再收到
++ 移除之后 childViewControllers 空了
++ 移除之后当场加回去：这一轮不调
++ 移除之后没有父控制器
++ 移除了的子控制器：被回收
++ 移除监听之后不再增长
++ 程序关掉之后：栈底的页面被回收
++ 程序关掉之后：栈顶的页面被回收
++ 程序关掉之后：被呈现的导航控制器被回收
++ 程序改 selectedColor 不派发 change
++ 程序改了两次 selectedIndex：tabselect 一次都不派发
++ 程序改值：六个控件一次 change 都没收到（期望没量过）
++ 空 options 被拒: insertSubview needs one of { atIndex } / { belowSubview } / { aboveSubview }
++ 空 stack 没有排列项
++ 空串
++ 空串：text()
++ 空串：也算读过
++ 空地址：拒绝，TypeError
++ 空壳上读 advertisingIdentifier 抛 TypeError
++ 空字符留着，两边照常合成
++ 空数组＝一个角都不圆
++ 空文本视图：null 或者长度 #
++ 空栈没有栈顶
++ 空栈没有页面
++ 空格编码
++ 空格编码成加号
++ 空的 Blob：读出 # 个字节
++ 空的富文本上取属性
++ 空的富文本宽是 #
++ 空的数据源：snapshot() 是空的
++ 空的数据源：没有这一项
++ 空的数据源：没有这个位置
++ 空路径 isEmpty
++ 空路径的 currentPoint 是原点
++ 空路径补成斜杠
++ 空输入框：null 或者长度 #
++ 窗口事件: becomekey | isKeyWindow
++ 窗口事件: becomevisible | isKeyWindow
++ 窗口的根换成了导航控制器
++ 端点 # 是 (#,#)
++ 端点 # 是原点
++ 第 # 段的标题
++ 第一个参数不是 run loop 就抛
++ 第一个参数不给被拒
++ 第一个参数是 null 被拒
++ 第一个参数是别的效果（不是模糊）被拒
++ 第一个参数是样式名被拒（要的是效果对象）
++ 第一个参数是视图被拒
++ 第一个工具条里的还在
++ 第一帧和这张图不是同一个对象
++ 第一次请求的是第 # 项
++ 第一页也能找回导航控制器
++ 第一页多了「弹一张卡片 ↑」，弹出来能拖走也能点「完成」
++ 第二个也是
++ 第二个分区 # 项
++ 第二个参数的 signal 写 null：Request 上那个中止了，请求照常完成
++ 第二次读出来的还是原来的内容
++ 第二页加载完
++ 第二项的起点
++ 筛选条件是只读的：Cannot set property imagesFilter of class PHPickerFilter extends NSObject {
++ 类上也没有 locationServicesEnabled
++ 类型化数组的 toLocaleString 也一样
++ 类方法的参数：开头的 U+FEFF 还在
++ 精度高于毫秒（读数带小数）
++ 系统当场来问：becomeFirstResponder 返回之前监听器已经跑过
++ 系统当场来问：resignFirstResponder 返回之前监听器已经跑过
++ 系统的拖动识别器上读得到拖动的属性
++ 系统的拖动识别器：最少 # 根手指，最多 # 根
++ 系统自动建的 tabBarItem 用的是页面的 title
++ 系统自带的标签换成了给人看的写法
++ 约束对象能从 view 读回来
++ 约束的 constant 是 undefined：默认 #
++ 约束的 multiplier 是 undefined：默认 #
++ 约束齐了就不含糊
++ 纬度一样
++ 纬度在 -# 到 # 之间
++ 纯 ASCII 原样返回
++ 纵向的 size class
++ 组合出来的和单个的不相等
++ 组合状态下的标题
++ 组合记号按规定的次序重排
++ 组里有两个
++ 经度一样
++ 经度在 -# 到 # 之间
++ 结构体字段只读: true
++ 结果列表按钮默认没选中
++ 给 null 和不给一样
++ 给了 domain：补上开头的点，hostOnly 是 false
++ 给了 scale 之后 size 减半
++ 给了动图：图层上挂着帧动画
++ 给了过期时间：session 是 false，expirationDate 原样读回来
++ 给了高度约束的那条高 #
++ 给别的原生对象
++ 给图片段设标题：标题有了
++ 给文字段设图：图有了
++ 给的不是数组
++ 给的不是配置
++ 给空数组也一样
++ 绝对路径：文档目录里的网页加载得出来，旁边的样式表也生效
++ 继承 UIView 构造时就抛
++ 继承 UIViewController
++ 继承它，new 的时候抛
++ 继承工厂专造的类
++ 继承根类 NSObject
++ 绿色按钮已上屏，等着被点（点下去会打出触点位置）
++ 编码再解码，原样回来
++ 编辑中插入：deleteBackward 删光标前面那一个
++ 编辑中插入：insertText / deleteBackward 派发 input
++ 编辑中插入：insertText 插在光标处
++ 编辑中插入：代码的插入和删除不经过 beforeinput
++ 编辑中插入：光标在开头时 deleteBackward 什么都不删
++ 编辑中插入：删空之后 hasText 为假
++ 编辑中插入：换完选区收成光标
++ 编辑中插入：插完光标在插入的内容后面
++ 编辑中插入：改内容不会让输入框丢掉焦点
++ 编辑中插入：有内容时 hasText 为真
++ 编辑中插入：有选区时 deleteBackward 删掉选中的
++ 编辑中插入：选中一段时 insertText 是替换
++ 编辑区的高是约束给的 #
++ 编辑时显示清空按钮
++ 缩回一页
++ 缩略图是静态的（第一帧）
++ 缺 afterView 被拒: setCustomSpacing needs { afterView }
++ 缺 atIndex 被拒: insertArrangedSubview needs { atIndex }
++ 缺 forState 被拒: setTitle needs { forState }
++ 缺 forView 被拒: feedbackGeneratorWithStyle needs { forView }
++ 缺字段被拒
++ 缺字段被拒: directionalLayoutMargins is missing trailing, or it is not a finite number
++ 缺字段被拒: frame is missing height, or it is not a finite number
++ 缺字段被拒: transform is missing c, or it is not a finite nu…
++ 网络图已上屏，全程 # ms（字节没进过 V# 堆）
++ 网络图解出来了
++ 网页和运行时拿到的是同一张表
++ 网页开着的时候写的：不用刷新就看得到
++ 网页的 document.cookie 看得到普通的，看不到 httpOnly 的
++ 网页的 innerWidth 等于视图的宽（pt）
++ 网页的 prefers-color-scheme 跟视图的外观一致
++ 网页的请求带上了 App 写的 cookie
++ 网页自己 history.back()：派发一次 will-navigate
++ 网页自己 location.reload()：派发一次 will-navigate
++ 网页自己写的，App 这边读得到
++ 网页自己刷新的 navigationType 是 reload
++ 网页自己刷新：拦住了，没有加载事件
++ 网页自己后退的 navigationType 是 backForward
++ 网页自己后退：地址是上一页的
++ 网页自己后退：拦住了，还在这一页
++ 网页跳到一个会重定向的地址：只问一次
++ 置 null 读回 null
++ 而 scroll 不再派发
++ 而且没有再来问
++ 聚焦和失焦各只派发了一次
++ 聚焦派发 focus
++ 背景色可以清掉
++ 能挂多个
++ 能清掉
++ 能滚的那块没有固有大小（-# 表示没有）
++ 能用生物认证时 biometryType 不是 none
++ 脚本改 location 的 navigationType 是 other
++ 脚本改 location：派发一次 will-navigate
++ 自定义协议的链接：地址原样给
++ 自定义协议的链接：拦住了，没有加载失败
++ 自定义协议的链接：派发一次 will-navigate
++ 自定义的分享动作还不支持：new UIActivityViewController: applicationActivities is not supported yet
++ 自定义间距也能要系统值
++ 自定义间距真的生效了
++ 自定义间距读回来
++ 自定义首部到了服务器
++ 自己 dispatchEvent 的 cancel 到得了监听器
++ 自己写剪贴板也会收到 change
++ 自己写的类的实例：克隆出来是普通对象，方法没了
++ 自己建的图层 contentsScale 默认 #
++ 自己想要的大小：宽不定，高 #
++ 自己想要的大小：宽没有意见，高 #
++ 自己打开自己：openURL 兑现为 true
++ 自己挂的帧动画在图层上
++ 自己构造时可以指定 cancelable
++ 自己构造的：scene 是给进去的那个
++ 自己构造的：sourceApplication
++ 自己构造的：type
++ 自己构造的：url 原样
++ 自己派发的事件上没有 results
++ 自己给了 Content-Type 就不覆盖
++ 至少前四个访问级别可用
++ 范围外没有
++ 范围外没有底色
++ 范围给的不是对象
++ 范围越界不抛，位置不动
++ 落单的代理项留着，两边照常合成
++ 落单的后续字节 #：一个 U+FFFD
++ 落盘的分区 isPersistent() 是 true
++ 藏起来了
++ 虚线往返
++ 虚线能设回实线
++ 行数给 undefined 被拒
++ 补的属性在 UIScrollView 的原型上
++ 补的属性在原型上，不在实例上
++ 表情占两个码元
++ 表情（基本平面之外的字）原样
++ 被停掉的 code 是 -#
++ 被全屏的页盖住：底下的页派发消失
++ 被卡片样式的页盖住：底下的页不派发消失（它还露着一截）
++ 被强制成另一种外观的视图：它的图层颜色按它自己的外观解析
++ 被打断的动画兑现，值是 false
++ 被拒之后 cameraDevice 没变
++ 被拒之后 card 的子视图没变多
++ 被拒之后 direction 没动
++ 被拒之后 effect 还是原来那个
++ 被拒之后 rotation 没动
++ 被拒之后 scale 没动
++ 被拒之后 sliderStyle 没动
++ 被拒之后 sourceType 没变
++ 被拒之后 spacing 还是原来的值
++ 被拒之后 stepValue 没动
++ 被拒之后值没变
++ 被拒之后原值不动
++ 被拒之后原值没动
++ 被拒之后原值没动（已完成部分）
++ 被拒之后原值没动（未完成部分）
++ 被拒之后原来的关系没动
++ 被拒之后原来的图还在
++ 被拒之后原来的项没动
++ 被拒之后字体没变（以前会被静默清掉）
++ 被拒之后底部菜单还是没有输入框
++ 被拒之后按钮没有多出来
++ 被拒之后日期没动
++ 被拒之后时长没动
++ 被拒之后栈没被改坏
++ 被拒之后样式没动
++ 被拒之后模式没动
++ 被拒之后段数没动
++ 被拒之后还是 null
++ 被拒之后选中的没动
++ 被拒之后那个键没被写进去
++ 被拒之后间隔没动
++ 被拒之后页数没动
++ 被拒之后页面没变
++ 被拒的几次都没插进去
++ 被拒的视图没有进任何树
++ 被换掉的 tab 页面：被回收
++ 被换掉的那一页不再属于它
++ 装了 @nacrejs/camera：全局有 UIImagePickerController
++ 要分享的东西必须是数组：new UIActivityViewController: activityItems must be an array of strings, URLs and UIImages, got "一段文字"
++ 覆盖写
++ 覆盖写同一个键（内部走 update）
++ 视图上也没有了
++ 视图上有它
++ 视图上没有页面的出现事件，当自定义事件
++ 视图有 traitCollection
++ 解好的图尺寸不变
++ 解码过的动图放进图片视图照样播
++ 订了之后自己派发的收得到
++ 订着的时候收到出现的两个
++ 认不出的名字也保留旧值
++ 认不出的字重被拒: TypeError: weight has no value "extrabold"; expected one of: ultraLight / thin / light / regular / medium / semibold / bold / heavy / black
++ 认不出的文本样式被拒: textStyle has no value "subtitle"; expected one of: largeTitle / title# / title# / title# / headline / subheadline / body / callout / footnote / caption# / caption#
++ 认不出的访问级别被拒
++ 详情也能找回导航控制器
++ 语义色是同一个常量
++ 语义色读回名字，不是合成的十六进制
++ 说明写得进去
++ 说明可以写成 null
++ 说明给数字：转成字符串
++ 请求的次数比单元格的个数多（有复用）
++ 读不存在的文件
++ 读两次 cookies 是同一个对象
++ 读两次 ipc 是同一个对象
++ 读两次 navigationHistory 是同一个对象
++ 读两次 webContents 是同一个对象
++ 读两次是同一个包装
++ 读两次是同一个对象
++ 读两次还是同一个
++ 读出来是 CGAffineTransform
++ 读出来是同一个包装
++ 读出来是结构体类
++ 读出来的内容
++ 读出来的是 UIEdgeInsets
++ 读出来的是副本，改它不影响单元格
++ 读出来的类没丢
++ 读回来一致
++ 读回来就是那个对象
++ 读回来是 # 位浮点能表示的值
++ 读回来是 NSAttributedString
++ 读回来是原来那几个包装，顺序不变
++ 读回来是同一批对象
++ 读回来是解码的
++ 读回来的 kern 还在
++ 读回来的下划线还在
++ 读回来的不是原来那个对象
++ 读回来的底色还在
++ 读回来的是 PHPickerFilter
++ 读回来的确实是个动画
++ 读回来的颜色还在
++ 读回来还是原来那两个对象
++ 读回来还是原来那个包装
++ 读回来还是同一批对象
++ 读过、改过缓冲区之后，Blob 还能原样再读
++ 调 requestAlwaysAuthorization 抛 TypeError
++ 调两次得到两个对象
++ 调低抱紧后读回
++ 调用返回之后读到的也是写进去的值（不是动画的中间值）
++ 负数抛
++ 负数被拒
++ 负数被拒（名字背后的那几个数不让直接写）
++ 负的 length 被拒
++ 负的 location 被拒
++ 负的手指数被拒
++ 负的次数被拒: numberOfTapsRequired must be a non-negative integer
++ 负的行数被拒
++ 负的页码：钉在 #
++ 赋值之后改原对象，视图里的不变
++ 赋值后的栈顶
++ 超出 U+#FFFF 的 f# # # #：四个 U+FFFD
++ 超出范围的 #：存下来了
++ 超过 # 位有效数字的 BigInt 抛 RangeError，不悄悄丢位
++ 超过 # 字节被拒: QuotaExceededError: getRandomValues can fill at most # bytes per call, got #
++ 超过上限：钉在 maximumValue
++ 超过最后一页：钉在最后一页
++ 超预算的动图：只有第一帧，不播
++ 超预算的动图：图还在
++ 超预算的动图：大小照常读得到
++ 越界之后原来选中的没变
++ 越界的 atIndex 被拒: insertArrangedSubview: atIndex # is out of rang…
++ 跨分区的位置
++ 跨轴连接被拒: NSLayoutYAxisAnchor cannot be constrained to NSLayoutXAxisAnchor: their units are not compatible
++ 路径值读回来是条路径
++ 路径是空串：拒绝，TypeError
++ 路径读不到也返回 null
++ 路由变了 → /（栈深 #）
++ 轨道在给的范围里面
++ 转不出数的 scale 被拒
++ 转不出数的手指数被拒
++ 转不出数的时长被拒: minimumPressDuration must be a finite number, got "soon"
++ 转不出数的被拒
++ 转不出有限数被拒
++ 转场写得进去
++ 转成字符串
++ 轻扫是 UIGestureRecognizer
++ 轻扫的 numberOfTouchesRequired 可写
++ 轻扫：四个事件名都能订、能退
++ 轻扫：没挂时 view 是 null
++ 轻扫：没有触摸时 numberOfTouches
++ 轻扫：负的手指数被拒
++ 轻扫：默认 # 根手指
++ 轻扫：默认 cancelsTouchesInView
++ 轻扫：默认 delaysTouchesBegan
++ 轻扫：默认 delaysTouchesEnded
++ 轻扫：默认 isEnabled
++ 轻扫：默认 state
++ 轻扫：默认往右
++ 轻扫：默认方向是数组
++ 输入框写的 autocapitalizationType，搜索框读得到
++ 输入框写的 keyboardType，搜索框读得到
++ 输入框写的 returnKeyType，搜索框读得到
++ 输入框写的 textContentType，搜索框读得到
++ 输入框写的，bar.text 读得到
++ 输入框是 first responder
++ 输入框照常配置：占位文字
++ 输入框照常配置：文字
++ 输入框：再写 text：attributedText 的文字跟着变
++ 输入框：写了 attributedText，text 读出来是其中的文字
++ 输入框：读回来的文字
++ 边缘拖动也有 translationInView
++ 边缘拖动是 UIPanGestureRecognizer
++ 边缘拖动：edges 默认是数组
++ 边缘拖动：edges 默认是空的
++ 边缘拖动：四个事件名都能订、能退
++ 边缘拖动：没挂时 view 是 null
++ 边缘拖动：没有触摸时 numberOfTouches
++ 边缘拖动：默认 cancelsTouchesInView
++ 边缘拖动：默认 delaysTouchesBegan
++ 边缘拖动：默认 delaysTouchesEnded
++ 边缘拖动：默认 isEnabled
++ 边缘拖动：默认 state
++ 边缘拖动：默认最多 # 根手指
++ 边缘拖动：默认最少 # 根手指
++ 过 JSON 是两个字段
++ 过桥往返：a
++ 过桥往返：b
++ 过短的帧时长被抬到 # 秒
++ 过长编码 c# af：两个 U+FFFD（c# 从来不合法）
++ 过长编码 e# # af：三个 U+FFFD
++ 过长编码 f# # # #：四个 U+FFFD
++ 返回 undefined
++ 返回按钮的字
++ 返回的就是传进去的数组
++ 返回的是 Promise
++ 返回：第二页消失两个、第一页再出现两个
++ 还不能前进
++ 还在屏幕上：栈底的页面没被回收
++ 还在屏幕上：栈顶的页面没被回收
++ 还在屏幕上：被呈现的导航控制器没被回收
++ 还在父控制器里的子控制器：没被回收
++ 还没上屏时不是 first responder
++ 还没加载：getTitle() 是空串
++ 还没加载：getURL() 是空串
++ 还没加载：isLoading() 是 false
++ 还没加载：不能前进
++ 还没加载：不能后退
++ 还没呈现时没有 presentedViewController
++ 还没呈现时没有 presentingViewController
++ 还没接数据源
++ 还没接：UIDatePicker.calendar 不存在
++ 还没接：UIDatePicker.locale 不存在
++ 还没接：UIDatePicker.timeZone 不存在
++ 还没接：UIPageControl.defersCurrentPageDisplay 不存在
++ 还没接：UIPageControl.progress 不存在
++ 还没接：UIPageControl.updateCurrentPageDisplay 不存在
++ 还没接：UISegmentedControl.actionForSegmentAtIndex 不存在
++ 还没接：UISegmentedControl.insertSegmentWithAction 不存在
++ 还没接：UISegmentedControl.segmentIndexForActionIdentifier 不存在
++ 还没接：UISegmentedControl.segmentedControlStyle 不存在
++ 还没接：UISegmentedControl.setAction 不存在
++ 还没接：UISegmentedControl.setBackgroundImage 不存在
++ 还没接：UISegmentedControl.setContentPositionAdjustment 不存在
++ 还没接：UISegmentedControl.setDividerImage 不存在
++ 还没接：UISegmentedControl.setTitleTextAttributes 不存在
++ 还没接：UISlider.trackConfiguration 不存在
++ 还没接：UIStepper.backgroundImageForState 不存在
++ 还没接：UIStepper.decrementImageForState 不存在
++ 还没接：UIStepper.dividerImageForLeftSegmentState 不存在
++ 还没接：UIStepper.incrementImageForState 不存在
++ 还没接：UIStepper.setBackgroundImage 不存在
++ 还没接：UIStepper.setDecrementImage 不存在
++ 还没接：UIStepper.setDividerImage 不存在
++ 还没接：UIStepper.setIncrementImage 不存在
++ 还没接：UISwitch.offImage 不存在
++ 还没接：UISwitch.onImage 不存在
++ 还没接：UISwitch.preferredStyle 不存在
++ 还没接：UISwitch.style 不存在
++ 还没接：UISwitch.title 不存在
++ 还没握手完，没有子协议
++ 还没有分区时加项抛
++ 还没设标题时 currentTitle 是 null
++ 还没进栈时 navigationController 是 null
++ 这一次没有报错
++ 这个字符上的 attachment 就是给的那个
++ 这时文字已经是改过的
++ 这是第 # 次启动（上一次的值留住了，确实落盘了）
++ 进度写得进去
++ 进度条被约束拉开：宽
++ 进度给 Infinity 被拒
++ 进度给 NaN 被拒
++ 进度给 undefined 被拒
++ 进度给转不出数的字符串被拒
++ 连上之后是 OPEN
++ 连不上时拒绝
++ 连压两个，栈深 #
++ 连着加载两次：前一次拒绝，AbortError
++ 连着加载两次：后一次兑现
++ 连续更新时 requestLocation() 拒绝
++ 连读 # 次没有倒退
++ 连读两次一样
++ 迭代按名字排序
++ 退掉 input 之后 scroll 还在
++ 退掉 scroll 之后 input 还在
++ 退掉之后收不到 scroll
++ 退掉的那个监听器没再收到
++ 退订之后不再收到
++ 退订之后收不到
++ 选不存在的项
++ 选中后 state
++ 选中的还是「周」
++ 选区事件：event.target 是这个文本视图
++ 选区事件：event.type
++ 选区事件：insertText 挪了光标，也派发
++ 选区事件：removeEventListener 之后收不到了
++ 选区事件：selectionchange 订得上也退得掉
++ 选区事件：三种一起订着：收得到 input
++ 选区事件：三种一起订着：收得到 scroll
++ 选区事件：三种一起订着：收得到 selectionchange
++ 选区事件：不可取消
++ 选区事件：事件不是同步派发的：刚写完还是 #
++ 选区事件：代码写 selectedRange 派发 selectionchange
++ 选区事件：正在编辑时代码写 selectedRange 派发 selectionchange
++ 选区事件：监听器里读 selectedRange 就是现在的选区
++ 选区事件：订着 selectionchange 时失焦照常派发 blur
++ 选区事件：订着 selectionchange 时聚焦照常派发 focus
++ 选区事件：这时读到的是挪过之后的光标
++ 选区事件：退掉 scroll 之后 input 还在
++ 选区事件：退掉 scroll 之后 selectionchange 还在
++ 选区事件：退掉 selectionchange 之后 input 还在
++ 选区事件：退掉 selectionchange 之后 scroll 还在
++ 选区事件：退掉之后收不到 scroll
++ 选区事件：退掉之后收不到 selectionchange
++ 选区事件：选区写进去了
++ 选区写得进去
++ 选区读出来是 NSRange
++ 选择器是 CNContactPickerViewController
++ 选择：工厂给的是 UISelectionFeedbackGenerator
++ 逐帧动画没在跑
++ 通知：'#' 按数转
++ 通知：UNCalendarNotificationTrigger 不能 new
++ 通知：UNMutableNotificationContent 不能继承
++ 通知：UNNotification 不能 new
++ 通知：UNNotificationContent 不能 new
++ 通知：UNNotificationRequest 不能 new
++ 通知：UNNotificationResponse 不能 new
++ 通知：UNNotificationSettings 不能 new
++ 通知：UNNotificationSound 上没有 criticalSoundNamed
++ 通知：UNNotificationSound 上没有 defaultCriticalSound
++ 通知：UNNotificationSound 上没有 defaultCriticalSoundWithAudioVolume
++ 通知：UNNotificationSound 上没有 defaultRingtoneSound
++ 通知：UNNotificationSound 上没有 ringtoneSoundNamed
++ 通知：UNNotificationSound 上没有 soundNamed
++ 通知：UNNotificationSound 不能 new
++ 通知：UNNotificationTrigger 不能 new
++ 通知：UNPushNotificationTrigger 不能 new
++ 通知：UNTimeIntervalNotificationTrigger 不能 new
++ 通知：addNotificationRequest 不带参数被拒
++ 通知：addNotificationRequest 给内容（忘了包成请求）被拒
++ 通知：addNotificationRequest 给普通对象被拒
++ 通知：addNotificationRequest() 兑现成 undefined
++ 通知：alert 这个旧名字不收（系统已经拆成 list 和 banner）：不抛、值不变
++ 通知：alertSetting 是三个值之一
++ 通知：alertStyle 是三个值之一
++ 通知：announcement 不收（系统已经废弃）
++ 通知：announcementSetting 是三个值之一
++ 通知：authorizationStatus 是五个值之一
++ 通知：badge 写 # 向零取整成 #
++ 通知：badge 写 # 读回 #
++ 通知：badge 写 # 读回 #（把角标去掉）
++ 通知：badge 写 '#' 读回数 #
++ 通知：badge 写 null 读回 null
++ 通知：badge 写负数被拒
++ 通知：badge 写转不出数的被拒
++ 通知：badge 写错之后原值不动
++ 通知：badge 默认是 null（不改角标）
++ 通知：badgeSetting 是三个值之一
++ 通知：body 默认是空串
++ 通知：carPlaySetting 是三个值之一
++ 通知：center 上有 foregroundPresentationOptions
++ 通知：center 上没有 delegate
++ 通知：center 上没有 getNotificationCategories
++ 通知：center 上没有 setNotificationCategories
++ 通知：center 上没有 supportsContentExtensions
++ 通知：center.addNotificationRequest 是方法
++ 通知：center.getDeliveredNotifications 是方法
++ 通知：center.getNotificationSettings 是方法
++ 通知：center.getPendingNotificationRequests 是方法
++ 通知：center.removeAllDeliveredNotifications 是方法
++ 通知：center.removeAllPendingNotificationRequests 是方法
++ 通知：center.removeDeliveredNotificationsWithIdentifiers 是方法
++ 通知：center.removePendingNotificationRequestsWithIdentifiers 是方法
++ 通知：center.requestAuthorizationWithOptions 是方法
++ 通知：center.setBadgeCount 是方法
++ 通知：content 不是可变的那个类
++ 通知：content 是 UNNotificationContent
++ 通知：content 是普通对象被拒
++ 通知：criticalAlertSetting 是三个值之一
++ 通知：currentNotificationCenter() 是 UNUserNotificationCenter
++ 通知：dateComponents 不能改
++ 通知：dateComponents 这个字段只读
++ 通知：dateComponents 里只有写了的那几个分量
++ 通知：defaultSound 只读
++ 通知：defaultSound 是 UNNotificationSound
++ 通知：directMessagesSetting 是三个值之一
++ 通知：foregroundPresentationOptions 是数组
++ 通知：getDeliveredNotifications() 兑现的是数组
++ 通知：getNotificationSettings() 兑现的是 UNNotificationSettings
++ 通知：getPendingNotificationRequests() 兑现的是数组
++ 通知：hour 是 #
++ 通知：identifier
++ 通知：identifier 写 # 读回 '#'
++ 通知：identifier 只读
++ 通知：lockScreenSetting 是三个值之一
++ 通知：minute 是 #
++ 通知：notificationCenterSetting 是三个值之一
++ 通知：providesAppNotificationSettings 是布尔
++ 通知：removeDeliveredNotificationsWithIdentifiers 给字符串被拒
++ 通知：removePendingNotificationRequestsWithIdentifiers 不带参数被拒
++ 通知：removePendingNotificationRequestsWithIdentifiers 给字符串被拒
++ 通知：repeats 不带就是 false
++ 通知：repeats 写 # 按布尔转
++ 通知：repeats 只读
++ 通知：scheduledDeliverySetting 是三个值之一
++ 通知：setBadgeCount 不带参数被拒
++ 通知：setBadgeCount 给负数被拒
++ 通知：setBadgeCount 给转不出数的被拒
++ 通知：setBadgeCount(#) 兑现成 undefined
++ 通知：showPreviewsSetting 是三个值之一
++ 通知：sound 写 null 读回 null
++ 通知：sound 写字符串被拒
++ 通知：sound 写默认的声音读回同一个对象
++ 通知：sound 默认是 null（不响）
++ 通知：soundSetting 是三个值之一
++ 通知：subtitle 默认是空串
++ 通知：threadIdentifier 默认是空串
++ 通知：timeInterval 只读
++ 通知：timeInterval 是 #
++ 通知：timeSensitiveSetting 是三个值之一
++ 通知：title 写 # 读回 '#'
++ 通知：title 写 null 读回空串
++ 通知：title 默认是空串
++ 通知：trigger 写 null 也是 null
++ 通知：trigger 是数被拒
++ 通知：trigger 是普通对象被拒
++ 通知：trigger 是给的那一个
++ 通知：userInfo 写 null 读回空对象
++ 通知：userInfo 写字符串被拒
++ 通知：userInfo 写数组被拒
++ 通知：userInfo 写错之后原值不动
++ 通知：userInfo 读回的不是写进去的那个对象（存的是副本）
++ 通知：userInfo 读回的内容一样
++ 通知：userInfo 里有 null 被拒
++ 通知：userInfo 里有环被拒
++ 通知：userInfo 里有转不成 JSON 的数被拒
++ 通知：userInfo 里面一层也不能改
++ 通知：userInfo 默认是空对象
++ 通知：一个分量都不写也建得出来
++ 通知：不到一秒也可以
++ 通知：不带 content 被拒
++ 通知：不带 trigger 是 null（立刻送达）
++ 通知：不带分量被拒
++ 通知：不带参数被拒
++ 通知：不带选项被拒
++ 通知：不带间隔被拒
++ 通知：不是数组被拒：null
++ 通知：不是数组被拒：undefined
++ 通知：不是数组被拒：字符串
++ 通知：不能 new
++ 通知：不能继承
++ 通知：不认识的事件名当自定义事件
++ 通知：不认识的分量被拒，并列出可选的
++ 通知：不认识的名字：不抛、值不变
++ 通知：不认识的选项被拒，并列出可选的
++ 通知：两个事件都订得上、退得掉
++ 通知：之后改原来的对象不影响内容
++ 通知：之后改原来的对象不影响触发器
++ 通知：也是 UNNotificationContent
++ 通知：也是 UNNotificationTrigger
++ 通知：值是 undefined 的分量视为没带
++ 通知：全局上有 UNCalendarNotificationTrigger
++ 通知：全局上有 UNMutableNotificationContent
++ 通知：全局上有 UNNotification
++ 通知：全局上有 UNNotificationContent
++ 通知：全局上有 UNNotificationRequest
++ 通知：全局上有 UNNotificationResponse
++ 通知：全局上有 UNNotificationSettings
++ 通知：全局上有 UNNotificationSound
++ 通知：全局上有 UNNotificationTrigger
++ 通知：全局上有 UNPushNotificationTrigger
++ 通知：全局上有 UNTimeIntervalNotificationTrigger
++ 通知：全局上有 UNUserNotificationCenter
++ 通知：全局上没有 UNLocationNotificationTrigger
++ 通知：全局上没有 UNNotificationAction
++ 通知：全局上没有 UNNotificationActionIcon
++ 通知：全局上没有 UNNotificationAttachment
++ 通知：全局上没有 UNNotificationCategory
++ 通知：全局上没有 UNNotificationServiceExtension
++ 通知：全局上没有 UNTextInputNotificationAction
++ 通知：全局上没有 UNTextInputNotificationResponse
++ 通知：内容上不能加字段
++ 通知：内容上没有 attachments
++ 通知：内容上没有 categoryIdentifier
++ 通知：内容上没有 filterCriteria
++ 通知：内容上没有 interruptionLevel
++ 通知：内容上没有 launchImageName
++ 通知：内容上没有 relevanceScore
++ 通知：内容上没有 summaryArgument
++ 通知：内容上没有 summaryArgumentCount
++ 通知：内容上没有 targetContentIdentifier
++ 通知：写 banner、sound 读回这两个
++ 通知：写 body 读回
++ 通知：写 subtitle 读回
++ 通知：写 threadIdentifier 读回
++ 通知：写 title 读回
++ 通知：写空数组读回空的
++ 通知：写错之后原值不动
++ 通知：分量不是对象被拒
++ 通知：分量写 # 向零取整成 #
++ 通知：分量写 '#' 按数转
++ 通知：分量写 null 视为没带
++ 通知：分量转不出数被拒
++ 通知：十五个分量都认
++ 通知：同一个不认识的名字再来一遍，还是当自定义事件
++ 通知：同一个标识再排一次，列表里还是一条
++ 通知：四个都写（重复的不算两次）
++ 通知：它是 NSObject
++ 通知：它能挂监听器（EventTarget）
++ 通知：工厂给的是 UINotificationFeedbackGenerator
++ 通知：建好之后改内容，请求里的不变
++ 通知：拿 Date 当分量被拒
++ 通知：拿只读的内容再建一个请求
++ 通知：按日期排的那一条在列表里
++ 通知：按标识撤已经送达的：返回 undefined
++ 通知：按标识撤掉之后列表里没有那两条
++ 通知：按标识撤还没到的：返回 undefined
++ 通知：按秒排的那一条在列表里
++ 通知：摘下来单独调用也是同一个对象
++ 通知：撤掉全部已经送达的：返回 undefined
++ 通知：撤掉全部还没到的：返回 undefined
++ 通知：日期的触发器 repeats 不带就是 false
++ 通知：日期的触发器 repeats 是 true
++ 通知：日期的触发器也是 UNNotificationTrigger
++ 通知：是 UNCalendarNotificationTrigger
++ 通知：是 UNMutableNotificationContent
++ 通知：是 UNNotificationRequest
++ 通知：是 UNTimeIntervalNotificationTrigger
++ 通知：每次拿到同一个对象
++ 通知：每次读 content 是同一个对象
++ 通知：每次读 dateComponents 是同一个对象
++ 通知：每次读是同一个对象
++ 通知：每次读是新的数组，改它不影响设置
++ 通知：没写的分量读出来是 undefined
++ 通知：状态已定时申请授权兑现成「现在允许不允许」
++ 通知：空数组也收
++ 通知：触发器上不能加字段
++ 通知：触发器上没有 nextTriggerDate
++ 通知：设置上不能加字段
++ 通知：设置的字段只读
++ 通知：请求上不能加字段
++ 通知：请求里的 userInfo
++ 通知：请求里的内容只读
++ 通知：读出来的 userInfo 不能改
++ 通知：读回 badge
++ 通知：读回 body
++ 通知：读回 minute
++ 通知：读回 repeats
++ 通知：读回 sound：是默认的那一个
++ 通知：读回 subtitle
++ 通知：读回 threadIdentifier
++ 通知：读回 timeInterval
++ 通知：读回 title
++ 通知：读回 userInfo（数还是数，布尔还是布尔）
++ 通知：读回 year
++ 通知：读回日期触发器的 repeats
++ 通知：读回来的是新的对象（请求是值）
++ 通知：读回的内容是只读的那个类
++ 通知：读回的分量还是那五个
++ 通知：读回的触发器是 UNCalendarNotificationTrigger
++ 通知：读回的触发器是 UNTimeIntervalNotificationTrigger
++ 通知：调没做的方法抛 TypeError
++ 通知：选项不是数组被拒
++ 通知：里面都是 UNNotification
++ 通知：里面都是 UNNotificationRequest
++ 通知：重复的间隔不到 # 秒被拒
++ 通知：重复的：repeats 是 true
++ 通知：重复的：timeInterval 是 #
++ 通知：间隔是 # 被拒
++ 通知：间隔是负数被拒
++ 通知：间隔转不出数被拒
++ 通知：默认是空的（前台收到的通知不显示）
++ 那一项有一个（空白的）单元格
++ 那一项的单元格 isSelected
++ 那个分区里 # 项
++ 配了 textContentType
++ 里层两块各占一半减间距
++ 里层自己也有两项
++ 里面已经空了
++ 里面的输入框也是
++ 里面的输入框跟着恢复
++ 里面的输入框跟着禁用
++ 里面都是 CLLocation
++ 重复 abort 不出错
++ 重复建不报错
++ 重复挂不会变成两个
++ 重定向本身没有再问，最后落在目标地址
++ 重新加载不存在的分区
++ 重新加载不存在的项
++ 重新建的不是原来那个
++ 重新设置不存在的项
++ 重新赋一次才生效
++ 铺满窗口：env(safe-area-inset-bottom) 等于窗口安全区的 bottom
++ 铺满窗口：env(safe-area-inset-top) 等于窗口安全区的 top
++ 销毁之后 executeJavaScript 拒绝
++ 销毁之后 loadURL 拒绝，TypeError
++ 销毁之后 send 抛
++ 销毁之后后退前进也抛
++ 销毁之后调别的方法抛
++ 错误上有系统的 domain
++ 错误信息列出了可选值
++ 错误带 code 逃生口
++ 错误带 domain 逃生口
++ 错误点名是哪个 keyPath
++ 错误点名缺的是哪个
++ 错误说清了要先设 keyPath
++ 错误说要一个颜色
++ 错误里列出了可选值
++ 错误里把四个角列出来了
++ 错误里把能动的列出来了
++ 键不是字符串抛
++ 键以 U+FEFF 开头：和不带的是两个键
++ 键以 U+FEFF 开头：读得回来
++ 键盘上方：两个输入框共用的工具条，焦点换过去之后还在窗口里
++ 键盘上方：两个输入框读到的都还是它
++ 键盘上方：写同一个工具条，它还在窗口里
++ 键盘上方：单行输入框的工具条，GC 后读回来还是原来那个包装
++ 键盘上方：单行输入框聚焦之后，工具条进了窗口
++ 键盘上方：去掉工具条不会让输入框丢掉焦点
++ 键盘上方：多行输入换工具条、去掉工具条都不丢焦点
++ 键盘上方：多行输入正在编辑时写 null，工具条离开了窗口
++ 键盘上方：多行输入正在编辑时换工具条，新的当场进了窗口
++ 键盘上方：多行输入正在编辑时换工具条，旧的离开了窗口
++ 键盘上方：多行输入的工具条，GC 后读回来还是原来那个包装
++ 键盘上方：多行输入聚焦之后，工具条进了窗口
++ 键盘上方：对照组（没人持有的视图）被回收了
++ 键盘上方：换工具条不会让输入框丢掉焦点
++ 键盘上方：正在编辑时从没有到有，也当场进了窗口
++ 键盘上方：正在编辑时写 null，工具条离开了窗口
++ 键盘上方：正在编辑时写 null，读回来是 null
++ 键盘上方：正在编辑时写了不是视图的对象，照旧抛
++ 键盘上方：正在编辑时换工具条，新的当场进了窗口
++ 键盘上方：正在编辑时换工具条，旧的离开了窗口
++ 键盘上方：正在编辑时换工具条，读回来是新的
++ 键盘上方：焦点换到另一个输入框
++ 键盘上方：结束输入之后属性还在
++ 键盘上方：结束输入之后工具条离开了窗口
++ 键盘上方：聚焦之后读回来还是写进去的那个
++ 键盘上方：被拒之后还是原来那个
++ 键盘上方：还没聚焦时工具条不在任何窗口里
++ 键盘收起时 card 贴在安全区底边上方 #
++ 键盘类型
++ 键盘类型写在输入框上
++ 镜像持有的 view，GC 后挂在包装上的状态还在
++ 长度 # 的数组原样返回
++ 长度 # 的范围：回调不调
++ 长度越界：位置留着，长度变成 #
++ 长按是 UIGestureRecognizer
++ 长按的 numberOfTapsRequired 可写
++ 长按：默认 # 根手指
++ 长按：默认允许挪 # 点
++ 长按：默认先点 # 下
++ 长按：默认按住 # 秒
++ 问不存在的分区有几项
++ 问不存在的分区里的项
++ 问的是重定向之前的那个地址
++ 问过之后 biometryType 仍是四个名字之一
++ 阻尼变大之后更快停下
++ 限两行之后想要的高度变小
++ 限制：<script type="module"> 不执行
++ 限制：XMLHttpRequest 也读不了
++ 限制：fetch 读不了本地文件
++ 限宽 #：宽不超过 #
++ 隐藏的分区不是数组：excludedActivitySectionTypes must be an array of names, got "peopleSuggestions"
++ 隐藏的分区写得进去
++ 隐藏的分区可以写回空数组
++ 隐藏的那项还在排列里
++ 隐藏项宽度归零
++ 静态图 duration 为 #
++ 静态图：frameDurations 是 null
++ 静态图：images 是 null
++ 静态图：loopCount 是 null
++ 靛蓝色容器已上屏（橙色子块 + 按钮），等着被点和长按
++ 非单位矩阵了
++ 非字符串 key 同步抛
++ 非字符串也保留旧值
++ 非字符串值同步抛
++ 非字符串路径同步抛
++ 非数组被拒: sendActionsForControlEvents needs an array o…
++ 非法 URL 兑现为
++ 非法首部名被拒
++ 非特殊 scheme 的 origin 是 null
++ 面板里多了一排按钮：拍照 / 拍照并裁剪 / 前置拍照（要人点）
++ 面板里多了一排按钮：申请跟踪授权 / 读广告标识
++ 面板里多了一排按钮：选联系人 / 选电话 / 多选，点了才弹出系统的选择器
++ 面板里多了一排按钮：面容/指纹、或密码、认证中作废
++ 面板里多了两排按钮：轻 / 中 / 重，选择 / 成功 / 失败
++ 面板里有「复制」「粘贴」两个按钮
++ 页数减少，currentPage 跟着被钉下来
++ 页数给小数：向零取整
++ 页面上的 openurl 当自定义事件
++ 页面已经出现之后，becomeFirstResponder 一次就成
++ 页面强制之后，它的视图跟着
++ 页面有 traitCollection
++ 页面的 appear 照常订得上
++ 页面的 dismiss / appear / traitchange 照常订得上、退得掉
++ 页面的 dismiss 和 appear 在选择器上订得上、退得掉
++ 页面的 modalPresentationStyle 照常读写
++ 页面的 overrideUserInterfaceStyle 写得进去
++ 页面的 overrideUserInterfaceStyle 默认
++ 页面的 parentViewController 也是它
++ 页面的 tabBarController 是它
++ 页面的 tabBarItem：读回来还是原来那个包装
++ 项的标识重复（同一次里）
++ 项的标识重复（和已有的）
++ 顺序就是加的顺序
++ 顺序就是加进去的顺序
++ 预加载脚本不进 <iframe>
++ 预加载脚本在网页自己的脚本之前执行
++ 预加载脚本执行时抛了：派发一次 preload-error
++ 预加载脚本执行时还没有 <body>
++ 预加载脚本暴露的值
++ 预加载脚本暴露的对象在网页里
++ 预加载脚本有语法错：new WebView 当场抛 SyntaxError
++ 预加载脚本读不到：new WebView 当场抛 TypeError
++ 颜色 keyPath 收到数字就抛
++ 颜色 values 的个数
++ 颜色井默认可以用取色器
++ 颜色井默认可以调透明度
++ 颜色井默认没有标题
++ 颜色井默认没有选中的颜色
++ 颜色井默认的 maximumLinearExposure 是 #
++ 颜色值原样还回来
++ 颜色写错不抛，这个键不生效，别的键照常
++ 颜色按状态取回来，是语义色的名字
++ 颜色给 null
++ 颜色给数字：保留旧值
++ 颜色读回来是写进去的那个串
++ 额外参数透传
++ 首字节后面接首字节：前一个算一个 U+FFFD
++ 首尾空白被去掉
++ 首选按钮写得进去
++ 首选按钮可以写成 null
++ 首选按钮必须是这个弹窗里的：preferredAction must be one of this alert's actions; add it with addAction() first
++ 首选按钮给的不是按钮：preferredAction needs a native object or null, got "好"
++ 首部值里的 CRLF 被拒
++ 高亮了：播高亮图
++ 高亮图是动图，没高亮时不播
++ 高度约束改得动高度
++ 鲜明那一层在模糊的 contentView 里
++ 鲜明：工厂给的是 UIVibrancyEffect
++ 默认 alignment
++ 默认 allowsContinuousInteraction
++ 默认 allowsDefaultTighteningForTruncation 是布尔
++ 默认 apportionsSegmentWidthsByContent
++ 默认 autorepeat
++ 默认 axis
++ 默认 backgroundColor 是 null
++ 默认 backgroundStyle
++ 默认 barStyle
++ 默认 baseWritingDirection
++ 默认 beginTime
++ 默认 bounds 全是 #
++ 默认 cancelsTouchesInView
++ 默认 currentMaximumTrackImage
++ 默认 currentMinimumTrackImage
++ 默认 currentPage
++ 默认 currentPageIndicatorTintColor
++ 默认 currentThumbImage
++ 默认 damping
++ 默认 datePickerMode
++ 默认 defaultTabInterval
++ 默认 delaysTouchesBegan
++ 默认 delaysTouchesEnded
++ 默认 direction
++ 默认 directionalLayoutMargins
++ 默认 distribution
++ 默认 duration 是 #（加上去时会换成事务的值）
++ 默认 fillColor 是黑的（不是透明）
++ 默认 fillMode
++ 默认 fillRule
++ 默认 filter
++ 默认 firstLineHeadIndent
++ 默认 frame 宽 #
++ 默认 frame 是 #×#
++ 默认 frame 高 #
++ 默认 hasText 为假
++ 默认 headIndent
++ 默认 hidesForSinglePage
++ 默认 hyphenationFactor
++ 默认 initialVelocity
++ 默认 inset 自适应行为
++ 默认 interactionState
++ 默认 isContinuous
++ 默认 isEnabled
++ 默认 isEnabled（继承自 UIControl）
++ 默认 isHighlighted
++ 默认 isMomentary
++ 默认 isSelected
++ 默认 layoutMargins
++ 默认 lineBreakMode
++ 默认 lineCap
++ 默认 lineDashPhase
++ 默认 lineHeightMultiple
++ 默认 lineJoin
++ 默认 lineSpacing
++ 默认 lineWidth
++ 默认 locations 是 null
++ 默认 mass
++ 默认 maximumDate
++ 默认 maximumLineHeight
++ 默认 maximumTrackTintColor
++ 默认 maximumValue
++ 默认 maximumValueImage
++ 默认 minimumDate
++ 默认 minimumLineHeight
++ 默认 minimumTrackTintColor
++ 默认 minimumValue
++ 默认 minimumValueImage
++ 默认 minuteInterval
++ 默认 miterLimit
++ 默认 mode
++ 默认 numberOfPages
++ 默认 onTintColor 是 null（用系统的绿色）
++ 默认 opacity #
++ 默认 pageIndicatorTintColor
++ 默认 paragraphSpacing
++ 默认 paragraphSpacingBefore
++ 默认 preferredAssetRepresentationMode
++ 默认 preferredCurrentPageIndicatorImage
++ 默认 preferredDatePickerStyle
++ 默认 preferredIndicatorImage
++ 默认 repeatCount
++ 默认 roundsToMinuteInterval
++ 默认 searchBarStyle
++ 默认 selectedSegmentTintColor
++ 默认 selection
++ 默认 selectionLimit
++ 默认 shadowBlurRadius
++ 默认 shadowColor 是一个字符串
++ 默认 shadowOffset
++ 默认 sliderStyle
++ 默认 spacing
++ 默认 speed
++ 默认 state
++ 默认 state 是 normal
++ 默认 stepValue
++ 默认 stiffness
++ 默认 strokeEnd
++ 默认 strokeStart
++ 默认 tailIndent
++ 默认 text 是空串
++ 默认 thumbTintColor
++ 默认 thumbTintColor 是 null
++ 默认 timeOffset
++ 默认 type 是 axial
++ 默认 value
++ 默认 wraps
++ 默认不允许过阻尼
++ 默认不回放
++ 默认不在跟踪触摸
++ 默认不按基线排
++ 默认不按边距排
++ 默认不显示书签按钮
++ 默认不显示取消按钮
++ 默认不显示清空按钮
++ 默认不显示结果列表按钮
++ 默认不显示范围条
++ 默认不暂停
++ 默认不沿用父视图的边距
++ 默认不用 evenOdd
++ 默认不翻页
++ 默认不能多选
++ 默认不藏返回按钮
++ 默认不裁剪
++ 默认不跟浮动键盘
++ 默认不跟着转向
++ 默认不遮点
++ 默认不锁方向
++ 默认不限行数
++ 默认不隐藏
++ 默认从上到下
++ 默认会把安全区加上去
++ 默认偏移是 #, #
++ 默认停下就隐藏
++ 默认内容小也不纵向拖
++ 默认内容水平居中
++ 默认内边距是上下各 #
++ 默认减速速率
++ 默认半透明
++ 默认句首大写
++ 默认可以点选
++ 默认可滚动（继承来的）
++ 默认可用
++ 默认可编辑
++ 默认可选中
++ 默认回弹
++ 默认回车键
++ 默认回车键不自动变灰
++ 默认字体是 null
++ 默认实际用的样式 datePickerStyle
++ 默认宽度 #
++ 默认对齐 natural
++ 默认导航条不藏
++ 默认左右各缩进 # pt
++ 默认帧率区间三个 #
++ 默认底色 systemBackground
++ 默认延迟交出触摸
++ 默认拖动时不收键盘
++ 默认拖得走
++ 默认拼写检查
++ 默认指示条外观
++ 默认按词折行
++ 默认接收触摸
++ 默认插值方式
++ 默认文字是空串不是 null
++ 默认文字颜色是 label
++ 默认无边框
++ 默认是 best
++ 默认是 none
++ 默认是关的
++ 默认是创建那一刻
++ 默认是实线
++ 默认是空的
++ 默认显示纵向指示条
++ 默认最大缩放是 #
++ 默认最小缩放是 #
++ 默认样式
++ 默认样式 default
++ 默认样式 medium
++ 默认没在编辑
++ 默认没在转
++ 默认没按下
++ 默认没有 barTintColor
++ 默认没有 inputAccessoryView
++ 默认没有 keyTimes
++ 默认没有 maskView
++ 默认没有 path
++ 默认没有 placeholder
++ 默认没有 prompt
++ 默认没有 values
++ 默认没有分段曲线
++ 默认没有副文字
++ 默认没有占位符
++ 默认没有图
++ 默认没有图片
++ 默认没有头
++ 默认没有子层
++ 默认没有已完成部分的图片
++ 默认没有已完成部分的着色
++ 默认没有描边色
++ 默认没有文字
++ 默认没有曲线
++ 默认没有未完成部分的图片
++ 默认没有未完成部分的着色
++ 默认没有父层
++ 默认没有自定义的滑块图
++ 默认没有自己的底色
++ 默认没有范围按钮：空数组
++ 默认没有起点值
++ 默认没有路径
++ 默认没有选中的，selectedSegmentIndex 是 -#
++ 默认没有项：items 是空数组
++ 默认没有颜色
++ 默认没有额外的收起留白
++ 默认没选中
++ 默认没配内容类型
++ 默认点状态栏回顶
++ 默认画分隔线
++ 默认的那一份里也没有
++ 默认空串不是 null
++ 默认缩放是 #
++ 默认能滚
++ 默认自动纠错
++ 默认跑完就摘掉
++ 默认转场
++ 默认进度 #
++ 默认选中的范围是 #
++ 默认选中第 # 个
++ 默认选区 (#, #)
++ 默认键盘
++ 默认键盘外观
++ 默认颜色是 secondaryLabel
++ （对照）全是约束时照常
++ （对照）带了就用带的
++ （对照）常数约束照常
+? duration 是正数
+? invalidate 之后不再收到
+? invalidate 期间对照组照常收到
+? targetTimestamp 比 timestamp 晚
+? timestamp 是正数
+? timestamp 递增
+? 写入期间定时器照常跑（重活不在主线程）
+? 动画开始发了 start
+? 单行选区：内容是空的，结束编辑之后选区是 (#, #)
+? 单行选区：结束编辑之后读到的还是 NSRange
+? 卡片里有一个青色小圆点在左右来回走（display link 驱动）
+? 大写入期间定时器照常跑（重活不在主线程）
+? 暂停之后自己不再收到
+? 暂停期间对照组照常收到
+? 没挂 run loop 的那个一次都没发
+? 被摘掉的 finished 为假
+? 读到的内容完整（# 字节）
+? 读取开始之后丢掉 Response：对照组在 # ms 被回收，读取在 # ms 照常结算
+? 跑完了发 stop 且 finished 为真
+? 通知：排通知被拒绝时给的是 Error
