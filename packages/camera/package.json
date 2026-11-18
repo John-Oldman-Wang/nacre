@@ -1,0 +1,24 @@
+{
+  "name": "@nacrejs/camera",
+  "version": "0.0.1-beta.1",
+  "description": "Nacre 的拍照能力：用系统的拍照界面拍一张照片。装了才有 UIImagePickerController",
+  "license": "FSL-1.1-MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/John-Oldman-Wang/nacre.git",
+    "directory": "packages/camera"
+  },
+  "types": "./index.d.ts",
+  "files": [
+    "index.d.ts",
+    "nacre-ios.json",
+    "NacreCamera.xcframework"
+  ],
+  "peerDependencies": {
+    "@nacrejs/ios": "0.0.1-beta.1",
+    "@nacrejs/types": "0.0.1-beta.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
