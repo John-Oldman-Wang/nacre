@@ -1,0 +1,24 @@
+{
+  "name": "@nacrejs/app-tracking-transparency",
+  "version": "0.0.1-beta.1",
+  "description": "Nacre 的跟踪授权和广告标识：ATTrackingManager、ASIdentifierManager。装了才有这两个类",
+  "license": "FSL-1.1-MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/John-Oldman-Wang/nacre.git",
+    "directory": "packages/app-tracking-transparency"
+  },
+  "types": "./index.d.ts",
+  "files": [
+    "index.d.ts",
+    "nacre-ios.json",
+    "NacreAppTrackingTransparency.xcframework"
+  ],
+  "peerDependencies": {
+    "@nacrejs/ios": "0.0.1-beta.1",
+    "@nacrejs/types": "0.0.1-beta.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
