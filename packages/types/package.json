@@ -1,0 +1,22 @@
+{
+  "name": "@nacrejs/types",
+  "version": "0.0.1-beta.1",
+  "description": "Nacre 运行时的 TypeScript 类型定义",
+  "license": "FSL-1.1-MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/John-Oldman-Wang/nacre.git",
+    "directory": "packages/types"
+  },
+  "types": "./index.d.ts",
+  "sideEffects": false,
+  "files": [
+    "index.d.ts",
+    "ios.d.ts",
+    "nacre.d.ts",
+    "ios"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}
