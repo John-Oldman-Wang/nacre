@@ -1,0 +1,17 @@
+{
+  "name": "Nacre",
+  "bundleId": "nacre.acceptance",
+  "ios": {
+    "urlSchemes": ["nacre-acceptance"],
+    "infoPlist": {
+      "NSUserTrackingUsageDescription": "The acceptance suite asks for tracking permission to check that the prompt and the advertising identifier work.",
+      "NSFaceIDUsageDescription": "The acceptance suite uses Face ID to check that authentication works",
+      "NSCameraUsageDescription": "The acceptance suite opens the camera when you tap a camera button.",
+      "NSPhotoLibraryAddUsageDescription": "The acceptance suite saves a test image to your photo library when you tap Save.",
+      "NSLocationWhenInUseUsageDescription": "The acceptance suite reads your location to verify CLLocationManager",
+      "NSAppTransportSecurity": {
+        "NSAllowsLocalNetworking": true
+      }
+    }
+  }
+}

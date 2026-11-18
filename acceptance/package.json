@@ -1,0 +1,30 @@
+{
+  "name": "nacre-acceptance",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Nacre 的验收套件：一千七百多条断言，跑在真机和模拟器上",
+  "scripts": {
+    "build": "esbuild src/main.js --bundle --format=iife --platform=neutral --charset=utf8 --outfile=ios/JS/main.js",
+    "check": "tsc --noEmit",
+    "test": "node --test scripts/test/*.test.mjs",
+    "verify": "node scripts/verify.mjs"
+  },
+  "devDependencies": {
+    "@nacrejs/app-tracking-transparency": "file:../packages/app-tracking-transparency",
+    "@nacrejs/camera": "file:../packages/camera",
+    "@nacrejs/cli": "file:../packages/cli",
+    "@nacrejs/contacts": "file:../packages/contacts",
+    "@nacrejs/core-location": "file:../packages/core-location",
+    "@nacrejs/example-module": "file:../packages/example-module",
+    "@nacrejs/ios": "file:../packages/ios",
+    "@nacrejs/keychain": "file:../packages/keychain",
+    "@nacrejs/local-authentication": "file:../packages/local-authentication",
+    "@nacrejs/photos": "file:../packages/photos",
+    "@nacrejs/types": "file:../packages/types",
+    "@nacrejs/user-notifications": "file:../packages/user-notifications",
+    "esbuild": "0.28.2",
+    "typescript": "5.9.3"
+  },
+  "license": "MIT"
+}
