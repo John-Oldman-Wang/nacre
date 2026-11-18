@@ -1,0 +1,30 @@
+{
+  "types": {
+    "UIControlState": {
+      "why": "normal 的数值是 0，照位掩码的规矩它该是空数组；但 forState: ['normal'] 是最常用的写法，手写的那一侧单独认了它（NacreEnumsControl.mm 的 ControlStateArgFromNames）。生成的照着用，类型写法也用手写的 UIControlStateName。",
+      "ts": "readonly UIControlStateName[]",
+      "fromNames": "ControlStateArgFromNames",
+      "names": "NamesForControlStateArg"
+    }
+  },
+  "protocols": {
+    "UITextField": [
+      "UITextInputTraits"
+    ],
+    "UITextView": [
+      "UITextInputTraits"
+    ]
+  },
+  "protocols_why": "UITextInputTraits 是键盘的设置（自动改正、智能引号这些）。它的成员在协议上全是可选的，头文件看不出谁实现了；UITextField 和 UITextView 是全部实现的（Apple 的文档：这两个类采纳这个协议）。",
+  "exclude": {
+    "UIView": [
+      "layoutSubviews",
+      "updateConstraints",
+      "updateProperties"
+    ],
+    "UITextView": [
+      "borderStyle"
+    ]
+  },
+  "exclude_why": "这三个是给子类覆盖的，Apple 的文档写明不要直接调（要重新布局调 setNeedsLayout / layoutIfNeeded，要更新约束调 setNeedsUpdateConstraints）。名字上看不出来，所以在这里排除。 UITextView.borderStyle 在 iOS 上只有 none 一个值（另一个值是 visionOS 的），生成出来没有用。"
+}
