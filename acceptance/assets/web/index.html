@@ -1,0 +1,39 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>loading</title>
+<link rel="stylesheet" href="style.css">
+<h3>本地网页</h3>
+<div id="box"></div>
+<img id="sub" src="sub/pic.png">
+<img id="parent" src="../dot.png">
+<p><a id="l" href="other.html">去另一个本地文件</a></p>
+<script src="sub/app.js"></script>
+<script type="module" src="mod.js"></script>
+<script>
+// 验收用。加载完之后把各项结果写进标题（一段 JSON），App 那边读标题
+const r = {};
+addEventListener('load', async () => {
+  r.css = getComputedStyle(document.getElementById('box')).width;
+  r.script = window.fromScript || 'no';
+  r.module = window.fromModule || 'no';
+  r.sub = document.getElementById('sub').naturalWidth;
+  r.parent = document.getElementById('parent').naturalWidth;
+  try { localStorage.n = (+localStorage.n || 0) + 1; r.n = +localStorage.n; } catch (e) { r.n = 'ERR ' + e.name; }
+  try { const x = await fetch('data.json'); r.fetch = (await x.json()).ok; } catch (e) { r.fetch = 'ERR'; }
+  r.xhr = await new Promise((done) => {
+    try {
+      const x = new XMLHttpRequest();
+      x.open('GET', 'data.json');
+      x.onload = () => done('ok');
+      x.onerror = () => done('ERR');
+      x.send();
+    } catch (e) { done('ERR'); }
+  });
+  r.search = location.search;
+  r.hash = location.hash;
+  r.origin = location.origin;
+  document.title = JSON.stringify(r);
+  if (location.search.includes('go=1')) setTimeout(() => document.getElementById('l').click(), 300);
+});
+</script>
