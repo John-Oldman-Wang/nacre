@@ -1,0 +1,24 @@
+{
+  "name": "@nacrejs/core-location",
+  "version": "0.0.1-beta.1",
+  "description": "Nacre 的定位能力：使用 App 期间的位置。装了才有 CLLocationManager",
+  "license": "FSL-1.1-MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/John-Oldman-Wang/nacre.git",
+    "directory": "packages/core-location"
+  },
+  "types": "./index.d.ts",
+  "files": [
+    "index.d.ts",
+    "nacre-ios.json",
+    "NacreCoreLocation.xcframework"
+  ],
+  "peerDependencies": {
+    "@nacrejs/ios": "0.0.1-beta.1",
+    "@nacrejs/types": "0.0.1-beta.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
