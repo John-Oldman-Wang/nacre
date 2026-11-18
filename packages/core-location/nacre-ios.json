@@ -1,0 +1,19 @@
+{
+  "//": "一个能力包的清单。CLI 在项目的直接依赖里找带这个文件的包——找到了，就把它的 framework 加进生成的工程；没装这个包的项目，产物里就没有它。",
+
+  "capability": "core-location",
+
+  "requires": {
+    "//": "它依赖核心给能力包的那两块接口（NacreExtension.h 和内置脚本的 ctx）。两边版本错开会出怪问题，所以 CLI 在生成时就核对，不等到运行时。",
+    "runtimeVersion": "0.1.0",
+
+    "//infoPlist": "装了这个包的项目必须在 nacre.config.json 的 ios.infoPlist 里写这一句：系统问用户同不同意定位时，提示框里显示它。没写的话生成时报错——不拦的话，申请授权时系统什么都不做，上传 App Store 时被拒。",
+    "infoPlist": ["NSLocationWhenInUseUsageDescription"]
+  },
+
+  "//target": "引运行时源码时用：运行时工程里的 target 名",
+  "target": "NacreCoreLocation",
+
+  "//xcframework": "引预编译产物时用：这个包目录下的文件名（构建产物，不提交）",
+  "xcframework": "NacreCoreLocation.xcframework"
+}
