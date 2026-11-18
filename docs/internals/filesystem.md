@@ -1,0 +1,142 @@
+# 文件读写怎么搭的
+
+## 为什么这次有「上层对象」，而 7a 没有
+
+`application.storage` **就是** `NSUserDefaults` 的实例，没另造一层——iOS 侧本来就有一个对象承担那件事。
+
+文件不一样，这个能力散在三个类上：
+
+| 要干的事 | ObjC 在哪 |
+| --- | --- |
+| 建目录、列目录、删、移、拷、查存在、查属性 | `NSFileManager` |
+| **读写文件内容** | `NSData` / `NSString` 的方法 |
+| 路径拼接 | `NSString` 的 path 方法 |
+
+`NSFileManager` **没有**「读一个文件的内容」这个方法。所以没有一个原生对象可以直接当上层用——按[原则 2](../project.md)（能力导向不是实现导向），该有我们自己的一个。
+
+**类名注册成 `FileSystem`，底下接的仍然是 `NSFileManager.defaultManager`。** 包装表里的「类名」只是一个键，不必是 ObjC 的类名。
+
+### 名字为什么不叫 `files`
+
+实测 Web：
+
+```
+input.files 的类型       = [object FileList]
+FileList 里装的是 File，而 File extends Blob = true
+DataTransfer 也叫 files = true
+```
+
+`files` 在 Web 里指的是**用户选中的那几个文件**，是个列表。而文件系统那一边 Web 一律叫 `FileSystem*`（`FileSystemHandle` / `FileSystemFileHandle` / `FileSystemDirectoryHandle`，`navigator.storage.getDirectory()` 返回的就是后者）。
+
+所以 `fileSystem` 不是借名字，是**用对词**。`files` 这个名字留给将来的文件选择器（`UIDocumentPickerViewController`），那时元素该是 `Blob` 的子类——Web 那边 `File extends Blob` 实测为真，形状能对上。
+
+也不叫 `fs`：那个名字带着 Node 的合同（同步变体、`Buffer`、回调），我们一样都不给。和[上一步不叫 `localStorage`](storage.md) 是同一条判据。
+
+## 全 Promise 的理由不是那条原则
+
+[原则 4](../project.md) 说异步一律 Promise，但真正的理由更硬：**JS 跑在主线程**，同步读一个文件会直接卡住 UI。
+
+重活派到并发队列（`QOS_CLASS_UTILITY`，不和界面抢优先级），走 `fetch` 验过的那条路。验收里有一条测这件事：
+
+```js
+const big = new Uint8Array(4 * 1024 * 1024);
+let timerRan = false;
+const writing = fs.writeBytes(path, new Blob([big]));
+setTimeout(() => { timerRan = true; }, 0);
+await writing;
+if (timerRan) {
+  assert('大写入期间定时器照常跑（重活不在主线程）', timerRan, true);
+} else {
+  console.log('  ! …这一条未验证');
+}
+```
+
+### 这条断言只有单边有效
+
+跑到了能证明重活在后台；**没跑到什么都证明不了**，所以走未验证那一支，不报失败。顺序不由我们控制，两条设计叠在一起：
+
+- `setTimeout` 是在一个定时器回调里排的（`stepFileSystem` 的续体就跑在回调里），而 `FireDueTimers` 按设计跳过本轮新加的（`if (top.seq >= limit) break;`），所以它必然等下一轮泵
+- 泵运行期间 `ScheduleNextWakeup` 直接返回（`if (… || firing_timers) return;`），下一轮的唤醒块是泵跑完才 `dispatch_async` 到主队列的
+
+于是只要主线程在这期间被别的回调占住，后台写入的兑现就可能先排进主队列，`await writing` 先恢复。实测撞到过一次：当时有个定时器回调跑了 119 ms，运行时自己打了 `Timer callback blocked the main thread`——**那次失败恰恰证明了写入真的在后台**，它是在主线程被堵死的那 119 ms 里完成的。
+
+### 发起是零拷贝，但 `new Blob()` 不是
+
+`writeBytes` 的同步部分只有解参数、取 `NSData*`、`dispatch_async`，block 捕获的是一个指针（retain 一次），4 MB 一个字节不动。
+
+**真正的 4 MB memcpy 在 `new Blob([big])` 那一行**，而且在主线程上同步做：`CreateBlob` 是 `[NSMutableData appendBytes:length:]`。这个拷贝省不掉——Blob 的字节必须离开 V8 堆，GC 会搬动 backing store。
+
+反过来的 `blob.arrayBuffer()` 原来是零拷贝的（`SettleBytes` 把 `NSData` 的内存交给 V8），2026-11-16 改成了拷一份：交出去的缓冲区是可写的，而那块内存是 Blob 自己的，见[网络](network.md#blobarraybuffer-拷一份)。读文件的 `readBytes` 仍然零拷贝，它交出去的那块内存只有这一个使用者。
+
+### 实测：三段各花多久
+
+验收里分三段量（`Date.now()` 只有毫秒精度，所以重复取平均），模拟器上 4 MB：
+
+| 段 | 实测 | 在不在主线程 |
+| --- | --- | --- |
+| `new Blob([big])` | **1.2 ms**（约 3.3 GB/s，就是 memcpy 的速度） | **在** |
+| `fs.writeBytes(…)` 的同步部分 | **0.0 ms**（低于分辨率） | 在，但只是取指针 + `dispatch_async` |
+| `await`，端到端 | **8.0 ms**（约 500 MB/s，含排队、临时文件 + rename、兑现排回主队列） | 不在 |
+
+**对界面来说真正的代价是那 1.2 ms，不是 8 ms。** 后面 8 ms 再长也只是背景噪音，前面 1.2 ms 才实打实占着主线程。按这个速率一次写 40 MB，光构造 Blob 就 12 ms，一帧的预算去了大半——而那时候人会以为慢的是「写文件」。
+
+端到端那 8 ms **是模拟器的数**，底下走的是 Mac 的 SSD 和 page cache，**真机未验证**，NAND 上会慢不少。另外两段是纯 CPU 和纯调度，真机差别应该不大。
+
+## 这个文件不认识运行时
+
+`NacreFileSystem.mm` 做完之后调一个 `done` 块，**兑现成什么由调用方决定**：
+
+```objc
+typedef void (^NacreFileDone)(NacreFileResult* result);
+bool FileSystemCallAsync(id object, …, NacreFileDone done);
+```
+
+`NacreFileResult` 用四个互斥的字段表示四种兑现：`isError` → reject，`bytes` → `SettleBytes`（零拷贝），`json` → `SettleJSON`，其余 → `SettleBool`。
+
+好处是它不用为了拿 settle 的入口去引运行时的私有头，回主线程这件事统一在 `NacreRuntime.mm` 的一个地方做。分发链按[已定的规矩](bridge.md)返回「认不认领」。
+
+> **`done` 在后台线程被调。** 回主线程是调用方的责任——`NacreRuntime.mm` 里每一条都包了 `postToJS`。
+
+## `RejectCall` 加了一个可选的 detail
+
+原来的签名带不出 `NSError` 的 `code` / `domain`：
+
+```cpp
+void RejectCall(int call_id, const std::string& name, const std::string& message,
+                const std::string& detail_json = "");   // ← 新加的
+```
+
+`detail_json` 里的键原样挂到 `Error` 上。带默认值，所以 `fetch` 那些现有调用点一个字没动。
+
+这样**上层给好用的分类（`err.name` 是 `DOMException` 的标准名字），底层不丢事实（`err.code` / `err.domain`）**——两层 API 的分工落到错误上。映射只覆盖了 Cocoa 文件错误里的 7 组，剩下几十个落进 `FileError`，没有逃生口的话 JS 侧就彻底分不出来了。
+
+实测读一个不存在的文件：
+
+```
+name = NotFoundError，code = 260（NSFileReadNoSuchFileError），
+domain = NSCocoaErrorDomain
+```
+
+## 两个踩到的坑
+
+**1. ObjC 的声明只能在全局作用域。** 第一版把 `@interface NacreFileResult` 写进了 `namespace nacre_bridge { }`，编译报 `Objective-C declarations may only appear in global scope`，后面还跟着十条 nullability 警告——全是这一条引发的连锁。仓库里本来就有样板：`NacreBlob` 的 `@interface` 就在 namespace 外面。
+
+**2. `check-api.sh` 认的是参数名。** 属性提取的签名正则是 `^id Read\w+Property\(id object, NSString\* key\)`，而我第一版写的是 `NSString* name`，于是四个目录常量被报成「nacre.js 有但原生层没有」。
+
+> 这条**是脚本该做的事**——它没有静默放过，而是报出了一条看得懂的 diff。改成和其余 `NacreProps*.mm` 一致的 `key` 就好了。顺带说明那个签名正则实际上在强制一条命名约定。
+
+## 落盘怎么验
+
+和 [7a 的启动计数器](storage.md)同理，但换一种介质——往 `documents` 写一个累加的文件：
+
+```js
+const previous = (await fs.exists(marker)) ? await fs.readText(marker) : '';
+const runs = previous.split(',').filter(Boolean).length + 1;
+await fs.writeText(marker, previous ? previous + ',' + runs : '1');
+```
+
+实测 `run-sim.sh` 只做 `simctl install`，不抹 App 容器，所以第二次跑读到 `2`。这是跨进程的证据，同一次运行里写了再读证明不了。
+
+---
+
+← 返回[实现原理](README.md) ・ [本地存储](storage.md) ・ [API 文档](../api/filesystem.md)
