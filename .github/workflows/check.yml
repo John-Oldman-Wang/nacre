@@ -1,0 +1,76 @@
+# 每个 PR 上跑的检查。分两段：
+#   static  不用编译的：类型检查、各组用例、三边核对、文档链接
+#   build   用 Xcode 26 把运行时和能力包从源码编出来，再照用户的走法演练一遍
+#
+# 发出去的包是用 Xcode 26 编的（见 release.yml），所以 PR 上就先编一遍。
+# 完整的验收（六千条断言，要模拟器、要点权限弹窗）不在这里跑，发布前在本地跑。
+name: check
+
+on:
+  pull_request:
+    branches: ['main']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 验收套件：类型检查和 runner 的用例
+        working-directory: acceptance
+        run: |
+          npm ci
+          npm run check
+          npm test
+      - name: 示例：类型检查
+        working-directory: examples/hello
+        run: |
+          npm ci
+          npx tsc --noEmit
+      - name: 命令行工具的用例
+        working-directory: packages/cli
+        run: npm test
+      - name: 发布脚本的用例
+        run: node --test scripts/test/*.test.mjs
+      - name: 三边核对
+        run: bash ios/scripts/check-api.sh
+      - name: 文档链接
+        run: bash docs/check-links.sh
+
+  build:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # 用支持的最老的那个 Xcode：它编得过，更新的就编得过；它产出的 Swift 接口
+      # 文件，更新的编译器都读得了，反过来不行
+      - name: 选 Xcode 26.0
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.0.app
+          xcodebuild -version
+      - name: 装 XcodeGen
+        run: brew install xcodegen
+      - uses: actions/cache@v4
+        with:
+          path: ios/Vendor/.v8-cache
+          key: v8-${{ hashFiles('ios/scripts/fetch-v8.sh') }}
+      - name: 取 V8
+        run: bash ios/scripts/fetch-v8.sh
+      - name: 从源码打包运行时和能力包
+        run: bash ios/scripts/build-xcframework.sh
+      - name: 核对每个包齐不齐
+        run: node scripts/release.mjs check
+      - name: 演练：只装打出来的包，生成工程并编译
+        run: bash scripts/smoke.sh
