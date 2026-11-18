@@ -1,0 +1,20 @@
+{
+  "//": "一个能力包的清单。CLI 在项目的直接依赖里找带这个文件的包——找到了，就把它的 framework 加进生成的工程；没装这个包的项目，产物里就没有它。",
+
+  "capability": "user-notifications",
+
+  "requires": {
+    "//": "它依赖核心给能力包的那两块接口（NacreExtension.h 和内置脚本的 ctx）。两边版本错开会出怪问题，所以 CLI 在生成时就核对，不等到运行时。本地通知不需要 Info.plist 里的权限文案，也不需要 entitlement：问用户同不同意时，提示框里的话是系统自己的。",
+    "runtimeVersion": "0.1.0",
+
+    "//infoPlist": "空的：发本地通知、收通知被点了的事件都不需要权限文案（申请授权时提示框里的话是系统自己的），也不需要 entitlement。远程推送要的 aps-environment 不归这个包，归以后的 @nacrejs/push。",
+    "infoPlist": [],
+    "entitlements": []
+  },
+
+  "//target": "引运行时源码时用：运行时工程里的 target 名",
+  "target": "NacreUserNotifications",
+
+  "//xcframework": "引预编译产物时用：这个包目录下的文件名（构建产物，不提交）",
+  "xcframework": "NacreUserNotifications.xcframework"
+}
