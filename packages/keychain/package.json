@@ -1,0 +1,24 @@
+{
+  "name": "@nacrejs/keychain",
+  "version": "0.0.1-beta.1",
+  "description": "Nacre 的 Keychain 能力：令牌和密码的安全存放。装了才有 application.keychain",
+  "license": "FSL-1.1-MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/John-Oldman-Wang/nacre.git",
+    "directory": "packages/keychain"
+  },
+  "types": "./index.d.ts",
+  "files": [
+    "index.d.ts",
+    "nacre-ios.json",
+    "NacreKeychain.xcframework"
+  ],
+  "peerDependencies": {
+    "@nacrejs/ios": "0.0.1-beta.1",
+    "@nacrejs/types": "0.0.1-beta.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
