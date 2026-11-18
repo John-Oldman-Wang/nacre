@@ -70,6 +70,13 @@ jobs:
         run: bash ios/scripts/fetch-v8.sh
       - name: 从源码打包运行时和能力包
         run: bash ios/scripts/build-xcframework.sh
+      # 日志要登录才能读，批注是公开的：把打出来的东西列成一条批注，
+      # 这一步之前不管成功还是失败都跑
+      - name: 打出来了什么
+        if: always()
+        run: |
+          built="$(for f in packages/*/*.xcframework; do [ -d "$f" ] && echo "$(basename "$f") $(du -sh "$f" | cut -f1)"; done | tr '\n' ';')"
+          echo "::notice::$(xcodebuild -version | tr '\n' ' ') | 打出来的 framework：${built:-一个都没有}"
       - name: 核对每个包齐不齐
         run: node scripts/release.mjs check
       - name: 演练：只装打出来的包，生成工程并编译

@@ -55,6 +55,13 @@ for build in $BUILDS; do
     if [ "$status" -ne 0 ]; then
       echo "构建 $scheme 的 $name 切片失败（xcodebuild 退出码 $status）："
       grep -E " error: |BUILD FAILED|ARCHIVE FAILED" "$LOG" | head -20 || true
+      # 在 GitHub Actions 里另外打成批注：日志要登录才能读，批注是公开的
+      if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+        echo "::error::构建 $scheme 的 $name 切片失败（xcodebuild 退出码 $status）"
+        grep -E " error: " "$LOG" | sed 's#^.*/ios/##' | sort -u | head -8 | while IFS= read -r line; do
+          echo "::error::$line"
+        done
+      fi
       # 失败时把日志留下来给人看（中间目录在退出时会被删）
       KEEP="ios/build/xcframework-failed-$scheme-$name.log"
       cp "$LOG" "$KEEP"

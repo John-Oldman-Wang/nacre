@@ -22,6 +22,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const LICENSE_ID = 'FSL-1.1-MIT';
+// 发布和查询都明说是官方的仓库。很多人的 npm 指着镜像（registry.npmmirror.com），
+// 镜像不收发布，npm login 也会被带到镜像的登录页上去
+const REGISTRY = 'https://registry.npmjs.org/';
 const SCOPE = '@nacrejs/';
 // 定了不发布的包。它们必须标着 private；别的包必须没有 private。名单写明了，
 // 「忘了去掉 private」和「本来就不发」才分得清
@@ -91,6 +94,9 @@ export function checkPackage(root, dir, version) {
   if (!pkg.publishConfig || pkg.publishConfig.access !== 'public') {
     add('publishConfig.access 要是 public：带前缀的包默认是私有的，第一次发布会被拒绝');
   }
+  if (!pkg.publishConfig || pkg.publishConfig.registry !== REGISTRY) {
+    add('publishConfig.registry 要是 ' + REGISTRY + '：不写的话，npm 指着镜像的人会发到镜像上去');
+  }
   if (!pkg.repository || pkg.repository.directory !== 'packages/' + dir) {
     add('repository.directory 要是 packages/' + dir);
   }
@@ -133,7 +139,7 @@ export function pendingPackages(root, isPublished) {
 /** 问 npm：这个包的这个版本在不在 */
 function isPublishedOnNpm(name, version) {
   try {
-    const out = execFileSync('npm', ['view', name + '@' + version, 'version'],
+    const out = execFileSync('npm', ['view', name + '@' + version, 'version', '--registry', REGISTRY],
                              { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
     return out.trim() === version;
   } catch {
@@ -202,11 +208,17 @@ function checkAll(root) {
   ];
 }
 
+// 在 GitHub Actions 里，把一句话另外打成一条批注。日志要登录才能读，批注是公开的，
+// 查 CI 为什么失败时不用翻日志
+function annotate(text) {
+  if (process.env.GITHUB_ACTIONS === 'true') console.log('::error::' + text.replace(/\r?\n/g, ' '));
+}
+
 function requireClean(root) {
   const problems = checkAll(root);
   if (problems.length > 0) {
     console.error('有 ' + problems.length + ' 处不齐，先改掉：');
-    for (const problem of problems) console.error('  - ' + problem);
+    for (const problem of problems) { console.error('  - ' + problem); annotate(problem); }
     process.exit(1);
   }
 }
@@ -226,7 +238,7 @@ function main(argv) {
   if (command === 'check') {
     const version = currentVersion(root);
     const problems = checkAll(root);
-    for (const problem of problems) console.log('  - ' + problem);
+    for (const problem of problems) { console.log('  - ' + problem); annotate(problem); }
     console.log(problems.length === 0
       ? '齐了：' + publishOrder(root).length + ' 个包，版本 ' + version + '，通道 ' + tagFor(version)
       : '有 ' + problems.length + ' 处不齐');
@@ -262,7 +274,8 @@ function main(argv) {
         continue;
       }
       console.log('→ ' + p.name);
-      execFileSync('npm', ['publish', '--tag', tag, '--access', 'public', ...(dry ? ['--dry-run'] : [])],
+      execFileSync('npm', ['publish', '--tag', tag, '--access', 'public', '--registry', REGISTRY,
+                           ...(dry ? ['--dry-run'] : [])],
                    { cwd: p.at, stdio: 'inherit' });
     }
     return;
