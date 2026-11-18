@@ -1,0 +1,17 @@
+{
+  "//": "一个能力包的清单。CLI 在项目的直接依赖里找带这个文件的包——找到了，就把它的 framework 加进生成的工程；没装这个包的项目，产物里就没有它。",
+
+  "capability": "app-tracking-transparency",
+
+  "requires": {
+    "//": "runtimeVersion：它依赖核心给能力包的那两块接口（NacreExtension.h 和内置脚本的 ctx），CLI 在生成时核对版本。infoPlist：项目必须在 nacre.config.json 的 ios.infoPlist 里写这一句权限文案——没有它，申请跟踪授权的那一刻系统会终止 App，上传 App Store 也会被拒。文案由项目写，这里只提要求。",
+    "runtimeVersion": "0.1.0",
+    "infoPlist": ["NSUserTrackingUsageDescription"]
+  },
+
+  "//target": "引运行时源码时用：运行时工程里的 target 名",
+  "target": "NacreAppTrackingTransparency",
+
+  "//xcframework": "引预编译产物时用：这个包目录下的文件名（构建产物，不提交）",
+  "xcframework": "NacreAppTrackingTransparency.xcframework"
+}
