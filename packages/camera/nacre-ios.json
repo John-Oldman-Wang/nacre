@@ -1,0 +1,19 @@
+{
+  "//": "一个能力包的清单。CLI 在项目的直接依赖里找带这个文件的包——找到了，就把它的 framework 加进生成的工程；没装这个包的项目，产物里就没有它。",
+
+  "capability": "camera",
+
+  "requires": {
+    "//": "它依赖核心给能力包的那两块接口（NacreExtension.h 和内置脚本的 ctx）。两边版本错开会出怪问题，所以 CLI 在生成时就核对，不等到运行时。",
+    "runtimeVersion": "0.1.0",
+
+    "//infoPlist": "用相机的 App 必须在 Info.plist 里有这句给用户看的话，没有的话第一次打开拍照界面时系统直接终止 App。内容由项目写在 nacre.config.json 的 ios.infoPlist 里；没写，生成时就报错。",
+    "infoPlist": ["NSCameraUsageDescription"]
+  },
+
+  "//target": "引运行时源码时用：运行时工程里的 target 名",
+  "target": "NacreCamera",
+
+  "//xcframework": "引预编译产物时用：这个包目录下的文件名（构建产物，不提交）",
+  "xcframework": "NacreCamera.xcframework"
+}
