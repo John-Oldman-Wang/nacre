@@ -1,0 +1,90 @@
+# 合并到 main 时发布 npm 包——但只在包里写的版本号 npm 上还没有的时候。
+#
+# npm 上同一个版本只能发一次，所以「发一个新版本」就是合并一个改了版本号的 PR
+# （node scripts/release.mjs version <版本>）。平时改文档、修小问题的合并，
+# pending 那一步发现没有要发的，后面整个跳过。
+#
+# 认证走 npm 的可信发布（OIDC），不存任何令牌：每个包要在 npmjs.com 上登记
+# 「这个仓库的 release.yml 可以发布」。包得先存在才能登记，所以第一个版本是
+# 手动发的。
+#
+# 手动触发（workflow_dispatch）默认是演练：照样在 Xcode 26 上打包、核对、走一遍
+# 用户的流程，最后一步 npm publish 带 --dry-run，不真的发。
+name: release
+
+on:
+  push:
+    branches: ['main']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 演练，不真的发布
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+# 两次发布不能同时跑，也不能中途被后一次合并打断
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  pending:
+    runs-on: ubuntu-latest
+    outputs:
+      needed: ${{ steps.pending.outputs.needed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: pending
+        name: 这个版本 npm 上还缺哪些包
+        run: |
+          list="$(node scripts/release.mjs pending)"
+          if [ -n "$list" ]; then
+            echo "要发布："
+            echo "$list"
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "这个版本的包 npm 上都有了，不发布"
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish:
+    needs: pending
+    if: needs.pending.outputs.needed == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: macos-26
+    permissions:
+      contents: read
+      id-token: write   # 可信发布要用它向 npm 证明「我是这个仓库的这个工作流」
+    steps:
+      - uses: actions/checkout@v4
+      # 可信发布要 npm 11.5.1 以上
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+      - name: 选 Xcode 26.0
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.0.app
+          xcodebuild -version
+          npm --version
+      - name: 装 XcodeGen
+        run: brew install xcodegen
+      - uses: actions/cache@v4
+        with:
+          path: ios/Vendor/.v8-cache
+          key: v8-${{ hashFiles('ios/scripts/fetch-v8.sh') }}
+      - name: 取 V8
+        run: bash ios/scripts/fetch-v8.sh
+      - name: 从源码打包运行时和能力包
+        run: bash ios/scripts/build-xcframework.sh
+      - name: 核对每个包齐不齐
+        run: node scripts/release.mjs check
+      - name: 演练：只装打出来的包，生成工程并编译
+        run: bash scripts/smoke.sh
+      - name: 发布
+        run: node scripts/release.mjs publish ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }}
