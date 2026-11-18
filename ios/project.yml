@@ -1,0 +1,433 @@
+# Nacre 运行时的工程（XcodeGen）
+#
+# 这个工程**只有运行时**，它就是交付物 Nacre.xcframework 的源。
+# 验收 App 在 acceptance/ios/，它把这个工程当子工程引进去。
+#
+# 生成工程：xcodegen generate
+name: Nacre
+
+options:
+  bundleIdPrefix: nacre
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+
+targets:
+  # 运行时。它就是交付物 Nacre.xcframework 的源——凡是这个 target 里的
+  # 文件，用户都会拿到；App 那个 target 里的不会。
+  #
+  # 先做成 dynamic framework：资源（Builtin/parts/、隐私清单）跟着 framework 走，
+  # 定位是确定的。static 的启动和体积可能更好，但两样都没有数据，等这一步
+  # 量出来再对比。
+  Nacre:
+    type: framework
+    platform: iOS
+    sources:
+      # 两个公开头单独列（见下），所以这里先排除掉
+      - path: Runtime
+        excludes:
+          - "Builtin/**"
+          - "Nacre.h"
+          - "NacreRuntime.h"
+          - "NacreModule.h"
+          - "PrivacyInfo.xcprivacy"
+          - "NacreExtension.h"
+          - "Engine/NativeObjectRef.h"
+        headerVisibility: project
+      - path: Runtime/Nacre.h
+        headerVisibility: public
+      - path: Runtime/NacreRuntime.h
+        headerVisibility: public
+      # 原生模块的接口：App 团队和第三方把自己的原生代码接进来用的。纯 ObjC，
+      # Swift 也能用。它在 umbrella header 里（Nacre.h），两处都做了才算暴露
+      - path: Runtime/NacreModule.h
+        headerVisibility: public
+      # 给能力包用的接口。可见性是 private：进 framework 的 PrivateHeaders，
+      # 能力包用 #import <Nacre/NacreExtension.h> 拿得到，但它不在 umbrella
+      # header 里，普通宿主（尤其是 Swift，它读不了带 C++ 的头）看不到。
+      - path: Runtime/NacreExtension.h
+        headerVisibility: private
+      # NacreExtension.h 用到的那个结构体。它是纯 C++ 的，引擎也从这里拿
+      - path: Runtime/Engine/NativeObjectRef.h
+        headerVisibility: private
+      # 内置脚本，在 main.js 之前执行。打进 framework 自己的包，
+      # 运行时用 bundleForClass: 找它
+      - path: Runtime/Builtin
+        type: folder
+        buildPhase: resources
+      # 隐私清单。Apple 要求它在 framework 包的**根**，而且第三方 SDK 不能
+      # 靠宿主 App 的那一份来报自己——所以它必须跟着这个 target 走。
+      # 内容是 nm 实测出来的，check-api.sh 会核对符号和声明对不对得上。
+      - path: Runtime/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    # 系统框架在这里显式声明。
+    #
+    # 以前不用写：App target 里有 Swift 文件 import UIKit，顺带把 UIKit 和
+    # QuartzCore 链进来了。运行时里**一个 Swift 文件都没有**，而 ObjC++ 的
+    # #import 不触发自动链接，所以全部要列出来——第一次编 framework 就撞了
+    # 一屏 Undefined symbols。
+    #
+    # 这张表就是交付清单的一部分：用户的工程不用再写它们，framework 自带。
+    dependencies:
+      - sdk: UIKit.framework
+      - sdk: QuartzCore.framework
+      # CGRectZero 这类符号在 CoreGraphics 里，UIKit 只是把头转出来
+      - sdk: CoreGraphics.framework
+      # 动图：读 GIF / APNG / WebP 的帧、每帧时长、循环次数
+      - sdk: ImageIO.framework
+      - sdk: WebKit.framework
+      - sdk: Security.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: nacre.runtime
+        # 生成 module map，宿主才能 import Nacre
+        DEFINES_MODULE: YES
+        # Info.plist 让 Xcode 自己生成，不往运行时目录里放生成物——
+        # 这个目录是交付面，里面的东西都会被用户拿到
+        GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: "0.0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        # 运行时里有一个 Swift 文件（Bridge/NacreIntlNumber.swift）：按地区格式化
+        # 要用 Foundation 的 FormatStyle，而它只有 Swift 能调。那个类是内部
+        # 可见的，不进公开面；Swift 的运行库在系统里，不用跟着包走
+        SWIFT_VERSION: "5.0"
+        # 那个 Swift 文件里没有任何公开的声明，所以自动生成的 Nacre-Swift.h 是
+        # 空的（只有几百行样板）。不装进 Headers，公开头还是 Nacre.h 和
+        # NacreRuntime.h 两个
+        SWIFT_INSTALL_OBJC_HEADER: NO
+        # C++ / V8。这些只有运行时需要，宿主工程不用配
+        CLANG_CXX_LANGUAGE_STANDARD: c++20
+        CLANG_CXX_LIBRARY: libc++
+        OTHER_CPLUSPLUSFLAGS: ["$(inherited)", "-fno-rtti"]
+        HEADER_SEARCH_PATHS: ["$(inherited)", "$(SRCROOT)/Vendor/v8/include"]
+        # 按平台选择 V8 静态库：Vendor/v8/lib/iphoneos 或 Vendor/v8/lib/iphonesimulator
+        LIBRARY_SEARCH_PATHS: ["$(inherited)", "$(SRCROOT)/Vendor/v8/lib/$(PLATFORM_NAME)"]
+        OTHER_LDFLAGS:
+          - "$(inherited)"
+          - "-lc++"
+          - "-lz"
+          # Chromium 的 zlib（V8 的快照校验和反优化数据解压依赖它）
+          - "-lzip"
+          - "-lv8_libbase"
+          - "-lv8_libplatform"
+          - "-lv8_base_without_compiler"
+          - "-lv8_compiler"
+          - "-lv8_bigint"
+          - "-lv8_snapshot"
+          - "-lv8_third_party"
+          - "-lcppgc_base"
+          - "-ltorque_generated_initializers"
+          - "-ltorque_generated_definitions"
+          - "-lv8_heap_base"
+          - "-lcrdtp"
+          - "-lcrdtp_platform"
+          - "-linspector"
+          - "-linspector_string_conversions"
+
+  # Keychain：第一个从核心里拆出来的能力。
+  #
+  # 它是一个单独的 framework，用不到它的 App 不嵌它就行——核心一个字都不认识
+  # 它（NacreRuntime.mm、NacreBridge.h、核心的 part 里都 grep 不到 Keychain）。
+  # 它靠三样东西接进核心，全在自己的 +load 里登记：两条分发通道，和自己的
+  # 内置脚本（Builtin/parts/）。
+  #
+  # 以后每个拆出去的能力都是这同一个形状。
+  NacreKeychain:
+    type: framework
+    platform: iOS
+    sources:
+      - path: Capabilities/Keychain
+        excludes:
+          - "Builtin/**"
+      # 它自己的 JS：Keychain 类，和往 application 上挂的那个取值器
+      - path: Capabilities/Keychain/Builtin
+        type: folder
+        buildPhase: resources
+    dependencies:
+      # 只链不嵌：两个 framework 都由宿主 App 嵌进去
+      - target: Nacre
+        embed: false
+      - sdk: Security.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: nacre.keychain
+        GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: "0.0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        # 和核心一致：两边共用 std::string 和 NativeObjectRef
+        CLANG_CXX_LANGUAGE_STANDARD: c++20
+        CLANG_CXX_LIBRARY: libc++
+        OTHER_CPLUSPLUSFLAGS: ["$(inherited)", "-fno-rtti"]
+        OTHER_LDFLAGS: ["$(inherited)", "-lc++"]
+
+  # 跟踪授权和广告标识：ATTrackingManager、ASIdentifierManager。
+  #
+  # 单独成包的原因：这两个系统框架一旦被链接，App 就得在 Info.plist 里写
+  # NSUserTrackingUsageDescription。形状和 NacreKeychain 一样。
+  NacreAppTrackingTransparency:
+    type: framework
+    platform: iOS
+    sources:
+      - path: Capabilities/AppTrackingTransparency
+        excludes:
+          - "Builtin/**"
+      # 它自己的 JS：两个类的定义
+      - path: Capabilities/AppTrackingTransparency/Builtin
+        type: folder
+        buildPhase: resources
+    dependencies:
+      # 只链不嵌：framework 都由宿主 App 嵌进去
+      - target: Nacre
+        embed: false
+      - sdk: AppTrackingTransparency.framework
+      - sdk: AdSupport.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: nacre.app-tracking-transparency
+        GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: "0.0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        # 和核心一致：两边共用 std::string 和 NativeObjectRef
+        CLANG_CXX_LANGUAGE_STANDARD: c++20
+        CLANG_CXX_LIBRARY: libc++
+        OTHER_CPLUSPLUSFLAGS: ["$(inherited)", "-fno-rtti"]
+        OTHER_LDFLAGS: ["$(inherited)", "-lc++"]
+
+  # 面容 ID / 触控 ID 认证（LAContext）。和 Keychain 是同一个形状：单独的
+  # framework，只链核心、不嵌它，带自己的 Builtin/parts/。
+  #
+  # 它不在核心里的原因：用它的 App 要在 Info.plist 里写 NSFaceIDUsageDescription，
+  # 而上传时的检查扫的是二进制里的符号——链了 LocalAuthentication 就得写。
+  NacreLocalAuthentication:
+    type: framework
+    platform: iOS
+    sources:
+      - path: Capabilities/LocalAuthentication
+        excludes:
+          - "Builtin/**"
+      - path: Capabilities/LocalAuthentication/Builtin
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - target: Nacre
+        embed: false
+      - sdk: LocalAuthentication.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: nacre.local-authentication
+        GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: "0.0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        CLANG_CXX_LANGUAGE_STANDARD: c++20
+        CLANG_CXX_LIBRARY: libc++
+        OTHER_CPLUSPLUSFLAGS: ["$(inherited)", "-fno-rtti"]
+        OTHER_LDFLAGS: ["$(inherited)", "-lc++"]
+
+  # 拍照：系统的拍照界面 UIImagePickerController（@nacrejs/camera）。
+  #
+  # 形状和 Keychain 一样。做成包而不放进核心，是因为用它的 App 要在自己的
+  # Info.plist 里写 NSCameraUsageDescription。UIImagePickerController 在 UIKit
+  # 里，所以系统框架只有这一个。
+  NacreCamera:
+    type: framework
+    platform: iOS
+    sources:
+      - path: Capabilities/Camera
+        excludes:
+          - "Builtin/**"
+      # 它自己的 JS：UIImagePickerController 类
+      - path: Capabilities/Camera/Builtin
+        type: folder
+        buildPhase: resources
+    dependencies:
+      # 只链不嵌：两个 framework 都由宿主 App 嵌进去
+      - target: Nacre
+        embed: false
+      - sdk: UIKit.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: nacre.camera
+        GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: "0.0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        # 和核心一致：两边共用 std::string 和 NativeObjectRef
+        CLANG_CXX_LANGUAGE_STANDARD: c++20
+        CLANG_CXX_LIBRARY: libc++
+        OTHER_CPLUSPLUSFLAGS: ["$(inherited)", "-fno-rtti"]
+        OTHER_LDFLAGS: ["$(inherited)", "-lc++"]
+
+  # 相册：从相册选图、把图片存进相册。形状和 NacreKeychain 一样。
+  # 项目要在 Info.plist 里写 NSPhotoLibraryAddUsageDescription（存图的权限文案），
+  # 所以它是一个能力包，不在核心里。
+  NacrePhotos:
+    type: framework
+    platform: iOS
+    sources:
+      - path: Capabilities/Photos
+        excludes:
+          - "Builtin/**"
+      - path: Capabilities/Photos/Builtin
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - target: Nacre
+        embed: false
+      - sdk: PhotosUI.framework
+      - sdk: Photos.framework
+      - sdk: UIKit.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: nacre.photos
+        GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: "0.0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        CLANG_CXX_LANGUAGE_STANDARD: c++20
+        CLANG_CXX_LIBRARY: libc++
+        OTHER_CPLUSPLUSFLAGS: ["$(inherited)", "-fno-rtti"]
+        OTHER_LDFLAGS: ["$(inherited)", "-lc++"]
+
+  # 通讯录选择器（@nacrejs/contacts）：让用户从通讯录里选联系人。
+  #
+  # 只用系统的选择器（ContactsUI 的 CNContactPickerViewController），它在系统
+  # 自己的进程里运行，不需要通讯录权限，所以装这个包的项目不用写权限文案。
+  # 形状和 NacreKeychain 一样。
+  NacreContacts:
+    type: framework
+    platform: iOS
+    sources:
+      - path: Capabilities/Contacts
+        excludes:
+          - "Builtin/**"
+      # 它自己的 JS：选择器、联系人那一组只读的值、姓名的格式化
+      - path: Capabilities/Contacts/Builtin
+        type: folder
+        buildPhase: resources
+    dependencies:
+      # 只链不嵌：两个 framework 都由宿主 App 嵌进去
+      - target: Nacre
+        embed: false
+      # 选择器在 ContactsUI 里，它交回来的联系人在 Contacts 里
+      - sdk: ContactsUI.framework
+      - sdk: Contacts.framework
+      # 选择器是一个页面，报「被系统关掉了」要看它的呈现状态
+      - sdk: UIKit.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: nacre.contacts
+        GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: "0.0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        # 和核心一致：两边共用 std::string 和 NativeObjectRef
+        CLANG_CXX_LANGUAGE_STANDARD: c++20
+        CLANG_CXX_LIBRARY: libc++
+        OTHER_CPLUSPLUSFLAGS: ["$(inherited)", "-fno-rtti"]
+        OTHER_LDFLAGS: ["$(inherited)", "-lc++"]
+
+  # 定位：CLLocationManager，只做「使用 App 期间」的定位。能力包 @nacrejs/core-location。
+  #
+  # 形状和 NacreKeychain 一样。它单独成包的理由是那条判据：用它的 App 要在自己的
+  # Info.plist 里写 NSLocationWhenInUseUsageDescription，而且只要二进制里有
+  # CoreLocation 的符号，上传时就会被要求写这一句（ITMS-90683）。
+  NacreCoreLocation:
+    type: framework
+    platform: iOS
+    sources:
+      - path: Capabilities/CoreLocation
+        excludes:
+          - "Builtin/**"
+      # 它自己的 JS：CLLocationManager、CLLocation、CLLocationCoordinate2D
+      - path: Capabilities/CoreLocation/Builtin
+        type: folder
+        buildPhase: resources
+    dependencies:
+      # 只链不嵌：两个 framework 都由宿主 App 嵌进去
+      - target: Nacre
+        embed: false
+      - sdk: CoreLocation.framework
+      # 申请授权之前要看 App 是不是在后台（UIApplication.applicationState）
+      - sdk: UIKit.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: nacre.corelocation
+        GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: "0.0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        # 和核心一致：两边共用 std::string 和 NativeObjectRef
+        CLANG_CXX_LANGUAGE_STANDARD: c++20
+        CLANG_CXX_LIBRARY: libc++
+        OTHER_CPLUSPLUSFLAGS: ["$(inherited)", "-fno-rtti"]
+        OTHER_LDFLAGS: ["$(inherited)", "-lc++"]
+
+  # 示例原生模块（@nacrejs/example-module）：用 Swift 写，只用运行时公开的头
+  # （import Nacre → NacreModule.h）。它既是「怎么写自己的原生模块」的样板，
+  # 也是验收用的模块。
+  #
+  # 和上面那些能力包不一样的地方：它不碰 NacreExtension.h，不带内置脚本
+  # （它的 JS 是 packages/example-module/ 里普通的 npm 包代码），所以也不需要
+  # C++ 的那几项设置。第三方的模块就是这个形状。
+  NacreExampleModule:
+    type: framework
+    platform: iOS
+    sources:
+      - path: Capabilities/ExampleModule
+    dependencies:
+      # 只链不嵌：framework 都由宿主 App 嵌进去
+      - target: Nacre
+        embed: false
+      # 算 SHA-256 用的。Swift 的 import 会自动链接它，写出来是为了和包的清单
+      # （systemFrameworks）对得上
+      - sdk: CryptoKit.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: nacre.example-module
+        GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: "0.0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.0"
+        # Swift 没有 +load。运行时靠 framework 的主类找到模块：这个类遵守
+        # NacreModuleProvider，名字是 @objc(…) 里写的那个
+        INFOPLIST_KEY_NSPrincipalClass: NacreExampleModuleProvider
+
+  # 通知：UNUserNotificationCenter，发本地通知、收通知到了和被点了的事件。
+  # 能力包 @nacrejs/user-notifications。
+  #
+  # 形状和 NacreKeychain 一样。它不要权限文案也不要 entitlement；单独成包是
+  # 因为它一加载就把自己装成通知中心的委托（系统要求委托在 App 启动完成之前
+  # 就在），不发通知的 App 不该带着这个。
+  NacreUserNotifications:
+    type: framework
+    platform: iOS
+    sources:
+      - path: Capabilities/UserNotifications
+        excludes:
+          - "Builtin/**"
+      # 它自己的 JS：通知中心，和内容、触发器、请求那一组值
+      - path: Capabilities/UserNotifications/Builtin
+        type: folder
+        buildPhase: resources
+    dependencies:
+      # 只链不嵌：两个 framework 都由宿主 App 嵌进去
+      - target: Nacre
+        embed: false
+      - sdk: UserNotifications.framework
+      # 「App 启动完成」那个通知的名字在 UIKit 里
+      - sdk: UIKit.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: nacre.user-notifications
+        GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: "0.0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        # 和核心一致：两边共用 std::string 和 NativeObjectRef
+        CLANG_CXX_LANGUAGE_STANDARD: c++20
+        CLANG_CXX_LIBRARY: libc++
+        OTHER_CPLUSPLUSFLAGS: ["$(inherited)", "-fno-rtti"]
+        OTHER_LDFLAGS: ["$(inherited)", "-lc++"]
+
+settings:
+  base:
+    # 只支持 arm64（真机 + Apple Silicon 模拟器）
+    ARCHS: arm64
+    EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
+    DEAD_CODE_STRIPPING: YES
+    GCC_TREAT_WARNINGS_AS_ERRORS: NO
