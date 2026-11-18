@@ -1,0 +1,397 @@
+/*
+ * 配色和排版照 Apple 开发者文档的风格：中性的灰阶、蓝色的链接、系统字体、
+ * 大圆角、细分隔线。只覆盖默认主题的 CSS 变量和少数几个元素，不改结构。
+ * 字体用的是系统字体栈，不自带字体文件。
+ */
+
+:root {
+  /* 字体：Apple 设备上是 SF Pro 和苹方，别的系统退回各自的系统字体 */
+  --vp-font-family-base: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',
+    'PingFang SC', 'Helvetica Neue', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
+  --vp-font-family-mono: 'SF Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Liberation Mono', monospace;
+
+  /* 正文 */
+  --vp-c-text-1: #1d1d1f;
+  --vp-c-text-2: #6e6e73;
+  --vp-c-text-3: #86868b;
+
+  /* 背景 */
+  --vp-c-bg: #ffffff;
+  --vp-c-bg-alt: #f5f5f7;
+  --vp-c-bg-elv: #ffffff;
+  --vp-c-bg-soft: #f5f5f7;
+
+  /* 分隔线 */
+  --vp-c-divider: #d2d2d7;
+  --vp-c-border: #d2d2d7;
+  --vp-c-gutter: #e8e8ed;
+
+  /* 主色：链接和按钮的蓝 */
+  --vp-c-brand-1: #0066cc;
+  --vp-c-brand-2: #0077ed;
+  --vp-c-brand-3: #0071e3;
+  --vp-c-brand-soft: rgba(0, 113, 227, 0.1);
+
+  /* 提示块的底色 */
+  --vp-c-default-soft: #f5f5f7;
+  --vp-c-tip-1: #0066cc;
+  --vp-c-tip-soft: rgba(0, 113, 227, 0.08);
+  --vp-c-warning-1: #9a6700;
+  --vp-c-warning-soft: rgba(255, 204, 0, 0.14);
+  --vp-c-danger-1: #c9302c;
+  --vp-c-danger-soft: rgba(255, 59, 48, 0.1);
+
+  /* 按钮 */
+  --vp-button-brand-bg: #0071e3;
+  --vp-button-brand-hover-bg: #0077ed;
+  --vp-button-brand-active-bg: #006edb;
+  --vp-button-brand-text: #ffffff;
+
+  /* 代码 */
+  --vp-code-block-bg: #f5f5f7;
+  --vp-code-block-divider-color: #d2d2d7;
+  --vp-code-bg: #f5f5f7;
+  --vp-code-color: #1d1d1f;
+  --vp-code-font-size: 0.88em;
+  --vp-code-copy-code-bg: #ffffff;
+  --vp-code-copy-code-hover-bg: #ffffff;
+  --vp-code-copy-code-border-color: #d2d2d7;
+  --vp-code-copy-code-hover-border-color: #86868b;
+  --vp-code-lang-color: #86868b;
+
+  /* 导航条和侧边栏 */
+  --vp-nav-bg-color: rgba(255, 255, 255, 0.8);
+  --vp-sidebar-bg-color: #ffffff;
+  --vp-nav-height: 52px;
+
+  /* 首页的标题不用渐变 */
+  --vp-home-hero-name-color: #1d1d1f;
+  --vp-home-hero-name-background: none;
+
+  --nacre-radius: 12px;
+}
+
+.dark {
+  --vp-c-text-1: #f5f5f7;
+  --vp-c-text-2: #a1a1a6;
+  --vp-c-text-3: #86868b;
+
+  --vp-c-bg: #000000;
+  --vp-c-bg-alt: #1d1d1f;
+  --vp-c-bg-elv: #1d1d1f;
+  --vp-c-bg-soft: #1d1d1f;
+
+  --vp-c-divider: #424245;
+  --vp-c-border: #424245;
+  --vp-c-gutter: #2c2c2e;
+
+  --vp-c-brand-1: #2997ff;
+  --vp-c-brand-2: #47a6ff;
+  --vp-c-brand-3: #0071e3;
+  --vp-c-brand-soft: rgba(41, 151, 255, 0.16);
+
+  --vp-c-default-soft: #1d1d1f;
+  --vp-c-tip-1: #2997ff;
+  --vp-c-tip-soft: rgba(41, 151, 255, 0.12);
+  --vp-c-warning-1: #ffd60a;
+  --vp-c-warning-soft: rgba(255, 214, 10, 0.12);
+  --vp-c-danger-1: #ff6961;
+  --vp-c-danger-soft: rgba(255, 69, 58, 0.14);
+
+  --vp-code-block-bg: #1d1d1f;
+  --vp-code-block-divider-color: #424245;
+  --vp-code-bg: #1d1d1f;
+  --vp-code-color: #f5f5f7;
+  --vp-code-copy-code-bg: #2c2c2e;
+  --vp-code-copy-code-hover-bg: #2c2c2e;
+  --vp-code-copy-code-border-color: #424245;
+  --vp-code-copy-code-hover-border-color: #86868b;
+
+  --vp-nav-bg-color: rgba(0, 0, 0, 0.72);
+  --vp-sidebar-bg-color: #000000;
+
+  --vp-home-hero-name-color: #f5f5f7;
+}
+
+/* —— 导航条：半透明加模糊，底下一条细线 —— */
+
+.VPNavBar,
+.VPNavBar.has-sidebar .content-body,
+.VPNavBar:not(.home.top) .content-body {
+  background-color: var(--vp-nav-bg-color) !important;
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+
+.VPNavBar .divider-line {
+  background-color: var(--vp-c-gutter);
+}
+
+.VPNavBarTitle .title {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.VPNavBarMenuLink {
+  font-size: 13px;
+  font-weight: 400;
+}
+
+/* —— 侧边栏：选中的那一项是一块浅蓝的圆角底 —— */
+
+.VPSidebar {
+  border-right: 1px solid var(--vp-c-gutter);
+}
+
+.VPSidebarItem.level-0 > .item .text {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vp-c-text-3);
+  letter-spacing: 0.02em;
+}
+
+.VPSidebarItem.level-1 > .item {
+  border-radius: 8px;
+  padding: 0 8px;
+  margin: 0 -8px;
+}
+
+.VPSidebarItem.level-1 > .item > .link > .text {
+  font-size: 14px;
+  padding: 5px 0;
+  line-height: 20px;
+}
+
+.VPSidebarItem.level-1.is-active > .item {
+  background-color: var(--vp-c-brand-soft);
+}
+
+.VPSidebarItem.level-1.is-active > .item > .link > .text {
+  color: var(--vp-c-brand-1);
+  font-weight: 500;
+}
+
+.VPSidebarItem .indicator {
+  display: none;
+}
+
+/* —— 正文的排版 —— */
+
+.vp-doc {
+  font-size: 17px;
+  line-height: 1.6;
+  letter-spacing: -0.01em;
+}
+
+.vp-doc h1 {
+  font-size: 40px;
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin-bottom: 20px;
+}
+
+.vp-doc h2 {
+  font-size: 28px;
+  line-height: 1.15;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  margin-top: 56px;
+  padding-top: 32px;
+  border-top: 1px solid var(--vp-c-gutter);
+}
+
+.vp-doc h3 {
+  font-size: 21px;
+  line-height: 1.25;
+  font-weight: 600;
+  margin-top: 36px;
+}
+
+.vp-doc h4 {
+  font-size: 17px;
+  font-weight: 600;
+  margin-top: 28px;
+}
+
+.vp-doc p,
+.vp-doc li {
+  color: var(--vp-c-text-1);
+}
+
+.vp-doc a {
+  font-weight: 400;
+  text-decoration: none;
+}
+
+.vp-doc a:hover {
+  text-decoration: underline;
+}
+
+.vp-doc strong {
+  font-weight: 600;
+}
+
+/* 标题里的代码不缩小、不加底色 */
+.vp-doc h1 code,
+.vp-doc h2 code,
+.vp-doc h3 code,
+.vp-doc h4 code {
+  font-family: inherit;
+  font-size: 1em;
+  color: inherit;
+  background: none;
+  padding: 0;
+}
+
+/* —— 行内代码 —— */
+
+.vp-doc :not(pre) > code {
+  border-radius: 5px;
+  padding: 2px 5px;
+  color: var(--vp-c-text-1);
+}
+
+.vp-doc a > code {
+  color: var(--vp-c-brand-1);
+}
+
+/* —— 代码块：浅灰底、一圈细边、大圆角 —— */
+
+.vp-doc div[class*='language-'] {
+  border-radius: var(--nacre-radius);
+  border: 1px solid var(--vp-c-gutter);
+  margin: 20px 0;
+}
+
+.vp-doc div[class*='language-'] code {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+@media (max-width: 639px) {
+  .vp-doc div[class*='language-'] {
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+}
+
+/* —— 「注意」这一类引用块：带底色的圆角块，不要左边那条竖线 —— */
+
+.vp-doc blockquote {
+  border-left: 0;
+  border: 1px solid var(--vp-c-gutter);
+  border-radius: var(--nacre-radius);
+  background-color: var(--vp-c-bg-soft);
+  padding: 14px 18px;
+  margin: 20px 0;
+}
+
+.vp-doc blockquote > p {
+  color: var(--vp-c-text-1);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.vp-doc .custom-block {
+  border-radius: var(--nacre-radius);
+  border: 1px solid var(--vp-c-gutter);
+}
+
+/* —— 表格：只留横线，表头用小号的灰字 —— */
+
+.vp-doc table {
+  display: table;
+  width: 100%;
+  border-collapse: collapse;
+  margin: 24px 0;
+  font-size: 15px;
+}
+
+.vp-doc tr {
+  background-color: transparent !important;
+  border-top: 0;
+  border-bottom: 1px solid var(--vp-c-gutter);
+}
+
+.vp-doc th,
+.vp-doc td {
+  border: 0;
+  padding: 12px 16px 12px 0;
+  vertical-align: top;
+  line-height: 1.5;
+}
+
+.vp-doc th {
+  background-color: transparent;
+  color: var(--vp-c-text-2);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* 表格太宽时在自己里面横向滚动，不撑破页面 */
+@media (max-width: 959px) {
+  .vp-doc table {
+    display: block;
+    overflow-x: auto;
+  }
+}
+
+/* —— 右侧的本页目录 —— */
+
+.VPDocAsideOutline .outline-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vp-c-text-2);
+}
+
+.VPDocAsideOutline .outline-link {
+  font-size: 13px;
+  line-height: 28px;
+}
+
+.VPDocAsideOutline .outline-marker {
+  background-color: var(--vp-c-brand-1);
+}
+
+/* —— 按钮和搜索框：全圆角 —— */
+
+.VPButton {
+  border-radius: 980px !important;
+  font-weight: 400 !important;
+}
+
+.DocSearch-Button,
+.VPNavBarSearchButton {
+  border-radius: 10px !important;
+}
+
+/* —— 上一页、下一页 —— */
+
+.VPDocFooter .pager-link {
+  border-radius: var(--nacre-radius);
+  border-color: var(--vp-c-gutter);
+}
+
+.VPDocFooter .pager-link .title {
+  font-weight: 400;
+}
+
+/* —— 首页 —— */
+
+.VPHero .name,
+.VPHero .text {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.VPFeature {
+  border-radius: 18px !important;
+  border-color: transparent !important;
+  background-color: var(--vp-c-bg-soft) !important;
+}
