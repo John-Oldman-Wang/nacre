@@ -1,0 +1,496 @@
+// 日志、JSON 编解码、结构体 ↔ JSON、环境快照。
+// 桥上所有别的文件都用它，自己不依赖任何别的桥文件。
+
+#import "NacreBridge.h"
+
+#include <cmath>
+#include <cstring>
+#include <vector>
+
+#import <os/log.h>
+
+@implementation NacreBlob
+@end
+
+namespace nacre_bridge {
+
+os_log_t JSLog() {
+  static os_log_t log = os_log_create("nacre", "js");
+  return log;
+}
+
+os_log_t RuntimeLog() {
+  static os_log_t log = os_log_create("nacre", "runtime");
+  return log;
+}
+
+const char* LevelName(nacre::LogLevel level) {
+  switch (level) {
+    case nacre::LogLevel::Debug: return "debug";
+    case nacre::LogLevel::Log: return "log";
+    case nacre::LogLevel::Info: return "info";
+    case nacre::LogLevel::Warn: return "warn";
+    case nacre::LogLevel::Error: return "error";
+  }
+  return "log";
+}
+
+// console.* 同时输出到 stdout（终端 / simctl --console-pty 可见）和系统日志（Xcode 控制台可见）
+void WriteJSLog(nacre::LogLevel level, const std::string& message) {
+  fprintf(stdout, "[JS][%s] %s\n", LevelName(level), message.c_str());
+  fflush(stdout);
+  os_log_type_t type = OS_LOG_TYPE_DEFAULT;
+  if (level == nacre::LogLevel::Error) type = OS_LOG_TYPE_ERROR;
+  if (level == nacre::LogLevel::Debug) type = OS_LOG_TYPE_DEBUG;
+  os_log_with_type(JSLog(), type, "[%{public}s] %{public}s", LevelName(level), message.c_str());
+}
+
+void WriteRuntimeLog(NSString* message) {
+  fprintf(stdout, "[nacre] %s\n", message.UTF8String);
+  fflush(stdout);
+  os_log(RuntimeLog(), "%{public}@", message);
+}
+
+double NowMs() { return [NSDate date].timeIntervalSince1970 * 1000.0; }
+
+NSString* BackgroundRefreshName(UIBackgroundRefreshStatus status) {
+  switch (status) {
+    case UIBackgroundRefreshStatusRestricted: return @"restricted";
+    case UIBackgroundRefreshStatusDenied: return @"denied";
+    case UIBackgroundRefreshStatusAvailable: return @"available";
+  }
+  return @"unknown";
+}
+
+NSString* SceneActivationName(UISceneActivationState state) {
+  switch (state) {
+    case UISceneActivationStateUnattached: return @"unattached";
+    case UISceneActivationStateForegroundActive: return @"foregroundActive";
+    case UISceneActivationStateForegroundInactive: return @"foregroundInactive";
+    case UISceneActivationStateBackground: return @"background";
+  }
+  return @"unknown";
+}
+
+const char* StateName(int state) {
+  switch (state) {
+    case UIApplicationStateActive: return "active";
+    case UIApplicationStateInactive: return "inactive";
+    case UIApplicationStateBackground: return "background";
+  }
+  return "unknown";
+}
+
+// Info.plist 里绝大多数是字符串/数字/布尔/数组/字典，但不保证全都能 JSON 序列化
+// （NSDate、NSData 就不行）。这里递归过一遍，不认识的转成字符串，避免整个序列化失败。
+id SanitizeForJSON(id value) {
+  // NSNull 本来就是合法的 JSON null，必须原样放行。
+  // 漏掉它会落到最后那行 [value description]，把 null 变成字符串 "<null>"。
+  if ([value isKindOfClass:NSString.class] || [value isKindOfClass:NSNumber.class] ||
+      value == NSNull.null) {
+    return value;
+  }
+  if ([value isKindOfClass:NSArray.class]) {
+    NSMutableArray* out = [NSMutableArray arrayWithCapacity:[value count]];
+    for (id item in (NSArray*)value) [out addObject:SanitizeForJSON(item)];
+    return out;
+  }
+  if ([value isKindOfClass:NSDictionary.class]) {
+    NSMutableDictionary* out = [NSMutableDictionary dictionaryWithCapacity:[value count]];
+    for (id key in (NSDictionary*)value) {
+      out[[key description]] = SanitizeForJSON(((NSDictionary*)value)[key]);
+    }
+    return out;
+  }
+  return [value description];
+}
+
+// 只能在主线程调用：下面每一项都是 UIKit 属性。
+// backgroundTimeRemaining 不收进来——它是连续变化的值，快照没有意义，
+// 而「主线程永远不同步等待 JS」又不允许实时读，等有了别的机制再说。
+void RebuildEnvironment(const std::shared_ptr<AppSnapshot>& snapshot) {
+  UIApplication* app = UIApplication.sharedApplication;
+  NSMutableDictionary* env = [@{
+    @"state" : @(StateName((int)app.applicationState)),
+    @"supportsMultipleScenes" : @(app.supportsMultipleScenes),
+    @"protectedDataAvailable" : @(app.isProtectedDataAvailable),
+    @"layoutDirection" : app.userInterfaceLayoutDirection ==
+                                 UIUserInterfaceLayoutDirectionRightToLeft
+                             ? @"rtl"
+                             : @"ltr",
+    @"contentSizeCategory" : app.preferredContentSizeCategory ?: @"",
+    @"backgroundRefreshStatus" : BackgroundRefreshName(app.backgroundRefreshStatus),
+    @"idleTimerDisabled" : @(app.isIdleTimerDisabled),
+  } mutableCopy];
+  // 这个属性 iOS 27 才有。**两层判断都要**，管的是不同的事：
+  //   #if        编译用的 SDK 认不认识这个符号。Xcode 26 的 SDK 里压根
+  //              没声明，只写 @available 会编译不过（试用报告撞到的就是
+  //              这个：use of undeclared identifier）
+  //   @available 跑的这台机器有没有
+  // 键**无论如何都放进去**，别让 API 的形状随编译工具链变——低 SDK
+  // 编出来的包里它恒为 false。
+  BOOL reduced = NO;
+#if defined(__IPHONE_OS_VERSION_MAX_ALLOWED) && __IPHONE_OS_VERSION_MAX_ALLOWED >= 270000
+  if (@available(iOS 27.0, *)) reduced = app.systemPrefersReducedResourceUsage;
+#endif
+  env[@"prefersReducedResourceUsage"] = @(reduced);
+
+  NSData* data = [NSJSONSerialization dataWithJSONObject:env options:0 error:nil];
+  std::string json = data ? std::string(static_cast<const char*>(data.bytes), data.length)
+                          : std::string("{}");
+  std::lock_guard<std::mutex> lock(snapshot->mutex);
+  snapshot->environmentJSON = std::move(json);
+}
+
+// 值和 JS 之间走 JSON。FragmentsAllowed 让顶层可以是字符串/数字/布尔，
+// 不用为标量再包一层数组。
+// 系统的 JSON 编码器写不出来的时候用的那一份。写不出来的原因量到的只有一种：
+// 字符串里有落单的代理项（一个表情被从中间截断剩下的那一半）。这里把它写成
+// \uD83D 这样的转义，JS 的 JSON.parse 认，读回去还是原来那个码元。
+// 输入是 SanitizeForJSON 之后的树：只有 NSNull、NSNumber、NSString、数组、字典
+static void AppendJSONString(NSString* text, std::string* out) {
+  out->push_back('"');
+  const NSUInteger length = text.length;
+  for (NSUInteger i = 0; i < length; i++) {
+    const unichar c = [text characterAtIndex:i];
+    if (c == '"' || c == '\\') {
+      out->push_back('\\');
+      out->push_back(static_cast<char>(c));
+    } else if (c < 0x20) {
+      char escaped[8];
+      snprintf(escaped, sizeof(escaped), "\\u%04x", c);
+      out->append(escaped);
+    } else if (c < 0x80) {
+      out->push_back(static_cast<char>(c));
+    } else if (c < 0x800) {
+      out->push_back(static_cast<char>(0xC0 | (c >> 6)));
+      out->push_back(static_cast<char>(0x80 | (c & 0x3F)));
+    } else if (c >= 0xD800 && c <= 0xDBFF && i + 1 < length &&
+               [text characterAtIndex:i + 1] >= 0xDC00 && [text characterAtIndex:i + 1] <= 0xDFFF) {
+      // 成对的代理项：合成一个码点，写成四个字节
+      const unichar low = [text characterAtIndex:++i];
+      const uint32_t point = 0x10000 + ((static_cast<uint32_t>(c) - 0xD800) << 10) + (low - 0xDC00);
+      out->push_back(static_cast<char>(0xF0 | (point >> 18)));
+      out->push_back(static_cast<char>(0x80 | ((point >> 12) & 0x3F)));
+      out->push_back(static_cast<char>(0x80 | ((point >> 6) & 0x3F)));
+      out->push_back(static_cast<char>(0x80 | (point & 0x3F)));
+    } else if (c >= 0xD800 && c <= 0xDFFF) {
+      // 落单的：转义
+      char escaped[8];
+      snprintf(escaped, sizeof(escaped), "\\u%04x", c);
+      out->append(escaped);
+    } else {
+      out->push_back(static_cast<char>(0xE0 | (c >> 12)));
+      out->push_back(static_cast<char>(0x80 | ((c >> 6) & 0x3F)));
+      out->push_back(static_cast<char>(0x80 | (c & 0x3F)));
+    }
+  }
+  out->push_back('"');
+}
+
+// node 是原生自己要回传的值（已经过 SanitizeForJSON），不是 JS 给的
+static void AppendJSONValue(id node, std::string* out, int depth) {
+  if (depth > 80 || node == nil || node == NSNull.null) {
+    out->append("null");
+  } else if ([node isKindOfClass:NSString.class]) {
+    AppendJSONString(node, out);
+  } else if ([node isKindOfClass:NSNumber.class]) {
+    if (CFGetTypeID((__bridge CFTypeRef)node) == CFBooleanGetTypeID()) {
+      out->append([node boolValue] ? "true" : "false");
+    } else {
+      const double number = [node doubleValue];
+      if (!std::isfinite(number)) {
+        out->append("null");
+      } else if (number == std::trunc(number) && std::fabs(number) < 1e15) {
+        out->append(std::to_string([node longLongValue]));
+      } else {
+        char text[32];
+        snprintf(text, sizeof(text), "%.17g", number);
+        out->append(text);
+      }
+    }
+  } else if ([node isKindOfClass:NSArray.class]) {
+    out->push_back('[');
+    bool first = true;
+    for (id item in (NSArray*)node) {
+      if (!first) out->push_back(',');
+      first = false;
+      AppendJSONValue(item, out, depth + 1);
+    }
+    out->push_back(']');
+  } else if ([node isKindOfClass:NSDictionary.class]) {
+    out->push_back('{');
+    bool first = true;
+    for (id key in (NSDictionary*)node) {
+      if (![key isKindOfClass:NSString.class]) continue;
+      if (!first) out->push_back(',');
+      first = false;
+      AppendJSONString(key, out);
+      out->push_back(':');
+      AppendJSONValue(((NSDictionary*)node)[key], out, depth + 1);
+    }
+    out->push_back('}');
+  } else {
+    out->append("null");
+  }
+}
+
+std::string EncodeJSON(id value) {
+  id safe = SanitizeForJSON(value ?: NSNull.null);
+  NSData* data = nil;
+  @try {
+    data = [NSJSONSerialization dataWithJSONObject:safe
+                                           options:NSJSONWritingFragmentsAllowed
+                                             error:nil];
+  } @catch (NSException* e) {
+    data = nil;
+  }
+  if (data != nil) return std::string(static_cast<const char*>(data.bytes), data.length);
+  // 系统的编码器写不出来。原来这里直接给 "null"，于是带落单代理项的字符串
+  // 读出来是 null。改成自己写一遍
+  std::string out;
+  AppendJSONValue(safe, &out, 0);
+  return out;
+}
+
+// ---- 引擎打包的参数（格式见 Engine.cpp 的 PackInto）----
+namespace {
+
+struct PackedReader {
+  const char* at;
+  const char* end;
+  bool ok = true;
+
+  bool Take(void* into, size_t size) {
+    if (!ok || static_cast<size_t>(end - at) < size) { ok = false; return false; }
+    memcpy(into, at, size);
+    at += size;
+    return true;
+  }
+  NSString* Units() {
+    uint32_t length = 0;
+    if (!Take(&length, sizeof(length))) return nil;
+    const size_t bytes = static_cast<size_t>(length) * 2;
+    if (static_cast<size_t>(end - at) < bytes) { ok = false; return nil; }
+    // 按码元建：开头的 U+FEFF、落单的代理项都原样留着。缓冲区不保证对齐，
+    // 先抄到对齐的地方
+    std::vector<unichar> units(length);
+    if (length > 0) memcpy(units.data(), at, bytes);
+    at += bytes;
+    return [NSString stringWithCharacters:units.data() length:length];
+  }
+  id Value(int depth) {
+    char tag = 0;
+    if (depth > 80 || !Take(&tag, 1)) { ok = false; return nil; }
+    switch (tag) {
+      case 'z': return NSNull.null;
+      case 't': return @YES;
+      case 'f': return @NO;
+      case 'd': {
+        double number = 0;
+        if (!Take(&number, sizeof(number))) return nil;
+        // 整数给整数类型的 NSNumber，和原来系统的 JSON 解析器给的一样：
+        // 有的地方把它拼进报错的文字里，17 不该变成 17.0
+        if (number == std::trunc(number) && std::fabs(number) <= 9007199254740992.0) {
+          return @(static_cast<long long>(number));
+        }
+        return @(number);
+      }
+      case 's': return Units();
+      case 'a': {
+        uint32_t count = 0;
+        if (!Take(&count, sizeof(count))) return nil;
+        NSMutableArray* array = [NSMutableArray arrayWithCapacity:MIN(count, 1024u)];
+        for (uint32_t i = 0; i < count && ok; i++) {
+          id item = Value(depth + 1);
+          if (item != nil) [array addObject:item];
+        }
+        return array;
+      }
+      case 'o': {
+        uint32_t count = 0;
+        if (!Take(&count, sizeof(count))) return nil;
+        NSMutableDictionary* dict = [NSMutableDictionary dictionaryWithCapacity:MIN(count, 1024u)];
+        for (uint32_t i = 0; i < count && ok; i++) {
+          NSString* key = Units();
+          id item = Value(depth + 1);
+          if (key != nil && item != nil) dict[key] = item;
+        }
+        return dict;
+      }
+      default:
+        ok = false;
+        return nil;
+    }
+  }
+};
+
+}  // namespace
+
+// JS 给的值解成原生对象。名字是历史留下的，现在认两种：
+//   - 引擎打包的字节（开头是 0x01）：属性写入、方法调用、构造、类方法、异步
+//     方法的参数都是这一种。字符串原样，不经过任何编码转换
+//   - JSON 文本：内置脚本里自己 JSON.stringify 之后当字符串传过来的那几处
+//     （fetch 的选项、Blob 的分段）还是这一种
+id DecodeJSON(const std::string& json) {
+  if (!json.empty() && json[0] == '\x01') {
+    PackedReader reader{json.data() + 1, json.data() + json.size()};
+    id value = reader.Value(0);
+    if (!reader.ok || reader.at != reader.end) return nil;   // 格式不对：当成没有
+    return value == NSNull.null ? nil : value;
+  }
+  NSData* data = [NSData dataWithBytes:json.data() length:json.size()];
+  id value = [NSJSONSerialization JSONObjectWithData:data
+                                             options:NSJSONReadingFragmentsAllowed
+                                               error:nil];
+  return (value == nil || value == NSNull.null) ? nil : value;
+}
+
+// ---- 取参：只判断，不转换 ----
+// 报错里说清「收到的是什么」。JSON 过桥之后能看到的只有这几种
+static NSString* DescribeForError(id given) {
+  if (given == nil || given == NSNull.null) return @"null";
+  if ([given isKindOfClass:NSString.class]) return [NSString stringWithFormat:@"\"%@\"", given];
+  if ([given isKindOfClass:NSNumber.class]) {
+    if (CFGetTypeID((__bridge CFTypeRef)given) == CFBooleanGetTypeID()) {
+      return [given boolValue] ? @"true" : @"false";
+    }
+    return [given description];
+  }
+  if ([given isKindOfClass:NSArray.class]) return @"an array";
+  if ([given isKindOfClass:NSDictionary.class]) return @"an object";
+  return NSStringFromClass([given class]);
+}
+
+static bool IsBoolean(id given) {
+  return [given isKindOfClass:NSNumber.class] &&
+         CFGetTypeID((__bridge CFTypeRef)given) == CFBooleanGetTypeID();
+}
+
+bool RequireNumber(id given, NSString* what, std::string* error) {
+  if ([given isKindOfClass:NSNumber.class] && !IsBoolean(given) &&
+      isfinite([given doubleValue])) {
+    return true;
+  }
+  *error = [NSString stringWithFormat:@"%@ must be a finite number, got %@", what,
+                                      DescribeForError(given)].UTF8String;
+  return false;
+}
+
+bool RequireInteger(id given, NSString* what, std::string* error) {
+  if (!RequireNumber(given, what, error)) return false;
+  double d = [given doubleValue];
+  if (d == floor(d)) return true;
+  *error = [NSString stringWithFormat:@"%@ must be an integer, got %@", what,
+                                      DescribeForError(given)].UTF8String;
+  return false;
+}
+
+bool RequireBool(id given, NSString* what, std::string* error) {
+  if (IsBoolean(given)) return true;
+  *error = [NSString stringWithFormat:@"%@ must be true or false, got %@", what,
+                                      DescribeForError(given)].UTF8String;
+  return false;
+}
+
+void ObjectTypeError(const std::string& what, const char* className, bool nullable,
+                     std::string* error) {
+  if (error == nullptr || !error->empty()) return;
+  *error = what + " needs a " + className + (nullable ? " or null" : "");
+}
+
+double SafeNumber(id given) {
+  if ([given isKindOfClass:NSNumber.class]) {
+    double d = [given doubleValue];
+    return isfinite(d) ? d : 0;
+  }
+  return 0;
+}
+
+// 结构体和 JSON 的互转。线上格式是扁平的（CGRect 是 x/y/width/height，
+// 不是嵌套的 origin/size）——JS 侧的 CGRect 类负责提供嵌套视图，
+// 线上格式是内部约定，以后换编码不影响 JS。
+NSDictionary* PointToJSON(CGPoint p) { return @{@"x": @(p.x), @"y": @(p.y)}; }
+NSDictionary* SizeToJSON(CGSize z) { return @{@"width": @(z.width), @"height": @(z.height)}; }
+// 帧率区间。三个 float，最后一个说「最想要多少」，0 表示跟硬件走
+NSDictionary* FrameRateRangeToJSON(CAFrameRateRange r) {
+  return @{@"minimum": @(r.minimum), @"maximum": @(r.maximum),
+           @"preferred": @(r.preferred)};
+}
+NSDictionary* InsetsToJSON(UIEdgeInsets i) {
+  return @{@"top": @(i.top), @"left": @(i.left),
+           @"bottom": @(i.bottom), @"right": @(i.right)};
+}
+// 带方向的边距。和 UIEdgeInsets 是同一回事，只是左右换成了「文字开始的
+// 那一侧 / 结束的那一侧」——从右往左的语言里两者对调
+NSDictionary* DirectionalInsetsToJSON(NSDirectionalEdgeInsets i) {
+  return @{@"top": @(i.top), @"leading": @(i.leading),
+           @"bottom": @(i.bottom), @"trailing": @(i.trailing)};
+}
+NSDictionary* RectToJSON(CGRect r) {
+  return @{@"x": @(r.origin.x), @"y": @(r.origin.y),
+           @"width": @(r.size.width), @"height": @(r.size.height)};
+}
+CGPoint JSONToPoint(id v) {
+  NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
+  return CGPointMake(SafeNumber(d[@"x"]), SafeNumber(d[@"y"]));
+}
+CGSize JSONToSize(id v) {
+  NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
+  return CGSizeMake(SafeNumber(d[@"width"]), SafeNumber(d[@"height"]));
+}
+CAFrameRateRange JSONToFrameRateRange(id v) {
+  NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
+  return CAFrameRateRangeMake(SafeNumber(d[@"minimum"]), SafeNumber(d[@"maximum"]),
+                              SafeNumber(d[@"preferred"]));
+}
+CGRect JSONToRect(id v) {
+  NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
+  return CGRectMake(SafeNumber(d[@"x"]), SafeNumber(d[@"y"]),
+                    SafeNumber(d[@"width"]), SafeNumber(d[@"height"]));
+}
+NSDictionary* TransformToJSON(CGAffineTransform t) {
+  return @{@"a": @(t.a), @"b": @(t.b), @"c": @(t.c),
+           @"d": @(t.d), @"tx": @(t.tx), @"ty": @(t.ty)};
+}
+CGAffineTransform JSONToTransform(id v) {
+  NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
+  return CGAffineTransformMake(SafeNumber(d[@"a"]), SafeNumber(d[@"b"]),
+                               SafeNumber(d[@"c"]), SafeNumber(d[@"d"]),
+                               SafeNumber(d[@"tx"]), SafeNumber(d[@"ty"]));
+}
+NSDirectionalEdgeInsets JSONToDirectionalInsets(id v) {
+  NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
+  return NSDirectionalEdgeInsetsMake(SafeNumber(d[@"top"]), SafeNumber(d[@"leading"]),
+                                     SafeNumber(d[@"bottom"]), SafeNumber(d[@"trailing"]));
+}
+UIEdgeInsets JSONToInsets(id v) {
+  NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
+  return UIEdgeInsetsMake(SafeNumber(d[@"top"]), SafeNumber(d[@"left"]),
+                          SafeNumber(d[@"bottom"]), SafeNumber(d[@"right"]));
+}
+
+// 枚举：JS 侧一律用字符串。名字是我们定的（去掉类型前缀、首字母小写），
+// 数值由 SDK 决定——NSTextAlignment 的值随 ABI 变（iOS 上 Center 是 1，
+// macOS 上是 2），所以这张表只能放在原生层，JS 里写死索引会错。
+//
+// 查不到名字时返回 NO，调用方据此让 JS 抛异常。
+//
+// 错误信息里的可选值列表和真正用来查的表必须是同一份，否则两边会慢慢
+// 漂开。所以 NamesForXxx 从同一张表派生，JS 侧不再抄一份。
+//
+// 名字按枚举数值排序，顺序才稳定——NSDictionary 的遍历顺序是不保证的。
+
+std::string InfoDictionaryJSON() {
+  NSDictionary* info = NSBundle.mainBundle.infoDictionary ?: @{};
+  id safe = SanitizeForJSON(info);
+  NSError* error = nil;
+  NSData* data = [NSJSONSerialization dataWithJSONObject:safe options:0 error:&error];
+  if (!data) {
+    WriteRuntimeLog([NSString stringWithFormat:@"failed to serialize Info.plist: %@", error.localizedDescription]);
+    return "{}";
+  }
+  return std::string(static_cast<const char*>(data.bytes), data.length);
+}
+
+}  // namespace nacre_bridge
