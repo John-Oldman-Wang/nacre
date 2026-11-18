@@ -1,0 +1,24 @@
+{
+  "name": "@nacrejs/user-notifications",
+  "version": "0.0.1-beta.1",
+  "description": "Nacre 的通知能力：发本地通知，收到通知和通知被点了的事件。装了才有 UNUserNotificationCenter",
+  "license": "FSL-1.1-MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/John-Oldman-Wang/nacre.git",
+    "directory": "packages/user-notifications"
+  },
+  "types": "./index.d.ts",
+  "files": [
+    "index.d.ts",
+    "nacre-ios.json",
+    "NacreUserNotifications.xcframework"
+  ],
+  "peerDependencies": {
+    "@nacrejs/ios": "0.0.1-beta.1",
+    "@nacrejs/types": "0.0.1-beta.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
