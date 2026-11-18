@@ -1,0 +1,19 @@
+{
+  "//": "一个能力包的清单。CLI 在项目的直接依赖里找带这个文件的包——找到了，就把它的 framework 加进生成的工程；没装这个包的项目，产物里就没有它。",
+
+  "capability": "photos",
+
+  "requires": {
+    "//": "它依赖核心给能力包的那两块接口（NacreExtension.h 和内置脚本的 ctx）。两边版本错开会出怪问题，所以 CLI 在生成时就核对，不等到运行时。",
+    "runtimeVersion": "0.1.0",
+
+    "//infoPlist": "项目要在 nacre.config.json 的 ios.infoPlist 里写的键。存图会弹系统的权限提示框，这一句是提示框里给用户看的话；没写就去申请，系统会直接终止 App。选图不要权限，但装了这个包就得写——上传时的检查看的是二进制里的符号，不看用没用。",
+    "infoPlist": ["NSPhotoLibraryAddUsageDescription"]
+  },
+
+  "//target": "引运行时源码时用：运行时工程里的 target 名",
+  "target": "NacrePhotos",
+
+  "//xcframework": "引预编译产物时用：这个包目录下的文件名（构建产物，不提交）",
+  "xcframework": "NacrePhotos.xcframework"
+}
