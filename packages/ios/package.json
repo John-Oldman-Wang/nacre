@@ -1,0 +1,20 @@
+{
+  "name": "@nacrejs/ios",
+  "version": "0.0.1-beta.1",
+  "description": "Nacre 的 iOS 交付物：运行时的预编译产物、工程模板、配置清单。由 @nacrejs/cli 读取",
+  "license": "FSL-1.1-MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/John-Oldman-Wang/nacre.git",
+    "directory": "packages/ios"
+  },
+  "files": [
+    "Nacre.xcframework",
+    "template",
+    "nacre-ios.json",
+    "THIRD-PARTY-NOTICES.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

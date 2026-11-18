@@ -1,0 +1,23 @@
+{
+  "name": "@nacrejs/cli",
+  "version": "0.0.1-beta.1",
+  "description": "Nacre 的命令行工具：从一个 Nacre 项目生成它的原生工程",
+  "license": "FSL-1.1-MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/John-Oldman-Wang/nacre.git",
+    "directory": "packages/cli"
+  },
+  "bin": {
+    "nacre": "./bin/nacre.js"
+  },
+  "files": [
+    "bin"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
