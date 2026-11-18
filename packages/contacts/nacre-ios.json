@@ -1,0 +1,20 @@
+{
+  "//": "一个能力包的清单。CLI 在项目的直接依赖里找带这个文件的包——找到了，就把它的 framework 加进生成的工程；没装这个包的项目，产物里就没有它。",
+
+  "capability": "contacts",
+
+  "requires": {
+    "//": "它依赖核心给能力包的那两块接口（NacreExtension.h 和内置脚本的 ctx）。两边版本错开会出怪问题，所以 CLI 在生成时就核对，不等到运行时。",
+    "runtimeVersion": "0.1.0",
+
+    "//infoPlist": "空的，而且要一直是空的：这个包只用系统的选择器（CNContactPickerViewController），它在系统自己的进程里运行，App 只拿得到用户选中的联系人，不需要通讯录权限，项目不用写 NSContactsUsageDescription。哪天这个包用上了 CNContactStore（读整个通讯录），这里就得加上那个键。",
+    "infoPlist": [],
+    "entitlements": []
+  },
+
+  "//target": "引运行时源码时用：运行时工程里的 target 名",
+  "target": "NacreContacts",
+
+  "//xcframework": "引预编译产物时用：这个包目录下的文件名（构建产物，不提交）",
+  "xcframework": "NacreContacts.xcframework"
+}
