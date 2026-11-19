@@ -25,7 +25,7 @@ type UIStatusBarStyle = 'default' | 'lightContent' | 'darkContent';
 
 interface UIViewController {
   /**
-   * 这个页面允许的方向。不写时是系统的默认值（iPhone 上是竖屏和两种横屏）。
+   * 这个页面允许的方向。不写时是系统的默认值：四个方向都有。
    * 写入时运行时通知系统重新来问；空数组和不认识的名字不生效，打一条警告。
    */
   get supportedInterfaceOrientations(): UIInterfaceOrientation[];
