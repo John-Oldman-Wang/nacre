@@ -168,6 +168,15 @@ function checkFrameworkVersions(root, version) {
         problems.push(p.name + '：' + file + ' 里写的版本是 ' + got + '，该是 ' + want +
                       '。它是旧的，重新跑 ios/scripts/build-xcframework.sh');
       }
+      // 运行时还把完整的版本号（带 beta 后缀）编进了二进制，启动日志打它。Info.plist
+      // 里只有三段数字，分不出 beta.1 和 beta.2，所以另外查二进制里有没有这个字符串
+      if (p.name === '@nacrejs/ios') {
+        const binary = path.join(p.at, file, 'ios-arm64', name + '.framework', name);
+        if (fs.existsSync(binary) && !fs.readFileSync(binary).includes(Buffer.from(version))) {
+          problems.push(p.name + '：' + file + ' 的二进制里没有版本号 ' + version +
+                        '，启动日志会打出别的版本。它是旧的，重新跑 ios/scripts/build-xcframework.sh');
+        }
+      }
     }
   }
   return problems;
@@ -187,8 +196,11 @@ export function setVersion(root, version) {
     writes.push([p.file, JSON.stringify(p.pkg, null, 2) + '\n']);
   }
   const project = path.join(root, 'ios', 'project.yml');
+  // MARKETING_VERSION 只能是三段数字（它进 Info.plist）；完整的版本号（带 beta 后缀）
+  // 另放在 NACRE_VERSION 里，编进运行时，启动日志打出来
   writes.push([project, fs.readFileSync(project, 'utf8')
-    .replace(/(MARKETING_VERSION: )"[^"]*"/g, '$1"' + core + '"')]);
+    .replace(/(MARKETING_VERSION: )"[^"]*"/g, '$1"' + core + '"')
+    .replace(/(NACRE_VERSION: )"[^"]*"/g, '$1"' + version + '"')]);
   for (const [file, text] of writes) fs.writeFileSync(file, text);
   return writes.length;
 }
