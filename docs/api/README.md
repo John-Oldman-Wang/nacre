@@ -233,6 +233,7 @@ API 分两类：
 | [`performance`](performance.md) | **`Performance`** 表示一个只用来量时间长短的时钟。 |
 | [`Intl.NumberFormat`](intl.md) | **`Intl.NumberFormat`** 表示一个按某个地区的习惯把数字写成文字的格式化对象，可以写普通的数、金额、百分比。 |
 | [`Intl.DateTimeFormat`](intl-date.md) | **`Intl.DateTimeFormat`** 表示一个按某个地区的习惯把时刻写成文字的格式化对象。 |
+| [`NSLocale`](ns-locale.md) | **`NSLocale`** 表示一个地区：一种语言，加上国家或地区，以及跟着它们走的格式。 |
 | [`crypto`](crypto.md) | **`Crypto`** 表示系统的随机数来源。 |
 | [`TextEncoder`](text-encoder.md) | **`TextEncoder`** 表示一个把字符串编码成 UTF-8 字节的编码器。 |
 | [`TextDecoder`](text-decoder.md) | **`TextDecoder`** 表示一个把 UTF-8 字节解码成字符串的解码器。 |

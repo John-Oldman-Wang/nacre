@@ -110,6 +110,7 @@ App 的状态：
 | [`screenshot`](application/screenshot-event.md) | 用户截了屏 |
 | [`significanttimechange`](application/significanttimechange-event.md) | 时间发生大的变化：过了午夜、时区变了、夏令时切换 |
 | [`contentsizecategorychange`](application/contentsizecategorychange-event.md) | 用户改了系统字体大小 |
+| [`localechange`](application/localechange-event.md) | 用户改了地区设置：国家或地区、货币、数字和日期的格式 |
 | [`protecteddataavailable`](application/protecteddataavailable-event.md) | 设备解锁，加密保护的文件可以读了 |
 | [`protecteddataunavailable`](application/protecteddataunavailable-event.md) | 设备即将锁屏，加密保护的文件将读不了 |
 | [`backgroundrefreshstatuschange`](application/backgroundrefreshstatuschange-event.md) | 用户改了后台刷新的设置 |
@@ -254,6 +255,7 @@ application.addEventListener('sceneconnect', (e) => {
 | `UIApplicationUserDidTakeScreenshotNotification` | `application.addEventListener('screenshot', …)` |
 | `UIApplicationSignificantTimeChangeNotification` | `application.addEventListener('significanttimechange', …)` |
 | `UIContentSizeCategoryDidChangeNotification` | `application.addEventListener('contentsizecategorychange', …)` |
+| `NSCurrentLocaleDidChangeNotification` | `application.addEventListener('localechange', …)` |
 | `UIApplicationProtectedDataDidBecomeAvailable` | `application.addEventListener('protecteddataavailable', …)` |
 | `UIApplicationProtectedDataWillBecomeUnavailable` | `application.addEventListener('protecteddataunavailable', …)` |
 | `UIApplicationBackgroundRefreshStatusDidChangeNotification` | `application.addEventListener('backgroundrefreshstatuschange', …)` |

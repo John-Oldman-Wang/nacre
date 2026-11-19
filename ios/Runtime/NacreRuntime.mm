@@ -842,6 +842,7 @@ nacre::NativeObjectRef CreateBlob(
     UIApplicationSignificantTimeChangeNotification : @"significanttimechange",
     UIApplicationWillTerminateNotification : @"beforeterminate",
     UIContentSizeCategoryDidChangeNotification : @"contentsizecategorychange",
+    NSCurrentLocaleDidChangeNotification : @"localechange",
     UIApplicationProtectedDataDidBecomeAvailable : @"protecteddataavailable",
     UIApplicationProtectedDataWillBecomeUnavailable : @"protecteddataunavailable",
     UIApplicationBackgroundRefreshStatusDidChangeNotification : @"backgroundrefreshstatuschange",
