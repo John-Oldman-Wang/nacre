@@ -18,7 +18,7 @@ native: UIView.frame
 - `frame`、[`bounds`](bounds.md)、[`center`](center.md) 是同一份数据：写其中一个，另外两个读出来跟着变。
 - [`transform`](transform.md) 不是单位矩阵时，读出来的是变换后图形的外接矩形，不再是视图原本的矩形。这时不要读写 `frame`，改用 `bounds` 和 `center`。
 - 用约束定位的视图（[`translatesAutoresizingMaskIntoConstraints`](translatesautoresizingmaskintoconstraints.md) 是 `false`）可以读，不要写：写入不报错，但下一次布局时系统用约束的结果覆盖它。**「写入的 `frame` 被覆盖」未在模拟器验证。** 激活约束之后要立刻读到结果，先调 [`layoutIfNeeded()`](layoutifneeded.md)。
-- 没有变化通知。视图的位置、大小、层级变化的通知还没有实现，见[还不能做的](../ui-view.md#还不能做的)。
+- 没有变化通知。
 
 ### 写错时
 

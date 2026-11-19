@@ -76,7 +76,7 @@ try {
 - 控制台输出 `TypeError: x is read-only: structs are values, assign a whole new one instead`。
 - `box` 的位置不变。
 
-不允许赋值的原因是：`box.frame` 每次读出的是视图当前位置的一份副本。即使能改这份副本，视图也不会移动。运行时让这种写法报错，而不是让它不起作用又不提示。
+`box.frame` 每次读出的是视图当前位置的一份副本，改它的字段不会移动视图。
 
 **推荐的写法**是读出旧值，用它的字段构造一个新的，再整体赋回去：
 
@@ -255,19 +255,9 @@ console.log(String(new UIEdgeInsets(8, 16, 8, 16)));
 
 各个结构体自己的对照见它的页面。
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 三维变换（透视、绕 x 或 y 轴翻转） | `CATransform3D`、`CALayer.transform` |
-| 用向量、范围、偏移这几种结构体 | `CGVector`、`NSRange`、`UIOffset` |
-| 矩形的几何运算（求交集、判断包含、向内缩进） | `CGRectIntersection`、`CGRectContainsPoint`、`CGRectInset` 等 C 函数。可以在 JS 里按字段自己计算 |
-| 用预定义的零值常量 | `CGPointZero`、`CGRectZero`、`UIEdgeInsetsZero`。用 `new CGPoint()`、`new CGRect()` 代替，没给的参数是 0 |
-
 ## 参见
 
 - [单位](units.md)：pt 是什么、弧度和角度。
 - 各结构体的类页：[`CGPoint`](cg-point.md)、[`CGSize`](cg-size.md)、[`CGRect`](cg-rect.md)、[`UIEdgeInsets`](ui-edge-insets.md)、[`NSDirectionalEdgeInsets`](ns-directional-edge-insets.md)、[`CGAffineTransform`](cg-affine-transform.md)、[`CAFrameRateRange`](ca-frame-rate-range.md)。
 - [`UIView`](ui-view.md)：`frame`、`bounds`、`center`、`transform` 的含义，以及变换对 `frame` 的影响。
 - [原生类](native-classes.md)：数、字符串、对象这几类参数的转换规则，以及怎么开启类型检查。
-- [实现说明](../internals/structs.md)：字段为什么做成只读、变换为什么在 JS 里计算。

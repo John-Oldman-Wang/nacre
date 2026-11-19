@@ -57,12 +57,6 @@ for (const request of requests) {
 
 `UNNotificationTrigger`。`[trigger isKindOfClass:UNTimeIntervalNotificationTrigger.class]` 写成 `trigger instanceof UNTimeIntervalNotificationTrigger`。
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 到了某个地方时送达 | `UNLocationNotificationTrigger` |
-
 ## 参见
 
 - [`UNNotificationRequest`](un-notification-request.md)：触发器放在请求里

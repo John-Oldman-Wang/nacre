@@ -59,15 +59,6 @@ console.log(request.content.title);
 | `content.sound = UNNotificationSound.defaultSound` | `content.sound = UNNotificationSound.defaultSound` |
 | `content.userInfo = @{ @"orderId": @"A1024" }` | `content.userInfo = { orderId: 'A1024' }` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 通知里带图片、音频、视频 | `UNNotificationAttachment`、内容的 `attachments` |
-| 通知上的自定义按钮 | 内容的 `categoryIdentifier`，以及登记分类 |
-| 时效性通知、通知的排序权重 | 内容的 `interruptionLevel`、`relevanceScore` |
-| 标题和正文在送达时按语言取 | `+[NSString localizedUserNotificationStringForKey:arguments:]` |
-
 ## 参见
 
 - [`UNNotificationRequest`](un-notification-request.md)：用内容建请求

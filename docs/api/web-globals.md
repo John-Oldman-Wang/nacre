@@ -129,16 +129,6 @@ console.log(settings.recent.length, copy.recent.length, copy.savedAt instanceof 
 
 两个类的差别见 [`TextEncoder`](text-encoder.md#和-web-的差别) 和 [`TextDecoder`](text-decoder.md#和-web-的差别)。
 
-## 还不能做的
-
-| 想做的事 | 对应的 Web 能力 | 状态 |
-| --- | --- | --- |
-| 解码 GBK、UTF-16 等别的编码的文字 | `new TextDecoder('gbk')` | 未实现 |
-| 拷贝时把 `ArrayBuffer` 转移过去而不是复制 | `structuredClone()` 的 `transfer` | 未实现 |
-| 深拷贝 `Blob` | `structuredClone(blob)` | 未实现 |
-| 边读数据流边解码 | `TextDecoderStream` | 未实现。用 `decode()` 的 `stream` 选项逐段解码 |
-| 判断异常是不是 `DOMException` | `DOMException` 类 | 未实现。用 `err.name` 判断 |
-
 ## 参见
 
 - [在文字和字节之间转换](../guides/text-and-bytes.md)：算字节数、分段解码、Base64、深拷贝的写法

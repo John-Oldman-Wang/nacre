@@ -47,12 +47,6 @@ alarm.notificationOccurred('error');
 | `[UINotificationFeedbackGenerator feedbackGeneratorForView:view]` | `UINotificationFeedbackGenerator.feedbackGeneratorForView(view)` |
 | `[generator notificationOccurred:UINotificationFeedbackTypeSuccess]` | `generator.notificationOccurred('success')` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 指明震动发生在视图里的哪个位置 | `notificationOccurred:atLocation:` |
-
 ## 参见
 
 - [让手机震一下](../guides/haptics.md)

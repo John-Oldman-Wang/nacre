@@ -226,7 +226,7 @@ status: partial
 
 `UIView` 自己派发的事件只有这一个。触摸不产生 `UIView` 的事件，要响应触摸，用[手势识别器](ui-gesture-recognizer.md)或 [`UIControl`](ui-control.md) 的子类。
 
-除了 `traitchange`，本页的属性都没有变化通知：位置、大小、父视图变了，没有事件。原因是布局和层级变化的通知还没有实现，见[还不能做的](#还不能做的)。
+除了 `traitchange`，本页的属性都没有变化通知：位置、大小、父视图变了，没有事件。
 
 普通的 `UIView` 上可以监听和派发自定义名字的事件，用法和普通的 `EventTarget` 一样。有自己一套事件的子类（比如 `UIControl`）也一样：不是系统会派发的名字，就当自定义事件。
 
@@ -332,7 +332,7 @@ console.log(lone.subviews.length);
 - **它不会自动缩进子视图。** 用到它的只有两处：对齐 `layoutMarginsGuide` 的约束，以及开了 `isLayoutMarginsRelativeArrangement` 的 [`UIStackView`](ui-stack-view.md)。用 `frame` 定位的子视图不受影响。
 - **默认值不是 0。** 新建的视图四边各 8 pt。
 - **视图伸到[安全区](#安全区)外面时，系统会把安全区加到内边距上。** 写 16 pt、上方的安全区是 68 pt，读出来的上边距是 84 pt。要写多少就是多少，把 `insetsLayoutMarginsFromSafeArea` 设成 `false`。
-- **页面的根视图有系统规定的最小边距。** 给 `page.view` 写的内边距小于最小值时，读出来是最小值。**未在模拟器验证。** 这个限制现在关不掉，见[还不能做的](#还不能做的)。
+- **页面的根视图有系统规定的最小边距。** 给 `page.view` 写的内边距小于最小值时，读出来是最小值。**未在模拟器验证。**
 
 内边距有两个属性，是同一份数据的两种读法，写其中一个，另一个跟着变：
 
@@ -507,22 +507,6 @@ application.addEventListener('sceneconnect', (e) => {
 - 多段的方法名，第一段是 JS 的方法名，其余各段是 `options` 对象的键。
 - ObjC 的四个 `animateWithDuration:…` 在 JS 里是同一个方法。`completion:` 这个参数换成了返回的 Promise。
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 | 状态 |
-| --- | --- | --- |
-| 视图的位置或大小变化时收到通知 | 覆写 `layoutSubviews` | 未实现。原生里靠继承来做，而[原生类不能继承](native-classes.md)。用约束定位的视图不需要这个通知 |
-| 安全区变化时收到通知 | 覆写 `safeAreaInsetsDidChange` | 未实现，原因同上。对齐 `safeAreaLayoutGuide` 的约束会自动重算 |
-| 视图被加入、移除时收到通知 | `didAddSubview:`、`willMoveToWindow:` 等 | 未实现，原因同上 |
-| 自己绘制视图的内容 | `drawRect:` | 未实现，原因同上。画线和形状可以用 [`CAShapeLayer`](ca-layer.md) |
-| 直接接收触摸 | `touchesBegan:withEvent:` 等 | 未实现，原因同上。响应触摸用[手势识别器](ui-gesture-recognizer.md)或 [`UIControl`](ui-control.md) |
-| 关键帧动画、两个视图之间的转场动画 | `+[UIView animateKeyframesWithDuration:…]`、`+[UIView transitionWithView:…]` | 未实现。关键帧动画可以用 [Core Animation](ca-animation.md) |
-| 中途暂停、倒放、拖动进度的动画 | `UIViewPropertyAnimator` | 未实现 |
-| 三维变换 | `transform3D`、`CATransform3D` | 未实现 |
-| 内边距变化时收到通知 | 覆写 `layoutMarginsDidChange` | 未实现，原因同上 |
-| 去掉页面根视图的最小内边距 | `UIViewController` 的 `viewRespectsSystemMinimumLayoutMargins`、`systemMinimumLayoutMargins` | 未实现 |
-| 用户长按时显示放大的版本 | `UILargeContentViewerInteraction` | 未实现。[`showsLargeContentViewer`](ui-view/showslargecontentviewer.md) 这一组属性能读写，但这个交互还没有接入；只设属性时长按会不会显示放大的版本，**未在模拟器验证** |
-
 ## 参见
 
 - [在屏幕上摆放视图](../guides/views.md)、[让视图动起来](../guides/view-animations.md)、[用约束排版](../guides/auto-layout.md)
@@ -539,4 +523,3 @@ application.addEventListener('sceneconnect', (e) => {
 - [`UIControl`](ui-control.md) 和 [`UIButton`](ui-button.md)：自带点按事件的视图
 - [`UIWindowScene`](ui-window-scene.md)：场景被销毁后界面怎样被回收
 - [原生类](native-classes.md)：为什么不能继承，以及几种「没有原生对象」的报错
-- [实现原理：桥接](../internals/bridge.md)

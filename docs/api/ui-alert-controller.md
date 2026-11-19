@@ -139,15 +139,6 @@ application.addEventListener('sceneconnect', (e) => {
 | `action.enabled = NO` | `action.isEnabled = false` |
 | `[self presentViewController:alert animated:YES completion:nil]` | `page.presentViewController(alert, { animated: true })` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 在 iPad 上弹底部菜单（要指定它从哪里弹出来） | `popoverPresentationController`。运行时只支持 iPhone |
-| 点了按钮不关弹窗 | 系统不提供 |
-| 改弹窗的颜色、字体，往里放自己的视图 | 系统没有公开接口。要自定义外观，用一个自己的页面[模态弹出](ui-view-controller/presentviewcontroller.md) |
-| 在弹窗上监听 `dismiss` 一组关闭事件 | `UIAdaptivePresentationControllerDelegate`。系统不允许给提示框设置这个委托 |
-
 ## 参见
 
 - [弹出提示框和菜单](../guides/alerts.md)：提示一句话、等用户选、输入文字、禁用按钮
@@ -155,5 +146,4 @@ application.addEventListener('sceneconnect', (e) => {
 - [`UIViewController`](ui-view-controller.md)：弹窗的父类。弹出、关闭、谁弹出了谁
 - [`UITextField`](ui-text-field.md)：弹窗里输入框的类型
 - [`UIActivityViewController`](ui-activity-view-controller.md)：系统分享面板，同一组里的另一个系统页面
-- [枚举](enums.md)：枚举为什么是字符串，写错了会怎样
-- [实现原理：系统弹窗和分享面板](../internals/alerts.md)
+- [枚举](enums.md)：枚举的字符串取值，写错了会怎样

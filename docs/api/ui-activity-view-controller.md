@@ -149,17 +149,6 @@ application.addEventListener('sceneconnect', (e) => {
 | `sheet.completionWithItemsHandler = ^(UIActivityType type, BOOL completed, NSArray *items, NSError *error) { … }` | `sheet.addEventListener('complete', (e) => { … })`<br>回调的四个参数里，`type`、`completed`、`error` 是事件对象的 `activityType`、`completed`、`activityError` |
 | `[self presentViewController:sheet animated:YES completion:nil]` | `page.presentViewController(sheet, { animated: true })` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 往面板里加 App 自己的动作 | `UIActivity` 的子类、`applicationActivities` |
-| 排除第三方 App 的分享扩展 | 往 `excludedActivityTypes` 里写扩展的标识符。现在只收表里的名字 |
-| 分享文件、视频、别的类型的数据 | 数组里放 `NSURL`（文件地址）、`NSData`、`NSItemProvider`。现在只收字符串、`URL`、`UIImage` |
-| 按去处给不同的内容，定制面板顶上的预览 | `UIActivityItemSource`、`LPLinkMetadata` |
-| 拿到去处改过之后送回来的数据 | 完成回调的 `returnedItems` |
-| 在 iPad 上弹出（要指定它从哪里弹出来） | `popoverPresentationController`。运行时只支持 iPhone |
-
 ## 参见
 
 - [分享内容](../guides/share.md)：分享图片、排除动作、处理结果
@@ -168,4 +157,3 @@ application.addEventListener('sceneconnect', (e) => {
 - [`UIImage`](ui-image.md)：图片的类型
 - [`UIAlertController`](ui-alert-controller.md)：系统弹窗，同一组里的另一个系统页面
 - [剪贴板](ui-pasteboard.md)：只想把文字放进剪贴板时不需要分享面板
-- [实现原理：系统弹窗和分享面板](../internals/alerts.md)

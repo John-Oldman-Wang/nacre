@@ -286,8 +286,6 @@ scroller.alwaysBounceVertical = true;
 
 **效果**：内容不足一屏时，上下也能拉一小段，松手弹回。**未在模拟器验证。**
 
-系统自带的下拉刷新控件目前[还不能用](../api/ui-scroll-view.md#还不能做的)。
-
 ## 隐藏滚动指示条
 
 ```js

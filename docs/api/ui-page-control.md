@@ -153,12 +153,6 @@ application.addEventListener('sceneconnect', (e) => {
 
 和原生不一样的一处：原生把负的 `numberOfPages` 当成 0；这里抛 `TypeError`。
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 当前页的点上显示一条进度，走完自动翻到下一页 | `progress`（`UIPageControlProgress`、`UIPageControlTimerProgress`） |
-
 ## 参见
 
 - [做分段选择和页码](../guides/segmented-and-page-controls.md)：和翻页内容接起来、换颜色、换图标、竖着排
@@ -166,4 +160,3 @@ application.addEventListener('sceneconnect', (e) => {
 - [`UIControl`](ui-control.md)：全部控件事件
 - [`UIImage`](ui-image.md)：取 SF Symbols 和自己的图
 - [颜色](ui-color.md)：颜色字符串的写法
-- [实现原理](../internals/value-controls.md)：默认值和边界行为是怎么量的

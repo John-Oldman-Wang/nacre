@@ -68,12 +68,6 @@ card.addGestureRecognizer(twist);
 | `rotation.rotation` | 事件对象的 `rotation`，或 `twist.rotation` |
 | `rotation.velocity` | 事件对象的 `velocity`，或 `twist.velocity` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 和捏合识别器同时生效，边缩放边旋转 | `UIGestureRecognizerDelegate`，见 [`UIGestureRecognizer`](ui-gesture-recognizer.md#还不能做的) |
-
 ## 参见
 
 - [响应手势](../guides/gestures.md#两指旋转)

@@ -15,17 +15,12 @@ API 分两类：
 
 表里的大部分 API 每个项目都有。定位、拍照、面容 ID 等几项要单独安装对应的包才有，它们在「能力包（要单独安装）」那一组里。哪些要装、装了之后还要做什么，见[核心和能力包](capabilities.md)。App 自己的原生代码和第三方原生 SDK 的能力不在这里：它们要先包成原生模块，再从 [`application.nativeModules`](native-modules.md) 调，做法见[写自己的原生模块](../guides/native-modules.md)。
 
-一个类已经列出、但缺某项能力时，看那一页末尾的「还不能做的」。整体还缺什么、计划怎么补，见[项目说明的功能清单](../project.md#7-还要做的)。
-
 ## 怎么读这些文档
 
 - 每个类有一个**类页**：它是什么、继承自谁，以及全部属性、方法、事件的清单，每项一句话。点进去是这个成员自己的页面：值、参数、返回值、会抛什么、例子。
 - 怎么用这些类做成一件事，看[指南](../guides/README.md)。
 - 每段代码后面的「效果」或「结果」写的是运行后看到什么。标着「**未在模拟器验证**」的是还没有实际运行确认过的；没标的都验证过，或者直接来自代码。
 - 长度和坐标的单位都是点（pt），见[单位](units.md)。
-- 文档只讲怎么用。实现方式、设计上的取舍和实测数据在[实现原理](../internals/README.md)。
-
-文档的写法规范见[文档写法](../writing-guide.md)。
 
 ## 参考
 
@@ -302,19 +297,7 @@ API 分两类：
 
 `globalThis` 上有 65 个自有属性，且**全部不可枚举**（ECMAScript 的规定）。所以 `Object.keys(globalThis)` 返回空数组不代表环境是空的，要用 `Object.getOwnPropertyNames` 才看得到。
 
-**有**：完整的 ES 标准库，而且版本相当新——`Iterator`（迭代器辅助方法）、`DisposableStack` / `AsyncDisposableStack` / `SuppressedError`（显式资源管理）、`Float16Array`、`Atomics`、`SharedArrayBuffer`、`WeakRef`、`FinalizationRegistry` 都在。`Promise` 和微任务队列正常工作。`eval` 和 `new Function` 在 jitless 下走解释器，照常可用。
+**有**：完整的 ES 标准库，而且版本相当新——`Iterator`（迭代器辅助方法）、`DisposableStack` / `AsyncDisposableStack` / `SuppressedError`（显式资源管理）、`Float16Array`、`Atomics`、`SharedArrayBuffer`、`WeakRef`、`FinalizationRegistry` 都在。`Promise` 和微任务队列正常工作。`eval` 和 `new Function` 照常可用。
 
-运行时装入的**非标准全局**：`console`、`EventTarget` / `Event`（及 `ErrorEvent`、`PromiseRejectionEvent`）、`application`，以及上面那张表里的原生类和结构体类。原生类往后会改成按需懒加载，不再一次性装入。
+运行时装入的**非标准全局**：`console`、`EventTarget` / `Event`（及 `ErrorEvent`、`PromiseRejectionEvent`）、`application`，以及上面列出的原生类和结构体类。
 
-**没有**（都要靠后续的能力暴露来补）：
-
-| 缺什么 | 原因 |
-| --- | --- |
-| `crypto.subtle`、`DOMException`、`FormData`、`ReadableStream` | 不是 ECMAScript 的一部分，由宿主提供；V8 只实现语言本身。这几个还没做（`TextEncoder` / `TextDecoder`、`atob` / `btoa`、`structuredClone` 已经补上，见[文字、字节和深拷贝](web-globals.md)） |
-| `process`、`require`、`module`、`Buffer` | Node 的宿主 API |
-| `Intl` 里 `NumberFormat` 和 `DateTimeFormat` 之外的成员，以及字符串的 `localeCompare` / `toLocaleUpperCase` | 预编译包关掉了 i18n 支持，ICU 被排除。数字和日期已经用系统的格式化接口补上（见 [`Intl`](intl.md)），其余还没做：`'ä'.localeCompare('z')` 按编码值比较 |
-| `WebAssembly` | lite mode / jitless 下不能编译 wasm |
-
----
-
-← 返回[项目说明](../project.md)

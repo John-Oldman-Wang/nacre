@@ -223,24 +223,6 @@ application.addEventListener('sceneconnect', (e) => {
 - `NSNotFound` 换成了 -1。
 - 标识在 ObjC 里可以是任何可哈希的对象，JS 里是字符串或整数。
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 网格、横向滚动的分区、自定义的排法 | `NSCollectionLayoutSection` 一组、`UICollectionViewFlowLayout`。现在只有列表布局 |
-| 分区的头和尾用单独的视图 | 补充视图（supplementary view）、`headerMode = 'supplementary'`。可以用 `headerMode = 'firstItemInSection'` 把第一项当头 |
-| 行右侧的箭头、对勾、删除按钮 | `UICollectionViewListCell.accessories` |
-| 左滑出现操作按钮 | `trailingSwipeActionsConfigurationProvider` |
-| 改内容配置里文字的字体和颜色、图片的大小 | `UIListContentConfiguration.textProperties` 等。可以在 `contentView` 里放自己的视图 |
-| 改单元格的背景、选中时的样子 | `backgroundConfiguration`、`configurationUpdateHandler`、`UICellConfigurationState` |
-| 拖动排序 | `reorderingHandlers` |
-| 长按出菜单 | `collectionView:contextMenuConfigurationForItemsAtIndexPaths:point:` |
-| 下拉刷新 | `UIRefreshControl` |
-| 能展开和收起的分组 | `NSDiffableDataSourceSectionSnapshot` |
-| 按下标给数据（不用快照） | `UICollectionViewDataSource` 协议 |
-| 阻止某一项被选中 | `collectionView:shouldSelectItemAtIndexPath:` |
-| 标识用字符串和整数以外的值 | 任何可哈希的对象。不支持 |
-
 ## 参见
 
 - [做一个列表](../guides/lists.md)：增删改行、分区、点选、滚动、加载更多、自己的视图

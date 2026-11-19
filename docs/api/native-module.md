@@ -125,4 +125,3 @@ example.callAsync('echoLater', 'hello', 500).then((value) => {
 - [`application.nativeModules`](native-modules.md)：按名字拿到模块
 - [从 JS 调原生模块](../guides/call-native-modules.md)：处理错误、传二进制、听事件、给模块包一层函数
 - [运行时怎么工作](how-it-works.md)：JS 和界面在同一个线程上执行，同步方法执行期间界面在等
-- [实现原理：原生模块](../internals/native-modules.md)：值是怎么传的、验证到了什么

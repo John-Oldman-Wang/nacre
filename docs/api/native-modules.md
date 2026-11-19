@@ -73,17 +73,6 @@ example.call('emit', 'tick', { n: 1 });
 
 原生那一侧用运行时公开的头 `NacreModule.h` 登记模块，没有对应的系统 API。原生那一侧的写法见[写自己的原生模块](../guides/native-modules.md)。
 
-## 还不能做的
-
-| 想做的事 | 状态 |
-| --- | --- |
-| 把 JS 的函数传给原生，让原生之后回调 | 不支持。函数不能作参数。用事件代替：原生发事件，JS 监听 |
-| 把原生对象（视图、图片）传给模块，或者让模块交回一个原生对象 | 不支持。模块只能收发[能传的那几种值](native-module.md#能传什么值) |
-| 模块提供一个可以放进界面的视图 | 不支持 |
-| 让模块收到 App 级的系统回调（推送令牌、从别的 App 跳转进来的 URL） | 未实现 |
-| 把 App 自己目录里的原生源码直接编进 App，不做成包 | 未实现。现在模块要做成一个带预编译 framework 的 npm 包 |
-| 用 CocoaPods 或 Swift Package Manager 引第三方 SDK | 不支持。第三方 SDK 要以预编译的 `.xcframework` 随包带上 |
-
 ## 参见
 
 - [`NativeModule`](native-module.md)：一个模块，调方法、听事件、能传什么值、原生报的错
@@ -91,4 +80,3 @@ example.call('emit', 'tick', { n: 1 });
 - [写自己的原生模块](../guides/native-modules.md)：原生那一侧怎么写、怎么登记、怎么做成包
 - [核心和能力包](capabilities.md)：包是怎么装进项目的
 - [`application`](application.md)：`nativeModules` 所在的对象
-- [实现原理：原生模块](../internals/native-modules.md)：为什么分两层、值是怎么传的、验证到了什么

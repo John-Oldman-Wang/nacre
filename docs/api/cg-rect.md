@@ -32,12 +32,6 @@ native: CGRect
 
 写入接受矩形的地方时，普通对象只认 `x`、`y`、`width`、`height` 四个直接字段。`{ origin, size }` 这种形状不被接受，按「少字段」抛错。
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 矩形的几何运算（求交集、判断包含、向内缩进） | `CGRectIntersection`、`CGRectContainsPoint`、`CGRectInset` 等 C 函数。可以在 JS 里按字段自己计算 |
-
 ## 示例
 
 ```js

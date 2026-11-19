@@ -334,7 +334,7 @@ secret.returnKeyType = 'done';
 | `textFieldShouldClear:` 返回 `NO` | `beforeclear` 事件里调 `event.preventDefault()` |
 | `textFieldShouldReturn:` 返回 `NO` | `beforereturn` 事件里调 `event.preventDefault()` |
 
-`UITextRange` 和 `UITextPosition` 没有提供：ObjC 里用它们表示选区的两端，JS 里选区直接是从内容开头数的 `NSRange`。
+ObjC 里用 `UITextRange` 和 `UITextPosition` 表示选区的两端，JS 里选区是从内容开头数的 `NSRange`，读写 `selectedRange`。
 
 ### 与浏览器 `<input>` 的对照
 
@@ -359,16 +359,6 @@ secret.returnKeyType = 'done';
 | `maxlength`、`pattern`、`required`、`readonly` | 没有 | 在 `beforeinput` 或 `input` 的回调里自己检查 |
 | 表单的提交 | 没有 | 按回车派发 `return`，做什么由回调决定 |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 得知输入法正在组字的那一段（拼音还没选字时） | `markedTextRange` |
-| 按屏幕上的位置找到文字的位置，或者反过来 | `closestPositionToPoint:`、`caretRectForPosition:` 等 `UITextInput` 的成员 |
-| 改文字到边框的内边距 | 覆写 `textRectForBounds:`。现在的做法见[自己画边框和底色](../guides/text-fields.md#自己画边框和底色) |
-| 得知键盘弹出、收起的时刻和键盘的高度 | `UIKeyboardWillShowNotification` 等通知。避开键盘用 `keyboardLayoutGuide`，不需要这些 |
-| 设置密码规则 | `passwordRules` |
-
 ## 参见
 
 - [做一个输入框](../guides/text-fields.md)：读内容、收起键盘、避开键盘、限制输入、表单页
@@ -379,5 +369,3 @@ secret.returnKeyType = 'done';
 - [`UITextView`](ui-text-view.md)：多行输入
 - [`UISearchBar`](ui-search-bar.md)：搜索框，里面是一个输入框
 - [富文本](ns-attributed-string.md)：`attributedText` 和 `attributedPlaceholder` 的类型
-- [实现原理：输入框](../internals/text-input.md)
-- [实现原理：事件](../internals/events.md)：点输入框时聚焦时机的实测

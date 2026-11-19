@@ -37,12 +37,6 @@ console.log(list.collectionViewLayout === layout);
 | --- | --- |
 | `[UICollectionViewCompositionalLayout layoutWithListConfiguration:config]` | `UICollectionViewCompositionalLayout.layoutWithListConfiguration(config)` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 网格、横向滚动的分区、每个分区不同的排法 | `initWithSection:`、`initWithSectionProvider:`、`NSCollectionLayoutSection` 一组 |
-
 ## 参见
 
 - [`UICollectionLayoutListConfiguration`](ui-collection-layout-list-configuration.md)：列表的外观

@@ -10,8 +10,6 @@ status: partial
 
 进度条不会自己走。它显示的是 App 写进 `progress` 的值，App 每次得知任务前进了一步，就写一次新的值。所以它适合能数出步骤的任务：一共 10 张图片，上传完第 3 张，进度是 0.3。不知道完成了多少、只知道还在进行时，用 [`UIActivityIndicatorView`](ui-activity-indicator-view.md)。
 
-> **注意**：[`fetch()`](fetch.md) 目前得不到单个请求下载或上传了多少，见 [fetch 还不能做的](fetch.md#还不能做的)。一个请求内部的进度现在显示不出来，只能按「完成了几个请求」来算。
-
 进度条是[视图](ui-view.md)：位置、宽度、隐藏、透明度来自 `UIView`。它不是控件：用户不能拖它，它也不派发事件。
 
 本页和成员页里的数值和状态变化（高度、默认值、取值范围）是在模拟器（iPhone Air，iOS 27.2）上量的。画面上的样子（颜色、动画、图片怎么铺）**未在模拟器验证**。
@@ -151,13 +149,6 @@ application.addEventListener('sceneconnect', (e) => {
 
 `initWithProgressViewStyle:` 创建的进度条 `frame` 宽 160 pt，`new UIProgressView()` 创建的宽 0。两种写法在给了宽度之后没有区别。
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 让进度条自动跟随一个任务的进度对象 | `observedProgress`（`NSProgress`） |
-| 显示一个网络请求下载或上传了多少 | `NSURLSessionTask` 的进度，见 [fetch 还不能做的](fetch.md#还不能做的) |
-
 ## 参见
 
 - [显示加载和进度](../guides/loading-and-progress.md)：换算进度、显示百分比、改粗细、完成后隐藏
@@ -167,4 +158,3 @@ application.addEventListener('sceneconnect', (e) => {
 - [颜色](ui-color.md)
 - [`UIImage`](ui-image.md)：`progressImage` 和 `trackImage` 的类型
 - [单位](units.md)
-- [实现原理：转圈和进度条](../internals/indicators.md)

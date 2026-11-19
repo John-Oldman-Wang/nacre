@@ -88,12 +88,6 @@ console.log(params.getAll('a'), params.size);
 
 和 Web 相同。
 
-## 还不能做的
-
-| 想做的事 | 状态 |
-| --- | --- |
-| 用 `FormData` 组织表单数据 | 没有 `FormData`。用 `URLSearchParams` 组织键值对 |
-
 ## 参见
 
 - [拼接和解析网址](../guides/urls.md)：改查询参数的几种写法

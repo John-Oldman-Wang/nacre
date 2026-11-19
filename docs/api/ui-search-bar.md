@@ -235,21 +235,6 @@ iOS 用一个委托对象（`UISearchBarDelegate`）接收通知，JS 里换成�
 | `searchBarResultsListButtonClicked:` | `resultslistclick` |
 | `searchBar:selectedScopeButtonIndexDidChange:` | `scopechange`（下标从 `bar.selectedScopeButtonIndex` 读） |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 阻止搜索框开始或结束输入 | `searchBarShouldBeginEditing:`、`searchBarShouldEndEditing:`。它们要求回调同步返回一个布尔值 |
-| 在文字改变之前拦截或改写输入 | `searchBar:shouldChangeTextInRanges:replacementText:`，原因同上。可以在 `input` 里事后改 `text` |
-| 把搜索框放进导航条，让它随页面滚动收起 | `UISearchController`、`UINavigationItem.searchController` |
-| 在输入框里放搜索标记，在下面显示搜索建议 | `UISearchTextField` 的 `tokens`、`searchSuggestions`。`searchTextField` 按普通的 `UITextField` 提供 |
-| 换搜索框的背景图、输入框的背景图、各个图标 | `backgroundImage`、`setSearchFieldBackgroundImage:forState:`、`setImage:forSearchBarIcon:state:` 等 |
-| 定制范围按钮的背景、分隔线和文字样式 | `setScopeBarButtonBackgroundImage:forState:` 一组 |
-| 微调输入框、文字和图标的位置 | `searchFieldBackgroundPositionAdjustment`、`searchTextPositionAdjustment`、`setPositionAdjustment:forSearchBarIcon:` |
-| 设置智能引号、智能破折号、行内预测、密码规则等其余的键盘设置 | `smartQuotesType`、`smartDashesType`、`smartInsertDeleteType`、`inlinePredictionType`、`passwordRules` 等。`UITextField` 和 `UITextView` 上有其中的几个 |
-| 定制 iPad 键盘上方的快捷栏 | `inputAssistantItem` |
-| 告诉系统搜索框在页面的顶部还是别处 | `barPosition`、`positionForBar:` |
-
 ## 参见
 
 - [做一个搜索框](../guides/search.md)：边输入边筛选、取消按钮、范围按钮、键盘
@@ -257,4 +242,3 @@ iOS 用一个委托对象（`UISearchBarDelegate`）接收通知，JS 里换成�
 - [`UITextView`](ui-text-view.md)：多行输入，有同一组九个键盘设置
 - [`UIToolbar`](ui-toolbar.md)：可以放到搜索框的键盘上方
 - [`UIView`](ui-view.md)：搜索框的父类，位置、大小、隐藏
-- [实现原理：工具条和搜索框](../internals/bars.md)

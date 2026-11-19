@@ -64,14 +64,6 @@ console.log(token);
 | 出错时抛出的对象 | `DOMException` | `Error`，`name` 相同（`QuotaExceededError`、`TypeMismatchError`）。按 `err.name` 判断的代码照常工作，按 `instanceof DOMException` 判断的不行，这里没有 `DOMException` 这个类 |
 | `crypto.subtle` | 有 | 没有 |
 
-## 还不能做的
-
-| 想做的事 | 对应的 Web 能力 | 状态 |
-| --- | --- | --- |
-| 计算 SHA-256 等摘要 | `crypto.subtle.digest()` | 未实现 |
-| 加密、解密、签名、验签 | `crypto.subtle.encrypt()`、`sign()` 等 | 未实现 |
-| 生成和导入密钥 | `crypto.subtle.generateKey()`、`importKey()` | 未实现 |
-
 ## 参见
 
 - [生成随机数和唯一编号](../guides/random.md)：令牌、UUID、随机整数、大量随机字节

@@ -45,7 +45,7 @@ view.backgroundColor = '#5856D6';
 TypeError: Illegal constructor: UIColor is created by the runtime, not by new
 ```
 
-**未在模拟器验证。** `UIColor` 对象只能从下面的静态属性取得。为什么不能构造和继承见[原生类](native-classes.md)。
+**未在模拟器验证。** `UIColor` 对象只能从下面的静态属性取得。
 
 ## 静态属性
 
@@ -204,9 +204,9 @@ console.log(view.backgroundColor);
 - 这里不支持的 CSS 写法：`'hsl(0 100% 50%)'`、`'transparent'`。
 - [`CAGradientLayer`](ca-gradient-layer.md) 的 [`colors`](ca-gradient-layer/colors.md) 是颜色数组。其中任何一项不合法，整个数组都不写入。
 
-### 一处已知问题：`asset()` 的名字不存在时会抛
+### `asset()` 的名字不存在时会抛
 
-`asset(名字)` 的名字在 Asset Catalog 里不存在，也属于颜色写错，按规则应当只输出警告、保持原来的颜色。**当前版本在这种情况下会抛 `TypeError: cannot build a color from this specification`，这是已知问题。** 修好之前，用 `asset()` 时要自己确认名字存在。这一条来自运行时的代码，**未在模拟器验证**。
+`asset(名字)` 的名字在 Asset Catalog 里不存在时，不是输出警告，而是**抛 `TypeError: cannot build a color from this specification`**。用 `asset()` 时要自己确认名字存在。**未在模拟器验证**。
 
 ### 编辑器能不能提前发现
 
@@ -399,21 +399,6 @@ Swift 里的名字没有 `Color` 后缀（`UIColor.systemBackground`），和这
 
 其余同名的固定色（`black`、`white`、`gray`、`red`、`blue`、`cyan`、`yellow`、`magenta`、`purple`）色值相同。
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 | 状态 |
-| --- | --- | --- |
-| 用色相、饱和度、亮度写颜色 | `colorWithHue:saturation:brightness:alpha:` | 未实现 |
-| 写广色域（Display P3）颜色 | `colorWithDisplayP3Red:green:blue:alpha:` | 未实现 |
-| 给颜色名加透明度，比如半透明的 `systemBlue` | `colorWithAlphaComponent:` | 未实现 |
-| 读出一个颜色的红、绿、蓝、不透明度 | `getRed:green:blue:alpha:` | 未实现 |
-| 按色值比较两个颜色 | `isEqual:` | 未实现 |
-| 在写入之前检查一个字符串是不是合法的颜色 | — | 未实现。只能写入后看控制台的警告 |
-| 用更多系统颜色：`systemGray2`–`systemGray6`、`systemFill` 一组、`systemGroupedBackground` 一组 | 对应的 `UIColor` 类级属性 | 未实现 |
-| 用图片平铺作为颜色 | `colorWithPatternImage:` | 未实现 |
-| 让图层上的颜色自动跟随深浅色模式 | 原生也不自动跟随 | 做法是在 `traitchange` 事件里重新写入，见指南[适配深色模式](../guides/dark-mode.md) |
-| 在命令行工具生成的工程里添加 Asset Catalog 颜色 | Asset Catalog 的 Color Set | 未实现。生成的工程每次重建 |
-
 ## 参见
 
 - [设置颜色](../guides/colors.md)：固定色、半透明、语义色、`light-dark()`、Asset Catalog、读出和比较
@@ -423,4 +408,3 @@ Swift 里的名字没有 `Color` 后缀（`UIColor.systemBackground`），和这
 - [`CALayer`](ca-layer.md)：边框、阴影的颜色
 - [枚举](enums.md)：枚举写错时类型检查会报错；枚举属性写错时运行时的处理和颜色相同，输出警告、保持原值
 - [单位](units.md)
-- [实现原理：颜色](../internals/ui-color.md)

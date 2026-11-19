@@ -50,12 +50,6 @@ center.addEventListener('notificationclick', (event) => {
 | `[response.actionIdentifier isEqualToString:UNNotificationDefaultActionIdentifier]` | `response.actionIdentifier === 'default'` |
 | `[response.actionIdentifier isEqualToString:UNNotificationDismissActionIdentifier]` | `response.actionIdentifier === 'dismiss'` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 通知上的自定义按钮、在通知上直接回复 | `UNNotificationAction`、`UNTextInputNotificationAction`、`UNTextInputNotificationResponse` |
-
 ## 参见
 
 - [`notificationclick`](un-user-notification-center/notificationclick-event.md)：动作从这个事件来

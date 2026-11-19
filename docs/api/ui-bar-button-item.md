@@ -126,15 +126,6 @@ application.addEventListener('sceneconnect', (e) => {
 | `item.target` / `item.action` | 不开放。用 `addEventListener()` |
 | `UIBarButtonItemStyleBordered` | 不开放。Apple 已废弃 |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 点按钮弹出菜单 | `UIMenu`、`UIAction`、`primaryAction`、`menu` |
-| 调整图标的位置、横屏时换一张图 | `imageInsets`、`landscapeImagePhone` |
-| 统一定制所有按钮的外观 | `UIAppearance`、`setBackgroundImage:forState:barMetrics:` |
-| 给按钮单独设颜色 | `tintColor` |
-
 ## 参见
 
 - [在导航条上放按钮和标题](../guides/bar-buttons.md)：放按钮、图标、预置按钮、禁用、返回按钮
@@ -142,4 +133,3 @@ application.addEventListener('sceneconnect', (e) => {
 - [`UIBarItem`](ui-bar-item.md)：父类，`title`、`image`、`isEnabled`、`tag`
 - [`UINavigationController`](ui-navigation-controller.md)：导航条由它显示
 - [`UIButton`](ui-button.md)：页面里的按钮。点击事件同名
-- [实现原理：导航](../internals/navigation.md)

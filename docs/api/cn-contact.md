@@ -92,13 +92,6 @@ picker.addEventListener('contactselect', (event) => {
 | `contact.phoneNumbers[0].value.stringValue` | 相同 |
 | `[contact isKeyAvailable:CNContactEmailAddressesKey]` | `contact.isKeyAvailable('emailAddresses')` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 读联系人的其他字段：中间名、昵称、职位、地址、生日、网址、头像、备注 | `CNContact` 的其余属性，`CNPostalAddress` 等。可以用 `displayedPropertyKeys` 让详情页显示它们，但读不到值 |
-| 新建、修改联系人 | `CNMutableContact`、`CNSaveRequest`，要通讯录权限，不在这个包里 |
-
 ## 参见
 
 - [`CNContactPickerViewController`](contacts.md)：联系人从这里来

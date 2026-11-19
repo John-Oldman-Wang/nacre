@@ -320,23 +320,7 @@ application.addEventListener('sceneconnect', (e) => {
 - 原生的 `completion` 回调在 JS 里是 Promise。
 - 把页面加成它自己或它后代的子控制器，原生不检查，之后会崩溃。JS 里当场抛 `TypeError`。
 - 原生靠覆写 `viewWillAppear:` 一组方法得知页面出现和消失。JS 里原生类不能继承，这四个时机是页面的事件，回调稍后执行。
-- 原生的三个关闭通知在 `vc.presentationController.delegate` 上。JS 里它们是被弹出页面自己的事件，`UIPresentationController` 没有暴露。
-
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 在页面的视图重新布局时执行代码 | `viewDidLayoutSubviews`。这是要覆写的方法，原生类不能继承 |
-| 继承 `UIViewController` 写自己的页面类 | 子类化。替代写法见[原生类](native-classes.md) |
-| 半屏高度的卡片、卡片顶部的抓手 | `UISheetPresentationController` 的 `detents` |
-| 气泡式的弹出 | `UIPopoverPresentationController` |
-| 自己写页面切换的动画 | `UIViewControllerAnimatedTransitioning` |
-| 两个子页面之间带动画地切换 | `transitionFromViewController:toViewController:duration:options:animations:completion:` |
-| 自己控制子页面什么时候算出现、什么时候算消失 | `beginAppearanceTransition:animated:`、`shouldAutomaticallyForwardAppearanceMethods` |
-| 被模态呈现的导航控制器收到关闭事件 | 导航控制器只接受导航事件。标签栏控制器上可以监听这三个事件名 |
-| 用代码关闭模态页时也收到事件 | 系统不发这个通知。在调 `dismissViewController()` 的地方自己处理 |
-| 在回调里同步决定「这次让不让用户关闭」 | `presentationControllerShouldDismiss:`。不做，用 `isModalInPresentation` 预先声明 |
-| 每个页面单独控制屏幕方向、状态栏样式 | `supportedInterfaceOrientations`、`preferredStatusBarStyle` |
+- 原生的三个关闭通知在 `vc.presentationController.delegate` 上。JS 里它们是被弹出页面自己的事件。
 
 ## 参见
 
@@ -347,7 +331,6 @@ application.addEventListener('sceneconnect', (e) => {
 - [`UINavigationItem`](ui-navigation-item.md)：`navigationItem` 的类型，导航条的标题和按钮
 - [`UIWindow`](ui-window.md)：`rootViewController` 在这里设
 - [`UIView`](ui-view.md)：`view` 的类型
-- [原生类](native-classes.md)：为什么不能继承，以及替代写法
+- [原生类](native-classes.md)：不能继承，以及替代写法
 - [`UIWindowScene`](ui-window-scene.md)：场景被销毁后页面怎样被回收
 - [外观特征](ui-trait-collection.md)：`traitCollection`、`overrideUserInterfaceStyle` 和 `traitchange` 事件
-- [实现原理：导航和模态呈现](../internals/navigation.md)

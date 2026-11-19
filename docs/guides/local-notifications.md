@@ -223,7 +223,7 @@ center.addEventListener('notificationclick', (event) => {
 
 ## 点了通知把 App 启动起来
 
-用户点一条通知时 App 可能没在运行。系统启动 App，然后交出这次点击。这时 JS 可能还没执行到 `addEventListener` 那一行，但点击不会丢：运行时把没有人监听时到的点击留着，等 `notificationclick` 第一次有监听器时补发。最多留 8 条，规则见 [`notificationclick`](../api/un-user-notification-center/notificationclick-event.md#什么时候派发)。
+用户点一条通知时 App 可能没在运行。系统启动 App，然后交出这次点击。这时 JS 可能还没执行到 `addEventListener` 那一行，但点击不会丢：没有人监听时到的点击会留着，等 `notificationclick` 第一次有监听器时补发。最多留 8 条，规则见 [`notificationclick`](../api/un-user-notification-center/notificationclick-event.md#什么时候派发)。
 
 所以监听器加在哪里都可以，比如等首页建好之后再加：
 
@@ -311,8 +311,6 @@ center.addEventListener('notificationclick', (event) => {
 ```
 
 **效果**：用户点了一条远程推送的通知时输出它的负载，也就是服务器发出的那个 JSON 对象。远程推送的通知和本地通知走同样的两个事件，区别是 `trigger` 是 [`UNPushNotificationTrigger`](../api/un-push-notification-trigger.md)。
-
-让 App 能收到远程推送（向苹果注册、把设备令牌交给服务器）这个包还不能做。
 
 ## 参见
 

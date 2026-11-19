@@ -67,12 +67,6 @@ if (star !== null) {
 | `[NSTextAttachment textAttachmentWithImage:image]` | `NSTextAttachment.textAttachmentWithImage(image)` |
 | `[NSAttributedString attributedStringWithAttachment:attachment]` | `NSAttributedString.attributedStringWithAttachment(attachment)` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 附件显示文件、显示一个视图；调附件左右的间距 | `initWithData:ofType:`、`NSTextAttachmentViewProvider`、`lineLayoutPadding` |
-
 ## 参见
 
 - [`NSAttributedString`](ns-attributed-string.md)：`attachment` 属性

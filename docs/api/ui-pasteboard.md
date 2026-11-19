@@ -10,7 +10,7 @@ status: partial
 
 系统剪贴板只有一个，所有 App 共用。它由系统提供，从 [`UIPasteboard.generalPasteboard`](ui-pasteboard/generalpasteboard.md) 取。
 
-读和写都通过 [`string`](ui-pasteboard/string.md) 属性，是同步的：赋值的那一行执行完，文字已经在剪贴板里；读的那一行返回时，拿到的就是内容。现在只能读写文字，图片、网址、颜色还不能，见[还不能做的](#还不能做的)。
+读和写都通过 [`string`](ui-pasteboard/string.md) 属性，是同步的：赋值的那一行执行完，文字已经在剪贴板里；读的那一行返回时，拿到的就是内容。
 
 **继承关系**：`EventTarget` → `NSObject` → `UIPasteboard`
 
@@ -114,17 +114,6 @@ application.addEventListener('sceneconnect', (e) => {
 | `await navigator.clipboard.writeText('文字')` | `pasteboard.string = '文字'`，同步 |
 | `await navigator.clipboard.readText()` | `pasteboard.string`，同步，可能停住界面等用户回应 |
 | 没有对应 | `pasteboard.hasStrings`、`pasteboard.changeCount` |
-
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 复制和粘贴图片、网址、颜色 | `image`、`URL`、`color`，以及 `hasImages` 等 |
-| 一次放多条内容 | `strings`、`items` |
-| 让复制的内容过一段时间自动失效，或者只在本机有效 | `setItems:options:` 的 `expirationDate`、`localOnly` |
-| App 自己专用的剪贴板 | `pasteboardWithName:create:`、`pasteboardWithUniqueName` |
-| 不取内容，只判断剪贴板里是不是网址或数字 | `detectPatternsForPatterns:completionHandler:` |
-| 用系统自带的「粘贴」按钮，免去系统提示 | `UIPasteControl` |
 
 ## 参见
 

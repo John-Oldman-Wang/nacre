@@ -32,16 +32,14 @@ application.addEventListener('sceneconnect', (e) => {
 
 顶层适合做不涉及界面的事：读 App 的信息、读本地存储、发网络请求、注册监听器。回调里那几行各自的含义见 [`application`](application.md)、[`UIWindowScene`](ui-window-scene.md) 和 [`UIWindow`](ui-window.md)。
 
-## 有什么，没有什么
+## 有什么
 
-| 有 | 没有 |
-| --- | --- |
-| 完整的 JS 标准库：`Promise`、`Map`、`JSON`、类型化数组、迭代器等 | DOM：`window`、`document`、`location`、HTML 元素、CSS |
-| `console`、定时器（`setTimeout` 等）、`performance`、`crypto.getRandomValues()`、[`Intl.NumberFormat`](intl.md)、[`Intl.DateTimeFormat`](intl-date.md) | `Intl` 的其他成员：给字符串排序、相对时间 |
-| 网络：`fetch`、`URL`、`WebSocket` | `crypto.subtle` |
-| [文字、字节和深拷贝](web-globals.md)：`TextEncoder`、`TextDecoder`、`btoa`、`atob`、`structuredClone` | UTF-8 之外的文字编码 |
-| 事件：`EventTarget`、`addEventListener()` | `WebAssembly` |
-| iOS 的原生类：`UIView`、`UIButton`、`UILabel` 等，直接用原名 | Node 的 `require`、`process`、`Buffer` |
+- 完整的 JS 标准库：`Promise`、`Map`、`JSON`、类型化数组、迭代器等
+- `console`、定时器（`setTimeout` 等）、`performance`、`crypto.getRandomValues()`、[`Intl.NumberFormat`](intl.md)、[`Intl.DateTimeFormat`](intl-date.md)
+- 网络：`fetch`、`URL`、`WebSocket`
+- [文字、字节和深拷贝](web-globals.md)：`TextEncoder`、`TextDecoder`、`btoa`、`atob`、`structuredClone`
+- 事件：`EventTarget`、`addEventListener()`
+- iOS 的原生类：`UIView`、`UIButton`、`UILabel` 等，直接用原名
 
 能用的原生类只有 [API 总览](README.md)里列出的那些。没列出的 iOS 类在 JS 里不存在，读它的名字会抛 `ReferenceError`。
 
@@ -244,4 +242,3 @@ console.log(view.alpha);
 - [原生类](native-classes.md)：构造、继承、往对象上挂自己的数据
 - [定时器](timers.md)：把计算拆成小块时用到
 - [单位](units.md)
-- [实现原理](../internals/README.md)：以上每一条为什么是这样

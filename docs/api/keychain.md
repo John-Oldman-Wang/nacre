@@ -167,17 +167,6 @@ main().catch((err) => {
 | `kSecAttrAccount` | `key` |
 | `OSStatus` | Promise 被拒绝，`err.code` 是原值 |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 读取前要求用户通过面容或指纹验证 | `SecAccessControlCreateWithFlags`、LocalAuthentication |
-| 按网站保存账号密码 | `kSecClassInternetPassword` |
-| 保存证书和密钥对 | `kSecClassCertificate`、`kSecClassKey` |
-| 和同一开发者的其他 App 共用条目 | `kSecAttrAccessGroup` |
-| 通过 iCloud 钥匙串在用户的多台设备之间同步 | `kSecAttrSynchronizable` |
-| 读出一个条目的访问级别 | `kSecAttrAccessible` 的读取 |
-
 ## 参见
 
 - [保存登录令牌](../guides/save-secrets.md)：选哪种存储、选哪个访问级别、退出登录
@@ -186,4 +175,3 @@ main().catch((err) => {
 - [`application.fileSystem`](filesystem.md)：文件和大量数据放那里
 - [`crypto`](crypto.md)：生成随机密钥
 - [核心和能力包](capabilities.md)
-- [实现原理](../internals/keychain.md)：默认访问级别的选择理由

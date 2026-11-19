@@ -158,15 +158,6 @@ console.log(pickLanguage());
 | `NSLocaleLanguageDirectionRightToLeft` | `'rightToLeft'` |
 | `NSCurrentLocaleDidChangeNotification` | `application.addEventListener('localechange', …)` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 读这个地区常用的字符 | `exemplarCharacterSet`（`NSCharacterSet` 没有提供） |
-| 把地区标识拆成各段的字典、从字典拼回来 | `componentsFromLocaleIdentifier:`、`localeIdentifierFromComponents:`。拆用 `new NSLocale(id)` 的各项属性，拼用 `canonicalLocaleIdentifierFromString()` |
-| 和 Windows 的区域代码互换 | `localeIdentifierFromWindowsLocaleCode:`、`windowsLocaleCodeFromLocaleIdentifier:` |
-| 读 App 实际支持、正在用的语言列表 | `NSBundle.preferredLocalizations` |
-
 ## 参见
 
 - [`Intl.NumberFormat`](intl.md)、[`Intl.DateTimeFormat`](intl-date.md)：按地区把数字和日期写成文字

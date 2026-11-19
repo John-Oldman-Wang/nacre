@@ -373,6 +373,8 @@ nacre/
 - 「`CGColorRef` 转 `UIColor` 为什么会丢动态色」→ **internals**。不知道也会用
 - 「颜色的上层写法定成字符串」→ **project.md**。这是一个决策，不是实现
 
+**对外的文档站只发布 `api/` 和 `guides/`**（2026-11-19 定）。`internals/`、本文件和写法规范留在仓库里，不上站；API 文档和指南里不写实现思路、不链到它们，也不写还没有的能力。还没接的能力记在 [`internals/api-gaps.md`](internals/api-gaps.md)。
+
 **每新增或改动一块能力，`api/` 和 `internals/` 两份一起写。** 只写 api 等于把原理丢了，下次改的人要重新推一遍；只写 internals 等于没交付。这和「改 API 同一步里更新 `types/`」是同一条纪律。
 
 API 文档的写法有单独的规范：[文档写法](writing-guide.md)（2026-11-11 定）。要点：
