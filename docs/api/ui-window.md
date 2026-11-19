@@ -135,7 +135,6 @@ application.addEventListener('sceneconnect', (e) => {
 | 想做的事 | 对应的原生能力 |
 | --- | --- |
 | 列出一个场景里的所有窗口，或拿到场景当前的 key window | `UIWindowScene.windows`、`keyWindow` |
-| 读窗口所在屏幕的尺寸和缩放比例 | `UIWindow.screen`（`UIScreen`） |
 | 继承 `UIWindow`，接管触摸事件的分发 | 子类化、`sendEvent:`。`sendEvent:` 不计划提供 |
 
 ## 参见

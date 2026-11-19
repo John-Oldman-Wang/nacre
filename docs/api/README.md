@@ -250,6 +250,8 @@ API 分两类：
 | 页面 | 说明 |
 | --- | --- |
 | [`UIDevice`](ui-device.md) | **`UIDevice`** 表示运行 App 的这台设备。 |
+| [`UIScreen`](ui-screen.md) | **`UIScreen`** 表示一块屏幕：它的大小、像素密度、亮度、刷新率，以及此刻有没有被录制。 |
+| [`UIScreenMode`](ui-screen-mode.md) | **`UIScreenMode`** 表示屏幕的一种显示模式：一种分辨率和像素形状。 |
 | [`UIPasteboard`](ui-pasteboard.md) | **`UIPasteboard`** 表示系统剪贴板。 |
 | [`UIFeedbackGenerator`](ui-feedback-generator.md) | **`UIFeedbackGenerator`** 表示一个触感反馈的生成器。 |
 | [`UIImpactFeedbackGenerator`](ui-impact-feedback-generator.md) | **`UIImpactFeedbackGenerator`** 表示撞击类的触感反馈生成器：两个东西碰到一起时的那一下震动，比如按钮按下、卡片落到位、拖动的东西碰到边界。 |
