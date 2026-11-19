@@ -81,8 +81,8 @@ declare class CALayer extends NSObject {
    * **默认是 1，不是屏幕的 scale**，画出来会糊——在 3x 的机器上要设成 3。
    *
    * 实测 `view.layer` 在场景接入时**也是 1**，所以它当不了屏幕 scale 的
-   * 替代品；而 `UIScreen` 和 `UITraitCollection.displayScale` 都还没暴露，
-   * 所以现在只能把 3 写死在 JS 里。
+   * 替代品。屏幕的 scale 从 `view.traitCollection.displayScale` 或
+   * `scene.screen.scale` 读。
    */
   contentsScale: number;
   /**

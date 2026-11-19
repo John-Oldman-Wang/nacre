@@ -32,6 +32,7 @@ status: partial
 | [`session`](ui-window-scene/session.md) <small>只读</small> | 这个场景的会话：场景的持久身份 |
 | [`traitCollection`](ui-window-scene/traitcollection.md) <small>只读</small> | 整个场景的外观特征，比如系统设置里是深色还是浅色 |
 | [`isFullScreen`](ui-window-scene/isfullscreen.md) <small>只读</small> | 场景是否占满整个屏幕 |
+| [`screen`](ui-window-scene/screen.md) <small>只读</small> | 这个场景显示在哪块屏幕上 |
 | [`title`](ui-window-scene/title.md) | 多任务切换器的卡片上显示的标题 |
 | [`subtitle`](ui-window-scene/subtitle.md) | 多任务切换器的卡片上显示的副标题 |
 

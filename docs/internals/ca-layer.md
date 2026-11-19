@@ -90,9 +90,7 @@ const char* LayerClassName(CALayer* layer) {
 猜测是 UIKit 要到第一次真正绘制时才把屏幕 scale 写上去，但**什么时候变、变不变都没实测过**，
 所以结论只能停在「别拿它当屏幕 scale 读」。
 
-连带出一个缺口：JS 现在**没有任何地方读得到屏幕的 scale**——`UIScreen` 没暴露，
-`UITraitCollection.displayScale` 也没有。需要高清光栅化时只能写死 3。
-这条跟 `UITraitCollection` 一起补。
+屏幕的 scale 从 `traitCollection.displayScale` 或 `scene.screen.scale` 读，两个值相同。
 
 ### 域名冲突靠类型判断，不靠顺序
 
