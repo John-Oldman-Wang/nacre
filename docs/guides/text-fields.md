@@ -731,11 +731,13 @@ field.bottomAnchor
 不用约束、自己给视图设 `frame` 时，监听屏幕上的 [`keyboardchange`](../api/ui-screen/keyboardchange-event.md) 事件。事件带着键盘动画结束时的位置 `frame`，键盘的高度是 `frame.height`。
 
 ```js
-const screen = e.scene.screen;   // 写在 sceneconnect 的回调里
-screen.addEventListener('keyboardchange', (event) => {
-  const keyboard = /** @type {UIScreenKeyboardEvent} */ (event);
-  const top = Math.min(keyboard.frame.y, screen.bounds.height);
-  field.frame = new CGRect(16, top - 16 - 40, 358, 40);
+application.addEventListener('sceneconnect', (e) => {
+  const screen = e.scene.screen;
+  screen.addEventListener('keyboardchange', (event) => {
+    const keyboard = /** @type {UIScreenKeyboardEvent} */ (event);
+    const top = Math.min(keyboard.frame.y, screen.bounds.height);
+    field.frame = new CGRect(16, top - 16 - 40, 358, 40);
+  });
 });
 ```
 

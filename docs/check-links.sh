@@ -32,8 +32,8 @@ for f in files:
             continue
         if frag and frag not in anchors(target):
             bad.append(f'{f}: 锚点没命中 → {href}')
-        # 站上只发布 docs/api、docs/guides 和首页。它们指向不上站的页面，站上就是坏链接
-        published = lambda q: q.parts[:2] in (('docs', 'api'), ('docs', 'guides')) or q.as_posix() == 'docs/index.md'
+        # 站上只发布 docs/api、docs/guides、它们的英文版 docs/en/… 和两个首页。它们指向不上站的页面，站上就是坏链接
+        published = lambda q: q.parts[:2] in (('docs', 'api'), ('docs', 'guides')) or q.parts[:3] in (('docs', 'en', 'api'), ('docs', 'en', 'guides')) or q.as_posix() in ('docs/index.md', 'docs/en/index.md')
         rel = pathlib.Path(f)
         if published(rel) and not published(target.relative_to(pathlib.Path('.').resolve())) and target.suffix == '.md':
             bad.append(f'{f}: 指向不上站的页面 → {href}')

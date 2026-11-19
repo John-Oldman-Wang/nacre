@@ -1,0 +1,34 @@
+---
+type: reference
+native: UIButton.currentBackgroundImage
+---
+
+# `UIButton`: `currentBackgroundImage` property
+
+The **`currentBackgroundImage`** property is the background image the button is displaying right now: the one selected by the current [state](../ui-button.md#states).
+
+## Value
+
+[`UIImage`](../ui-image.md), or `null`.
+
+- Read-only. Assigning to it throws `TypeError`.
+- When the current state hasn't been set separately, it reads the one for the `normal` state.
+- There is no change notification. It changes with the button's [state](../ui-button.md#states): when a finger touches down and lifts (the system fires [control events](../ui-control.md#events) such as `touchdown` and `touchupinside`), or when code changes `isEnabled` or `isSelected`. The state itself has no change event, so read it again at those moments.
+- `null` when no state has a background image set. **Not verified in the simulator.**
+
+## Examples
+
+```js
+const button = new UIButton();
+console.log(button.currentBackgroundImage);
+```
+
+**Result**: Prints `null`. **Not verified in the simulator.**
+
+## Corresponding iOS API
+
+`UIButton.currentBackgroundImage`.
+
+## See also
+
+- [States](../ui-button.md#states): when the button is in which state

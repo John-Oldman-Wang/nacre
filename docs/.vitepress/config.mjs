@@ -34,84 +34,111 @@ function readmeLinksToIndex(md) {
   md.core.ruler.push('readme_links_to_index', (state) => fix(state.tokens));
 }
 
-const guide = (text, file) => ({ text, link: `/guides/${file}` });
+// 站点默认英文（源文件在 docs/en/），中文在 /zh/ 下（源文件就是 docs/api、docs/guides）。
+// 两种语言的侧边栏用同一份结构生成，只是读的目录、链接前缀和标题不同。
+//
 // 类页（api/ui-button.md）旁边有同名目录（api/ui-button/）的，目录里是它的成员页。
 // 侧边栏把它们收成这个类下面一组可以展开的条目，顺序就是类页里链接出现的
 // 顺序，名字取成员页的标题。这样加一个成员只要写成员页、在类页上链一下。
-const apiDir = fileURLToPath(new URL('../api/', import.meta.url));
+const docsDir = fileURLToPath(new URL('../', import.meta.url));
+const LANGS = {
+  en: { src: 'en/', link: '/' },
+  zh: { src: '', link: '/zh/' },
+};
+
+// 侧边栏的分组标题，英文版用
+const GROUP_EN = {
+  '开始': 'Getting started',
+  'App 和事件': 'App and events',
+  'App 和页面': 'App and view controllers',
+  '窗口和页面': 'Windows and view controllers',
+  '视图和布局': 'Views and layout',
+  '结构体': 'Structs',
+  '列表': 'Lists',
+  '文字、图片、颜色': 'Text, images, and color',
+  '控件和输入': 'Controls and input',
+  '控件、输入和手势': 'Controls, input, and gestures',
+  '手势': 'Gestures',
+  '图层和动画': 'Layers and animation',
+  '网络': 'Networking',
+  '网络和网页': 'Networking and web content',
+  '网页': 'Web content',
+  '运行时的全局': 'Runtime globals',
+  '存储': 'Storage',
+  '数据和工具': 'Data and utilities',
+  '系统能力': 'System features',
+  '能力包（要单独安装）': 'Capability packages (installed separately)',
+  '原生模块': 'Native modules',
+};
+
+const CJK = /[\u3000-\u303f\u3400-\u9fff\uff00-\uffef]/;
+
+// 页面的标题，去掉反引号。英文版里中文的条目名换成英文页面的标题
+function pageTitle(file) {
+  if (!existsSync(file)) return null;
+  const h1 = readFileSync(file, 'utf8').match(/^# (.+)$/m);
+  return h1 ? h1[1].replace(/`/g, '').trim() : null;
+}
 
 function memberName(file) {
+  if (!existsSync(file)) return null;
   const h1 = readFileSync(file, 'utf8').match(/^# (.+)$/m);
   if (!h1) return null;
   const spans = [...h1[1].matchAll(/`([^`]+)`/g)].map((m) => m[1]);
   if (spans.length === 0) return h1[1];
   let name = spans[spans.length - 1];
   const dot = name.indexOf('.');
-  if (spans.length === 1 && dot > 0 && !h1[1].includes('构造函数')) name = name.slice(dot + 1);
-  return h1[1].trim().endsWith('事件') ? `${name} 事件` : name;
+  const isCtor = h1[1].includes('构造函数') || /constructor$/.test(h1[1].trim());
+  if (spans.length === 1 && dot > 0 && !isCtor) name = name.slice(dot + 1);
+  const title = h1[1].trim();
+  if (title.endsWith('事件')) return `${name} 事件`;
+  if (title.endsWith(' event')) return `${name} event`;
+  return name;
 }
 
-function members(file) {
-  if (!existsSync(`${apiDir}${file}`)) return null;
-  const page = readFileSync(`${apiDir}${file}.md`, 'utf8');
-  const seen = new Set();
-  const items = [];
-  for (const m of page.matchAll(new RegExp(`\\]\\(${file}/([a-z0-9-]+)\\.md`, 'g'))) {
-    if (seen.has(m[1])) continue;
-    seen.add(m[1]);
-    const path = `${apiDir}${file}/${m[1]}.md`;
-    if (!existsSync(path)) continue;
-    items.push({ text: memberName(path) ?? m[1], link: `/api/${file}/${m[1]}` });
+function helpers(lang) {
+  const { src, link } = LANGS[lang];
+  const apiDir = `${docsDir}${src}api/`;
+  const guideDir = `${docsDir}${src}guides/`;
+  const label = (text, path) =>
+    lang === 'en' && CJK.test(text) ? (text === '总览' ? 'Overview' : pageTitle(path) ?? text) : text;
+
+  function members(file) {
+    if (!existsSync(`${apiDir}${file}`) || !existsSync(`${apiDir}${file}.md`)) return null;
+    const page = readFileSync(`${apiDir}${file}.md`, 'utf8');
+    const seen = new Set();
+    const items = [];
+    for (const m of page.matchAll(new RegExp(`\\]\\(${file}/([a-z0-9-]+)\\.md`, 'g'))) {
+      if (seen.has(m[1])) continue;
+      seen.add(m[1]);
+      const path = `${apiDir}${file}/${m[1]}.md`;
+      if (!existsSync(path)) continue;
+      items.push({ text: memberName(path) ?? m[1], link: `${link}api/${file}/${m[1]}` });
+    }
+    return items.length ? items : null;
   }
-  return items.length ? items : null;
+
+  const api = (text, file) => {
+    const name = label(text, `${apiDir}${file || 'README'}.md`);
+    const items = file ? members(file) : null;
+    return items
+      ? { text: name, link: `${link}api/${file}`, collapsed: true, items }
+      : { text: name, link: `${link}api/${file}` };
+  };
+  const guide = (text, file) => ({
+    text: label(text, `${guideDir}${file || 'README'}.md`),
+    link: `${link}guides/${file}`,
+  });
+  const group = (text) => (lang === 'en' ? GROUP_EN[text] ?? text : text);
+  return { api, guide, group, link };
 }
 
-const api = (text, file) => {
-  const items = file ? members(file) : null;
-  return items ? { text, link: `/api/${file}`, collapsed: true, items } : { text, link: `/api/${file}` };
-};
-
-export default defineConfig({
-  lang: 'zh-CN',
-  title: 'Nacre',
-  description: 'App 端的 JavaScript 运行时',
-
-  // GitHub Pages 的项目站点挂在 /<仓库名>/ 下
-  base: '/nacre/',
-
-  // 每个目录的 README.md 当那个目录的首页，GitHub 上照常能看
-  // 指南里有几处链接指向文档目录之外的仓库文件（比如 packages/ios/ 的说明）。
-  // 它们在 GitHub 上点得开，在站点上没有对应页面，构建时不当成死链。
-  ignoreDeadLinks: [/\/packages\//],
-
-  // 站上只放 API 和指南。实现原理、项目说明、写法规范是我们自己的，留在仓库里
-  // 不发布；docs/README.md 是仓库里的文档目录，站点首页是 docs/index.md
-  srcExclude: ['README.md', 'findings.md', 'project.md', 'writing-guide.md', 'internals/**'],
-
-  rewrites: {
-    'guides/README.md': 'guides/index.md',
-    'api/README.md': 'api/index.md',
-  },
-
-  markdown: {
-    anchor: { slugify },
-    toc: { slugify },
-    headers: { slugify },
-    config: readmeLinksToIndex,
-    // 代码块的配色，浅色和深色各一套
-    theme: { light: codeLight, dark: codeDark },
-  },
-
-  themeConfig: {
-    nav: [
-      { text: '指南', link: '/guides/', activeMatch: '^/guides/' },
-      { text: 'API', link: '/api/', activeMatch: '^/api/' },
-    ],
-
-    sidebar: {
-      '/guides/': [
+function sidebar(lang) {
+  const { api, guide, group, link } = helpers(lang);
+  return {
+      [`${link}guides/`]: [
         {
-          text: '开始',
+          text: group('开始'),
           items: [
             guide('总览', ''),
             guide('建一个自己的 App', 'your-own-app'),
@@ -119,7 +146,7 @@ export default defineConfig({
           ],
         },
         {
-          text: 'App 和页面',
+          text: group('App 和页面'),
           items: [
             guide('建窗口和处理场景', 'scenes-and-windows'),
             guide('处理 App 的生命周期', 'app-lifecycle'),
@@ -135,7 +162,7 @@ export default defineConfig({
           ],
         },
         {
-          text: '视图和布局',
+          text: group('视图和布局'),
           items: [
             guide('在屏幕上摆放视图', 'views'),
             guide('用约束排版', 'auto-layout'),
@@ -148,7 +175,7 @@ export default defineConfig({
           ],
         },
         {
-          text: '文字、图片、颜色',
+          text: group('文字、图片、颜色'),
           items: [
             guide('显示文字', 'labels'),
             guide('设置字体', 'fonts'),
@@ -159,7 +186,7 @@ export default defineConfig({
           ],
         },
         {
-          text: '控件、输入和手势',
+          text: group('控件、输入和手势'),
           items: [
             guide('做一个按钮', 'buttons'),
             guide('处理控件的触摸', 'control-touches'),
@@ -173,7 +200,7 @@ export default defineConfig({
           ],
         },
         {
-          text: '图层和动画',
+          text: group('图层和动画'),
           items: [
             guide('用图层画圆角、阴影、渐变和形状', 'layers'),
             guide('画一条路径', 'drawing-paths'),
@@ -183,7 +210,7 @@ export default defineConfig({
           ],
         },
         {
-          text: '网络和网页',
+          text: group('网络和网页'),
           items: [
             guide('从网络取数据', 'fetch'),
             guide('边下载边读响应', 'streaming-response'),
@@ -195,7 +222,7 @@ export default defineConfig({
           ],
         },
         {
-          text: '数据和工具',
+          text: group('数据和工具'),
           items: [
             guide('保存用户设置', 'save-settings'),
             guide('读写文件', 'files'),
@@ -209,7 +236,7 @@ export default defineConfig({
           ],
         },
         {
-          text: '系统能力',
+          text: group('系统能力'),
           items: [
             guide('读设备和系统的信息', 'device-info'),
             guide('复制和粘贴文字', 'clipboard'),
@@ -224,16 +251,16 @@ export default defineConfig({
           ],
         },
         {
-          text: '原生模块',
+          text: group('原生模块'),
           items: [
             guide('从 JS 调原生模块', 'call-native-modules'),
             guide('写自己的原生模块', 'native-modules'),
           ],
         },
       ],
-      '/api/': [
+      [`${link}api/`]: [
         {
-          text: '开始',
+          text: group('开始'),
           items: [
             api('总览', ''),
             api('运行时怎么工作', 'how-it-works'),
@@ -245,7 +272,7 @@ export default defineConfig({
           ],
         },
         {
-          text: 'App 和事件',
+          text: group('App 和事件'),
           items: [
             api('Application', 'application'),
             api('EventTarget', 'event-target'),
@@ -258,7 +285,7 @@ export default defineConfig({
           ],
         },
         {
-          text: '窗口和页面',
+          text: group('窗口和页面'),
           items: [
             api('UIWindowScene', 'ui-window-scene'),
             api('UIWindowSceneGeometry', 'ui-window-scene-geometry'),
@@ -280,7 +307,7 @@ export default defineConfig({
           ],
         },
         {
-          text: '视图和布局',
+          text: group('视图和布局'),
           items: [
             api('UIView', 'ui-view'),
             api('NSLayoutConstraint', 'auto-layout'),
@@ -304,7 +331,7 @@ export default defineConfig({
           ],
         },
         {
-          text: '结构体',
+          text: group('结构体'),
           items: [
             api('CGPoint', 'cg-point'),
             api('CGSize', 'cg-size'),
@@ -317,7 +344,7 @@ export default defineConfig({
           ],
         },
         {
-          text: '列表',
+          text: group('列表'),
           items: [
             api('UICollectionView', 'ui-collection-view'),
             api('UICollectionViewDiffableDataSource', 'ui-collection-view-diffable-data-source'),
@@ -333,7 +360,7 @@ export default defineConfig({
           ],
         },
         {
-          text: '文字、图片、颜色',
+          text: group('文字、图片、颜色'),
           items: [
             api('UILabel', 'ui-label'),
             api('UIFont', 'ui-font'),
@@ -350,7 +377,7 @@ export default defineConfig({
           ],
         },
         {
-          text: '控件和输入',
+          text: group('控件和输入'),
           items: [
             api('UIControl', 'ui-control'),
             api('UIButton', 'ui-button'),
@@ -368,7 +395,7 @@ export default defineConfig({
           ],
         },
         {
-          text: '手势',
+          text: group('手势'),
           items: [
             api('UIGestureRecognizer', 'ui-gesture-recognizer'),
             api('UITapGestureRecognizer', 'ui-tap-gesture-recognizer'),
@@ -381,7 +408,7 @@ export default defineConfig({
           ],
         },
         {
-          text: '图层和动画',
+          text: group('图层和动画'),
           items: [
             api('CALayer', 'ca-layer'),
             api('CAGradientLayer', 'ca-gradient-layer'),
@@ -400,7 +427,7 @@ export default defineConfig({
           ],
         },
         {
-          text: '网络',
+          text: group('网络'),
           items: [
             api('fetch()', 'fetch'),
             api('Request', 'request'),
@@ -417,7 +444,7 @@ export default defineConfig({
           ],
         },
         {
-          text: '网页',
+          text: group('网页'),
           items: [
             api('WebView', 'web-view'),
             api('WebContents', 'web-contents'),
@@ -431,7 +458,7 @@ export default defineConfig({
           ],
         },
         {
-          text: '运行时的全局',
+          text: group('运行时的全局'),
           items: [
             api('定时器', 'timers'),
             api('performance', 'performance'),
@@ -445,7 +472,7 @@ export default defineConfig({
           ],
         },
         {
-          text: '存储',
+          text: group('存储'),
           items: [
             api('application.storage', 'storage'),
             api('application.fileSystem', 'filesystem'),
@@ -453,7 +480,7 @@ export default defineConfig({
           ],
         },
         {
-          text: '系统能力',
+          text: group('系统能力'),
           items: [
             api('UIDevice', 'ui-device'),
             api('UIScreen', 'ui-screen'),
@@ -466,7 +493,7 @@ export default defineConfig({
           ],
         },
         {
-          text: '能力包（要单独安装）',
+          text: group('能力包（要单独安装）'),
           items: [
             api('application.keychain', 'keychain'),
             api('LAContext', 'la-context'),
@@ -504,30 +531,102 @@ export default defineConfig({
           ],
         },
       ],
+  };
+}
+
+export default defineConfig({
+  title: 'Nacre',
+
+  // GitHub Pages 的项目站点挂在 /<仓库名>/ 下
+  base: '/nacre/',
+
+  // 每个目录的 README.md 当那个目录的首页，GitHub 上照常能看
+  // 指南里有几处链接指向文档目录之外的仓库文件（比如 packages/ios/ 的说明）。
+  // 它们在 GitHub 上点得开，在站点上没有对应页面，构建时不当成死链。
+  ignoreDeadLinks: [/\/packages\//],
+
+  // 站上只放 API 和指南。实现原理、项目说明、写法规范是我们自己的，留在仓库里
+  // 不发布；docs/README.md 是仓库里的文档目录，站点首页是 docs/index.md
+  srcExclude: ['README.md', 'findings.md', 'project.md', 'writing-guide.md', 'internals/**'],
+
+  // 源文件的位置不动（中文在 docs/api、docs/guides，英文在 docs/en/…），网址按语言分：
+  // 英文在根上，中文在 /zh/ 下。每个目录的 README.md 当那个目录的首页
+  rewrites: {
+    'en/index.md': 'index.md',
+    'en/api/README.md': 'api/index.md',
+    'en/guides/README.md': 'guides/index.md',
+    'en/:rest*': ':rest*',
+    'index.md': 'zh/index.md',
+    'api/README.md': 'zh/api/index.md',
+    'guides/README.md': 'zh/guides/index.md',
+    'api/:rest*': 'zh/api/:rest*',
+    'guides/:rest*': 'zh/guides/:rest*',
+  },
+
+  markdown: {
+    anchor: { slugify },
+    toc: { slugify },
+    headers: { slugify },
+    config: readmeLinksToIndex,
+    // 代码块的配色，浅色和深色各一套
+    theme: { light: codeLight, dark: codeDark },
+  },
+
+  locales: {
+    root: {
+      label: 'English',
+      lang: 'en-US',
+      description: 'A JavaScript runtime for iOS apps',
+      themeConfig: {
+        nav: [
+          { text: 'Guides', link: '/guides/', activeMatch: '^/guides/' },
+          { text: 'API', link: '/api/', activeMatch: '^/api/' },
+        ],
+        sidebar: sidebar('en'),
+        // 文档普遍很长，右侧的本页目录显示到三级标题
+        outline: { level: [2, 3], label: 'On this page' },
+      },
     },
+    zh: {
+      label: '简体中文',
+      lang: 'zh-CN',
+      link: '/zh/',
+      description: 'App 端的 JavaScript 运行时',
+      themeConfig: {
+        nav: [
+          { text: '指南', link: '/zh/guides/', activeMatch: '^/zh/guides/' },
+          { text: 'API', link: '/zh/api/', activeMatch: '^/zh/api/' },
+        ],
+        sidebar: sidebar('zh'),
+        outline: { level: [2, 3], label: '本页目录' },
+        docFooter: { prev: '上一篇', next: '下一篇' },
+        returnToTopLabel: '回到顶部',
+        sidebarMenuLabel: '目录',
+        darkModeSwitchLabel: '外观',
+        lightModeSwitchTitle: '切换到浅色',
+        darkModeSwitchTitle: '切换到深色',
+        langMenuLabel: '切换语言',
+      },
+    },
+  },
 
-    // 文档普遍很长，右侧的本页目录显示到三级标题
-    outline: { level: [2, 3], label: '本页目录' },
-
+  themeConfig: {
     search: {
       provider: 'local',
       options: {
-        translations: {
-          button: { buttonText: '搜索', buttonAriaLabel: '搜索' },
-          modal: {
-            noResultsText: '没有找到',
-            resetButtonTitle: '清除',
-            footer: { selectText: '选择', navigateText: '切换', closeText: '关闭' },
+        locales: {
+          zh: {
+            translations: {
+              button: { buttonText: '搜索', buttonAriaLabel: '搜索' },
+              modal: {
+                noResultsText: '没有找到',
+                resetButtonTitle: '清除',
+                footer: { selectText: '选择', navigateText: '切换', closeText: '关闭' },
+              },
+            },
           },
         },
       },
     },
-
-    docFooter: { prev: '上一篇', next: '下一篇' },
-    returnToTopLabel: '回到顶部',
-    sidebarMenuLabel: '目录',
-    darkModeSwitchLabel: '外观',
-    lightModeSwitchTitle: '切换到浅色',
-    darkModeSwitchTitle: '切换到深色',
   },
 });
