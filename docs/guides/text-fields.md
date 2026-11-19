@@ -726,6 +726,25 @@ field.bottomAnchor
 
 约束的写法见 [Auto Layout](../api/auto-layout.md)。
 
+## 自己算位置时：监听键盘的事件
+
+不用约束、自己给视图设 `frame` 时，监听屏幕上的 [`keyboardchange`](../api/ui-screen/keyboardchange-event.md) 事件。事件带着键盘动画结束时的位置 `frame`，键盘的高度是 `frame.height`。
+
+```js
+const screen = e.scene.screen;   // 写在 sceneconnect 的回调里
+screen.addEventListener('keyboardchange', (event) => {
+  const keyboard = /** @type {UIScreenKeyboardEvent} */ (event);
+  const top = Math.min(keyboard.frame.y, screen.bounds.height);
+  field.frame = new CGRect(16, top - 16 - 40, 358, 40);
+});
+```
+
+**效果**：键盘弹出时输入框跟着键盘一起往上移，停在键盘上方 16 pt；键盘收起时一起回到底部。两者同时开始、同时停下（实测：监听器里改的位置自动带上了和键盘相同的动画）。
+
+**改动要在监听器里当场做完。** 监听器执行的那一刻正处在键盘的动画里，这时候设的 `frame`、改的约束才会跟着键盘动。放进 `setTimeout` 或者别的稍后执行的回调里，视图会直接跳到终点。
+
+只要弹出或者只要收起的那一刻，分别监听 [`keyboardshow`](../api/ui-screen/keyboardshow-event.md) 和 [`keyboardhide`](../api/ui-screen/keyboardhide-event.md)。
+
 
 ## 参见
 

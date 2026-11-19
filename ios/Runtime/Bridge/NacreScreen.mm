@@ -7,7 +7,10 @@
 // coordinateSpace（协议对象没接）；过扫描的两项（外接电视用的）；focus 一组（废弃）。
 // 两个类都不能 new：屏幕和显示模式只能由系统给。
 //
-// 四个事件来自通知中心，按屏幕过滤，有监听器时才登记，见文件末尾的订阅。
+// 七个事件来自通知中心，按屏幕过滤，有监听器时才登记，见文件末尾的订阅。
+// 键盘的三个（keyboardshow、keyboardhide、keyboardchange）当场派发：系统在键盘的
+// 动画里发通知，监听器这时候改的布局跟着键盘一起动。iOS 16.1 起通知的发出对象
+// 就是键盘所在的屏幕。
 
 #import "NacreBridge.h"
 
@@ -30,6 +33,28 @@
 - (void)referenceStatusChanged:(NSNotification*)note {
   [self forward:note type:@"referencedisplaymodestatuschange"];
 }
+
+// 键盘的通知：当场派发，带上键盘动画结束、开始时的位置（屏幕坐标）和时长
+- (void)keyboard:(NSNotification*)note type:(NSString*)type {
+  UIScreen* screen = [note.object isKindOfClass:UIScreen.class] ? note.object : nil;
+  if (screen == nil) return;
+  NSDictionary* info = note.userInfo;
+  CGRect end = [info[UIKeyboardFrameEndUserInfoKey] CGRectValue];
+  CGRect begin = [info[UIKeyboardFrameBeginUserInfoKey] CGRectValue];
+  double duration = [info[UIKeyboardAnimationDurationUserInfoKey] doubleValue];
+  NSDictionary* payload = @{
+    @"frame" : @{@"x" : @(end.origin.x), @"y" : @(end.origin.y),
+                 @"width" : @(end.size.width), @"height" : @(end.size.height)},
+    @"previousFrame" : @{@"x" : @(begin.origin.x), @"y" : @(begin.origin.y),
+                         @"width" : @(begin.size.width), @"height" : @(begin.size.height)},
+    @"duration" : @(duration),
+  };
+  nacre_bridge::NacreEmitEventNow(screen, "UIScreen", type,
+                                  @(nacre_bridge::EncodeJSON(payload).c_str()));
+}
+- (void)keyboardShow:(NSNotification*)note { [self keyboard:note type:@"keyboardshow"]; }
+- (void)keyboardHide:(NSNotification*)note { [self keyboard:note type:@"keyboardhide"]; }
+- (void)keyboardChange:(NSNotification*)note { [self keyboard:note type:@"keyboardchange"]; }
 
 - (void)dealloc {
   [NSNotificationCenter.defaultCenter removeObserver:self];
@@ -152,6 +177,9 @@ static NacreSubscribed ScreenSetSubscription(id object, NSString* type, BOOL on,
     @"capturedchange": @[UIScreenCapturedDidChangeNotification, @"capturedChanged:"],
     @"referencedisplaymodestatuschange":
         @[UIScreenReferenceDisplayModeStatusDidChangeNotification, @"referenceStatusChanged:"],
+    @"keyboardshow": @[UIKeyboardWillShowNotification, @"keyboardShow:"],
+    @"keyboardhide": @[UIKeyboardWillHideNotification, @"keyboardHide:"],
+    @"keyboardchange": @[UIKeyboardWillChangeFrameNotification, @"keyboardChange:"],
   };
   NSArray* entry = table[type];
   if (entry == nil) return NacreSubscribed::UnknownEvent;

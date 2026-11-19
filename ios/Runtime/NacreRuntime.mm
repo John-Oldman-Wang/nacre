@@ -370,7 +370,7 @@ nacre::NativeObjectRef CreateBlob(
     // 原生回头问（嵌套）。平台投递的任务只在最外层处理——嵌套时外面那一层
     // 回去之后自己会处理
     NacreSetSyncSinks(
-        ^BOOL(id object, const char* className, NSString* type, NSString* json) {
+        ^BOOL(id object, const char* className, NSString* type, NSString* json, BOOL cancelable) {
           NacreRuntime* strongSelf = weakSelf;
           if (strongSelf == nil) return NO;
           auto engine = strongSelf->_engine;
@@ -378,7 +378,7 @@ nacre::NativeObjectRef CreateBlob(
           const bool nested = (*engine)->IsInJS();
           const bool prevented = (*engine)->EmitObjectEventWithJSON(
               {NacreKeep(object), className}, type.UTF8String,
-              json != nil ? json.UTF8String : "null", /*cancelable=*/true);
+              json != nil ? json.UTF8String : "null", cancelable == YES);
           if (!nested) (*engine)->PumpMessageLoop();
           return prevented ? YES : NO;
         },
