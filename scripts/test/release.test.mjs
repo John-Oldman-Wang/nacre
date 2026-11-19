@@ -41,7 +41,8 @@ const good = (name, dir, extra = {}) => ({
   pkg: {
     name, version: '0.0.1', license: 'FSL-1.1-MIT',
     repository: { type: 'git', url: 'git+https://example.com/x.git', directory: 'packages/' + dir },
-    files: ['index.d.ts'], publishConfig: { access: 'public' }, ...extra,
+    files: ['index.d.ts'],
+    publishConfig: { access: 'public', registry: 'https://registry.npmjs.org/' }, ...extra,
   },
   files: { 'index.d.ts': 'export {};\n', 'LICENSE.md': LICENSE, 'README.md': '# x\n' },
 });
@@ -90,7 +91,10 @@ for (const [what, change, expected] of [
   ['标着 private', (p) => { p.pkg.private = true; }, /private/],
   ['版本和别的包不一样', (p) => { p.pkg.version = '0.0.2'; }, /版本是 0\.0\.2/],
   ['许可不是 FSL-1.1-MIT', (p) => { p.pkg.license = 'MIT'; }, /license/],
-  ['没写公开发布', (p) => { delete p.pkg.publishConfig; }, /publishConfig/],
+  ['没写公开发布', (p) => { delete p.pkg.publishConfig.access; }, /publishConfig\.access/],
+  ['没写发到官方的仓库', (p) => { delete p.pkg.publishConfig.registry; }, /publishConfig\.registry/],
+  ['写的是镜像的地址', (p) => { p.pkg.publishConfig.registry = 'https://registry.npmmirror.com/'; },
+   /publishConfig\.registry/],
   ['没限定打包的文件', (p) => { delete p.pkg.files; }, /files/],
   ['仓库里的目录写错了', (p) => { p.pkg.repository.directory = 'packages/other'; }, /repository/],
   ['files 里列的文件不存在', (p) => { p.pkg.files.push('Missing.xcframework'); }, /Missing\.xcframework/],

@@ -67,9 +67,13 @@ jobs:
         with:
           node-version: 24
           registry-url: 'https://registry.npmjs.org'
-      - name: 选 Xcode 26.0
+      # 用 GitHub 默认装齐了的那个 Xcode 26（现在是 26.6），写死版本号，换版本要改这里。
+      # 原来用支持的最老的 26.0，但这台机器上 26.0 的 iOS 平台组件不一定装着：同样的
+      # 26.0，有一次编过了，另一次报「Unable to find a destination」。默认的那个 GitHub
+      # 保证装齐
+      - name: 选 Xcode 26.6
         run: |
-          sudo xcode-select -s /Applications/Xcode_26.0.app
+          sudo xcode-select -s /Applications/Xcode_26.6.app
           xcodebuild -version
           npm --version
       - name: 装 XcodeGen
@@ -82,6 +86,13 @@ jobs:
         run: bash ios/scripts/fetch-v8.sh
       - name: 从源码打包运行时和能力包
         run: bash ios/scripts/build-xcframework.sh
+      # 日志要登录才能读，批注是公开的：把打出来的东西列成一条批注，
+      # 这一步之前不管成功还是失败都跑
+      - name: 打出来了什么
+        if: always()
+        run: |
+          built="$(for f in packages/*/*.xcframework; do [ -d "$f" ] && echo "$(basename "$f") $(du -sh "$f" | cut -f1)"; done | tr '\n' ';')"
+          echo "::notice::$(xcodebuild -version | tr '\n' ' ') | 打出来的 framework：${built:-一个都没有}"
       - name: 核对每个包齐不齐
         run: node scripts/release.mjs check
       - name: 演练：只装打出来的包，生成工程并编译

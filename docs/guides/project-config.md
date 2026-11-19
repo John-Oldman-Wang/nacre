@@ -329,7 +329,7 @@ nacre: @nacrejs/local-authentication needs NSFaceIDUsageDescription in Info.plis
 }
 ```
 
-**效果**：生成的 App 的 Info.plist 里多一项 `CFBundleURLTypes`，里面是 `myapp` 这个协议（实测生成的工程里有）。别的 App 或网页打开 `myapp://orders/42` 时，JS 收到 `application` 的 [`openurl` 事件](../api/application.md#被别的-app-或一条链接打开时)，`e.url` 是 `'myapp://orders/42'`。**收到事件这一步未在模拟器验证。**
+**效果**：生成的 App 的 Info.plist 里多一项 `CFBundleURLTypes`，里面是 `myapp` 这个协议（实测生成的工程里有）。别的 App 或网页打开 `myapp://orders/42` 时，JS 收到 `application` 的 [`openurl` 事件](open-links.md)，`e.url` 是 `'myapp://orders/42'`。**收到事件这一步未在模拟器验证。**
 
 在模拟器上试，不需要另一个 App：
 
@@ -345,7 +345,7 @@ xcrun simctl openurl booted 'myapp://orders/42'
 - 不写这一项，或者写空数组，App 不认任何自定义协议。
 - `http`、`https`、`mailto`、`tel`、`sms`、`facetime`、`facetime-audio` 是系统自己的协议，不能写。要让 `https://` 的链接打开 App，配的是下一节的通用链接。
 
-协议名没有登记的地方，谁都可以用。别的 App 声明了同一个名字时，系统把链接交给哪一个没有保证，所以名字要起得不容易重复（比如带上公司或产品的名字）。链接的内容也可以是任何人拼的，处理时的注意事项见 [`openurl`](../api/application.md#被别的-app-或一条链接打开时)。
+协议名没有登记的地方，谁都可以用。别的 App 声明了同一个名字时，系统把链接交给哪一个没有保证，所以名字要起得不容易重复（比如带上公司或产品的名字）。链接的内容也可以是任何人拼的，处理时的注意事项见 [`openurl`](open-links.md)。
 
 ## 配置通用链接
 
@@ -386,7 +386,7 @@ xcrun simctl openurl booted 'myapp://orders/42'
 - `components` 列出哪些路径交给 App，没列的路径照常由浏览器打开。
 - 这个地址必须能用 HTTPS 直接取到，不能有跳转。
 
-两处都配好之后，JS 这边和自定义协议一样监听 [`openurl`](../api/application.md#被别的-app-或一条链接打开时)，`e.url` 是完整的 `https://` 地址，`e.sourceApplication` 是 `null`。
+两处都配好之后，JS 这边和自定义协议一样监听 [`openurl`](open-links.md)，`e.url` 是完整的 `https://` 地址，`e.sourceApplication` 是 `null`。
 
 - 带这条 entitlement 的 App 要用包含「关联域名」能力的描述文件签名，包名不能是通配的。
 - 用户在浏览器的地址栏里直接输入这个地址，不会打开 App；从别的 App 或网页里点才会。

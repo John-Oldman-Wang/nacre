@@ -1,6 +1,5 @@
 ---
-type: concept
-status: partial
+type: reference
 ---
 
 # 结构体
@@ -11,13 +10,15 @@ status: partial
 
 | 类 | 字段 | 表示 | 单位 |
 | --- | --- | --- | --- |
-| `CGPoint` | `x` `y` | 一个点 | [pt](units.md) |
-| `CGSize` | `width` `height` | 一个尺寸 | pt |
-| [`CGRect`](#cgrect) | `x` `y` `width` `height` | 一个矩形：左上角的位置加尺寸 | pt |
-| `UIEdgeInsets` | `top` `left` `bottom` `right` | 四条边各自向内缩进多少 | pt |
-| `NSDirectionalEdgeInsets` | `top` `leading` `bottom` `trailing` | 同上，左右换成按文字方向区分的两侧 | pt |
-| [`CGAffineTransform`](#cgaffinetransform) | `a` `b` `c` `d` `tx` `ty` | 二维仿射变换矩阵 | `tx` `ty` 是 pt，其余是比例 |
-| `CAFrameRateRange` | `minimum` `maximum` `preferred` | 帧率区间，见 [`CADisplayLink`](ca-animation.md) | 帧每秒 |
+| [`CGPoint`](cg-point.md) | `x` `y` | 一个点 | [pt](units.md) |
+| [`CGSize`](cg-size.md) | `width` `height` | 一个尺寸 | pt |
+| [`CGRect`](cg-rect.md) | `x` `y` `width` `height` | 一个矩形：左上角的位置加尺寸 | pt |
+| [`UIEdgeInsets`](ui-edge-insets.md) | `top` `left` `bottom` `right` | 四条边各自向内缩进多少 | pt |
+| [`NSDirectionalEdgeInsets`](ns-directional-edge-insets.md) | `top` `leading` `bottom` `trailing` | 同上，左右换成按文字方向区分的两侧 | pt |
+| [`CGAffineTransform`](cg-affine-transform.md) | `a` `b` `c` `d` `tx` `ty` | 二维仿射变换矩阵 | `tx` `ty` 是 pt，其余是比例 |
+| [`CAFrameRateRange`](ca-frame-rate-range.md) | `minimum` `maximum` `preferred` | 帧率区间，见 [`CADisplayLink`](ca-animation.md) | 帧每秒 |
+
+每个类的构造函数和字段见各自的页面。这一页讲所有结构体共同的规则。
 
 `leading` 是文字开始的一侧，`trailing` 是文字结束的一侧。在从左往右书写的语言里 `leading` 是左、`trailing` 是右，在从右往左书写的语言里两者对调。
 
@@ -232,144 +233,6 @@ console.log(String(new UIEdgeInsets(8, 16, 8, 16)));
 - 第二行输出 `{"x":10,"y":20,"width":100,"height":50}`。`origin` 和 `size` 不出现在 JSON 里。
 - 第三行输出 `UIEdgeInsets(8, 16, 8, 16)`。
 
-## `CGRect`
-
-`CGRect` 表示一个矩形。`x`、`y` 是矩形左上角的坐标，`width`、`height` 是宽和高，单位都是 [pt](units.md)。坐标原点在左上角，`y` 向下增大。
-
-```js
-const r = new CGRect(10, 20, 100, 50);
-
-console.log(r.x, r.y, r.width, r.height);
-console.log(String(r.origin), String(r.size));
-console.log(r.origin.x === r.x);
-```
-
-**结果**
-
-- 第一行输出 `10 20 100 50`。
-- 第二行输出 `CGPoint(10, 20) CGSize(100, 50)`。
-- 第三行输出 `true`。
-
-| 成员 | 类型 | 可读 | 可写 | 含义 |
-| --- | --- | --- | --- | --- |
-| `new CGRect(x, y, width, height)` | | | | 构造 |
-| `x` `y` | 数 | 是 | 否 | 左上角的坐标，pt |
-| `width` `height` | 数 | 是 | 否 | 宽和高，pt |
-| `origin` | `CGPoint` | 是 | 否 | 左上角，等于 `(x, y)`。每次读得到一个新的 `CGPoint` |
-| `size` | `CGSize` | 是 | 否 | 尺寸，等于 `(width, height)`。每次读得到一个新的 `CGSize` |
-
-`origin`、`size` 和四个直接字段给出的是同一组数，用哪一种都可以。写入时给普通对象只认四个直接字段：`{ origin, size }` 这种形状不被接受，会按「少字段」抛错。
-
-用到 `CGRect` 的地方：[`UIView`](ui-view.md) 的 `frame` 和 `bounds`、[`CALayer`](ca-layer.md) 的 `frame` 和 `bounds`、[`UIBezierPath`](ui-bezier-path.md) 的矩形和椭圆路径、[`UIScrollView`](ui-scroll-view.md) 的 `scrollRectToVisible()`。
-
-## `CGPoint`、`CGSize` 和两种边距
-
-```js
-const p = new CGPoint(10, 20);
-const s = new CGSize(100, 50);
-const insets = new UIEdgeInsets(8, 16, 8, 16);
-const margins = new NSDirectionalEdgeInsets(8, 16, 8, 16);
-
-console.log(p.x, s.height, insets.left, margins.leading);
-```
-
-**结果**
-
-- 输出 `10 50 16 16`。
-
-| 构造 | 参数顺序 | 用在哪 |
-| --- | --- | --- |
-| `new CGPoint(x, y)` | 横坐标、纵坐标 | `center`、`contentOffset`、`convertPoint()`、路径上的点 |
-| `new CGSize(width, height)` | 宽、高 | `contentSize`、`sizeThatFits()`、图层的 `shadowOffset` |
-| `new UIEdgeInsets(top, left, bottom, right)` | 上、左、下、右 | `layoutMargins`、`safeAreaInsets`、`contentInset` |
-| `new NSDirectionalEdgeInsets(top, leading, bottom, trailing)` | 上、文字开始侧、下、文字结束侧 | `directionalLayoutMargins` |
-
-边距的四个参数从上边开始，按逆时针方向排列：上、左、下、右。
-
-界面需要支持从右往左书写的语言时，用 `NSDirectionalEdgeInsets`，它的两侧会随文字方向对调；`UIEdgeInsets` 的 `left` 和 `right` 固定是屏幕的左和右。从右往左的语言下的对调效果**未在模拟器验证**。
-
-所有字段可读、不可写。
-
-## `CGAffineTransform`
-
-`CGAffineTransform` 表示一个二维仿射变换：缩放、旋转、平移，以及它们的组合。[`UIView`](ui-view.md) 的 `transform` 属性的值是它。六个字段是下面这个矩阵里的六个数：
-
-```
-| a  b  0 |
-| c  d  0 |
-| tx ty 1 |
-```
-
-日常使用不需要直接填这六个数。用三个静态方法造出基本变换，再用 `concat()` 组合：
-
-```js
-box.transform = CGAffineTransform.rotation(Math.PI / 6);
-box.transform = CGAffineTransform.scale(1.2);
-box.transform = CGAffineTransform.scale(1.2)
-  .concat(CGAffineTransform.rotation(Math.PI / 6));
-box.transform = CGAffineTransform.identity;
-```
-
-**效果**
-
-- 第一行：`box` 绕自己的中心顺时针转 30°。
-- 第二行：`box` 以中心为基准放大到 1.2 倍。每次赋值替换之前的变换，不累加，所以这时不再旋转。
-- 第三行：`box` 放大到 1.2 倍并旋转 30°。
-- 第四行：`box` 恢复原样。
-
-变换不改变 `bounds` 和 `center`。变换不是单位矩阵时，`frame` 读出来的是变换之后的外接矩形，详见 [`UIView`](ui-view.md)。
-
-### 成员
-
-| 成员 | 返回 | 含义 |
-| --- | --- | --- |
-| `CGAffineTransform.identity` | `CGAffineTransform` | 单位矩阵，表示不做任何变换。只读。每次读得到一个新的实例 |
-| `CGAffineTransform.scale(sx, sy?)` | `CGAffineTransform` | 缩放。`sx`、`sy` 是横向和纵向的倍数（比例，1 表示不变）。只给一个参数时两个方向相同 |
-| `CGAffineTransform.translation(tx, ty)` | `CGAffineTransform` | 平移。`tx`、`ty` 的单位是 pt |
-| `CGAffineTransform.rotation(radians)` | `CGAffineTransform` | 旋转。参数是[弧度](units.md)，正值在屏幕上是顺时针。角度换算成弧度：`角度 * Math.PI / 180` |
-| `t.concat(other)` | `CGAffineTransform` | 返回一个新变换：先做 `t`，再做 `other`。`t` 本身不变 |
-| `t.invert()` | `CGAffineTransform` 或 `null` | 返回逆变换。`t` 不可逆（行列式为 0，比如 `scale(0)`）时返回 `null` |
-| `t.isIdentity` | 布尔 | `t` 是不是单位矩阵。只读 |
-| `new CGAffineTransform(a, b, c, d, tx, ty)` | | 直接给出六个数。上面的方法组合不出需要的变换时使用 |
-| `a` `b` `c` `d` `tx` `ty` | 数 | 矩阵的六个数。可读，不可写 |
-
-静态方法的参数转不成有限的数时，抛 `TypeError: a struct field must be a finite number, got …`。
-
-### `concat` 的顺序
-
-`concat` 的两种顺序得到的结果不同：
-
-```js
-const scale = CGAffineTransform.scale(2);
-const move = CGAffineTransform.translation(10, 20);
-
-console.log(scale.concat(move).tx, scale.concat(move).ty);
-console.log(move.concat(scale).tx, move.concat(scale).ty);
-```
-
-**结果**
-
-- 第一行输出 `10 20`：先缩放再平移，平移量不受缩放影响。
-- 第二行输出 `20 40`：先平移再缩放，平移量也被放大了 2 倍。
-
-### 不可逆的情况
-
-`invert()` 的返回值可能是 `null`，使用之前先判空：
-
-```js
-const back = CGAffineTransform.scale(2).invert();
-if (back !== null) {
-  console.log(back.a);
-}
-
-console.log(CGAffineTransform.scale(0).invert());
-```
-
-**结果**
-
-- 第一段输出 `0.5`。
-- 第二段输出 `null`。
-
 ## 与 iOS 原生写法的对照
 
 | ObjC | JS |
@@ -390,6 +253,8 @@ console.log(CGAffineTransform.scale(0).invert());
 | `CGAffineTransformInvert(t)`（不可逆时返回 `t` 本身） | `t.invert()`（不可逆时返回 `null`） |
 | `CGAffineTransformIsIdentity(t)` | `t.isIdentity` |
 
+各个结构体自己的对照见它的页面。
+
 ## 还不能做的
 
 | 想做的事 | 对应的原生能力 |
@@ -402,6 +267,7 @@ console.log(CGAffineTransform.scale(0).invert());
 ## 参见
 
 - [单位](units.md)：pt 是什么、弧度和角度。
+- 各结构体的类页：[`CGPoint`](cg-point.md)、[`CGSize`](cg-size.md)、[`CGRect`](cg-rect.md)、[`UIEdgeInsets`](ui-edge-insets.md)、[`NSDirectionalEdgeInsets`](ns-directional-edge-insets.md)、[`CGAffineTransform`](cg-affine-transform.md)、[`CAFrameRateRange`](ca-frame-rate-range.md)。
 - [`UIView`](ui-view.md)：`frame`、`bounds`、`center`、`transform` 的含义，以及变换对 `frame` 的影响。
 - [原生类](native-classes.md)：数、字符串、对象这几类参数的转换规则，以及怎么开启类型检查。
 - [实现说明](../internals/structs.md)：字段为什么做成只读、变换为什么在 JS 里计算。

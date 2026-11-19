@@ -19,6 +19,7 @@
     "@nacrejs/types": "0.0.1-beta.1"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }

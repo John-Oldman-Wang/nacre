@@ -86,7 +86,7 @@
 
 ## `layer.transform`（`CATransform3D`）还没暴露
 
-`UIView.transform`（`CGAffineTransform`）已经做了，见[结构体文档](../api/structs.md#cgaffinetransform)。剩下 3D 的那一半：16 个字段，而且 `m34` 那种透视参数单靠结构体不好用，要和动画一起看。
+`UIView.transform`（`CGAffineTransform`）已经做了，见[结构体文档](../api/cg-affine-transform.md)。剩下 3D 的那一半：16 个字段，而且 `m34` 那种透视参数单靠结构体不好用，要和动画一起看。
 
 > 记这条 TODO 时担心的「C 函数怎么暴露」**在仿射变换这里没出现**：`CGAffineTransformMakeScale` 那几个全是纯算术，静态工厂在 JS 里算就行，过桥的只有六个数。判据记在[实现原理](structs.md)里——**C 函数只在值类型上做算术就在 JS 侧实现，真要跨桥的是会碰系统状态的那些**。
 
