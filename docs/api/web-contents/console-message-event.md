@@ -1,6 +1,6 @@
 ---
 type: reference
-native: WKUserScript + WKScriptMessageHandler
+native: "（没有对应的系统接口）"
 ---
 
 # `WebContents`：`console-message` 事件
@@ -77,7 +77,7 @@ await contents.loadURL('data:text/html;charset=utf-8,' +
 
 ## 对应的 iOS API
 
-没有对应的系统接口。运行时给每张网页注入一段脚本（`WKUserScript`），接管网页的 `console` 几个方法，再通过一条消息通道（`WKScriptMessageHandler`）发给 App。
+没有对应的系统接口。
 
 ## 参见
 
