@@ -274,9 +274,17 @@ function main(argv) {
         continue;
       }
       console.log('→ ' + p.name);
-      execFileSync('npm', ['publish', '--tag', tag, '--access', 'public', '--registry', REGISTRY,
-                           ...(dry ? ['--dry-run'] : [])],
-                   { cwd: p.at, stdio: 'inherit' });
+      try {
+        execFileSync('npm', ['publish', '--tag', tag, '--access', 'public', '--registry', REGISTRY,
+                             ...(dry ? ['--dry-run'] : [])],
+                     { cwd: p.at, stdio: 'inherit' });
+      } catch {
+        // npm 自己的报错已经打在上面了，这里只说停在哪、接下来怎么办
+        const text = p.name + ' 没发出去，停在这里。它前面的包已经发了，重新跑同一条命令会跳过它们、接着发';
+        console.error('\n' + text);
+        annotate(text);
+        process.exit(1);
+      }
     }
     return;
   }

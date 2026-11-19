@@ -1,6 +1,9 @@
 # 每个 PR 上跑的检查。分两段：
-#   static  不用编译的：类型检查、各组用例、三边核对、文档链接
-#   build   用 Xcode 26 把运行时和能力包从源码编出来，再照用户的走法演练一遍
+#   static  不用编译的：类型检查、各组用例、文档链接。在 Linux 上跑——Mac 的机器
+#           常常排不上（第一次开 PR 时两个任务都因为分不到机器被取消了），
+#           这一段不该被它拖住
+#   build   三边核对；用 Xcode 26 把运行时和能力包从源码编出来，再照用户的走法
+#           演练一遍。只能在 Mac 上跑
 #
 # 发出去的包是用 Xcode 26 编的（见 release.yml），所以 PR 上就先编一遍。
 # 完整的验收（六千条断言，要模拟器、要点权限弹窗）不在这里跑，发布前在本地跑。
@@ -20,7 +23,7 @@ concurrency:
 
 jobs:
   static:
-    runs-on: macos-26
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -42,8 +45,6 @@ jobs:
         run: npm test
       - name: 发布脚本的用例
         run: node --test scripts/test/*.test.mjs
-      - name: 三边核对
-        run: bash ios/scripts/check-api.sh
       - name: 文档链接
         run: bash docs/check-links.sh
 
@@ -60,6 +61,9 @@ jobs:
         run: |
           sudo xcode-select -s /Applications/Xcode_26.0.app
           xcodebuild -version
+      # 核对脚本是在 macOS 上写的，没在 Linux 上跑过，所以放在这一段
+      - name: 三边核对
+        run: bash ios/scripts/check-api.sh
       - name: 装 XcodeGen
         run: brew install xcodegen
       - uses: actions/cache@v4
