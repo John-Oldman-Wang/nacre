@@ -81,6 +81,8 @@ ObjC 里写 0 到 1 以外的值不报错。这里照 `intensity` 的先例在 J
 | `availableModes` | 1 个，就是 `currentMode`；它的 `size` 等于 `nativeBounds` 的大小 |
 | `mirroredScreen`、`isCaptured` | `null`、`false` |
 
+键盘的三个事件（`keyboardshow`、`keyboardhide`、`keyboardchange`）后来也挂在屏幕上，当场派发，见[事件](events.md#键盘的事件为什么当场派发)。
+
 没验的：写 `brightness` 之后屏幕的样子、四个事件真的派发（要在设备上调亮度、录屏）、外接显示器、真机上的刷新率。
 
 ## `UIPasteboard`

@@ -78,6 +78,7 @@ import { stepViewAdditions } from './steps/view-additions.js';
 import { stepNavigationAdditions } from './steps/navigation-additions.js';
 import { stepLocale } from './steps/locale.js';
 import { stepScreen } from './steps/screen.js';
+import { stepKeyboard } from './steps/keyboard.js';
 import { stepGestures } from './steps/gestures.js';
 import { stepAlerts } from './steps/alerts.js';
 import { stepEffects } from './steps/effects.js';
@@ -272,6 +273,7 @@ application.addEventListener('sceneconnect', (e) => {
     ['stepFetchStream', () => stepFetchStream(ctx)],
     ['stepNativeModules', () => stepNativeModules(ctx)],
     ['stepWebAdditions', () => stepWebAdditions(ctx)],
+    ['stepKeyboard', () => stepKeyboard(ctx)],
   ];
   // 收尾的几步排在最后，先后和原来一样。结尾三张和网页的比对各有几万条，要在
   // 主线程上跑十几秒：它们等生命周期那一步的 GC 检查结束、并且主线程闲下来

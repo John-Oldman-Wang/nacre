@@ -1455,6 +1455,12 @@
 + keyboardLayoutGuide 是 UIKeyboardLayoutGuide
 + keyboardType
 + keyboardType 写错：不抛、值不变
++ keyboardhide 来了
++ keyboardhide：duration 是不小于 # 的数
++ keyboardhide：frame 只读
++ keyboardhide：frame 是 CGRect
++ keyboardhide：previousFrame 是 CGRect
++ keyboardhide：当场派发（endEditing 返回之前监听器就执行了）
 + keys 列得出来
 + large 自己想要的大小是 #×#
 + latitude
@@ -2180,6 +2186,7 @@
 + tabBarMinimizeBehavior 默认
 + tailIndent 读写（负数是从右边量）
 + target 是 application
++ target 是这块屏幕
 + target 是那个 manager
 + tel: 链接：地址原样给
 + tel: 链接：拦住了，没有加载失败
@@ -2266,6 +2273,7 @@
 + type
 + type 写得进去
 + type 是 console-message
++ type 是 keyboardhide
 + type 是 openurl
 + undefined 抛
 + undefined 被拒
@@ -4117,6 +4125,7 @@
 + 收尾 clear 干净
 + 收尾：# 行
 + 收普通对象写的大小，选项可以给多个
++ 收起时也有 keyboardchange，也是当场
 + 改 constant 后重新布局
 + 改 isHidden：网页收不到 visibilitychange
 + 改 searchParams，search 跟着变
@@ -5974,6 +5983,14 @@
 ? duration 是正数
 ? invalidate 之后不再收到
 ? invalidate 期间对照组照常收到
+? keyboardhide：收起之后键盘在屏幕底边以下，或者高度是 #
+? keyboardhide：监听器里挪的视图跟着键盘动
+? keyboardshow：duration 是正数（秒）
+? keyboardshow：frame 是 CGRect
+? keyboardshow：previousFrame 是 CGRect
+? keyboardshow：监听器里挪的视图跟着键盘动（挂上了动画）
+? keyboardshow：键盘有高度
+? keyboardshow：键盘的底边在屏幕底边
 ? targetTimestamp 比 timestamp 晚
 ? timestamp 是正数
 ? timestamp 递增
@@ -5982,7 +5999,9 @@
 ? 单行选区：内容是空的，结束编辑之后选区是 (#, #)
 ? 单行选区：结束编辑之后读到的还是 NSRange
 ? 卡片里有一个青色小圆点在左右来回走（display link 驱动）
+? 回车收起了键盘
 ? 大写入期间定时器照常跑（重活不在主线程）
+? 弹出时先 keyboardchange 再 keyboardshow
 ? 暂停之后自己不再收到
 ? 暂停期间对照组照常收到
 ? 没挂 run loop 的那个一次都没发
@@ -5991,3 +6010,4 @@
 ? 读取开始之后丢掉 Response：对照组在 # ms 被回收，读取在 # ms 照常结算
 ? 跑完了发 stop 且 finished 为真
 ? 通知：排通知被拒绝时给的是 Error
+? 键盘弹出之后 card 被顶上去了

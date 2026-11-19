@@ -709,6 +709,7 @@ defineField(event, 'numberOfTouches', payload.numberOfTouches);
 | 原生通知派发 | **必须 `false`** | 运行时刻意延后一轮执行，避免在 UIKit 操作中途重入 JS，所以派发方早已返回；这类通知本来也没有可取消的默认行为 |
 | 原生能推迟默认动作的场合 | 可以 `true` | 原生先不做、派发事件、等 JS 回调回主线程再查 `defaultPrevented`。UIKit 多数 delegate 是同步返回 BOOL，推不了，那些走下一行的同步回调。**第一处是网页的 `will-navigate`**：系统问放不放行时给的是一个可以晚点再调的回调，见[实现原理](web-view.md#will-navigate第一个能取消的原生事件) |
 | 系统当场来问、不给晚答的机会（委托方法要立刻返回布尔） | 可以 `true` | **同步回调**（M1b）：原生不排队，当场派发，监听器执行完才把答案交回系统。输入框的五个 `should…` 事件是第一处，见[实现原理](events.md#m1b同步回调系统问js-当场答) |
+| 系统这一刻正在做一件 JS 要跟着做的事 | **`false`** | **当场的通知**（2026-11-19）：系统不等答案，但只有这一刻改才赶得上。第一处是屏幕上的键盘三个事件，见下面[键盘的事件为什么当场派发](#键盘的事件为什么当场派发) |
 
 ### 传播：先只做 target 阶段
 
@@ -749,3 +750,20 @@ iOS 的触摸不是一套机制，是**四套并行**的（hit-testing、respond
 | 派发时机 | **延后一轮**，和现有的原生通知一致。`cancelable` 为 `false` |
 | `dispatchEvent` | **不触发原生 action**。它是 `EventTarget` 的语义，只派发给 JS 监听器；要真的触发原生用显式的 `sendActionsForControlEvents([...])` |
 | 事件对象 | ~~第一版只有 `type` 和 `target`~~ —— **这条当时判断错了**：以为要等手势那一步，其实 `UIControl` 的 action 换成两参的 `fire:forEvent:` 就拿得到 `UIEvent`，不需要手势识别器。A8 已做 |
+
+## 键盘的事件为什么当场派发
+
+2026-11-19 定。屏幕上的 `keyboardshow`、`keyboardhide`、`keyboardchange` 对应 `UIKeyboardWillShow` / `WillHide` / `WillChangeFrame` 三个通知，是原生的通知，按原来的规矩该延后一轮派发。没这么做，因为延后一轮就做不到客户要的「底部栏跟着键盘一起动」。
+
+**真机实测**（iPhone 14，iOS 27，临时探针，测完删了）：在通知的回调里当场读 `UIView.inheritedAnimationDuration`，得到 0.383 秒，和通知里键盘动画的时长 0.3833 一致；当场挪一个视图，它的图层自动挂上了 `position` 动画，时长 0.383 秒。同样的事延后一轮（`dispatch_async` 到主队列）再做：继承的时长是 0，图层上没有动画，视图直接跳到终点。也就是说，系统是在键盘的动画块里发这个通知的，只有当场改，改动才会带上和键盘一样的时长和曲线。
+
+键盘的曲线是一个没有公开名字的值（7），`UIView.animateWithDuration` 的四种曲线里没有它，所以「延后派发、给出时长和曲线让 JS 自己做动画」这条路走不通：曲线对不上。
+
+所以加了第三种派发：**当场的通知**。原生调 `NacreEmitEventNow`，和 `should…` 那一类一样当场进 JS，但事件 `cancelable` 是 `false`，原生不看返回值。`NacreSyncAsk` 多了一个 `cancelable` 参数，两种都走它。
+
+当场派发的后果和 `should…` 那一类相同：JS 调 `endEditing()` 收起键盘时，监听器在 `endEditing()` 的调用当中执行（验收里有一条断言）；监听器里排的微任务要等最外层那次 JS 调用返回才执行，那时动画已经过去了。所以文档里写的是「改动要在监听器里当场做完」。
+
+事件挂在 `UIScreen` 上：iOS 16.1 起这三个通知的发出对象就是键盘所在的屏幕。事件对象带 `frame`、`previousFrame`（屏幕坐标，转成 `CGRect`）和 `duration`。曲线不给：当场改的东西自动用键盘的曲线。
+
+模拟器连着电脑键盘时软键盘不弹，只收得到收起那一组（时长 0）；关掉硬件键盘后，模拟器上「监听器里挪的视图挂上了 `position` 动画」也验过了。
+

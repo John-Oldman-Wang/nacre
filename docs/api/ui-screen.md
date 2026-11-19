@@ -78,8 +78,13 @@ status: partial
 | [`capturedchange`](ui-screen/capturedchange-event.md) | 开始或停止被录屏、投屏、镜像 |
 | [`modechange`](ui-screen/modechange-event.md) | 显示模式变了 |
 | [`referencedisplaymodestatuschange`](ui-screen/referencedisplaymodestatuschange-event.md) | 参考显示模式的状态变了 |
+| [`keyboardshow`](ui-screen/keyboardshow-event.md) | 键盘要弹出 |
+| [`keyboardhide`](ui-screen/keyboardhide-event.md) | 键盘要收起 |
+| [`keyboardchange`](ui-screen/keyboardchange-event.md) | 键盘的位置或大小要变：弹出、收起、换输入法 |
 
-- 事件不能取消。回调不是在变化的那一刻同步执行，而是稍后执行，见[运行时怎么工作](how-it-works.md#事件)。
+- 事件不能取消。
+- 前四个事件的回调不是在变化的那一刻同步执行，而是稍后执行，见[运行时怎么工作](how-it-works.md#事件)。
+- 键盘的三个事件是当场派发的：监听器在键盘的动画里执行，这时候改的布局跟着键盘一起动。
 - 屏幕上也可以监听和派发自定义名字的事件。
 
 ## 示例
@@ -131,6 +136,9 @@ application.addEventListener('sceneconnect', (e) => {
 | `UIScreenBrightnessDidChangeNotification` | `screen.addEventListener('brightnesschange', …)` |
 | `UIScreenModeDidChangeNotification` | `screen.addEventListener('modechange', …)` |
 | `UIScreenReferenceDisplayModeStatusDidChangeNotification` | `screen.addEventListener('referencedisplaymodestatuschange', …)` |
+| `UIKeyboardWillShowNotification` | `screen.addEventListener('keyboardshow', …)` |
+| `UIKeyboardWillHideNotification` | `screen.addEventListener('keyboardhide', …)` |
+| `UIKeyboardWillChangeFrameNotification` | `screen.addEventListener('keyboardchange', …)` |
 
 ## 参见
 

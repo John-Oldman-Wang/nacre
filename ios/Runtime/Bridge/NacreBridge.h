@@ -667,10 +667,11 @@ typedef void (^NacreEventSink)(id object, const char* className, NSString* type,
 void NacreSetEventSink(NacreEventSink sink);
 
 /// 同步回调的另一头，同样由 NacreRuntime 启动时塞进来。
-/// ask：当场派发一个可取消的事件，返回取消了没有。
+/// ask：当场派发一个事件，返回取消了没有。cancelable 为 NO 时是「当场的通知」，
+/// 返回值总是 NO。
 /// call：调一段 JS 登记过的代码；later 为 YES 时延后一轮。
 typedef BOOL (^NacreSyncAsk)(id object, const char* className, NSString* type,
-                             NSString* json);
+                             NSString* json, BOOL cancelable);
 typedef void (^NacreBlockCall)(NSInteger blockId, NSString* argsJSON, BOOL later);
 void NacreSetSyncSinks(NacreSyncAsk ask, NacreBlockCall call);
 
