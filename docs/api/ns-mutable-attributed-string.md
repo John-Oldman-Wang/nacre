@@ -93,12 +93,6 @@ console.log(text.string);
 | `[text insertAttributedString:other atIndex:0]` | `text.insertAttributedString(other, { atIndex: 0 })` |
 | `[text replaceCharactersInRange:range withString:@"x"]` | `text.replaceCharactersInRange(range, { withString: 'x' })` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 改 `string` 而保留属性 | `mutableString`。用 `replaceCharactersInRange()` 代替 |
-
 ## 参见
 
 - [`NSAttributedString`](ns-attributed-string.md)：读属性、量尺寸，以及全部属性名

@@ -155,17 +155,6 @@ application.addEventListener('sceneconnect', (e) => {
 | `vc.tabBarItem.badgeValue = @"3"` | `vc.tabBarItem.badgeValue = '3'` |
 | `vc.tabBarController` | `vc.tabBarController` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 在用户点标签时决定「让不让切过去」 | `tabBarController:shouldSelectViewController:`。它要求当场返回结果，运行时现在做不到 |
-| 用 iOS 18 的新写法描述标签 | `UITab`、`tabs`、`UITabGroup`。`UITab` 要一个当场返回页面的回调，原因同上 |
-| 超过 5 个标签时的「更多」页，以及让用户调整标签顺序 | `moreNavigationController`、`customizableViewControllers`。超过 5 个时系统仍会显示「更多」，但 JS 这边读不到它，`selectedIndex` 在选中「更多」时是 `-1` |
-| 定制标签栏的背景、字体、间距 | `UITabBarAppearance` |
-| 在标签栏上方放一条附加内容 | `bottomAccessory`（`UITabAccessory`） |
-| 自己写切换标签的动画 | `UIViewControllerAnimatedTransitioning` |
-
 ## 参见
 
 - [做一组底部标签](../guides/tabs.md)：角标、代码切换、每个标签里放导航栈、颜色、藏标签栏
@@ -174,4 +163,3 @@ application.addEventListener('sceneconnect', (e) => {
 - [`UIViewController`](ui-view-controller.md)：页面。`tabBarItem` 和 `tabBarController` 在它上面；想自己画一排标签时用它的父子控制器
 - [`UINavigationController`](ui-navigation-controller.md)：每个标签里常放一个导航栈
 - [`UIWindow`](ui-window.md)：`rootViewController` 在这里设
-- [实现原理：导航和模态呈现](../internals/navigation.md)

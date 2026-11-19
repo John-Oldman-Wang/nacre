@@ -262,4 +262,3 @@ console.log(shop.webContents.session.isPersistent(), guest.webContents.session.i
 - [外观特征](ui-trait-collection.md)：强制深浅色，网页的 `prefers-color-scheme` 会跟着变。
 - [`session`](session.md)：读写网页的 cookie、清掉网页留下的数据。
 - [`fetch`](fetch.md)：只要数据、不需要显示网页时用它。它的 cookie 和网页的不通。
-- [实现原理](../internals/web-view.md)：为什么分成两个对象、几条实测的数据。

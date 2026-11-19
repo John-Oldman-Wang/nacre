@@ -35,7 +35,7 @@ status: partial
 | [`formatToParts()`](intl-date/formattoparts.md) | 把结果一段一段给出来 |
 | [`formatRange()`](intl-date/formatrange.md) | 写一段时间，两头相同的部分只写一次 |
 | [`resolvedOptions()`](intl-date/resolvedoptions.md) | 实际用的地区、日历、时区和各个字段 |
-| [`formatRangeToParts()`](intl-date/formatrangetoparts.md) | 还不能用，调用时抛 `TypeError` |
+| [`formatRangeToParts()`](intl-date/formatrangetoparts.md) | 调用时抛 `TypeError` |
 
 ## 相关的函数
 
@@ -129,15 +129,7 @@ Jan 4, 2026 at 10:04 PM
 | 不指定地区时用哪个地区 | Safari 把系统语言换成少数几种常见的语言 | 用系统的首选语言本身，见[不指定地区时用哪个地区](intl.md#不指定地区时用哪个地区) |
 | `formatRangeToParts()` | 有 | 调用时抛 `TypeError` |
 
-## 还不能做的
-
-| 想做的事 | 标准里的成员 | 状态 |
-| --- | --- | --- |
-| 把一段时间的结果拆开，知道每一段属于起点还是终点 | `formatRangeToParts()` | 未实现 |
-| 写「3 小时前」「昨天」 | `Intl.RelativeTimeFormat` | 未实现，运行时不打算提供。FormatJS 有纯 JS 的垫片，**未在 Nacre 上验证** |
-
 ## 参见
 
 - [按地区显示日期和时间](../guides/format-dates.md)：跟随用户的地区和时区、24 小时制、星期几、时区名、一段时间、拆开加样式
 - [`Intl.NumberFormat`](intl.md)：数字的格式化，地区标签的规则，和浏览器一致到什么程度
-- [实现原理：`Intl`](../internals/intl.md)：日期的结果为什么能和 Safari 逐条相同

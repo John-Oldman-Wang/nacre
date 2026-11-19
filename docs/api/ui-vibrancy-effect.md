@@ -43,12 +43,6 @@ panel.contentView.addSubview(vivid);
 | `[UIVibrancyEffect effectForBlurEffect:blur]` | `UIVibrancyEffect.effectForBlurEffect(blur)` |
 | `[UIVibrancyEffect effectForBlurEffect:blur style:UIVibrancyEffectStyleLabel]` | `UIVibrancyEffect.effectForBlurEffect(blur, { style: 'label' })` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 读出一个鲜明效果是哪种样式 | 无，iOS 没有公开这个属性 |
-
 ## 参见
 
 - [做模糊和玻璃效果](../guides/blur-and-glass.md#让面板上的文字更鲜明)

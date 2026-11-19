@@ -102,4 +102,3 @@ application.addEventListener('sceneconnect', (e) => {
 
 - [`UIControl`](ui-control.md)：父类，`change` 事件和禁用
 - [颜色](ui-color.md)：`selectedColor` 读写的颜色字符串
-- [实现原理：bindgen](../internals/bindgen.md)：这个类的绑定是怎么接进来的

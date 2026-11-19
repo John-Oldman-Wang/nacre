@@ -56,13 +56,6 @@ console.log(JSON.stringify(everyMorning.dateComponents));
 | `[UNCalendarNotificationTrigger triggerWithDateMatchingComponents:c repeats:YES]` | `UNCalendarNotificationTrigger.triggerWithDateMatchingComponents({ hour: 8, minute: 30 }, { repeats: true })` |
 | `c.day == NSDateComponentUndefined` | `trigger.dateComponents.day === undefined` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 日期分量指定日历或时区 | `NSDateComponents.calendar`、`timeZone` |
-| 问一个触发器下一次是什么时候 | `nextTriggerDate` |
-
 ## 参见
 
 - [`UNTimeIntervalNotificationTrigger`](un-time-interval-notification-trigger.md)：过多少秒之后送达

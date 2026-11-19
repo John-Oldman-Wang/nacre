@@ -111,20 +111,9 @@ application.addEventListener('sceneconnect', (e) => {
 | `[UIBarButtonItem flexibleSpaceItem]` | `UIBarButtonItem.flexibleSpace()` |
 | `[UIBarButtonItem fixedSpaceItemOfWidth:24]` | `UIBarButtonItem.fixedSpace(24)` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 整体定制工具条的外观（背景、阴影、按钮的文字样式） | `standardAppearance` 等四个属性，`UIToolbarAppearance` |
-| 给工具条换背景图和阴影图 | `setBackgroundImage:forToolbarPosition:barMetrics:`、`setShadowImage:forToolbarPosition:` |
-| 告诉系统工具条在页面的顶部还是底部 | `barPosition`、`UIToolbarDelegate` 的 `positionForBar:`。它要求同步返回一个值 |
-| 使用导航控制器自带的工具条 | `UINavigationController.toolbar`、`UIViewController.toolbarItems` |
-| 把工具条放到 [`UITextField`](ui-text-field.md) 的键盘上方 | `UITextField.inputAccessoryView`。[`UISearchBar`](ui-search-bar.md) 的可以 |
-
 ## 参见
 
 - [做一个工具条](../guides/toolbars.md)：排按钮、放到页面底部和键盘上方
 - [`UIBarButtonItem`](ui-bar-button-item.md)：`UIBarButtonItem` 怎么创建、有哪些成员
 - [`UISearchBar`](ui-search-bar.md)：它的 `inputAccessoryView` 可以放工具条
 - [`UIView`](ui-view.md)：工具条的父类，位置、大小、隐藏
-- [实现原理：工具条和搜索框](../internals/bars.md)

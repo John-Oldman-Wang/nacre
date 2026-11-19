@@ -10,7 +10,7 @@ status: partial
 
 整个 App 只有一个 `UIDevice` 对象，由运行时提供，从 [`UIDevice.currentDevice`](ui-device/currentdevice.md) 取。
 
-现在提供的七项信息全部只读，在 App 运行期间不会变化，所以没有变化通知，读一次保存下来即可。电量、设备的物理朝向这类会变化的状态还读不到，见[还不能做的](#还不能做的)。
+这七项信息全部只读，在 App 运行期间不会变化，读一次保存下来即可。
 
 **继承关系**：`EventTarget` → `NSObject` → `UIDevice`
 
@@ -71,16 +71,6 @@ phone
 | `device.userInterfaceIdiom == UIUserInterfaceIdiomPhone` | `device.userInterfaceIdiom === 'phone'` |
 | `device.identifierForVendor.UUIDString` | `device.identifierForVendor` |
 | `if (@available(iOS 27.0, *))` | 取 `systemVersion` 的主版本号比较 |
-
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 读电量和充电状态，并在变化时收到通知 | `batteryLevel`、`batteryState`、`isBatteryMonitoringEnabled` |
-| 读设备的物理朝向（竖着、横着、面朝上），并在变化时收到通知 | `orientation`、`beginGeneratingDeviceOrientationNotifications` |
-| 知道设备是否贴近了脸 | `proximityState`、`isProximityMonitoringEnabled` |
-| 读具体的型号（iPhone 14、iPhone Air） | `uname()` 的 `machine` 字段 |
-| 读用户给设备起的名字 | 需要 Apple 单独批准的权限 |
 
 ## 参见
 

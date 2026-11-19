@@ -160,14 +160,6 @@ application.addEventListener('sceneconnect', (e) => {
 | `input` 事件（拖动途中） | `change`，`isContinuous` 为 `true` |
 | `change` 事件（松手时） | `change`，`isContinuous` 为 `false` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 在轨道上画刻度，让圆钮只能停在刻度上 | `trackConfiguration`（`UISliderTrackConfiguration`、`UISliderTick`）。未实现 |
-| 改变轨道和圆钮的画法 | 覆写 `trackRectForBounds:` 等。未实现：原生类还不能继承，见[原生类](native-classes.md) |
-| 竖着的滑块 | 无，系统没有这个选项。用 [`transform`](ui-view.md) 把滑块转 90° |
-
 ## 参见
 
 - [做开关、滑块和步进器](../guides/switches-sliders-steppers.md)：只在松手时处理、按档位取值、跟着圆钮走的气泡
@@ -175,4 +167,3 @@ application.addEventListener('sceneconnect', (e) => {
 - [`UIImage`](ui-image.md)：取 SF Symbols 和自己的图
 - [颜色](ui-color.md)：颜色字符串的写法
 - [结构体](structs.md)：`CGRect`
-- [实现原理](../internals/value-controls.md)：默认值和边界行为是怎么量的

@@ -89,12 +89,6 @@ CATransaction.commit();
 | `[CATransaction setDisableActions:YES]` | `CATransaction.setDisableActions(true)` |
 | `[CATransaction setAnimationDuration:1.5]` | `CATransaction.setAnimationDuration(1.5)` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 整个事务里的动画都结束时得到通知。现在在动画对象上监听 `stop` | `CATransaction.completionBlock` |
-
 ## 参见
 
 - [关掉隐式动画](../guides/animation.md#关掉隐式动画)

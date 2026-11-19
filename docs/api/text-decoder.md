@@ -62,13 +62,6 @@ console.log(new TextDecoder().decode(bytes));
 | 支持的编码 | UTF-8、UTF-16、GBK、Shift_JIS 等几十种 | 只有 UTF-8。别的在创建时抛 `RangeError` |
 | `TextDecoderStream` | 有 | 没有 |
 
-## 还不能做的
-
-| 想做的事 | 对应的 Web 能力 | 状态 |
-| --- | --- | --- |
-| 解码 GBK、UTF-16 等别的编码的文字 | `new TextDecoder('gbk')` | 未实现 |
-| 边读数据流边解码 | `TextDecoderStream` | 未实现。用 `decode()` 的 `stream` 选项逐段解码 |
-
 ## 参见
 
 - [`TextEncoder`](text-encoder.md)：把字符串编码成字节

@@ -5,7 +5,7 @@ native: "-[PHPhotoLibrary performChanges:completionHandler:]"
 
 # `PHPhotoLibrary`：`performChanges()` 方法
 
-**`performChanges()`** 方法修改相册。现在只有一种修改：把一张图存成相册里的一张新照片。
+**`performChanges()`** 方法修改相册：把一张图存成相册里的一张新照片。
 
 ## 语法
 
@@ -64,7 +64,7 @@ if (photo !== null) {
 
 ## 对应的 iOS API
 
-`-[PHPhotoLibrary performChanges:completionHandler:]` 里调 `+[PHAssetChangeRequest creationRequestForAssetFromImage:]`。ObjC 的第一个参数是一段代码，JS 这里是一个对象，键是要做的那种修改的名字。原因见[实现原理](../../internals/photos.md#performchanges-为什么收一个对象)。完成回调换成了 Promise。
+`-[PHPhotoLibrary performChanges:completionHandler:]` 里调 `+[PHAssetChangeRequest creationRequestForAssetFromImage:]`。ObjC 的第一个参数是一段代码，JS 这里是一个对象，键是要做的那种修改的名字。完成回调换成了 Promise。
 
 ## 参见
 

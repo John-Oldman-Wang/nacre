@@ -70,12 +70,6 @@ application.addEventListener('sceneconnect', (e) => {
 | `view.keyboardLayoutGuide.topAnchor` | `view.keyboardLayoutGuide.topAnchor` |
 | `guide.followsUndockedKeyboard = YES` | `guide.followsUndockedKeyboard = true` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 键盘靠近或离开某条边时自动切换约束 | `UITrackingLayoutGuide` 的 `setConstraints:activeWhenNearEdge:` |
-
 ## 参见
 
 - [`UILayoutGuide`](ui-layout-guide.md)

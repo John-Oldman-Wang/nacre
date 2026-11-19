@@ -251,16 +251,6 @@ application.addEventListener('sceneconnect', (e) => {
 | 用户可以选中和复制文字 | 不可以 |
 | 元素按内容收缩后的大小 | `intrinsicContentSize`，只在用约束定位时自动生效 |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 用户在系统设置里调整文字大小后，标签自动换成新字号 | `adjustsFontForContentSizeCategory`。替代写法是在系统设置变化时重新给 `font` 赋值，见指南[设置字体](../guides/fonts.md) |
-| 细调换行和截断时的排版 | `lineBreakStrategy`、`allowsDefaultTighteningForTruncation` |
-| 让文字垂直靠上或靠下 | 原生没有这个属性。做法是不约束标签的高度，让它等于文字的高度，再用约束或 `frame` 摆放标签 |
-| 让用户选中和复制文字 | `UITextView` 的可选中模式 |
-| 让用户编辑文字 | 用 [`UITextField`](ui-text-field.md) 或 [`UITextView`](ui-text-view.md) |
-
 ## 参见
 
 - [显示文字](../guides/labels.md)：多行、截断、自动缩小、量大小、阴影的写法

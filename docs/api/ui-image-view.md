@@ -144,14 +144,6 @@ application.addEventListener('sceneconnect', (e) => {
 | 用 `currentColor` 上色的 SVG 图标 | 模板图加 `tintColor` |
 | 浏览器自动缓存图片 | 运行时不提供图片缓存 |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 暂停、继续图片视图上的动图，或者得知它播完了 | 图层的 `speed`，动画的 delegate。替代做法见指南[显示图片](../guides/images.md) |
-| 用一组单独的图片做逐帧动画 | `UIImageView.animationImages`。替代做法同上，把那组图片作为关键帧动画的 `values` |
-| 给图片视图以外的视图设 `tintColor`，让子视图继承 | `UIView.tintColor`。`tintColor` 只在 `UIImageView` 和标签栏（[`UITabBarController`](ui-tab-bar-controller.md)）上有 |
-
 ## 参见
 
 - [显示图片](../guides/images.md)

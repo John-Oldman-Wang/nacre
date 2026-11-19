@@ -27,7 +27,7 @@ status: partial
 | ObjC | JS |
 | --- | --- |
 | `NSRunLoop.mainRunLoop` | `NSRunLoop.mainRunLoop` |
-| `NSRunLoop.currentRunLoop` | 没有提供。JS 在主线程上，它和 `mainRunLoop` 是同一个 |
+| `NSRunLoop.currentRunLoop` | `NSRunLoop.mainRunLoop`。JS 在主线程上，两者是同一个 |
 
 ## 参见
 

@@ -263,7 +263,7 @@ macOS 27.2.1，一个链 AppKit 的命令行小程序，不带界面。探针的
 
 ## 没有做的
 
-HTML 和 Markdown 转富文本、TextKit 的布局管理器、`UITextView` 里点链接的委托，这三样是开工时就定了不做的。其余的见 API 文档的[还不能做的](../api/ns-attributed-string.md#还不能做的)。挑属性键时的取舍：
+HTML 和 Markdown 转富文本、TextKit 的布局管理器、`UITextView` 里点链接的委托，这三样是开工时就定了不做的。其余的见 API 文档的[还不能做的](api-gaps.md#nsattributedstring)。挑属性键时的取舍：
 
 | 没给的键 | 为什么 |
 | --- | --- |

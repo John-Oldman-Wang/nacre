@@ -65,7 +65,7 @@ status: partial
 | iPhone | 一个。连接了外接显示器时可能多一个 |
 | iPad | 用户可以给同一个 App 打开多个窗口，每个窗口是一个场景。各场景的界面和前后台状态互相独立 |
 
-App 是否允许同时有多个场景，读 [`application.supportsMultipleScenes`](application/supportsmultiplescenes.md)。运行时目前只支持 iPhone，iPad 上的多场景**未在模拟器验证**。
+App 是否允许同时有多个场景，读 [`application.supportsMultipleScenes`](application/supportsmultiplescenes.md)。iPad 上的多场景**未在模拟器验证**。
 
 ## 什么时候没有场景
 
@@ -172,20 +172,6 @@ application.addEventListener('sceneconnect', (e) => {
 | `scene.session.persistentIdentifier` | `scene.session.persistentIdentifier` |
 | `scene.session.userInfo = @{ @"kind": @"mailDetail" }` | `scene.session.userInfo = { kind: 'mailDetail' }` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 列出这个场景里的所有窗口，找到当前接收键盘输入的窗口 | `windows`、`keyWindow` |
-| 读当前的屏幕方向（竖屏、横屏） | `effectiveGeometry.interfaceOrientation`。[方案已定](../internals/pending.md#屏幕方向方案已定未实现) |
-| 锁定屏幕方向，只允许竖屏或横屏 | `supportedInterfaceOrientationsForWindowScene:`。方案同上 |
-| 屏幕方向变化时收到通知 | `windowScene:didUpdateEffectiveGeometry:`。方案同上 |
-| 读屏幕的大小和像素密度 | `screen` |
-| 限制窗口的最小和最大尺寸，请求改变窗口大小 | `sizeRestrictions`、`requestGeometryUpdate:` |
-| 指定哪个场景响应外部事件、场景何时销毁（iPad 多窗口） | `activationConditions`、`destructionConditions` |
-| `openURL()` 带选项，比如只允许通用链接 | `openURL:options:completionHandler:` 的 `options` |
-| 替换场景的 delegate | `delegate`。不会提供：它由运行时使用，JS 改它会破坏运行时 |
-
 ## 参见
 
 - [建窗口和处理场景](../guides/scenes-and-windows.md)：推荐的做法、数据存在哪里、前后台、会话
@@ -193,5 +179,3 @@ application.addEventListener('sceneconnect', (e) => {
 - [`application`](application.md)：`sceneconnect` / `scenedisconnect` 事件、`scenes` 属性和 App 级的前后台事件
 - [`UIWindow`](ui-window.md)：在场景上建窗口，让界面显示出来
 - [原生类](native-classes.md)：哪些类能构造、不能继承、能挂自定义属性
-- [实现原理：包装机制](../internals/wrapper.md)：同一个场景为什么永远是同一个 JS 对象
-- [实现原理：运行时](../internals/runtime.md)：原生通知怎样变成 JS 事件

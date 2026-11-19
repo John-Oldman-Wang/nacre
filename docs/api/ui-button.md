@@ -163,14 +163,6 @@ follow.addEventListener('click', () => {
 | `btn.role = UIButtonRoleDestructive` | `btn.role = 'destructive'` |
 | `btn.enabled = NO` | `btn.isEnabled = false` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 用一个配置对象设置内边距、图标位置、副标题、填充样式 | `UIButton.Configuration` |
-| 点按钮弹出菜单 | `menu`、`showsMenuAsPrimaryAction` |
-| 调整图标的粗细和大小 | `setPreferredSymbolConfiguration:forImageInState:` |
-
 ## 参见
 
 - [做一个按钮](../guides/buttons.md)：创建、点击、防止重复提交、外观、禁用、图标

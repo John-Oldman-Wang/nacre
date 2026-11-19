@@ -177,17 +177,6 @@ application.addEventListener('sceneconnect', (e) => {
 
 ObjC 里一个 action 方法收到手势的所有阶段，再用 `state` 区分。JS 里每个阶段是一个事件名。各子类的属性对照见各自的类页。
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 让两个识别器同时认出手势，比如边缩放边旋转 | `UIGestureRecognizerDelegate` 的 `gestureRecognizer:shouldRecognizeSimultaneouslyWithGestureRecognizer:`。系统在手势进行中当场询问，要求立刻回答，目前 JS 的回调做不到 |
-| 按条件决定一个手势要不要开始、要不要接收某次触摸 | `UIGestureRecognizerDelegate` 的 `gestureRecognizerShouldBegin:`、`gestureRecognizer:shouldReceiveTouch:` 等。原因同上 |
-| 撤销 `requireGestureRecognizerToFail()` 建立的关系 | 无。系统没有提供撤销的方法 |
-| 随时查询手势在任意视图里的位置 | `locationInView:`、`locationOfTouch:inView:`。现在位置从事件对象的 `location` 读 |
-| 自己定义一种手势 | 继承 `UIGestureRecognizer` 并覆写 `touchesBegan:withEvent:` 等方法。[原生类不能继承](native-classes.md) |
-| 限定只认手指、触控笔或鼠标 | `allowedTouchTypes`、`buttonMaskRequired` |
-
 ## 参见
 
 - [响应手势](../guides/gestures.md)：各种手势的写法、和按钮同时存在时谁生效、一个视图上加多个识别器

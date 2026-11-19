@@ -122,7 +122,7 @@ public.jpeg-xl              com.microsoft.bmp    com.microsoft.ico
 
 显示尺寸远小于原图时（比如列表里的头像），用 [`prepareThumbnail()`](ui-image/preparethumbnail.md) 取一张缩小的图。
 
-运行时不提供图片缓存。`UIImage.imageWithData()` 每次都从字节生成一个新的图片对象，同一个地址再次 `fetch` 是否使用系统的 HTTP 缓存**未在模拟器验证**。缓存的做法见指南[显示图片](../guides/images.md)。
+`UIImage.imageWithData()` 每次都从字节生成一个新的图片对象，要复用就自己缓存。同一个地址再次 `fetch` 是否使用系统的 HTTP 缓存**未在模拟器验证**。缓存的做法见指南[显示图片](../guides/images.md)。
 
 ## 动图
 
@@ -224,19 +224,6 @@ if (dot) {
 - 多段的方法名，第一段是 JS 的方法名，其余各段是 `options` 对象的键。
 - 原生的 `+imageNamed:`、`+imageWithData:` 遇到动图文件只给第一帧，`images` 是 `nil`。这里得到的是动图。
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 播放解码后超过 64 MB 的动图 | ImageIO 逐帧解码（`CGAnimateImageDataWithBlock`）。只显示第一帧 |
-| 播放 HEIC 序列、动画 AVIF | ImageIO。得到的是静态图 |
-| 在运行时显示 SVG 文件 | 系统不支持。SVG 只能放进 Asset Catalog，在编译时转成位图 |
-| 自己画一张图、把几张图合成一张、把视图截成图 | `UIGraphicsImageRenderer` |
-| 把图片编码成 PNG 或 JPEG 的字节 | `UIImagePNGRepresentation`、`UIImageJPEGRepresentation` |
-| 调整 SF Symbols 图标的粗细、大小，使用多色图标 | `UIImageSymbolConfiguration`。图标的大小目前靠图片视图的大小和 `contentMode` 控制 |
-| 深色模式下自动换一张图 | Asset Catalog 的外观变体。命令行工具生成的工程里做不到。替代做法是监听 `traitchange` 事件，在回调里换图，见指南[适配深色模式](../guides/dark-mode.md) |
-| 运行时提供图片缓存 | 没有对应的原生能力。做法见指南[显示图片](../guides/images.md) |
-
 ## 参见
 
 - [显示图片](../guides/images.md)：打包的图、系统图标、网络图片、动图、九宫格、缩略图
@@ -248,4 +235,3 @@ if (dot) {
 - [文件读写](filesystem.md)：把图片保存成文件，取得文件路径
 - [结构体](structs.md)：`CGSize`、`UIEdgeInsets`
 - [单位](units.md)：pt 是什么
-- [实现原理：图片](../internals/ui-image.md)

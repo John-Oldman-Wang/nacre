@@ -46,12 +46,6 @@ content.sound = UNNotificationSound.defaultSound;
 | --- | --- |
 | `UNNotificationSound.defaultSound` | `UNNotificationSound.defaultSound` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 自定义的声音文件、紧急通知的声音 | `+soundNamed:`、`defaultCriticalSound` |
-
 ## 参见
 
 - [`sound`](un-mutable-notification-content/sound.md)：声音写在内容的这个属性里

@@ -91,25 +91,6 @@ load().catch((err) => {
 | `new ReadableStream(…)`、`pipeTo()`、`pipeThrough()`、`tee()`、`getReader({ mode: 'byob' })` | 没有 |
 | `WritableStream`、`TransformStream`、`EventSource` | 没有 |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 用表单的方式上传文件（请求体用 `FormData`） | 未实现。二进制数据可以直接当 `body` 发送，见[上传二进制数据](../guides/fetch.md#上传二进制数据) |
-| 显示上传的进度 | 未实现 |
-| 请求体边生成边发送（`body` 用流） | 未实现。请求体要一次给全 |
-| 自己创建流，或者把流接到别处（`new ReadableStream()`、`pipeTo()`、`pipeThrough()`、`tee()`、`TransformStream`、`WritableStream`） | 未实现。流只能从 `res.body` 得到，只能读 |
-| 把数据读进自己准备的缓冲区（BYOB 读取器） | 未实现 |
-| `EventSource`（自动解析服务器推送的事件、断线重连） | 未实现。可以用 `res.body` 自己按行切，见[读服务器持续推送的文本](../guides/streaming-response.md#读服务器持续推送的文本) |
-| 把一个 `Response` 复制一份（`clone()`） | 未实现 |
-| 把大文件直接下载到磁盘，不经过 JS | `NSURLSessionDownloadTask`。用 `res.body` 可以边下边读，但每一块都要经过 JS |
-| App 在后台或退出后继续上传、下载 | 后台 `NSURLSession` |
-| 用几个 `Blob` 拼成一个新的 `Blob` | 未实现 |
-| 禁止自动跟随重定向，或得知是否发生过重定向 | 未实现 |
-| 控制缓存策略 | 未实现 |
-| 读取、清除 `fetch()` 保存的 cookie | `NSHTTPCookieStorage`。单个响应的 `Set-Cookie` 可以用 `res.headers.getSetCookie()` 读到 |
-| 设置系统默认的超时时间 | 未实现。用 `AbortSignal.timeout()` |
-
 ## 参见
 
 - [从网络取数据](../guides/fetch.md)：发请求、处理失败、上传和下载的写法
@@ -121,4 +102,3 @@ load().catch((err) => {
 - [WebSocket](websocket.md)：需要服务器主动推送数据时用它
 - [定时器](timers.md)：`AbortSignal.timeout()` 之外的定时
 - [运行时怎么工作](how-it-works.md)：为什么请求不会卡住界面
-- [实现原理：网络](../internals/network.md)

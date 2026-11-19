@@ -31,7 +31,7 @@ setNeedsDisplayInRect(rect)
 
 ## 说明
 
-这个方法是后补的，没有在模拟器上调过，效果**未在模拟器验证**。
+效果**未在模拟器验证**。
 
 ## 示例
 
@@ -40,7 +40,7 @@ const view = new UIView();
 view.setNeedsDisplayInRect(new CGRect(0, 0, 50, 50));
 ```
 
-**效果**：没有可见的变化。自己绘制视图内容（`drawRect:`）还不能做，所以这个方法目前很少用到。**未在模拟器验证。**
+**效果**：没有可见的变化。**未在模拟器验证。**
 
 ## 对应的 iOS API
 

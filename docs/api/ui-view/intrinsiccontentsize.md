@@ -31,7 +31,7 @@ console.log(label.intrinsicContentSize.width > 0);
 
 ## 对应的 iOS API
 
-`UIView.intrinsicContentSize`。ObjC 里子类覆写它来定义自己的固有大小，这里不能覆写，见[还不能做的](../ui-view.md#还不能做的)。
+`UIView.intrinsicContentSize`。
 
 ## 参见
 

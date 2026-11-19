@@ -126,13 +126,6 @@ console.log(headers.get('content-type'));
 
 只处理 `http` 和 `https` 的 ASCII 地址时，不会遇到第二到第四条。
 
-## 还不能做的
-
-| 想做的事 | 状态 |
-| --- | --- |
-| 把非 ASCII 的域名读成 `xn--` 开头的形式 | 未实现 |
-| 用 `FormData` 组织表单数据 | 没有 `FormData`。用 [`URLSearchParams`](url-search-params.md) 组织键值对 |
-
 ## 参见
 
 - [拼接和解析网址](../guides/urls.md)：拆开地址、改查询参数、准备请求头的完整写法

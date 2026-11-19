@@ -443,16 +443,6 @@ JS 里 `application.nativeModules.get('risk')` 抛 `no native module named "risk
 4. **名字被占了没有。** 运行时的日志里有没有 `a module named "risk" is already registered`。
 5. **运行时的警告。** 模块相关的警告都以 `[nacre] native module warning:` 开头。
 
-## 现在做不到的
-
-| 想做的事 | 状态 |
-| --- | --- |
-| 模块收到 App 级的系统回调（推送令牌、从别的 App 跳转进来的 URL） | 未实现 |
-| 把 JS 的函数传给原生 | 不支持。用事件代替 |
-| 模块收发原生对象（视图、图片），或者提供一个视图 | 不支持。模块只收发[第 4 步](#值怎么对应)那张表里的值 |
-| 不做成包，把项目目录里的原生源码直接编进 App | 未实现 |
-| 用 CocoaPods 或 Swift Package Manager 引依赖 | 不支持 |
-
 ---
 
 ← 返回[指南](README.md)

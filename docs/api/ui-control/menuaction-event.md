@@ -21,7 +21,7 @@ addEventListener('menuaction', (event) => { })
 
 ## 什么时候派发
 
-- 控件弹出菜单这项能力还没有提供，见 [`UIControl`](../ui-control.md#还不能做的) 的「还不能做的」。所以现在没有控件会因为用户操作派发它。
+- 没有控件会因为用户操作派发它。
 - 可以监听，不报错。用 `sendActionsForControlEvents(['menuaction'])` 能让它派发。
 - 派发的时机**未在模拟器验证**。
 

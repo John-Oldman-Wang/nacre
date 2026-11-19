@@ -286,7 +286,7 @@ application.addEventListener('sceneconnect', (e) => {
 | `- scrollViewDidEndScrollingAnimation:` | `scrollanimationend` 事件 |
 | `- scrollViewDidScrollToTop:` | `scrolltotop` 事件 |
 | `- scrollViewDidChangeAdjustedContentInset:` | `adjustedcontentinsetchange` 事件 |
-| `sv.delegate` | 不提供。运行时自己用它来派发上面的事件 |
+| `sv.delegate` | 不用设，监听上面的事件 |
 
 ### 与浏览器的对照
 
@@ -305,15 +305,6 @@ application.addEventListener('sceneconnect', (e) => {
 | `scroll-snap-type` | `isPagingEnabled` | 只能按可视区的整数倍停 |
 | `overscroll-behavior: none` | `bounces = false` | |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 双指捏合缩放内容 | `viewForZoomingInScrollView:`。缩放比例这一组属性和 `setZoomScale()`、`zoomToRect()` 已经有了；系统要当场问「缩放的是哪个子视图」，这一问还没接 |
-| 松手时改变最终停下的位置（自定义吸附） | `scrollViewWillEndDragging:withVelocity:targetContentOffset:` |
-| 下拉刷新 | `refreshControl` |
-| 滚动边缘的模糊效果（iOS 26） | `UIScrollEdgeEffect` |
-
 ## 参见
 
 - [做一个能滚动的页面](../guides/scrolling.md)：页面骨架、滚不动时查什么、横向滚动、轮播、加载更多、键盘
@@ -322,4 +313,3 @@ application.addEventListener('sceneconnect', (e) => {
 - [`UICollectionView`](ui-collection-view.md)：数据量很大的列表，只创建屏幕上看得见的行
 - [`UITextView`](ui-text-view.md)：多行输入，也是滚动视图
 - [结构体](structs.md)：`CGPoint`、`CGSize`、`CGRect`、`UIEdgeInsets`
-- [实现原理：滚动](../internals/scrolling.md)

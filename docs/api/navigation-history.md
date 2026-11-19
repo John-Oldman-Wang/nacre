@@ -49,7 +49,6 @@ history.goBack();
 | --- | --- | --- |
 | `contents.navigationHistory.canGoBack()` / `canGoForward()` | 相同 | |
 | `contents.navigationHistory.goBack()` / `goForward()` | 相同 | |
-| `getAllEntries()`、`goToIndex()` | 没有 | 见还不能做的 |
 
 ## 对应的 iOS API
 
@@ -57,13 +56,6 @@ history.goBack();
 | --- | --- |
 | `webView.canGoBack` / `canGoForward` | `canGoBack()` / `canGoForward()` |
 | `[webView goBack]` / `[webView goForward]` | `goBack()` / `goForward()` |
-
-## 还不能做的
-
-| 想做的事 | 对应的能力 |
-| --- | --- |
-| 历史记录的列表、跳到某一条 | Electron 的 `navigationHistory.getAllEntries()`、`goToIndex()`；`backForwardList` |
-| 从屏幕左边缘右滑后退 | `allowsBackForwardNavigationGestures` |
 
 ## 参见
 

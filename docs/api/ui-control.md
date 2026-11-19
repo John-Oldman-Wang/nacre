@@ -254,16 +254,6 @@ console.log(control.state.includes('selected'), control.state.includes('disabled
 | `clientX`、`clientY` | `touch` 开头的事件的 `location`，坐标系是控件自己的 |
 | `element.disabled = true` | `control.isEnabled = false` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 在回调里得到事件发生那一刻的控件状态 | 事件对象带状态。触点位置已经在事件对象上 |
-| 自己处理原始触摸，决定控件怎么跟踪手指 | 覆写 `touchesBegan:withEvent:`、`beginTrackingWithTouch:withEvent:` 等方法 |
-| 一次监听所有触摸事件 | `UIControlEventAllTouchEvents` 等聚合掩码。现在逐个事件名调用 `addEventListener()` |
-| 点控件弹出菜单 | `contextMenuInteraction`、`showsMenuAsPrimaryAction` |
-| 让父视图收到子控件的事件 | 无。原生的控件事件也不冒泡 |
-
 ## 参见
 
 - [处理控件的触摸](../guides/control-touches.md)：可点击的区域、按下时的外观、模拟点击、禁用
@@ -272,5 +262,4 @@ console.log(control.state.includes('selected'), control.state.includes('disabled
 - [`UISwitch`](ui-switch.md)、[`UISlider`](ui-slider.md)、[`UIStepper`](ui-stepper.md)、[`UISegmentedControl`](ui-segmented-control.md)、[`UIPageControl`](ui-page-control.md)、[`UIDatePicker`](ui-date-picker.md)：派发 `change` 的控件
 - [`UIView`](ui-view.md)：父类，位置、大小、底色、`isUserInteractionEnabled`
 - [手势识别器](ui-gesture-recognizer.md)：让不是控件的视图响应点按和长按
-- [原生类](native-classes.md)：为什么不能继承 `UIControl`
-- [实现原理：事件](../internals/events.md)：触摸在 iOS 里经过的四套机制和实测的派发顺序
+- [原生类](native-classes.md)：不能继承 `UIControl`，以及替代写法

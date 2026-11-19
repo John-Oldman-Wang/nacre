@@ -54,12 +54,6 @@ console.log(hourly.timeInterval, hourly.repeats);
 | `[UNTimeIntervalNotificationTrigger triggerWithTimeInterval:5 repeats:NO]` | `UNTimeIntervalNotificationTrigger.triggerWithTimeInterval(5)` |
 | `[UNTimeIntervalNotificationTrigger triggerWithTimeInterval:3600 repeats:YES]` | `UNTimeIntervalNotificationTrigger.triggerWithTimeInterval(3600, { repeats: true })` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 问一个触发器下一次是什么时候 | `nextTriggerDate` |
-
 ## 参见
 
 - [`UNCalendarNotificationTrigger`](un-calendar-notification-trigger.md)：按日期和时间送达

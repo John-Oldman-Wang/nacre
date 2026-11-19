@@ -19,12 +19,6 @@ native: UICollectionViewLayout
 
 `UICollectionViewLayout`。ObjC 里通过继承它自定义布局；JS 里原生类不能继承，见[原生类](native-classes.md)。
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 网格、横向滚动的分区、自定义的排法 | `UICollectionViewFlowLayout`、`NSCollectionLayoutSection` 一组、继承 `UICollectionViewLayout` |
-
 ## 参见
 
 - [`UICollectionViewCompositionalLayout`](ui-collection-view-compositional-layout.md)

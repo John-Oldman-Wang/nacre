@@ -143,17 +143,6 @@ await session.defaultSession.clearStorageData();
 | `[dataStore removeDataOfTypes:modifiedSince:completionHandler:]` | `ses.clearStorageData({ storages })` |
 | `[dataStore fetchDataRecordsOfTypes:…]` 加 `removeDataOfTypes:forDataRecords:…` | `ses.clearStorageData({ origin })` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 只清 HTTP 缓存 | Electron 的 `ses.clearCache()`；`WKWebsiteDataTypeDiskCache` |
-| 让网页的 cookie 和 `fetch` 的 cookie 互通 | `NSHTTPCookieStorage` |
-| 改这个分区里所有网页的 User-Agent | Electron 的 `ses.setUserAgent()` |
-| 拦截或改写网页发出的请求 | Electron 的 `ses.webRequest` |
-| 处理网页发起的下载 | Electron 的 `will-download`；`WKDownload` |
-| 看一个分区里存了哪些站点的数据 | `fetchDataRecordsOfTypes:` |
-
 ## 参见
 
 - [管理网页的登录状态](../guides/web-login.md)：写登录 cookie、退出登录、多账号、读网页登录后的 cookie
@@ -161,4 +150,3 @@ await session.defaultSession.clearStorageData();
 - [`Cookie`](cookie.md)：读到的每一条 cookie 带哪些字段
 - [`WebView`](web-view.md)：建网页时用 `partition` 指定分区，`webContents.session` 拿到对应的 `Session`
 - [`fetch`](fetch.md)：它的 cookie 是另一份，和这里的不通
-- [实现原理](../internals/web-view.md#sessioncookie-和清数据)：筛选为什么在 JS 里做、按站点清是怎么实现的、几条实测

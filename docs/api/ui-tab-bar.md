@@ -42,13 +42,6 @@ tabs.tabBar.unselectedItemTintColor = 'systemGray';
 | `tabs.tabBar.tintColor = UIColor.systemPinkColor` | `tabs.tabBar.tintColor = 'systemPink'` |
 | `tabs.tabBar.unselectedItemTintColor = UIColor.systemGrayColor` | `tabs.tabBar.unselectedItemTintColor = 'systemGray'` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 定制标签栏的背景、字体、间距 | `UITabBarAppearance` |
-| 给普通视图设 `tintColor` | `UIView.tintColor`。现在只有 `UITabBar` 上有 |
-
 ## 参见
 
 - [`UITabBarController`](ui-tab-bar-controller.md)

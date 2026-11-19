@@ -129,20 +129,9 @@ console.log('第', launches, '次启动');
 | `NSUserDefaultsDidChangeNotification` | `storage.addEventListener('change', …)` |
 | `[d synchronize]` | 没有。系统自动写入磁盘 |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 | 现在怎么办 |
-| --- | --- | --- |
-| 直接存 `Date` | `NSDate` | 存毫秒时间戳 |
-| 存二进制数据 | `NSData` | 用[文件读写](filesystem.md) |
-| 只监听某一个键的变化 | 键值观察（KVO） | 监听 `change`，在回调里比较新旧值 |
-| 和同一开发者的其他 App、小组件共用一份存储 | `initWithSuiteName:`、App Group | 没有替代办法 |
-| 在用户的多台设备之间同步 | `NSUbiquitousKeyValueStore` | 没有替代办法 |
-
 ## 参见
 
 - [保存用户设置](../guides/save-settings.md)：三种存储怎么选、登记默认值、存对象和时间、监听变化
 - [`application`](application.md)：`storage` 是它的属性
 - [Keychain](keychain.md)：令牌和密码放那里
 - [文件读写](filesystem.md)：文件和大量数据放那里
-- [实现原理](../internals/storage.md)：这一页各条结论的实测记录

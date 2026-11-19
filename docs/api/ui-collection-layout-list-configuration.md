@@ -48,14 +48,6 @@ const list = new UICollectionView(
 | `config.showsSeparators = NO` | `config.showsSeparators = false` |
 | `config.headerMode = UICollectionLayoutListHeaderModeFirstItemInSection` | `config.headerMode = 'firstItemInSection'` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 分区的头和尾用单独的视图 | `headerMode = UICollectionLayoutListHeaderModeSupplementary`、`footerMode` |
-| 左滑、右滑出现操作按钮 | `trailingSwipeActionsConfigurationProvider`、`leadingSwipeActionsConfigurationProvider` |
-| 按行改分隔线 | `separatorConfiguration`、`itemSeparatorHandler` |
-
 ## 参见
 
 - [`UICollectionViewCompositionalLayout`](ui-collection-view-compositional-layout.md)

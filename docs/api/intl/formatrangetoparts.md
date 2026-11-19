@@ -4,7 +4,7 @@ type: reference
 
 # `Intl.NumberFormat`：`formatRangeToParts()` 方法
 
-**`formatRangeToParts()`** 方法在标准里用来把一个范围的结果拆成部分。这里还不能用：调用时抛 `TypeError`。
+**`formatRangeToParts()`** 方法在标准里用来把一个范围的结果拆成部分。在这里调用时抛 `TypeError`。
 
 ## 语法
 
@@ -45,4 +45,3 @@ try {
 ## 参见
 
 - [`format()`](format.md)
-- [还不能做的](../intl.md#还不能做的)

@@ -54,12 +54,6 @@ button.addEventListener('touchdown', () => {
 | `[generator impactOccurred]` | `generator.impactOccurred()` |
 | `[generator impactOccurredWithIntensity:0.5]` | `generator.impactOccurredWithIntensity(0.5)` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 指明震动发生在视图里的哪个位置 | `impactOccurredAtLocation:`、`impactOccurredWithIntensity:atLocation:` |
-
 ## 参见
 
 - [让手机震一下](../guides/haptics.md)

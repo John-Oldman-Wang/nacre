@@ -53,12 +53,6 @@ console.log(home.tabBarItem.title, home.tabBarItem.badgeValue);
 | `item.badgeValue = @"3"` | `item.badgeValue = '3'` |
 | `item.badgeColor = UIColor.systemIndigoColor` | `item.badgeColor = 'systemIndigo'` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 用系统预置的标签（搜索、收藏等） | `initWithTabBarSystemItem:tag:` |
-
 ## 参见
 
 - [`UITabBarController`](ui-tab-bar-controller.md)

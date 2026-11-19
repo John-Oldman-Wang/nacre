@@ -326,17 +326,8 @@ console.log(font);
 | `UIControlStateSelected \| UIControlStateDisabled` | `['selected', 'disabled']` |
 | `UIStackViewSpacingUseSystem` | `'system'` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 在运行时列出某个枚举的全部取值 | 没有对应的原生能力。取值表写在各类的文档和类型定义里 |
-| 用整数表示枚举值 | `NS_ENUM` 的整数值。JS 侧只接受字符串 |
-| 设置视图随父视图改变大小的方式 | `UIViewAutoresizing`（`autoresizingMask`） |
-
 ## 参见
 
 - [颜色](ui-color.md)：另一种写成字符串的值，写错时同样输出警告、保持原来的值。
 - [原生类](native-classes.md)：怎么开启类型检查，以及数、字符串、对象这几类参数的转换规则。
 - [结构体](structs.md)：由几个数组成的值。
-- [实现说明](../internals/enums.md)：枚举的名字和报错信息从哪里来。

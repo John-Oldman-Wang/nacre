@@ -97,20 +97,9 @@ console.log(page.navigationItem.title);
 | `vc.navigationItem.titleView = v` | `vc.navigationItem.titleView = v` |
 | `vc.navigationItem.backButtonTitle = @"返回"` | `vc.navigationItem.backButtonTitle = '返回'` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 大标题和大副标题 | `largeTitleDisplayMode`、`largeTitle`、`largeSubtitle` |
-| 换掉返回按钮本身，或者拦截返回 | `backBarButtonItem`、`backAction` |
-| 设了左侧按钮之后仍然保留返回按钮 | `leftItemsSupplementBackButton` |
-| 把自己的视图当副标题 | `subtitleView` |
-| 屏幕底部的工具条 | `UIToolbar`、`toolbarItems` |
-
 ## 参见
 
 - [在导航条上放按钮和标题](../guides/bar-buttons.md)
 - [`UIBarButtonItem`](ui-bar-button-item.md)：两侧的按钮
 - [`UIViewController`](ui-view-controller.md)：页面。`title` 和 `navigationItem` 在它上面
 - [`UINavigationController`](ui-navigation-controller.md)：导航条由它显示；推入、弹出、左滑返回
-- [实现原理：导航](../internals/navigation.md)
