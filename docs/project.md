@@ -556,7 +556,7 @@ Commit message 格式：
 | 域 | 还缺什么 |
 | --- | --- |
 | 列表 | 网格和自定义布局、分区的头尾、左滑操作、行右侧的附件 |
-| 页面 | 半屏卡片（`UISheetPresentationController` 的 detents）；iOS 18 的 `UITab` 和标签栏的外观定制；状态栏 |
+| 页面 | 半屏卡片（`UISheetPresentationController` 的 detents）；iOS 18 的 `UITab` 和标签栏的外观定制；状态栏；页面的 `toolbarItems`（导航控制器的工具条有了，往上放按钮要它）；系统导航条的外观（`UINavigationBar` 和 `UINavigationBarAppearance` 一组，定了暂不接：标题和按钮用 `navigationItem` 已经够用，有人要改外观再接） |
 | 滚动 | 下拉刷新（`UIRefreshControl`，JS 自己也拼得出来，优先级低）；双指捏合缩放（`zoomScale` 一组属性已经有了，还差系统当场问的「缩放哪个子视图」和缩放的事件） |
 | 输入 | 两种输入框的 `markedTextRange`（输入法组字的范围）；多行输入的 `beforeinput` 一类事件；键盘设置里的密码规则（`passwordRules`，它的类还没接）；搜索框上九个之外的键盘设置 |
 | 手势 | 识别器的委托那一组（同时识别、是否开始），照输入框的 `before…` 事件做 |
