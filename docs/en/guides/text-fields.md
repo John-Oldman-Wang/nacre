@@ -726,6 +726,25 @@ Measured: when the keyboard is hidden, `page.view.keyboardLayoutGuide.layoutFram
 
 For how to write constraints, see [Auto Layout](../api/auto-layout.md).
 
+## Calculating positions yourself: listening for keyboard events
+
+If you set views' `frame` yourself instead of using constraints, listen for the [`keyboardchange`](../api/ui-screen/keyboardchange-event.md) event on the screen. The event carries `frame`, where the keyboard will be when its animation ends; the keyboard's height is `frame.height`.
+
+```js
+const screen = e.scene.screen;   // inside the sceneconnect callback
+screen.addEventListener('keyboardchange', (event) => {
+  const keyboard = /** @type {UIScreenKeyboardEvent} */ (event);
+  const top = Math.min(keyboard.frame.y, screen.bounds.height);
+  field.frame = new CGRect(16, top - 16 - 40, 358, 40);
+});
+```
+
+**Effect**: when the keyboard appears, the text field moves up with it and stops 16 pt above the keyboard; when the keyboard is dismissed, the field moves back to the bottom along with it. Both start and stop at the same time (tested: the position set in the listener automatically picked up the same animation as the keyboard).
+
+**Make your changes in the listener, right away.** The listener runs inside the keyboard's animation; only a `frame` set or a constraint changed at that moment moves along with the keyboard. Put it in `setTimeout` or any other callback that runs later, and the view jumps straight to its final position.
+
+If you only need the moment the keyboard appears or is dismissed, listen for [`keyboardshow`](../api/ui-screen/keyboardshow-event.md) or [`keyboardhide`](../api/ui-screen/keyboardhide-event.md) respectively.
+
 
 ## See also
 

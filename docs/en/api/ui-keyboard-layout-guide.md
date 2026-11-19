@@ -30,7 +30,7 @@ Reading, writing, and the default values of both properties are asserted in the 
 
 ## Events
 
-Doesn't fire events.
+Doesn't fire events. If you calculate positions yourself and need to know when the keyboard appears and is dismissed, listen for [`keyboardshow`](ui-screen/keyboardshow-event.md), [`keyboardhide`](ui-screen/keyboardhide-event.md), and [`keyboardchange`](ui-screen/keyboardchange-event.md) on the screen.
 
 ## Examples
 

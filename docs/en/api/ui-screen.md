@@ -78,8 +78,13 @@ Display modes (for external displays):
 | [`capturedchange`](ui-screen/capturedchange-event.md) | Recording, casting, or mirroring started or stopped |
 | [`modechange`](ui-screen/modechange-event.md) | The display mode changed |
 | [`referencedisplaymodestatuschange`](ui-screen/referencedisplaymodestatuschange-event.md) | The status of reference display mode changed |
+| [`keyboardshow`](ui-screen/keyboardshow-event.md) | The keyboard is about to appear |
+| [`keyboardhide`](ui-screen/keyboardhide-event.md) | The keyboard is about to be dismissed |
+| [`keyboardchange`](ui-screen/keyboardchange-event.md) | The keyboard's position or size is about to change: appearing, being dismissed, switching input methods |
 
-- Events cannot be canceled. Callbacks do not run synchronously at the moment of the change but a little later; see [How the runtime works](how-it-works.md#events).
+- Events cannot be canceled.
+- Callbacks for the first four events do not run synchronously at the moment of the change but a little later; see [How the runtime works](how-it-works.md#events).
+- The three keyboard events are dispatched on the spot: listeners run inside the keyboard's animation, so layout changes made then move along with the keyboard.
 - You can also listen for and dispatch events with custom names on a screen.
 
 ## Examples
@@ -131,6 +136,9 @@ An example that covers sensitive content during recording is in [`capturedchange
 | `UIScreenBrightnessDidChangeNotification` | `screen.addEventListener('brightnesschange', …)` |
 | `UIScreenModeDidChangeNotification` | `screen.addEventListener('modechange', …)` |
 | `UIScreenReferenceDisplayModeStatusDidChangeNotification` | `screen.addEventListener('referencedisplaymodestatuschange', …)` |
+| `UIKeyboardWillShowNotification` | `screen.addEventListener('keyboardshow', …)` |
+| `UIKeyboardWillHideNotification` | `screen.addEventListener('keyboardhide', …)` |
+| `UIKeyboardWillChangeFrameNotification` | `screen.addEventListener('keyboardchange', …)` |
 
 ## See also
 
