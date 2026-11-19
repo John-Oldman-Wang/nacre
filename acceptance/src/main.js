@@ -74,6 +74,7 @@ import { stepIndicators } from './steps/indicators.js';
 import { stepSystemControls } from './steps/system-controls.js';
 import { stepViewAdditions } from './steps/view-additions.js';
 import { stepNavigationAdditions } from './steps/navigation-additions.js';
+import { stepLocale } from './steps/locale.js';
 import { stepScreen } from './steps/screen.js';
 import { stepGestures } from './steps/gestures.js';
 import { stepAlerts } from './steps/alerts.js';
@@ -239,6 +240,7 @@ application.addEventListener('sceneconnect', (e) => {
     ['stepSystemControls', () => stepSystemControls(ctx)],
     ['stepViewAdditions', () => stepViewAdditions(ctx)],
     ['stepNavigationAdditions', () => stepNavigationAdditions(ctx)],
+    ['stepLocale', () => stepLocale(ctx)],
     ['stepScreen', () => stepScreen(ctx)],
     ['stepGestures', () => stepGestures(ctx)],
     ['stepAlerts', () => stepAlerts(ctx)],
