@@ -1,6 +1,6 @@
 ---
 type: reference
-native: "-[WKWebView loadRequest:]"
+native: "-[WKWebView loadRequest:]、-[WKWebView loadData:MIMEType:characterEncodingName:baseURL:]"
 ---
 
 # `WebContents`：`loadURL()` 方法
@@ -11,6 +11,7 @@ native: "-[WKWebView loadRequest:]"
 
 ```
 loadURL(url)
+loadURL(url, { baseURLForDataURL })
 ```
 
 ### 参数
@@ -18,6 +19,16 @@ loadURL(url)
 **`url`**
 
 要加载的地址，字符串，必须带协议。支持 `https:`、`file:`、`data:` 和 `about:`（`about:blank` 是一张空白页）。`file:` 的地址和 [`loadFile()`](loadfile.md) 效果相同。
+
+要显示一段 HTML 字符串，把它写成 `data:` 地址：`'data:text/html;charset=utf-8,' + encodeURIComponent(html)`。
+
+**`options`**
+
+对象，可以不传。传 `null` 或 `undefined` 和不传相同。
+
+**`options.baseURLForDataURL`**
+
+字符串，一个完整的地址，比如 `'https://example.com/docs/'`、`'file://' + application.fileSystem.assets + '/web/'`。只对 `data:` 地址起作用：网页里的相对路径（图片、样式表、链接）按它找，网页的 `document.baseURI` 是它。目录的地址末尾要带 `/`。`url` 不是 `data:` 地址时不起作用。
 
 > **注意**：明文的 `http://` 地址会被系统拦截：Promise 以 `NetworkError` 拒绝，`code` 是 `-1022`。iOS 默认不允许 App 用没有加密的 HTTP 连接，CLI 生成的工程没有放开这条限制。用 `https://`。`http://localhost` 不受这条限制，开发时可以用。
 
@@ -30,6 +41,7 @@ loadURL(url)
 | 加载完 | 兑现，值是 `undefined` |
 | 服务器返回 404、500 等 | 兑现。错误页照常加载完。状态码在 [`did-navigate`](did-navigate-event.md) 事件的 `httpResponseCode` 上 |
 | 地址没带协议，或者是空串 | 以 `TypeError` 拒绝：`loadURL: invalid URL; it must include the scheme, like https://`。不发起加载 |
+| `baseURLForDataURL` 不是完整的地址（比如 `'docs/'`） | 以 `TypeError` 拒绝：`loadURL: baseURLForDataURL must be an absolute URL, like https://example.com/`。不发起加载 |
 | 网络层失败（域名解析不了、没有网络、超时） | 以 `name` 为 `'NetworkError'` 的错误拒绝 |
 | 被 [`stop()`](stop.md) 停掉 | 以 `name` 为 `'AbortError'` 的错误拒绝，`code` 是 `-999` |
 | 被另一次加载取代（连着调两次 `loadURL`） | 前一次以 `name` 为 `'AbortError'` 的错误拒绝，后一次照常兑现 |
@@ -57,6 +69,8 @@ loadURL(url)
 调用之后立刻读 [`isLoading()`](isloading.md) 是 `true`。加载过程中依次派发 `did-start-loading`、`did-navigate`、`did-stop-loading`、`did-finish-load`。
 
 App 调 `loadURL` 发起的加载不派发 [`will-navigate`](will-navigate-event.md)。
+
+带了 `baseURLForDataURL` 时，加载完 [`getURL()`](geturl.md) 读到的是 `baseURLForDataURL`，不是 `data:` 地址（实测）。不带时读到的是 `data:` 地址。
 
 ## 示例
 
@@ -88,11 +102,27 @@ try {
 - 网页停在原来那一页，不会变成空白，也不显示错误页。
 - 同时派发一次 `did-fail-load`，它的 `errorCode` 是 `-1003`，`validatedURL` 是 `https://no-such-host.invalid/`。
 
+### 显示一段 HTML，引用 App 包里的图片
+
+```js
+const contents = new WebView().webContents;
+const html = '<!doctype html><title>帮助</title><img src="sub/pic.png">';
+await contents.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html), {
+  baseURLForDataURL: 'file://' + application.fileSystem.assets + '/web/',
+});
+const width = await contents.executeJavaScript(
+  'new Promise((resolve) => { const i = document.images[0];' +
+  ' if (i.complete) resolve(i.naturalWidth); else i.onload = () => resolve(i.naturalWidth); })');
+console.log(width > 0);
+```
+
+**结果**：项目里有 `assets/web/sub/pic.png` 时，图片加载出来，输出 `true`。真机上**未验证**。
+
 ## 和 Electron 的差别
 
-和 Electron 的 `contents.loadURL(url)` 相同。错误码是系统的那一套（`-1003` 等），不是 Chromium 的（`-105` 等）。不支持 Electron 的第二个参数（`httpReferrer`、`userAgent` 等）。
+和 Electron 的 `contents.loadURL(url, options)` 相同。第二个参数只支持 `baseURLForDataURL`，不支持 `httpReferrer`、`userAgent`、`extraHeaders`、`postData`。错误码是系统的那一套（`-1003` 等），不是 Chromium 的（`-105` 等）。
 
-对应的 iOS 原生写法是 `[webView loadRequest:]`。
+对应的 iOS 原生写法是 `[webView loadRequest:]`；带 `baseURLForDataURL` 的 `data:` 地址是 `[webView loadData:MIMEType:characterEncodingName:baseURL:]`，它就是 `loadHTMLString:baseURL:` 的通用版。
 
 ## 参见
 

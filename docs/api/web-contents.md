@@ -85,6 +85,7 @@ status: partial
 | [`page-title-updated`](web-contents/page-title-updated-event.md) | 标题变了 |
 | [`ipc-message`](web-contents/ipc-message-event.md) | 网页的预加载脚本调了 `ipcRenderer.send` |
 | [`preload-error`](web-contents/preload-error-event.md) | 预加载脚本执行时抛了异常 |
+| [`console-message`](web-contents/console-message-event.md) | 网页调了 `console` 的方法，或者有异常没被捕获 |
 | [`render-process-gone`](web-contents/render-process-gone-event.md) | 网页的进程不在了 |
 | [`destroyed`](web-contents/destroyed-event.md) | 被 `close()` 销毁 |
 
@@ -158,6 +159,8 @@ console.log(contents.getURL(), contents.isLoading());
 | `contents.session` | 相同 | 见 [`session`](session.md) |
 | `contents.loadFile(filePath, { query, search, hash })` | 相同 | 相对路径的起点是 App 包。本地网页的限制比 Electron 多，见[本地网页的限制](#本地网页的限制) |
 | `contents.navigationHistory.goBack()` | 相同 | |
+| `contents.loadURL(url, { baseURLForDataURL })` | 相同 | 第二个参数只支持 `baseURLForDataURL` |
+| `contents.on('console-message', (details) => …)` | `contents.addEventListener('console-message', (e) => …)` | 没有 `frame`；没被捕获的异常也会派发 |
 | `contents.close()` / `isDestroyed()` / `'destroyed'` | 相同 | |
 
 ## 对应的 iOS API
@@ -165,6 +168,7 @@ console.log(contents.getURL(), contents.isLoading());
 | ObjC（`WKWebView`） | JS |
 | --- | --- |
 | `[webView loadRequest:]` | `contents.loadURL(url)` |
+| `[webView loadHTMLString:html baseURL:base]` | `contents.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html), { baseURLForDataURL: base })` |
 | `[webView loadFileURL:allowingReadAccessToURL:]` | `contents.loadFile(filePath)`。可读的目录由运行时按文件的位置定 |
 | `webView.URL` | `contents.getURL()` |
 | `webView.title` | `contents.getTitle()`，`page-title-updated` 事件 |
@@ -182,20 +186,6 @@ console.log(contents.getURL(), contents.isLoading());
 | `webView:didFailNavigation:withError:`、`webView:didFailProvisionalNavigation:withError:` | `did-fail-load` 事件 |
 | `webViewWebContentProcessDidTerminate:` | `render-process-gone` 事件 |
 | 释放 `WKWebView` | `contents.close()` |
-
-## 还不能做的
-
-| 想做的事 | 对应的能力 |
-| --- | --- |
-| 拦住服务器重定向 | Electron 的 `will-redirect` |
-| 拦住 `<iframe>` 里的跳转 | Electron 的 `will-frame-navigate` |
-| 网页同步地向 App 要一个结果 | Electron 的 `ipcRenderer.sendSync` |
-| 在 App 这边看到网页的 `console` 输出 | Electron 的 `console-message` |
-| 从本地加载用到模块脚本、用 `fetch` 读本地文件的网页 | Electron 的 `protocol.handle`；`WKURLSchemeHandler`（让本地文件以自己定的协议提供） |
-| 自己指定本地网页能读哪个目录 | `loadFileURL:allowingReadAccessToURL:` 的第二个参数 |
-| 加载进度的百分比 | `estimatedProgress` |
-| 网页内跳转的通知（只改 `#` 后面的部分） | Electron 的 `did-navigate-in-page` |
-| 历史记录的列表、跳到某一条 | Electron 的 `navigationHistory.getAllEntries()`、`goToIndex()`；`backForwardList` |
 
 ## 参见
 
