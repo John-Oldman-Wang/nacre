@@ -58,7 +58,7 @@ ObjC 里写 0 到 1 以外的值不报错。这里照 `intensity` 的先例在 J
 
 ### 没接的四个
 
-`coordinateSpace`、`fixedCoordinateSpace`（返回的是协议对象，要先有 `UICoordinateSpace` 的形态）；`overscanCompensation`、`overscanCompensationInsets`（只对外接电视有意义）。记在 `overrides.json` 的 `exclude` 里，`report` 不再把它们列成缺口。
+`coordinateSpace`、`fixedCoordinateSpace`（返回的是协议对象，要先有 `UICoordinateSpace` 的形态）；`overscanCompensation`、`overscanCompensationInsets`（只对外接电视有意义）。记在 `overrides.json` 的 `exclude` 里：它管 `scaffold` 不生成这几个，`report` 里它们还是列在「还没接」。
 
 ### 事件
 
