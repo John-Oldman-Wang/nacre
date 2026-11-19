@@ -83,12 +83,6 @@ dot.addAnimation(spring, { forKey: 'drop' });
 | `spring.damping = 8` | `spring.damping = 8` |
 | `spring.duration = spring.settlingDuration` | `spring.duration = spring.settlingDuration` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 用「感觉上的时长」和「回弹程度」创建弹簧动画。这两个值现在可以读，不能直接指定 | `initWithPerceptualDuration:bounce:` |
-
 ## 参见
 
 - [用弹簧的方式到达终点](../guides/animation.md#用弹簧的方式到达终点)

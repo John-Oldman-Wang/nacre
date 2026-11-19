@@ -69,14 +69,6 @@ console.log('循环用了 ' + elapsed.toFixed(3) + ' 毫秒');
 | 零点 | 页面开始加载的时刻 | 运行时启动的时刻 |
 | `mark()`、`measure()`、`getEntries()`、`PerformanceObserver` | 有 | 没有 |
 
-## 还不能做的
-
-| 想做的事 | 对应的 Web 能力 | 状态 |
-| --- | --- | --- |
-| 给一段过程打标记、取两个标记之间的耗时 | `performance.mark()`、`performance.measure()` | 未实现。用两次 `now()` 相减代替 |
-| 读取页面加载、资源请求的各阶段耗时 | `performance.getEntries()`、`PerformanceObserver` | 未实现 |
-| 读取内存占用 | `performance.memory` | 未实现 |
-
 ## 参见
 
 - [量一段代码花了多久](../guides/measure-time.md)：量同步代码、异步操作、定时器的实际延迟；和 `Date.now()` 怎么选

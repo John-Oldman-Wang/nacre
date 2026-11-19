@@ -15,7 +15,7 @@ native: UINavigationController.toolbar
 - 每次读到的是同一个对象。
 - 工具条默认藏着，要显示用 [`isToolbarHidden`](istoolbarhidden.md) 或 [`setToolbarHidden()`](settoolbarhidden.md)。
 
-> **注意**：Apple 规定这条工具条由导航控制器管理，不要直接改它的 `items`。往上面放按钮，iOS 用的是每个页面自己的 `toolbarItems`，Nacre 还没有提供，见[还不能做的](../ui-navigation-controller.md#还不能做的)。
+> **注意**：Apple 规定这条工具条由导航控制器管理，不要直接改它的 `items`。
 
 ## 示例
 

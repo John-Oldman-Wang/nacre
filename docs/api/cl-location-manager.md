@@ -15,7 +15,7 @@ status: partial
 - [`CLLocationCoordinate2D`](cl-location-coordinate-2d.md)：经纬度，单位是度。
 - [`CLLocationError`](cl-location-error.md)：定位出错时得到的 `Error`。
 
-这一组只包括「使用 App 期间」的定位：App 在前台、用户正在用它的时候取位置。App 退到后台之后继续定位、进出某个区域时通知、指南针，都还不能做，见[还不能做的](#还不能做的)。
+这一组只包括「使用 App 期间」的定位：App 在前台、用户正在用它的时候取位置。
 
 > **注意**：成员的形状、默认值、写错时的报错，以及已经授权时取一次位置、收到位置更新的事件，在模拟器（iPhone Air）的验收里验过。授权提示框、用户拒绝之后的行为、位置多久来一次，来自 Apple 的头文件和文档，逐条标了「未在模拟器验证」。
 
@@ -240,23 +240,6 @@ tracker.startUpdatingLocation();
 | `locationManagerDidChangeAuthorization:` | `authorizationchange` 事件 |
 | `error.code == kCLErrorDenied` | `error.name === 'NotAllowedError'` |
 
-## 还不能做的
-
-下面这些都没有。表里的方法，调用会抛「不是函数」的 `TypeError`；属性，读到的是 `undefined`，写入不报错也不起作用；类，读它的名字会抛 `ReferenceError`。
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 申请「始终」定位 | `requestAlwaysAuthorization` |
-| App 退到后台之后继续定位 | `allowsBackgroundLocationUpdates`、`pausesLocationUpdatesAutomatically`、`showsBackgroundLocationIndicator`、`activityType`，以及后台模式的工程配置 |
-| 位置有大的变化时才唤醒 App | `startMonitoringSignificantLocationChanges` |
-| 进出某个区域时得到通知（地理围栏） | `startMonitoringForRegion:`、`CLCircularRegion`、`CLMonitor` |
-| 指南针：设备朝向哪个方向 | `startUpdatingHeading`、`heading`、`CLHeading` |
-| 用户只给了大概位置时，临时申请一次精确位置 | `requestTemporaryFullAccuracyAuthorizationWithPurposeKey:` |
-| 查整个系统的定位服务开没开 | `+locationServicesEnabled`。关着的时候 `authorizationStatus` 是 `'denied'` |
-| 经纬度和地址互相转换 | `CLGeocoder`、`CLPlacemark` |
-
-`CLLocation` 上还不能做的见 [`CLLocation`](cl-location.md#还不能做的)。
-
 ## 参见
 
 - [取用户的位置](../guides/get-location.md)：申请授权、取一次、连续更新、处理出错的完整写法
@@ -266,4 +249,3 @@ tracker.startUpdatingLocation();
 - [核心和能力包](capabilities.md)：哪些能力要单独装，装了之后还要做什么
 - [枚举](enums.md)：授权状态这类取值为什么是字符串，写错了会怎样
 - [运行时怎么工作](how-it-works.md)：事件的回调为什么在下一轮执行
-- [实现原理：定位](../internals/core-location.md)：位置为什么是值、Promise 怎么保证结算、谁拿着 `manager`

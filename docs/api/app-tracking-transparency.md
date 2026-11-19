@@ -160,16 +160,6 @@ application.addEventListener('sceneconnect', (e) => {
 | `[ATTrackingManager requestTrackingAuthorizationWithCompletionHandler:^(ATTrackingManagerAuthorizationStatus status) { … }]` | `ATTrackingManager.requestTrackingAuthorization().then((status) => { … })` |
 | Info.plist 里的 `NSUserTrackingUsageDescription` | `nacre.config.json` 的 `ios.infoPlist.NSUserTrackingUsageDescription` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 申请时让提示框带一个「更多信息」按钮（面向欧盟的用户） | `requestTrackingAuthorizationPreferringExpandedInterface:additionalInformationAction:completionHandler:`（iOS 27.2），未实现 |
-| 授权状态变化时收到通知 | 系统没有提供这个通知。在 App 回到活动状态时重新读 |
-| 读「限制广告跟踪」开关 | `advertisingTrackingEnabled`，iOS 14 起废弃。不提供，用 `trackingAuthorizationStatus` |
-| 广告归因 | SKAdNetwork、AdAttributionKit，未实现 |
-| 在 App 的隐私清单里声明「这个 App 跟踪用户」 | `PrivacyInfo.xcprivacy` 的 `NSPrivacyTracking`。由 App 自己写，见[建自己的 App](../guides/your-own-app.md) |
-
 ## 参见
 
 - [申请跟踪授权](../guides/tracking-authorization.md)：什么时候申请、只问一次、回到前台时重新读
@@ -177,4 +167,3 @@ application.addEventListener('sceneconnect', (e) => {
 - [核心和能力包](capabilities.md)：`@nacrejs/app-tracking-transparency` 是一个能力包，能力包怎么用
 - [配置 App](../guides/project-config.md)：`NSUserTrackingUsageDescription` 写在哪、怎么按语言写
 - [`application`](application.md)：`state` 和 `active` 事件，判断 App 是不是在活动状态
-- [实现原理](../internals/app-tracking-transparency.md)：申请授权怎么变成 Promise、全零的标识为什么不换成 `null`

@@ -76,7 +76,7 @@ status: partial
 
 动画结束后，系统把它从图层上移除，屏幕上显示的值回到属性的值。要让图层停在终点，把属性的值也设成终点值，写法见[让图层停在终点](../guides/animation.md#让图层停在终点)。
 
-动画进行中屏幕上正显示的值目前读不到。**这一节的行为来自 iOS 的定义，未在模拟器验证。**
+**这一节的行为来自 iOS 的定义，未在模拟器验证。**
 
 ## 加到图层上之后
 
@@ -171,21 +171,6 @@ application.addEventListener('sceneconnect', (e) => {
 
 各子类的对照见各自的页面。
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 用一个代码块描述视图动画 | `UIView.animateWithDuration:animations:` |
-| 给旋转和缩放做动画 | `transform` 的动画、`valueFunction` |
-| 给渐变的颜色和位置做动画 | `colors`、`locations` 的动画 |
-| 读动画进行中屏幕上正显示的值 | `presentationLayer` |
-| 用 `beginTime` 让单独一个动画延迟开始。现在用定时器代替 | `CACurrentMediaTime()`、`convertTime:fromLayer:` |
-| 整个事务里的动画都结束时得到通知。现在在动画对象上监听 `stop` | `CATransaction.completionBlock` |
-| 用「感觉上的时长」和「回弹程度」创建弹簧动画。这两个值现在可以读，不能直接指定 | `initWithPerceptualDuration:bounce:` |
-| 页面切换那样的整体转场 | `CATransition` |
-| 让动画的值叠加在属性的值之上 | `additive`、`cumulative` |
-| 每帧回调一次的 `requestAnimationFrame()`。现在用 `CADisplayLink` | — |
-
 ## 参见
 
 - [做动画](../guides/animation.md)：让图层停在终点、移动、重复、关键帧、弹簧、动画组、关掉隐式动画
@@ -194,4 +179,3 @@ application.addEventListener('sceneconnect', (e) => {
 - [`UIBezierPath`](ui-bezier-path.md)：`'path'` 动画和沿路径移动用到的路径
 - [结构体](structs.md)：`CGPoint`、`CGRect`、`CGSize`
 - [运行时怎么工作](how-it-works.md)：事件回调什么时候执行
-- [实现原理：动画](../internals/ca-animation.md)

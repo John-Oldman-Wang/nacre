@@ -90,14 +90,6 @@ console.log(list.dataSource === source);
 
 `completion:` 参数换成了返回的 Promise。`NSNotFound` 换成了 -1。
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 能展开和收起的分组 | `NSDiffableDataSourceSectionSnapshot`、`applySnapshot:toSection:animatingDifferences:` |
-| 拖动排序 | `reorderingHandlers` |
-| 分区的头和尾用单独的视图 | `supplementaryViewProvider` |
-
 ## 参见
 
 - [`UICollectionView`](ui-collection-view.md)

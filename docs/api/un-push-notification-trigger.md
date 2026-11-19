@@ -44,12 +44,6 @@ center.addEventListener('notificationclick', (event) => {
 
 `UNPushNotificationTrigger`。`[trigger isKindOfClass:UNPushNotificationTrigger.class]` 写成 `trigger instanceof UNPushNotificationTrigger`。
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 让 App 能收到远程推送：向苹果注册、拿到设备令牌 | `registerForRemoteNotifications`，以及推送的 entitlement |
-
 ## 参见
 
 - [发本地通知](../guides/local-notifications.md#收到远程推送的通知)

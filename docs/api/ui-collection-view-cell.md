@@ -69,13 +69,6 @@ function priceLabelOf(cell) {
 | `cell.selected` | `cell.isSelected` |
 | `cell.highlighted` | `cell.isHighlighted` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 改单元格的背景、选中时的样子 | `backgroundConfiguration`、`configurationUpdateHandler`、`UICellConfigurationState` |
-| 继承单元格做自己的类 | ObjC 的子类化。JS 里原生类不能继承 |
-
 ## 参见
 
 - [`UICollectionViewListCell`](ui-collection-view-list-cell.md)

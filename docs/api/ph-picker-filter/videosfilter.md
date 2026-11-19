@@ -23,7 +23,7 @@ config.filter = PHPickerFilter.videosFilter;
 console.log(PHPickerFilter.videosFilter === PHPickerFilter.videosFilter);
 ```
 
-**效果**：控制台输出 `true`。用这份配置建的选图界面，选图界面里只有视频。选中的视频现在取不出来，见 [`NSItemProvider`](../ns-item-provider.md#还不能做的)。屏幕上的效果**未在模拟器验证**。
+**效果**：控制台输出 `true`。用这份配置建的选图界面，选图界面里只有视频。屏幕上的效果**未在模拟器验证**。
 
 ## 对应的 iOS API
 

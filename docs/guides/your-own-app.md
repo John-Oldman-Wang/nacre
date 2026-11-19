@@ -99,7 +99,7 @@ application.addEventListener('sceneconnect', (e) => {
 
 **效果**：目录里有 `package.json`、`nacre.config.json`、`tsconfig.json` 和 `src/main.js`。
 
-`sceneconnect` 是 App 的入口：系统接入一个场景时派发，窗口和页面全由 JS 建，原生层不替你做任何决定。详见 [`application`](../api/application.md)。
+`sceneconnect` 是 App 的入口：系统接入一个场景时派发，窗口和页面全由 JS 建。详见 [`application`](../api/application.md)。
 
 ## 2. 装依赖
 
@@ -206,7 +206,7 @@ npm run build
 
 **效果**：模拟器上的文字跟着变。
 
-只改 JS 时不用重新生成工程，`npm run build` 就够。但目前**每次都要重新编译、重装、重启 App**——没有热重载。改了 `nacre.config.json`、换了图标、装了或者卸了能力包，要重新跑 `npm run ios`。
+只改 JS 时不用重新生成工程，`npm run build` 就够，但**每次都要重新编译、重装、重启 App**。改了 `nacre.config.json`、换了图标、装了或者卸了能力包，要重新跑 `npm run ios`。
 
 ## 项目里每样东西是什么
 
@@ -284,11 +284,11 @@ ios/
 
 `package.json` 里 `build` 那条命令有四个参数不能改：
 
-| 参数 | 为什么 |
+| 参数 | 改了会怎样 |
 | --- | --- |
-| `--format=iife` | 运行时编译的是 classic script，ESM 的 `import` 会直接抛 |
+| `--format=iife` | ESM 产物里的 `import` 会直接抛 |
 | `--platform=neutral` | 不能让打包器注入 `process`、`Buffer` 这些 Node 的垫片，运行时里没有它们 |
-| 不加 `--minify` | 运行时没有 source map，报错的行号只能靠人去产物里对 |
+| 不加 `--minify` | 报错的行号是打包产物里的行号，要到产物里去对，压缩了就没法对 |
 | `--charset=utf8` | 同上，压成转义序列就没法读了 |
 
 用别的打包器也行，满足这四条即可。这几条也写在 `node_modules/@nacrejs/ios/nacre-ios.json` 里，机器可读。
@@ -301,11 +301,11 @@ ios/
 2. 在 Xcode 里打开 `ios/MyApp.xcodeproj`，在 Signing & Capabilities 里选你的开发者账号
 3. 选真机运行
 
-> **注意**：生成的工程里 `ENABLE_DEBUG_DYLIB` 是关的，这是必须的——运行时要 8MB 的主线程栈，而设置栈大小的链接器参数和 Xcode 的 debug dylib 冲突。不要打开它。
+> **注意**：生成的工程里 `ENABLE_DEBUG_DYLIB` 是关的。不要打开它，打开之后链接会报错。
 
 要上架的话还有两件事。
 
-**带上第三方声明。** 运行时里编进了 V8 和它依赖的库，你的 App 把 `Nacre.framework` 嵌进去，就也在分发这些代码。它们的许可要求分发时附上声明，全文在 `node_modules/@nacrejs/ios/THIRD-PARTY-NOTICES.md`。通常的做法是在 App 里放一个「致谢」或者「开源许可」页，把它显示出来。
+**带上第三方声明。** `Nacre.framework` 里编进了第三方的库，你的 App 把它嵌进去，就也在分发这些代码。它们的许可要求分发时附上声明，全文在 `node_modules/@nacrejs/ios/THIRD-PARTY-NOTICES.md`。通常的做法是在 App 里放一个「致谢」或者「开源许可」页，把它显示出来。
 
 **隐私清单。** App Store 要求声明你的 App 收集什么数据（`PrivacyInfo.xcprivacy` 里的 `NSPrivacyTracking` 和 `NSPrivacyCollectedDataTypes`），这份得你自己写，我们替你填反而是错的。**运行时那部分不用你管**——`Nacre.framework` 自带一份，声明了它自己用到的系统 API。
 
@@ -317,7 +317,7 @@ ios/
 
 | 配什么 | 漏了会怎样 |
 | --- | --- |
-| `Other Linker Flags` 加 `-Wl,-stack_size,0x800000` | 真机上主线程栈只有 1MB，V8 没有余量 |
+| `Other Linker Flags` 加 `-Wl,-stack_size,0x800000` | 真机上主线程的栈不够用 |
 | `ENABLE_DEBUG_DYLIB` 设成 `NO` | 上面那条链接器直接报错 |
 | 把 JS 目录（含 `main.js`）作为**文件夹引用**加进 App 包 | 运行时找不到 `main.js`，启动后一片空白 |
 
@@ -333,15 +333,6 @@ if let scripts = Bundle.main.url(forResource: "JS", withExtension: nil) {
 ```
 
 完整的清单在 `node_modules/@nacrejs/ios/` 里：`nacre-ios.json` 是机器可读的那份，启动壳的原本在它旁边的 `template/`。
-
-## 还不能做的
-
-| 想做的事 | 现在怎么样 |
-| --- | --- |
-| 一条命令编译、装到模拟器并启动 | 没有。生成工程之后的几步要自己跑，或者用 Xcode |
-| 不装 XcodeGen | 生成的是 `project.yml`，还要跑一次 `xcodegen` |
-| 改一行 JS 立刻看到（热重载） | 每次都要重新打包、重装、重启 |
-| Android | 还没开始 |
 
 ## 接下来
 

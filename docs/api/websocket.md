@@ -168,16 +168,6 @@ ws.addEventListener('close', (e) => {
 | 实例上的 `ws.OPEN` 等常量 | 有 | 没有，只在 `WebSocket` 上 |
 | `readyState` 的取值和四个常量的值 | 数 | 相同 |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 知道还有多少数据排队没发出去（`bufferedAmount`） | `NSURLSessionWebSocketTask` 没有对应的值 |
-| 让二进制消息直接以 `ArrayBuffer` 到达（`binaryType`）。现在收到 `Blob` 后调 `arrayBuffer()` | 无 |
-| 读服务器启用的协议扩展（`extensions`） | `NSURLSessionWebSocketTask` 不提供 |
-| 断开后自动重连。运行时不做，写法见[保持一条长期使用的连接](../guides/websocket.md#保持一条长期使用的连接) | 无 |
-| App 在后台时保持连接 | iOS 的后台任务 |
-
 ## 参见
 
 - [用 WebSocket 收发消息](../guides/websocket.md)：文本、二进制、JSON、重连、心跳、App 回到前台

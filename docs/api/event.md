@@ -38,7 +38,7 @@ status: partial
 
 ## 系统派发的事件不能取消
 
-原生的通知派发过来的事件，`cancelable` 一律是 `false`：运行时把派发延后了一轮，系统那边早就处理完了，没有「默认动作」可以拦。例外是系统当场来问、要立刻给答案的事件，各在自己的页面上写明。`application` 的 `error` 和 `unhandledrejection` 是运行时自己派发的，`cancelable` 是 `true`。
+系统派发的事件，`cancelable` 一律是 `false`：回调执行时事情已经发生，`preventDefault()` 不起作用。例外是系统当场来问、要立刻给答案的事件，各在自己的页面上写明。`application` 的 `error` 和 `unhandledrejection` 的 `cancelable` 是 `true`。
 
 ## 示例
 
@@ -58,4 +58,3 @@ console.log(event.defaultPrevented);
 ## 参见
 
 - [`EventTarget`](event-target.md)
-- [实现原理：事件](../internals/events.md)

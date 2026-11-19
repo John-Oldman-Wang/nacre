@@ -108,15 +108,6 @@ const timer = setInterval(() => {
 | `queueMicrotask()` 的回调抛出异常 | 由 `error` 事件报告 | 由 `unhandledrejection` 事件报告 |
 | `requestAnimationFrame` | 有 | 没有。用 [`CADisplayLink`](ca-animation.md) |
 
-## 还不能做的
-
-| 想做的事 | 状态 |
-| --- | --- |
-| 每帧回调一次（`requestAnimationFrame`） | 没有这个函数。用 [`CADisplayLink`](ca-animation.md) |
-| 让定时器在 App 进入后台后继续执行 | 未实现。对应 iOS 的后台任务（`beginBackgroundTask`） |
-| 给回调分优先级 | 未实现 |
-| `setImmediate` | 没有。用 `setTimeout(fn, 0)` |
-
 ## 参见
 
 - [延迟和重复执行代码](../guides/timers.md)：延迟执行、轮询、`await` 等一段时间、等一个条件成立

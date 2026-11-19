@@ -71,14 +71,6 @@ main();
 - 没有 `pipeTo()`、`pipeThrough()`、`tee()`，没有静态方法 `ReadableStream.from()`。
 - `getReader({ mode: 'byob' })` 抛 `TypeError`，不支持这种读取器。
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 自己创建流，或者把流接到别处（`new ReadableStream()`、`pipeTo()`、`pipeThrough()`、`tee()`、`TransformStream`、`WritableStream`） | 未实现 |
-| 把数据读进自己准备的缓冲区（BYOB 读取器） | 未实现 |
-| 请求体用流边生成边发送 | 未实现 |
-
 ## 参见
 
 - [`ReadableStreamDefaultReader`](readable-stream-default-reader.md)：读取器

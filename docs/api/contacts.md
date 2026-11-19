@@ -183,20 +183,6 @@ application.addEventListener('sceneconnect', (e) => {
 
 ObjC 里选择器的选法由委托实现了哪几个方法决定；JS 里由监听了哪几个事件决定，一一对应。
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 读整个通讯录、按名字搜索联系人 | `CNContactStore`。不在这个包里：它需要通讯录权限，项目要写 `NSContactsUsageDescription` |
-| 新建、修改、删除联系人 | `CNMutableContact`、`CNSaveRequest`。同上 |
-| 通讯录变了的通知 | `CNContactStoreDidChangeNotification`。同上 |
-| 一次选几个电话或几个邮箱 | `contactPicker:didSelectContactProperties:`，未实现。监听 `didselectcontactproperties` 不报错，但收不到 |
-| 让一部分联系人点不了（比如没有电话的） | `predicateForEnablingContact`，未实现，要先有 `NSPredicate` |
-| 只有一个电话的联系人直接选中，有几个的才进详情 | `predicateForSelectionOfContact`、`predicateForSelectionOfProperty`，未实现，同上 |
-| 显示一个联系人的详情页、新建联系人的界面 | `CNContactViewController`，未实现 |
-
-联系人、标签、姓名拼法上还不能做的，见各自的类页。
-
 ## 参见
 
 - [让用户选联系人](../guides/pick-contact.md)：推荐的做法、选一个电话、选一个邮箱、一次选几个
@@ -204,5 +190,4 @@ ObjC 里选择器的选法由委托实现了哪几个方法决定；JS 里由监
 - [`UIViewController`](ui-view-controller.md)：选择器的父类。弹出、关闭、关闭事件
 - [核心和能力包](capabilities.md)：`@nacrejs/contacts` 是一个能力包，能力包怎么用
 - [系统分享面板](ui-activity-view-controller.md)：另一个由系统提供的页面
-- [原生类](native-classes.md)：哪些类能 `new`、为什么不能继承
-- [实现原理：通讯录选择器](../internals/contacts.md)：为什么不需要权限、哪些确认过、哪些没有
+- [原生类](native-classes.md)：哪些类能 `new`、不能继承

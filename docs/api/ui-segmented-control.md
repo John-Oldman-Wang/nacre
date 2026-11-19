@@ -148,15 +148,6 @@ application.addEventListener('sceneconnect', (e) => {
 - 原生对越界的下标有的抛异常、有的不做任何事；这里一律抛 `TypeError`。
 - 原生在删掉选中的那一段之后，`selectedSegmentIndex` 读出来是 -2；这里是 -1。
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 改标题的字体和颜色 | `setTitleTextAttributes:forState:` |
-| 换底图和段之间的分隔线 | `setBackgroundImage:forState:barMetrics:`、`setDividerImage:forLeftSegmentState:rightSegmentState:barMetrics:` |
-| 按「最左、中间、最右」分别微调内容的位置 | `setContentPositionAdjustment:forSegmentType:barMetrics:` |
-| 给每一段绑一个带回调的动作 | `initWithFrame:actions:`、`insertSegmentWithAction:atIndex:animated:`、`setAction:forSegmentAtIndex:`。不做：用 `change` 加 `selectedSegmentIndex` |
-
 ## 参见
 
 - [做分段选择和页码](../guides/segmented-and-page-controls.md)：图标段、取消选中、增删段、当按钮用
@@ -164,4 +155,3 @@ application.addEventListener('sceneconnect', (e) => {
 - [`UIImage`](ui-image.md)：取 SF Symbols 和自己的图
 - [颜色](ui-color.md)：颜色字符串的写法
 - [`UITabBarController`](ui-tab-bar-controller.md)：在几个整页之间切换时用标签栏，不用分段选择
-- [实现原理](../internals/value-controls.md)：默认值和边界行为是怎么量的

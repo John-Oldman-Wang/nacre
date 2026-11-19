@@ -247,15 +247,6 @@ application.addEventListener('sceneconnect', (e) => {
 | `align-self`、`order` | 没有 | 对齐方式整个容器只有一个，顺序就是加入的顺序 |
 | 容器自己的 `background`、`border-radius` | 不显示 | 在外面套一个普通视图 |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 | 状态 |
-| --- | --- | --- |
-| 指定用哪个子视图的文字做基线对齐 | `viewForFirstBaselineLayout`、`viewForLastBaselineLayout` | 未实现 |
-| 放不下时自动换行，或排成网格 | iOS 没有对应的容器，要用 `UICollectionView` | 未实现 |
-| 排列项位置变化时带动画 | `UIView` 动画 | 未实现 |
-| 排列项很多时只创建看得见的那些 | `UICollectionView` | 不在这个类上。用[列表](ui-collection-view.md) |
-
 ## 参见
 
 - [把视图排成一行或一列](../guides/stack-views.md)：等宽平分、占满剩余空间、对齐、隐藏、内边距、底色、嵌套
@@ -265,4 +256,3 @@ application.addEventListener('sceneconnect', (e) => {
 - [`UILabel`](ui-label.md)：最常见的排列项，有固有大小
 - [枚举](enums.md)：字符串取值的通用规则，写错时的警告和报错格式
 - [单位](units.md)：pt 是什么
-- [实现原理：Auto Layout](../internals/auto-layout.md)：别名和间距令牌的实现

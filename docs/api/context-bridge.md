@@ -46,12 +46,6 @@ contextBridge.exposeInMainWorld('app', {
 
 没有直接对应的原生成员。挂上去的是一个普通的 `window` 属性，由在文档开始时注入的 `WKUserScript` 写上。
 
-## 还不能做的
-
-| 想做的事 | 对应的能力 |
-| --- | --- |
-| 让预加载脚本和网页的脚本互相隔离 | Electron 的 `contextIsolation`；`WKContentWorld` |
-
 ## 参见
 
 - [`ipcRenderer`](ipc-renderer.md)

@@ -116,18 +116,9 @@ application.addEventListener('sceneconnect', (e) => {
 | `view.effect = nil` | `view.effect = null` |
 | `[view.contentView addSubview:label]` | `view.contentView.addSubview(label)` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 用一个纯色当效果 | `UIColorEffect`（它的工厂方法从 iOS 26.1 才有） |
-| 换效果时带过渡动画 | 在 `UIView` 的动画里改 `effect` |
-| 给玻璃指定和系统控件一致的圆角 | `UIView.cornerConfiguration` |
-
 ## 参见
 
 - [做模糊和玻璃效果](../guides/blur-and-glass.md)：为什么看不出效果、鲜明的文字、玻璃、圆角
 - [`UIBlurEffect`](ui-blur-effect.md)、[`UIVibrancyEffect`](ui-vibrancy-effect.md)、[`UIGlassEffect`](ui-glass-effect.md)、[`UIGlassContainerEffect`](ui-glass-container-effect.md)：四种效果
 - [`UIView`](ui-view.md)：父类，位置、大小、层级
 - [`CALayer`](ca-layer.md)：`layer.cornerRadius`，做圆角用
-- [实现原理：毛玻璃](../internals/effects.md)

@@ -132,15 +132,6 @@ application.addEventListener('sceneconnect', (e) => {
 | `UIScreenModeDidChangeNotification` | `screen.addEventListener('modechange', …)` |
 | `UIScreenReferenceDisplayModeStatusDidChangeNotification` | `screen.addEventListener('referencedisplaymodestatuschange', …)` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 横竖屏切换时收到通知、读屏幕方向 | `UIWindowScene.effectiveGeometry`（在待办里） |
-| 在屏幕的坐标系里换算位置 | `coordinateSpace`、`fixedCoordinateSpace` |
-| 外接电视的过扫描补偿 | `overscanCompensation`、`overscanCompensationInsets` |
-| 不经过场景拿到屏幕 | `UIScreen.mainScreen`、`UIScreen.screens`（iOS 废弃了） |
-
 ## 参见
 
 - [`UIWindowScene`](ui-window-scene.md)：屏幕从场景读

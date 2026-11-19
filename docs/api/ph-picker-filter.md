@@ -88,12 +88,6 @@ config.filter = PHPickerFilter.allFilterMatchingSubfilters([
 | `[PHPickerFilter notFilterOfSubfilter:a]` | `PHPickerFilter.notFilterOfSubfilter(a)` |
 | `[a isEqual:b]` | `a.isEqual(b)` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 按播放方式筛选 | `playbackStyleFilter:` |
-
 ## 参见
 
 - [`PHPickerConfiguration`](ph-picker-configuration.md)：筛选条件写在它的 `filter` 里

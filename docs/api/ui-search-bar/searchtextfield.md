@@ -33,7 +33,7 @@ console.log(search.searchTextField.clearButtonMode);
 
 ## 对应的 iOS API
 
-`UISearchBar.searchTextField`。原生的类型是 `UISearchTextField`，这里按普通的 `UITextField` 提供，搜索标记和搜索建议见[还不能做的](../ui-search-bar.md#还不能做的)。
+`UISearchBar.searchTextField`。原生的类型是 `UISearchTextField`，这里按普通的 `UITextField` 提供。
 
 ## 参见
 

@@ -95,4 +95,3 @@ application.addEventListener('sceneconnect', (e) => {
 - [配置 App](project-config.md#声明自定义协议)：声明自定义协议和通用链接的域名
 - [`URL`](../api/url.md)：拆开地址
 - [在页面之间跳转](navigation.md)
-- [实现原理：被链接打开](../internals/open-url.md)

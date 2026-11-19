@@ -116,16 +116,9 @@ application.addEventListener('sceneconnect', (e) => {
 | `<input type="number" min max step>`，带输入框和上下箭头 | `new UIStepper()` 只有加减两个按钮，没有输入框，数值要自己显示 |
 | `input.stepUp()`、`input.stepDown()` | 没有对应的方法。自己写 `stepper.value += stepper.stepValue` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 把加号、减号、底图、中间的分隔线换成自己的图 | `setIncrementImage:forState:`、`setDecrementImage:forState:`、`setBackgroundImage:forState:`、`setDividerImage:forLeftSegmentState:rightSegmentState:`。不做：实测 iOS 27.2 上这四个方法设进去的图读不回来（读到的是空） |
-
 ## 参见
 
 - [做开关、滑块和步进器](../guides/switches-sliders-steppers.md)：按 0.5 加减、回绕、只在松手后处理
 - [`UIControl`](ui-control.md)：`isEnabled`、全部控件事件
 - [`UILabel`](ui-label.md)：显示当前的值
 - [`UISlider`](ui-slider.md)：范围大、不需要精确到一档时用滑块
-- [实现原理](../internals/value-controls.md)：默认值和边界行为是怎么量的

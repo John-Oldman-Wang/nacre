@@ -6,7 +6,7 @@ status: partial
 
 # `PHPhotoLibrary`
 
-**`PHPhotoLibrary`** 表示系统的相册。现在只接了「添加」这一条路：App 把一张图存成相册里的一张新照片，读不到相册里已有的照片。
+**`PHPhotoLibrary`** 表示系统的相册。App 用它把一张图存成相册里的一张新照片。
 
 往相册里存图要用户同意「添加照片」的权限。没问过用户时，存图的方法自己会先弹提示框。
 
@@ -41,7 +41,7 @@ Illegal constructor: PHPhotoLibrary is created by the runtime, not by new
 
 | 方法 | 说明 |
 | --- | --- |
-| [`performChanges()`](ph-photo-library/performchanges.md) | 修改相册。现在只能存一张新照片 |
+| [`performChanges()`](ph-photo-library/performchanges.md) | 修改相册：存一张新照片 |
 
 ## 授权状态
 
@@ -94,16 +94,7 @@ if (photo !== null) {
 | `[PHPhotoLibrary requestAuthorizationForAccessLevel:PHAccessLevelAddOnly handler:^(PHAuthorizationStatus status) { … }]` | `await PHPhotoLibrary.requestAuthorizationForAccessLevel('addOnly')` |
 | `[library performChanges:^{ [PHAssetChangeRequest creationRequestForAssetFromImage:image]; } completionHandler:^(BOOL success, NSError *error) { … }]` | `await library.performChanges({ creationRequestForAssetFromImage: image })` |
 
-最后一行形状不一样。ObjC 的第一个参数是一段代码，要做的修改写在代码里；JS 这边是一个对象，键是要做的那种修改的名字。原因见[实现原理](../internals/photos.md#performchanges-为什么收一个对象)。
-
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 读相册里已有的照片、相簿 | `PHAsset`、`PHAssetCollection`、`PHImageManager`，以及 `PHAccessLevelReadWrite`。要完整的相册权限 |
-| 相册变了时得到通知 | `PHPhotoLibraryChangeObserver` |
-| 把视频、文件里的图片存进相册，删除和修改照片 | `PHAssetChangeRequest` 的其余方法、`PHAssetCreationRequest` |
-| 存进去之后拿到那张新照片 | `PHObjectPlaceholder`。要完整的相册权限才用得上 |
+最后一行形状不一样。ObjC 的第一个参数是一段代码，要做的修改写在代码里；JS 这边是一个对象，键是要做的那种修改的名字。
 
 ## 参见
 

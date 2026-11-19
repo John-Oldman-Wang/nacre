@@ -54,13 +54,6 @@ const source = new UICollectionViewDiffableDataSource(list, {
 | --- | --- |
 | `[cell defaultContentConfiguration]` | `cell.defaultContentConfiguration()` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 行右侧的箭头、对勾、删除按钮 | `accessories` |
-| 缩进的层级 | `indentationLevel`、`indentationWidth` |
-
 ## 参见
 
 - [`UICollectionViewCell`](ui-collection-view-cell.md)

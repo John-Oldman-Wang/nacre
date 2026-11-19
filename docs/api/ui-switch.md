@@ -104,17 +104,9 @@ application.addEventListener('sceneconnect', (e) => {
 | `sw.onTintColor = UIColor.systemPurpleColor` | `sw.onTintColor = 'systemPurple'` |
 | `[sw addTarget:self action:@selector(changed:) forControlEvents:UIControlEventValueChanged]` | `sw.addEventListener('change', fn)` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 把开关显示成复选框，旁边带标题 | `preferredStyle`、`style`、`title`。不做：这三个只在 Mac 上有效；实测 iPhone 上把 `preferredStyle` 设成复选框，`style` 仍然是滑动的开关 |
-| 给开和关两种状态各放一张图 | `onImage`、`offImage`。不做：Apple 的文档写明这两个属性从 iOS 7 起没有效果 |
-
 ## 参见
 
 - [做开关、滑块和步进器](../guides/switches-sliders-steppers.md)：带动画切换、禁用、保存失败时改回去
 - [`UIControl`](ui-control.md)：`isEnabled`、全部控件事件
 - [`UIStackView`](ui-stack-view.md)：把文字和开关排成一行
 - [颜色](ui-color.md)：颜色字符串的写法
-- [实现原理](../internals/value-controls.md)：默认值和边界行为是怎么量的

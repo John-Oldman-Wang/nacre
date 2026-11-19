@@ -152,13 +152,11 @@ card.frame = new CGRect(20, 100, 340, 200);
 console.log(gradient.frame.width);   // 300
 ```
 
-**结果**：卡片变成 340 × 200 pt，渐变图层仍是 300 × 160 pt，卡片右边和下边各露出一条没有渐变的区域。**未在模拟器验证**；依据是 iOS 的图层在 iPhone 上没有自动调整大小的机制，记录见[实现原理](../internals/ca-layer.md)。
+**结果**：卡片变成 340 × 200 pt，渐变图层仍是 300 × 160 pt，卡片右边和下边各露出一条没有渐变的区域。**未在模拟器验证**。
 
 还要注意读 `bounds` 的时机。用约束定位的视图，在系统做完第一次布局之前 `bounds` 是 0 × 0 pt，这时把它赋给图层的 `frame`，图层就是 0 × 0 pt，什么都看不见。
 
 怎么让子图层和视图的大小对得上，见指南[用图层画圆角、阴影、渐变和形状](../guides/layers.md#子图层的大小跟上视图)。
-
-系统引起的大小变化没有事件通知，例如屏幕旋转。大小会随这类变化改变的视图，目前没有办法让它的子图层自动跟上，见[还不能做的](#还不能做的)。
 
 ## 图层上的颜色
 
@@ -172,7 +170,7 @@ console.log(gradient.frame.width);   // 300
 
 `colors` 数组里只要有一个写错，整个数组都不写入，原来的渐变不变。
 
-**图层上的颜色不随深浅色模式变化。** `'label'`、`'systemBackground'`、`'light-dark(#fff, #000)'` 这类颜色在浅色模式和深色模式下是两个不同的值。写进图层时，运行时当场把它换算成其中一个具体的颜色，图层只保存这个结果。之后系统切换模式，图层的颜色不变。
+**图层上的颜色不随深浅色模式变化。** `'label'`、`'systemBackground'`、`'light-dark(#fff, #000)'` 这类颜色在浅色模式和深色模式下是两个不同的值。写进图层时，它被当场换算成其中一个具体的颜色，图层只保存这个结果。之后系统切换模式，图层的颜色不变。
 
 - **换算时按哪种模式**：按这个图层所属视图当时的模式。视图自己的图层看这个视图；用 `new` 创建的图层沿父图层往上找，用找到的第一个视图。还没加到任何视图下面的图层，按系统当时的模式。
 - **读出来是什么**：固定颜色读回来是表示同一个颜色的字符串，验收里写入 `'#FF2D55'` 读到的是 `'#FF2D55'`；不保证大小写和写法与写入时完全相同。随模式变化的颜色读回来是换算后的 `'#rrggbb'`，例如浅色模式下写 `'label'`，读到 `'#000000'`。
@@ -333,20 +331,6 @@ application.addEventListener('sceneconnect', (e) => {
 | `layer.contentsScale = view.traitCollection.displayScale` | `layer.contentsScale = view.traitCollection.displayScale` |
 | `layer.contents = (id)image.CGImage` | `layer.contents = image` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 | 状态 |
-| --- | --- | --- |
-| 视图大小变化时自动调整子图层 | 覆写 `layoutSubviews` | 未实现。原生里靠继承来做，而[原生类不能继承](native-classes.md) |
-| 得知视图的大小变了 | 没有现成的通知，原生 App 同样靠覆写 `layoutSubviews` | 未实现 |
-| 让一个视图直接用渐变图层或形状图层作为自己的图层 | 覆写 `+layerClass` | 未实现，原因同上 |
-| 用一个形状裁剪图层的内容 | `mask` | 未实现 |
-| 指定阴影的轮廓 | `shadowPath` | 未实现 |
-| 旋转、缩放图层，改变旋转的中心 | `transform`、`anchorPoint` | 未实现。视图可以用 `view.transform`，见 [`UIView`](ui-view.md) |
-| 指定图片在图层里怎么摆放：保持比例、居中、只显示一部分 | `contentsGravity`、`contentsRect` | 未实现。需要这些时用 [`UIImageView`](ui-image-view.md) 的 `contentMode` |
-| 读动画进行中图层正显示的值 | `presentationLayer` | 未实现 |
-| 文字图层、复制图层等其他图层 | `CATextLayer`、`CAReplicatorLayer` 等 | 未实现 |
-
 ## 参见
 
 - [用图层画圆角、阴影、渐变和形状](../guides/layers.md)
@@ -360,4 +344,3 @@ application.addEventListener('sceneconnect', (e) => {
 - [`UITraitCollection`](ui-trait-collection.md)：`traitchange` 事件和 `displayScale`
 - [结构体](structs.md)：`CGRect`、`CGPoint`、`CGSize`
 - [单位](units.md)
-- [实现原理：图层](../internals/ca-layer.md)

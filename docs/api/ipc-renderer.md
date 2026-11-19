@@ -73,7 +73,7 @@ contents.addEventListener('did-finish-load', () => contents.send('theme', 'dark'
 - 网页里 `await app.getUser()` 得到 `{ name: 'Jack' }`。
 - 网页加载完后，`<html>` 上多了 `data-theme="dark"`。
 
-预加载脚本的代码在网页里执行，现在没有类型定义，上面那段不参与类型检查。
+预加载脚本的代码在网页里执行，上面那段不参与类型检查。
 
 ## 与 Electron 的对照
 
@@ -81,19 +81,10 @@ contents.addEventListener('did-finish-load', () => contents.send('theme', 'dark'
 | --- | --- | --- |
 | `const { ipcRenderer } = require('electron')` | 直接用 `ipcRenderer` | 是预加载脚本里直接能用的名字 |
 | `ipcRenderer.send` / `invoke` / `on` / `once` / `off` / `removeAllListeners` | 相同 | 参数按 JSON 传；监听器的 `event` 上只有 `sender` |
-| `ipcRenderer.sendSync` | 没有 | 见还不能做的 |
 
 ## 对应的 iOS API
 
 `WKScriptMessageHandlerWithReply` 在网页里提供的 `window.webkit.messageHandlers.<名字>.postMessage()`。`ipcRenderer` 建在它上面。
-
-## 还不能做的
-
-| 想做的事 | 对应的能力 |
-| --- | --- |
-| 网页同步地向 App 要一个结果 | Electron 的 `ipcRenderer.sendSync` |
-| 在 `<iframe>` 里用 | Electron 的 `nodeIntegrationInSubFrames`；`WKUserScript` 的 `forMainFrameOnly` |
-| 类型定义 | |
 
 ## 参见
 

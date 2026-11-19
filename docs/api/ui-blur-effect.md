@@ -40,13 +40,6 @@ const toolbar = new UIVisualEffectView(blur);
 | --- | --- |
 | `[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemMaterial]` | `UIBlurEffect.effectWithStyle('systemMaterial')` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 读出一个模糊效果是哪种样式 | 无，iOS 没有公开这个属性 |
-| 用 tvOS 的 `extraDark` 模糊 | `UIBlurEffectStyleExtraDark`，iOS 上不可用 |
-
 ## 参见
 
 - [`UIVisualEffectView`](ui-visual-effect-view.md)：把效果显示出来

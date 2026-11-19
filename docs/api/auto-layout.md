@@ -197,7 +197,7 @@ console.log(c.isActive);   // true
 | 表现 | 系统任选一组解。视图可能大小为 0，可能在意外的位置 | 系统放弃其中一条约束，按剩下的布局 |
 | 怎么查 | `view.hasAmbiguousLayout` 是 `true` | 没有直接的查询方法。用 `constraintsAffectingLayoutForAxis()` 列出相关约束，自己核对 |
 
-**两种情况系统都不报任何信息**（实测：标准输出、标准错误、系统日志都没有内容）。原生开发时 Xcode 的控制台会输出冲突的约束列表，这里没有。
+**两种情况系统都不报任何信息**（实测：标准输出、标准错误、系统日志都没有内容）。
 
 约束不够的一个实测例子：停用完整例子里的 `cardHeight` 后，卡片的高度没有约束确定。系统选的结果是卡片高 16 pt、三个色块高 0。
 
@@ -471,20 +471,6 @@ application.addEventListener('sceneconnect', (e) => {
 | 读 `offsetWidth` 时自动完成布局 | 没有。先调 `layoutIfNeeded()` 再读 `frame` | |
 | 文档流（不写规则也按顺序排列） | 没有。用 [`UIStackView`](ui-stack-view.md) | |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 | 状态 |
-| --- | --- | --- |
-| 视图的大小被系统改变时（旋转、字体大小变化、键盘弹出）得到通知 | 覆写 `layoutSubviews` | 未实现 |
-| 在系统布局的过程中更新约束 | 覆写 `updateConstraints` | 未实现。可以用 [`setNeedsUpdateConstraints()`](ui-view/setneedsupdateconstraints.md) 标记，但不能写更新的那一步 |
-| 自己定义一个视图的固有尺寸 | 覆写 `intrinsicContentSize` | 未实现 |
-| 从约束对象读出两端的视图 | `firstItem`、`secondItem` | 不提供。创建约束时自己记下来 |
-| 用一个字符串描述一组约束 | `constraintsWithVisualFormat:options:metrics:views:` | 未实现 |
-| 不通过锚点、用「视图 + 属性名」创建约束 | `constraintWithItem:attribute:relatedBy:toItem:attribute:multiplier:constant:` | 未实现。锚点能表达同样的约束 |
-| 键盘靠近或离开某条边时自动切换约束 | `UITrackingLayoutGuide` 的 `setConstraints:activeWhenNearEdge:` | 未实现 |
-| 让对齐用的矩形和 `frame` 不同（比如不算阴影） | 覆写 `alignmentRectInsets` | 未实现。可以读 [`alignmentRectInsets`](ui-view/alignmentrectinsets.md)，不能改 |
-| 指定用哪个子视图的基线作为自己的基线 | 覆写 `viewForFirstBaselineLayout`、`viewForLastBaselineLayout` | 未实现。可以读 [`viewForFirstBaselineLayout`](ui-view/viewforfirstbaselinelayout.md)，不能改 |
-
 ## 参见
 
 - [用约束排版](../guides/auto-layout.md)：常见布局的写法和约束写错时怎么查
@@ -497,4 +483,3 @@ application.addEventListener('sceneconnect', (e) => {
 - [枚举](enums.md)：字符串枚举的通用规则
 - [`CGRect`](cg-rect.md)、[`CGSize`](cg-size.md)
 - [单位](units.md)：pt 是什么
-- [实现原理：Auto Layout](../internals/auto-layout.md)

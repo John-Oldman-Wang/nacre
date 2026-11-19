@@ -4,7 +4,7 @@ type: reference
 
 # `Intl.NumberFormat`：`formatRange()` 方法
 
-**`formatRange()`** 方法在标准里用来写一个范围，比如「3–5」。这里还不能用：调用时抛 `TypeError`。
+**`formatRange()`** 方法在标准里用来写一个范围，比如「3–5」。在这里调用时抛 `TypeError`。
 
 ## 语法
 
@@ -45,4 +45,3 @@ try {
 ## 参见
 
 - [`format()`](format.md)
-- [还不能做的](../intl.md#还不能做的)

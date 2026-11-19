@@ -76,13 +76,6 @@ await cookies.remove('https://my.app/', 'token');
 | `[dataStore.httpCookieStore deleteCookie:completionHandler:]` | `cookies.remove(url, name)` |
 | `WKHTTPCookieStoreObserver` 的 `cookiesDidChangeInCookieStore:` | `changed` 事件 |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 知道是哪一条 cookie 变了、是加了还是删了 | Electron 的 `changed` 事件的参数。系统的通知不带这些 |
-| 让网页的 cookie 和 `fetch` 的 cookie 互通 | `NSHTTPCookieStorage` |
-
 ## 参见
 
 - [管理网页的登录状态](../guides/web-login.md)：在打开网页之前写登录 cookie、读网页登录后的 cookie

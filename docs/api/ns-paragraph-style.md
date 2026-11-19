@@ -76,12 +76,6 @@ console.log(style.alignment, style.lineSpacing, style.lineBreakMode);
 | `style.alignment = NSTextAlignmentCenter` | `style.alignment = 'center'`（在 `NSMutableParagraphStyle` 上） |
 | `[style mutableCopy]` | `style.mutableCopy()` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 制表位、列表、按 CJK 规则断行的策略 | `tabStops`、`textLists`、`lineBreakStrategy` |
-
 ## 参见
 
 - [`NSMutableParagraphStyle`](ns-mutable-paragraph-style.md)：可以改的段落样式

@@ -69,12 +69,6 @@ picker.addEventListener('contactselect', (event) => {
 | `labeledValue.value`、`label`、`identifier` | 相同 |
 | `[CNLabeledValue localizedStringForLabel:label]` | `CNLabeledValue.localizedStringForLabel(label)` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 判断一个标签是不是「手机」 | `CNLabelPhoneNumberMobile` 等常量。未实现，现在只能和标签的原文比较 |
-
 ## 参见
 
 - [`CNContact`](cn-contact.md)：`phoneNumbers` 和 `emailAddresses`

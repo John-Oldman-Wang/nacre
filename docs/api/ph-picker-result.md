@@ -50,12 +50,6 @@ picker.addEventListener('pick', async (event) => {
 | --- | --- |
 | `result.itemProvider` | `result.itemProvider` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 知道选中的是相册里的哪一张 | `assetIdentifier` |
-
 ## 参见
 
 - [`NSItemProvider`](ns-item-provider.md)：从提供者身上取图片

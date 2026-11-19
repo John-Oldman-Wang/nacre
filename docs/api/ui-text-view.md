@@ -265,20 +265,6 @@ application.addEventListener('sceneconnect', (e) => {
 | `rows` | 没有 | 高度由约束决定，或者关掉滚动让它跟着内容走 |
 | `selectionchange` 事件 | `selectionchange` 事件 | 派发在这块多行输入上，不在 `document` 上。事件对象不带选区，要读 `input.selectedRange` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 在字符显示之前拦截：限制长度、过滤字符 | `textView:shouldChangeTextInRange:replacementText:`。单行输入框上对应的是 [`beforeinput`](ui-text-field/beforeinput-event.md)，多行的还没有接。现在只能[事后改回去](../guides/multiline-text.md#限制输入的长度) |
-| 阻止开始输入、结束输入 | `textViewShouldBeginEditing:`、`textViewShouldEndEditing:` |
-| 设置之后输入的文字的样式；链接的样式 | `typingAttributes`、`linkTextAttributes` |
-| 占位文字 | 无。`UITextView` 本身没有这项能力，叠一个标签，见[显示占位文字](../guides/multiline-text.md#显示占位文字) |
-| 同时选中不相连的几段 | `selectedRanges` |
-| 系统样式的边框 | `borderStyle`。iOS 上它只有 `none` 一个取值。用底色、圆角，或者[图层](ca-layer.md)的 `borderWidth` 和 `borderColor` |
-| 自定义长按出来的菜单 | `editMenuForTextInRange:` 等 |
-| 调出系统的查找面板 | `findInteraction`。开关 [`isFindInteractionEnabled`](ui-text-view/isfindinteractionenabled.md) 有 |
-| 自己建文字排版的区域，分栏排版 | `NSTextContainer` 的初始化方法、`NSLayoutManager` |
-
 ## 参见
 
 - [做一个多行输入框](../guides/multiline-text.md)：占位文字、长高、只读、收起键盘、避开键盘
@@ -287,4 +273,3 @@ application.addEventListener('sceneconnect', (e) => {
 - [`NSRange`](ns-range.md)、[`NSTextContainer`](ns-text-container.md)
 - [`UILabel`](ui-label.md)：只显示、不需要选中的多行文字用它
 - [富文本](ns-attributed-string.md)：`attributedText` 的类型
-- [实现原理：多行输入](../internals/text-view.md)

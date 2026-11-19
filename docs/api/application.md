@@ -271,23 +271,6 @@ application.addEventListener('sceneconnect', (e) => {
 | `navigator.wakeLock.request('screen')` | `application.idleTimerDisabled = true` |
 | `rejectionhandled` 事件 | 没有 |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 进后台后申请一段时间把工作做完 | `beginBackgroundTaskWithName:expirationHandler:` |
-| 知道进后台后还能执行多久 | `backgroundTimeRemaining` |
-| 打开 URL 时带选项，比如只允许通用链接 | `openURL:options:` 的 `options` |
-| 打开之前先问系统能不能打开某个 URL | `canOpenURL:`。不提供：直接调 `openURL()`，按兑现的值判断 |
-| 知道用户点了哪一条推送通知 | `UNUserNotificationCenterDelegate` |
-| 接着别的设备上做到一半的事继续做（接力），或者从系统搜索的结果打开 | `scene:continueUserActivity:` 里通用链接以外的活动类型。这些活动现在不派发任何事件 |
-| 读链接附带的其他信息 | `UISceneOpenURLOptions` 的 `annotation`、`openInPlace` |
-| 读系统语言和地区 | `NSLocale` |
-| 把字体大小档位读成 `'large'` 这类统一的名字 | `UIContentSizeCategory` 的映射。现在是 iOS 的原始字符串 |
-| 拒绝已经上报之后才补挂处理函数时得到更正通知 | Web 的 `rejectionhandled` |
-| 锁定或读取屏幕方向 | `UIWindowScene.effectiveGeometry` |
-| 收到内存警告时让运行时自己也释放内存 | 现在只派发 `memorywarning` 事件 |
-
 ## 参见
 
 - [处理 App 的生命周期](../guides/app-lifecycle.md)：启动、前后台、内存警告、常亮、自己的事件
@@ -298,6 +281,3 @@ application.addEventListener('sceneconnect', (e) => {
 - [`EventTarget`](event-target.md)、[`Event`](event.md)：事件模型
 - [外观特征](ui-trait-collection.md)：深色还是浅色、屏幕几倍
 - [`UIDevice`](ui-device.md)：设备型号和系统版本
-- [实现原理：运行时](../internals/runtime.md)：`application` 怎么实现、验证结果
-- [实现原理：事件](../internals/events.md)：事件模型的取舍
-- [实现原理：被链接打开](../internals/open-url.md)：`openurl` 怎么接的、依赖哪些系统行为

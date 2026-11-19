@@ -32,6 +32,11 @@ for f in files:
             continue
         if frag and frag not in anchors(target):
             bad.append(f'{f}: 锚点没命中 → {href}')
+        # 站上只发布 docs/api、docs/guides 和首页。它们指向不上站的页面，站上就是坏链接
+        published = lambda q: q.parts[:2] in (('docs', 'api'), ('docs', 'guides')) or q.as_posix() == 'docs/index.md'
+        rel = pathlib.Path(f)
+        if published(rel) and not published(target.relative_to(pathlib.Path('.').resolve())) and target.suffix == '.md':
+            bad.append(f'{f}: 指向不上站的页面 → {href}')
 if bad:
     print(f'链接核对：{len(bad)} 处有问题\n')
     for b in bad: print('  ✗', b)

@@ -68,12 +68,6 @@ card.addGestureRecognizer(pinch);
 | `pinch.scale` | 事件对象的 `scale`，或 `pinch.scale` |
 | `pinch.velocity` | 事件对象的 `velocity`，或 `pinch.velocity` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 和旋转识别器同时生效，边缩放边旋转 | `UIGestureRecognizerDelegate`，见 [`UIGestureRecognizer`](ui-gesture-recognizer.md#还不能做的) |
-
 ## 参见
 
 - [响应手势](../guides/gestures.md#两指缩放)

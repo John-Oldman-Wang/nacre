@@ -50,13 +50,6 @@ input.textContainer.lineBreakMode = 'byTruncatingTail';
 | `container.maximumNumberOfLines = 3` | `container.maximumNumberOfLines = 3` |
 | `container.lineBreakMode = NSLineBreakByTruncatingTail` | `container.lineBreakMode = 'byTruncatingTail'` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 自己建文字排版的区域，分栏排版 | `NSTextContainer` 的初始化方法、`NSLayoutManager` |
-| 让文字绕开一块区域 | `exclusionPaths` |
-
 ## 参见
 
 - [`UITextView`](ui-text-view.md)

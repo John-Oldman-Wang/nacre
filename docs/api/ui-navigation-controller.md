@@ -121,8 +121,6 @@ status: partial
 
 要暂时不让用户返回（比如提交订单的过程中），把这个手势的 `isEnabled` 设成 `false`，完成后再设回 `true`。iOS 26 起还有一个在内容区任意位置右划返回的手势 [`interactiveContentPopGestureRecognizer`](ui-navigation-controller/interactivecontentpopgesturerecognizer.md)，要完全关掉左滑返回，两个都要关。导航条上的返回按钮不受影响。
 
-拿到这两个手势之后，它们和页面里其他手势谁优先还设置不了，那要用到手势的委托，还没有提供。
-
 ## 示例
 
 ### 首页和详情页
@@ -193,19 +191,7 @@ application.addEventListener('sceneconnect', (e) => {
 | `nav.hidesBarsOnSwipe = YES` | `nav.hidesBarsOnSwipe = true` |
 | `[nav showViewController:vc sender:button]` | `nav.showViewController(vc, { sender: button })` |
 | `nav.delegate` | 不开放。事件用 `addEventListener()` 监听 |
-| `nav.navigationBar` | 暂不提供。导航条上的标题和按钮用页面的 [`navigationItem`](ui-view-controller/navigationitem.md) 设 |
-
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 用 `class` 继承 `UIViewController` 写自己的页面类 | 子类化。`new` 时抛 `TypeError`，见[原生类](native-classes.md) |
-| 拦住返回按钮，或者在返回前弹确认框 | `navigationItem.backAction`、`UINavigationBarDelegate`。左滑返回可以关掉，见[左滑返回](#左滑返回) |
-| 设置左滑返回和页面里其他手势谁优先 | `UIGestureRecognizerDelegate` |
-| 往底部工具条上放按钮 | 页面的 `toolbarItems`、`setToolbarItems:animated:` |
-| 导航控制器被模态呈现时，在它上面监听关闭事件 | `beforedismiss`、`dismiss`、`dismissattempt`。监听这三个事件名不报错，但收不到 |
-| 定制导航条的背景、字体、颜色 | `navigationBar`、`UINavigationBarAppearance` |
-| 自己写切换页面的动画 | `UIViewControllerAnimatedTransitioning` |
+| `nav.navigationBar` | 导航条上的标题和按钮用页面的 [`navigationItem`](ui-view-controller/navigationitem.md) 设 |
 
 ## 参见
 
@@ -215,4 +201,3 @@ application.addEventListener('sceneconnect', (e) => {
 - [`UITabBarController`](ui-tab-bar-controller.md)：底部标签栏。每个标签里常放一个导航控制器
 - [`UIWindow`](ui-window.md)：`rootViewController` 在这里设
 - [运行时怎么工作](how-it-works.md)：事件什么时候执行、对象什么时候被回收
-- [实现原理：导航](../internals/navigation.md)

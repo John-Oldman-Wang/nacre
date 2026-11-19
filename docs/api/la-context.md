@@ -242,24 +242,11 @@ if (context.canEvaluatePolicy('deviceOwnerAuthenticationWithBiometrics')) {
 | `LAErrorUserCancel` 等 | `err.name === 'UserCancelError'` 等：去掉 `LAError` 前缀，加 `Error` 后缀 |
 | `context.localizedFallbackTitle`、`localizedCancelTitle`、`touchIDAuthenticationAllowableReuseDuration`、`interactionNotAllowed` | 同名属性 |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 用配对的 Apple Watch 确认身份 | `LAPolicyDeviceOwnerAuthenticationWithCompanion`、`LAPolicyDeviceOwnerAuthenticationWithBiometricsOrCompanion` |
-| 让钥匙串里的条目在读取前要求通过认证 | `evaluateAccessControl:operation:localizedReason:reply:`、`SecAccessControlCreateWithFlags`、`kSecUseAuthenticationContext` |
-| 给钥匙串操作引出的认证界面设置默认的说明文字 | `localizedReason` 属性 |
-| 知道用户录入的面容或指纹有没有变过 | `domainState`、`evaluatedPolicyDomainState` |
-| 由 App 提供密码，不让系统显示密码界面 | `setCredential:type:`、`isCredentialSet:` |
-| 读出系统允许的最长复用时间 | `LATouchIDAuthenticationMaximumAllowableReuseDuration`（值是 300 秒） |
-| 按「权限」组织的新一套认证接口 | `LARight`、`LARightStore`、`LASecret` |
-
 ## 参见
 
 - [用面容 ID 确认身份](../guides/face-id.md)：推荐的做法、判断能不能用、按原因处理、改用 App 自己的密码
 - [核心和能力包](capabilities.md)：`@nacrejs/local-authentication` 是一个能力包，能力包怎么用
 - [配置 App](../guides/project-config.md)：`NSFaceIDUsageDescription` 写在哪、怎么按语言写
-- [Keychain](keychain.md)：登录令牌存在那里。现在不能让它的条目在读取前要求认证，要自己先调 `evaluatePolicy()` 再读
-- [原生类](native-classes.md)：哪些类能 `new`、为什么不能继承
+- [Keychain](keychain.md)：登录令牌存在那里。读取前要确认身份时，先调 `evaluatePolicy()` 再读
+- [原生类](native-classes.md)：哪些类能 `new`、不能继承
 - [枚举](enums.md)：策略和 `biometryType` 都是字符串，写错时怎么报
-- [实现原理](../internals/local-authentication.md)：为什么是一个单独的包、各个成员为什么是这个形状

@@ -243,19 +243,6 @@ application.addEventListener('sceneconnect', (e) => {
 | `window.devicePixelRatio` | `view.traitCollection.displayScale` |
 | CSS 的 `color-scheme: dark`，写在某个元素上 | `view.overrideUserInterfaceStyle = 'dark'` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 | 状态 |
-| --- | --- | --- |
-| 写了 `overrideUserInterfaceStyle` 之后让它立刻生效 | `updateTraitsIfNeeded` | 未实现 |
-| 强制深浅色以外的其它项，比如固定文字大小 | `traitOverrides` | 未实现 |
-| 读其余的十几项 | `userInterfaceLevel`、`legibilityWeight`、`displayGamut`、`activeAppearance` 等 | 未实现 |
-| 自己定义一项特征，让它沿着视图树往下传 | 自定义 trait（`UITraitDefinition`） | 未实现 |
-| 把一个会随深浅色变的颜色算成某种外观下的具体颜色 | `resolvedColorWithTraitCollection:` | 未实现 |
-| 深色和浅色各用一张图 | 图片资源里的外观变体 | 未实现 |
-| 图层上的颜色自动跟着深浅色变 | 无。原生也要自己处理 | 做不到。写法见指南[适配深色模式](../guides/dark-mode.md) |
-| 让标签的字号自动跟随系统的文字大小 | `adjustsFontForContentSizeCategory` | 未实现。在 `traitchange` 里重新取字体 |
-
 ## 参见
 
 - [适配深色模式](../guides/dark-mode.md)：判断深浅色、主题开关、跟着文字大小调整、图层颜色跟随外观
