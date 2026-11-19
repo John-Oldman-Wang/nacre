@@ -19,4 +19,4 @@ command -v npm >/dev/null || { echo "需要 npm（打包和类型检查都靠它
 # shellcheck disable=SC2086
 (cd "$PROJECT" && npm run --silent build -- ${NACRE_ESBUILD_ARGS:-})
 OUT=$(node -p "require('$PWD/packages/ios/nacre-ios.json').js.outfile")
-echo "打包完成：$PROJECT/$OUT（$(wc -c < "$PROJECT/$OUT" | tr -d ' ') 字节）"
+echo "打包完成：${PROJECT}/${OUT}（$(wc -c < "$PROJECT/$OUT" | tr -d ' ') 字节）"

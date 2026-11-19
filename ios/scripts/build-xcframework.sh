@@ -12,7 +12,12 @@ cd "$(dirname "$0")/../.."
 # 先起的那个打到一半中间产物没了（2026-11-16 两个对话同时打包撞过一次）
 mkdir -p ios/build
 BUILD="$(mktemp -d ios/build/xcframework.XXXXXX)"
-trap 'rm -rf "$BUILD"' EXIT
+# 退出时删掉中间目录。**没走到最后的都算失败**：macOS 自带的 bash 3.2 因为
+# set -u 这类错误中途退出时，EXIT trap 里的 $? 是 0，trap 跑完整个脚本就以 0
+# 退出了。CI 上撞过：打包中途死掉，步骤却显示成功。所以用一个标记判断走没走完，
+# 不信 $?
+FINISHED=0
+trap 'rm -rf "$BUILD"; [ "$FINISHED" = 1 ] || exit 1' EXIT
 
 # 要打的 framework，每项是「target=产物路径」。核心放 @nacrejs/ios；每个能力放
 # 它**自己的包**里（packages/<包>/，认的是带 capability 的 nacre-ios.json）。
@@ -62,11 +67,14 @@ for build in $BUILDS; do
       SKIP_INSTALL=NO BUILD_LIBRARY_FOR_DISTRIBUTION=YES \
       CODE_SIGNING_ALLOWED=NO -quiet > "$LOG" 2>&1 || status=$?
     if [ "$status" -ne 0 ]; then
-      echo "构建 $scheme 的 $name 切片失败（xcodebuild 退出码 $status）："
+      # 变量后面紧跟中文标点时要写成 ${...}：bash 3.2 在 UTF-8 下会把全角字符的字节
+      # 当成变量名的一部分。status 后面直接跟全角括号，会被读成一个叫 status\xef 的
+      # 变量，set -u 下直接退出。check.yml 里有一条检查拦这种写法
+      echo "构建 ${scheme} 的 ${name} 切片失败（xcodebuild 退出码 ${status}）："
       grep -E " error: |BUILD FAILED|ARCHIVE FAILED" "$LOG" | head -20 || true
       # 在 GitHub Actions 里另外打成批注：日志要登录才能读，批注是公开的
       if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
-        echo "::error::构建 $scheme 的 $name 切片失败（xcodebuild 退出码 $status）"
+        echo "::error::构建 ${scheme} 的 ${name} 切片失败（xcodebuild 退出码 ${status}）"
         grep -E " error: " "$LOG" | sed 's#^.*/ios/##' | sort -u | head -8 | while IFS= read -r line; do
           echo "::error::$line"
         done
@@ -95,7 +103,7 @@ for build in $BUILDS; do
   rm -rf "$OUT"
   mv "$BUILD/$scheme.xcframework" "$OUT"
 
-  echo "构建完成：$OUT（$(du -sh "$OUT" | cut -f1)）"
+  echo "构建完成：${OUT}（$(du -sh "$OUT" | cut -f1)）"
 done
 
 # 逐个核对都打出来了：少一个就失败，不让它算成功
@@ -109,4 +117,5 @@ if [ -n "$MISSING" ]; then
   [ "${GITHUB_ACTIONS:-}" = "true" ] && echo "::error::要打 $COUNT 个，没打出来的：$MISSING"
   exit 1
 fi
-echo "全部打完：$COUNT 个"
+echo "全部打完：${COUNT} 个"
+FINISHED=1

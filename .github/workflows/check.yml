@@ -47,6 +47,14 @@ jobs:
         run: node --test scripts/test/*.test.mjs
       - name: 文档链接
         run: bash docs/check-links.sh
+      # shell 脚本里 $变量 后面紧跟中文字符：macOS 自带的 bash 3.2 会把那几个字节
+      # 读进变量名，set -u 下脚本当场退出。要写成 ${变量}
+      - name: shell 脚本里没有紧跟中文的 $变量
+        # 用 perl 不用 grep -P：macOS 的 grep 没有 -P，而 grep 出错和「没找到」在 if 里
+        # 分不清，检查会悄悄通过。perl 自己出错时退出码非零，这一步会失败
+        run: >-
+          perl -ne 'if (/\$[A-Za-z_][A-Za-z0-9_]*[^\x00-\x7F]/) { print "::error file=$ARGV,line=$.::\$变量 后面紧跟中文字符，改成 \${变量}\n"; $bad = 1 }
+          close ARGV if eof; END { exit($bad ? 1 : 0) }' ios/scripts/*.sh scripts/*.sh
 
   build:
     runs-on: macos-26
