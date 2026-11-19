@@ -411,3 +411,27 @@ tab 控制器也是页面，能被模态呈现。导航控制器在这里留过�
 ---
 
 ← 返回[实现原理](README.md) ・ [包装机制](wrapper.md) ・ [API 文档](../api/ui-navigation-controller.md)
+
+## 补齐 `UINavigationController`：没接 `navigationBar`
+
+2026-11-19 照 bindgen 的对照报告补了 12 个成员（客户反馈里要「能禁用左滑返回」）。初稿是 `scaffold navigation-additions UINavigationController` 出的，文件是 `NacreNavigationAdditions.mm`、`50-navigation-additions.js`、`navigation-additions.d.ts`、验收的 `navigation-additions.js`。
+
+**`navigationBar` 定了暂不接。** 它返回 `UINavigationBar`，这个类没接。查下来它只管系统导航条的外观（背景、标题字体颜色、大标题、返回箭头）和导航条上的返回按钮；标题和左右按钮已经能通过页面的 `navigationItem` 设，左滑返回是导航控制器自己的手势，和导航条无关。真要改外观得连 `UINavigationBarAppearance` 一组一起接（iOS 13 起外观要通过它设），量是这次的两三倍，等有人要再接。`bindgen` 的 `overrides.json` 里排除了它，理由写在那里。
+
+讨论时一度以为「藏起导航条之后左滑返回会失效」，依据是社区里的说法，加上把客户反馈读反了，没有验证过，作废。客户那条原文是「藏起导航条后保留系统的返回手势，并且能禁用」，要的是能禁用。导航条藏起来之后左滑返回还在不在，仍然**没在模拟器上验证**，类页上照实标着。
+
+**`delegate` 不用补。** 它的两个回调早就做成了事件 `beforeshow` 和 `show`，报告按名字对不上才把它列成缺的。
+
+**`popViewControllerAnimated` 是初稿多写的。** 手写的叫 `popViewController`（去掉了 `Animated`），bindgen 按名字对不上，以为没有，又生成了一个。删掉了，验收里有一条断言盯着它不在。
+
+**`showViewController` 是手写的。** 初稿认不出 `sender`（`id`）这个类型，没写。照 `pushViewController` 的写法：页面不对抛 `TypeError`，UIKit 为层级不一致抛的 ObjC 异常接住转成 JS 的错误。不记所有权，和 `pushViewController` 一样：页面进了栈，读 `viewControllers` 拿到的是同一个包装。
+
+量出来的：
+
+- 工具条默认藏着（头文件的注释也这么写），四个 `hidesBars…` 默认 `false`。
+- 两个返回手势要等导航控制器的视图建出来才有，验收里先读一次 `nav.view`。iOS 27.2 上 `interactiveContentPopGestureRecognizer` 有值，和 `interactivePopGestureRecognizer` 是两个对象；返回手势挂在导航控制器的视图上，默认 `isEnabled` 是 `true`，能关能开。
+- 头文件里这个类没有「默认不可空」的区域，可空性按标注来：`toolbar` 是 `null_resettable`，读出来总有值，类型写成不可空；两个返回手势标了 `nullable`；`barHideOn…` 两个识别器没标，类型保守地写成可空。
+
+**`toolbar` 拿到了，但往上放按钮的路还没通。** Apple 规定这条工具条由导航控制器管，不要直接改它的 `items`；按钮要放在每个页面的 `toolbarItems` 上，那是 `UIViewController` 的成员，还没接。记在待办里。
+
+关掉左滑返回只验了状态（`isEnabled` 读回 `false`），手指划过去没反应这一点要真实触摸，没验。

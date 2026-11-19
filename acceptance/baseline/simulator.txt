@@ -577,6 +577,10 @@
 + badgeValue 默认是 null
 + bar 样式比 # 细
 + bar.text 写的，输入框读得到
++ barHideOnSwipeGestureRecognizer 是拖动识别器
++ barHideOnSwipeGestureRecognizer 读两次是同一个对象
++ barHideOnTapGestureRecognizer 是点按识别器
++ barHideOnTapGestureRecognizer 读两次是同一个对象
 + barStyle 写得进去
 + barStyle 给数字：不抛、值不变
 + barTintColor 写 null：清掉
@@ -1168,6 +1172,15 @@
 + headerMode 写 supplementary 被拒（还不支持）
 + headerMode 写错值：不抛、值不变
 + headerMode 可写
++ hidesBarsOnSwipe 写 # 得到 false
++ hidesBarsOnSwipe 写 true
++ hidesBarsOnSwipe 默认 false
++ hidesBarsOnTap 写 true
++ hidesBarsOnTap 默认 false
++ hidesBarsWhenKeyboardAppears 写 true
++ hidesBarsWhenKeyboardAppears 默认 false
++ hidesBarsWhenVerticallyCompact 写 'yes' 得到 true
++ hidesBarsWhenVerticallyCompact 默认 false
 + hidesForSinglePage 可写
 + hidesWhenStopped 写得进去
 + highlighted 单独设了就用它自己的
@@ -1269,6 +1282,10 @@
 + interactionNotAllowed 时 evaluatePolicy：返回的是 Promise
 + interactionNotAllowed 默认 false
 + interactionState 只读：Cannot set property interactionState of #<UIPageControl> which has only a getter
++ interactiveContentPopGestureRecognizer 是识别器
++ interactivePopGestureRecognizer 写了抛 TypeError
++ interactivePopGestureRecognizer 是识别器
++ interactivePopGestureRecognizer 读两次是同一个对象
 + intrinsicContentSize 等于图片尺寸
 + invalidate 之后的 display link 被回收
 + invalidate() 没有返回值
@@ -1326,6 +1343,8 @@
 + isSymbolImage 为真
 + isTabBarHidden 写得进去
 + isTabBarHidden 默认
++ isToolbarHidden 写 # 得到 true
++ isToolbarHidden 写 false
 + isTranslucent 写得进去
 + item
 + itemIdentifierForIndexPath
@@ -1562,6 +1581,7 @@
 + openURL 兑现
 + options 不是数组
 + options 传 null 可以
++ options 传 null 当成空对象
 + options 传 null 视为没带
 + options 传 {} 可以
 + options 给 null：照常
@@ -1787,6 +1807,7 @@
 + sendActionsForControlEvents 不认旧名字
 + sendActionsForControlEvents 认新名字 input
 + sendActionsForControlEvents 认新名字 return
++ sender 是 null 也照常 push
 + session 筛：false 是有过期时间的
 + session.defaultSession 每次是同一个对象
 + set 传了 null
@@ -1860,6 +1881,8 @@
 + setTitle 下标越界：setTitle: segment # is out of range; expected # to #
 + setTitle 缺 forSegmentAtIndex：setTitle needs { forSegmentAtIndex }
 + setTitle(#)：标题是 '#'
++ setToolbarHidden(false) 之后显示
++ setToolbarHidden(true, { animated: true }) 之后藏起
 + setTranslation 不带 inView 被拒
 + setTranslation 收普通对象，inView 可以是 null
 + setTranslation 没有返回值
@@ -1892,6 +1915,8 @@
 + shadow：读出来是 NSShadow
 + sharedManager() 给的是 ASIdentifierManager
 + sharedPhotoLibrary 是 PHPhotoLibrary
++ showViewController 之后栈里两页
++ showViewController 之后栈顶是它
 + showsBookmarkButton 写得进去
 + showsCancelButton 写得进去
 + showsScopeBar 写得进去
@@ -2066,6 +2091,9 @@
 + toLocaleString 认选项了
 + toLocaleTimeString 只有时间
 + toString
++ toolbar 写了抛 TypeError
++ toolbar 是 UIToolbar
++ toolbar 读两次是同一个对象
 + touchIDAuthenticationAllowableReuseDuration 写 # 读回 #
 + touchIDAuthenticationAllowableReuseDuration 默认 #
 + trackRectForBounds 给的不是矩形：trackRectForBounds needs an object with all of: x, y, width, height
@@ -2341,6 +2369,7 @@
 + 两个模式都摘掉之后被回收
 + 两个监听器都抛：报两次，先后和监听器一致
 + 两个视图建在同一个缓冲区上：克隆之后还是同一个
++ 两个返回手势不是同一个
 + 两个都是同一个包装
 + 两个颜色都能写回 null
 + 两侧互不影响：已完成部分的图片还在
@@ -3515,6 +3544,7 @@
 + 工具条横向铺满区块
 + 工具条的父视图是区块
 + 工具条的高是它自己想要的高
++ 工具条默认是藏着的
 + 工厂建的 CALayer 可用
 + 工厂建的 UIColor 还是同一个包装
 + 工厂建的锚点可用
@@ -3539,6 +3569,7 @@
 + 布局是 UICollectionViewCompositionalLayout
 + 带 animated 也是当场就少
 + 带 delay 和 options：animations 照样当场执行
++ 带 sender 也照常 push
 + 带动画呈现：animated 是 true
 + 带动画地显回来
 + 带动画：读回来当场是目标值
@@ -3646,6 +3677,7 @@
 + 抛之前的那几句执行了，网页照常加载
 + 抛了之后值没变
 + 抛了之后原值没动（以前 undefined 会把它静默写成 #）
++ 抛了之后栈没变
 + 抛的不是 Error 对象：照样报，error 就是那个值
 + 抛过之后照常能用
 + 抛过之后那个键还是空的
@@ -4403,6 +4435,7 @@
 + 没有 body：json() 因为解析空串被拒
 + 没有 body：text()
 + 没有 body：可以再读一次
++ 没有 delegate
 + 没有 domainState 这个成员
 + 没有 evaluateAccessControl 这个成员
 + 没有 evaluatedPolicyDomainState 这个成员
@@ -4410,6 +4443,8 @@
 + 没有 keyPath 的动画也建得出来
 + 没有 localizedReason 这个成员
 + 没有 maxBiometryFailures 这个成员
++ 没有 navigationBar
++ 没有 popViewControllerAnimated（已有 popViewController）
 + 没有 setCredential 这个成员
 + 没有 type 的 Blob 不加 Content-Type
 + 没有串行（# 个的耗时 < 单次的 # 倍）
@@ -4616,6 +4651,7 @@
 + 端点 # 是原点
 + 第 # 段的标题
 + 第一个参数不是 run loop 就抛
++ 第一个参数不是页面抛 TypeError
 + 第一个参数不给被拒
 + 第一个参数是 null 被拒
 + 第一个参数是别的效果（不是模糊）被拒
@@ -4956,6 +4992,10 @@
 + 过长编码 e# # af：三个 U+FFFD
 + 过长编码 f# # # #：四个 U+FFFD
 + 返回 undefined
++ 返回手势挂在导航控制器的视图上
++ 返回手势能关掉
++ 返回手势能再打开
++ 返回手势默认开着
 + 返回按钮的字
 + 返回的就是传进去的数组
 + 返回的是 Promise

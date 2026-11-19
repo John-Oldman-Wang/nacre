@@ -34,6 +34,16 @@ status: partial
 | [`topViewController`](ui-navigation-controller/topviewcontroller.md) <small>只读</small> | 栈顶的页面 |
 | [`visibleViewController`](ui-navigation-controller/visibleviewcontroller.md) <small>只读</small> | 此刻用户看到的页面 |
 | [`isNavigationBarHidden`](ui-navigation-controller/isnavigationbarhidden.md) | 导航条藏不藏 |
+| [`isToolbarHidden`](ui-navigation-controller/istoolbarhidden.md) | 底部的工具条藏不藏 |
+| [`toolbar`](ui-navigation-controller/toolbar.md) <small>只读</small> | 导航控制器自己管的底部工具条 |
+| [`interactivePopGestureRecognizer`](ui-navigation-controller/interactivepopgesturerecognizer.md) <small>只读</small> | 左滑返回的手势。设它的 `isEnabled` 开关左滑返回 |
+| [`interactiveContentPopGestureRecognizer`](ui-navigation-controller/interactivecontentpopgesturerecognizer.md) <small>只读</small> | 在内容区任意位置右划返回的手势（iOS 26 起） |
+| [`hidesBarsOnSwipe`](ui-navigation-controller/hidesbarsonswipe.md) | 往上划页面时自动藏起导航条 |
+| [`hidesBarsOnTap`](ui-navigation-controller/hidesbarsontap.md) | 点一下页面切换导航条的显示 |
+| [`hidesBarsWhenKeyboardAppears`](ui-navigation-controller/hidesbarswhenkeyboardappears.md) | 键盘出现时自动藏起导航条 |
+| [`hidesBarsWhenVerticallyCompact`](ui-navigation-controller/hidesbarswhenverticallycompact.md) | 屏幕高度紧张时自动藏起导航条 |
+| [`barHideOnSwipeGestureRecognizer`](ui-navigation-controller/barhideonswipegesturerecognizer.md) <small>只读</small> | `hidesBarsOnSwipe` 用的手势 |
+| [`barHideOnTapGestureRecognizer`](ui-navigation-controller/barhideontapgesturerecognizer.md) <small>只读</small> | `hidesBarsOnTap` 用的手势 |
 
 ## 实例方法
 
@@ -48,12 +58,14 @@ status: partial
 | [`popToViewController()`](ui-navigation-controller/poptoviewcontroller.md) | 弹出某一页上面的所有页面 |
 | [`popToRootViewController()`](ui-navigation-controller/poptorootviewcontroller.md) | 弹出栈底以外的所有页面 |
 | [`setViewControllers()`](ui-navigation-controller/setviewcontrollers.md) | 换掉整个栈 |
+| [`showViewController()`](ui-navigation-controller/showviewcontroller.md) | 显示一个页面，等同于带动画的 `pushViewController()` |
 
 导航条：
 
 | 方法 | 说明 |
 | --- | --- |
 | [`setNavigationBarHidden()`](ui-navigation-controller/setnavigationbarhidden.md) | 藏起或显示导航条，可以带动画 |
+| [`setToolbarHidden()`](ui-navigation-controller/settoolbarhidden.md) | 藏起或显示底部的工具条，可以带动画 |
 
 ## 事件
 
@@ -102,12 +114,14 @@ status: partial
 | --- | --- |
 | 栈里不止一页 | 栈底的页面没有上一页可以返回 |
 | 栈顶的页面用的是系统的返回按钮 | 页面设了 [`leftBarButtonItems`](ui-navigation-item/leftbarbuttonitems.md)，或者把 [`hidesBackButton`](ui-navigation-item/hidesbackbutton.md) 设成 `true`，手势就不起作用 |
-| 手势没有被禁用 | 目前没有禁用它的接口 |
+| 手势没有被禁用 | [`interactivePopGestureRecognizer`](ui-navigation-controller/interactivepopgesturerecognizer.md) 的 `isEnabled` 是 `true`，这是默认值 |
 | 从导航控制器自己的视图的左边缘开始滑 | 导航控制器没有占满屏幕时，起点是它的视图的左边缘，不是屏幕的左边缘 |
 
 手指滑到一半又滑回去松手时，页面不会被弹出。这时是否派发事件，**未在模拟器验证**。导航条藏起来之后左滑返回是否还能用，**未在模拟器验证**。
 
-这个手势目前只能用，不能调整：不能禁用，也不能设置它和页面里其他手势谁优先。
+要暂时不让用户返回（比如提交订单的过程中），把这个手势的 `isEnabled` 设成 `false`，完成后再设回 `true`。iOS 26 起还有一个在内容区任意位置右划返回的手势 [`interactiveContentPopGestureRecognizer`](ui-navigation-controller/interactivecontentpopgesturerecognizer.md)，要完全关掉左滑返回，两个都要关。导航条上的返回按钮不受影响。
+
+拿到这两个手势之后，它们和页面里其他手势谁优先还设置不了，那要用到手势的委托，还没有提供。
 
 ## 示例
 
@@ -173,18 +187,23 @@ application.addEventListener('sceneconnect', (e) => {
 | `vc.navigationController` | `vc.navigationController` |
 | `- navigationController:willShowViewController:animated:` | `nav.addEventListener('beforeshow', …)` |
 | `- navigationController:didShowViewController:animated:` | `nav.addEventListener('show', …)` |
+| `nav.toolbarHidden = NO` | `nav.isToolbarHidden = false` |
+| `[nav setToolbarHidden:NO animated:YES]` | `nav.setToolbarHidden(false, { animated: true })` |
+| `nav.interactivePopGestureRecognizer.enabled = NO` | `nav.interactivePopGestureRecognizer.isEnabled = false` |
+| `nav.hidesBarsOnSwipe = YES` | `nav.hidesBarsOnSwipe = true` |
+| `[nav showViewController:vc sender:button]` | `nav.showViewController(vc, { sender: button })` |
 | `nav.delegate` | 不开放。事件用 `addEventListener()` 监听 |
+| `nav.navigationBar` | 暂不提供。导航条上的标题和按钮用页面的 [`navigationItem`](ui-view-controller/navigationitem.md) 设 |
 
 ## 还不能做的
 
 | 想做的事 | 对应的原生能力 |
 | --- | --- |
 | 用 `class` 继承 `UIViewController` 写自己的页面类 | 子类化。`new` 时抛 `TypeError`，见[原生类](native-classes.md) |
-| 阻止用户返回，或者在返回前弹确认框 | `navigationItem.backAction`、`UINavigationBarDelegate` |
-| 禁用左滑返回，或者设置它和其他手势谁优先 | `interactivePopGestureRecognizer`。手势本身默认可用 |
+| 拦住返回按钮，或者在返回前弹确认框 | `navigationItem.backAction`、`UINavigationBarDelegate`。左滑返回可以关掉，见[左滑返回](#左滑返回) |
+| 设置左滑返回和页面里其他手势谁优先 | `UIGestureRecognizerDelegate` |
+| 往底部工具条上放按钮 | 页面的 `toolbarItems`、`setToolbarItems:animated:` |
 | 导航控制器被模态呈现时，在它上面监听关闭事件 | `beforedismiss`、`dismiss`、`dismissattempt`。监听这三个事件名不报错，但收不到 |
-| 屏幕底部的工具条 | `toolbar`、`isToolbarHidden`、`setToolbarHidden:animated:` |
-| 滑动或点击内容时自动藏起导航条 | `hidesBarsOnSwipe`、`hidesBarsOnTap` |
 | 定制导航条的背景、字体、颜色 | `navigationBar`、`UINavigationBarAppearance` |
 | 自己写切换页面的动画 | `UIViewControllerAnimatedTransitioning` |
 
