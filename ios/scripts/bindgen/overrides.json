@@ -24,7 +24,11 @@
     ],
     "UITextView": [
       "borderStyle"
+    ],
+    "UINavigationController": [
+      "navigationBar",
+      "delegate"
     ]
   },
-  "exclude_why": "这三个是给子类覆盖的，Apple 的文档写明不要直接调（要重新布局调 setNeedsLayout / layoutIfNeeded，要更新约束调 setNeedsUpdateConstraints）。名字上看不出来，所以在这里排除。 UITextView.borderStyle 在 iOS 上只有 none 一个值（另一个值是 visionOS 的），生成出来没有用。"
+  "exclude_why": "这三个是给子类覆盖的，Apple 的文档写明不要直接调（要重新布局调 setNeedsLayout / layoutIfNeeded，要更新约束调 setNeedsUpdateConstraints）。名字上看不出来，所以在这里排除。 UITextView.borderStyle 在 iOS 上只有 none 一个值（另一个值是 visionOS 的），生成出来没有用。 UINavigationController.navigationBar 定了暂不接（2026-11-19）：它返回 UINavigationBar，那个类没接，接它只为改系统导航条的外观，标题和按钮已经能通过 navigationItem 设，等有人要改外观再接。UINavigationController.delegate 的两个回调已经做成了事件 beforeshow 和 show。"
 }
