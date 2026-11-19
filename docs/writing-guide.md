@@ -216,6 +216,16 @@ API 文档只回答使用者的四个问题：
 
 21. 只用一种提示块，写成 `> **注意**：…`。用于不看就会出错的地方。一页里不超过五六处，多了就没人看。
 
+## 英文版
+
+对外的文档站默认英文，中文在 `/zh/` 下（2026-11-19 定）。中文是原文：`docs/api/X.md` 的英文版是 `docs/en/api/X.md`，指南同理。
+
+- **改一页，两种语言一起改。** 新增、修改、删除一个中文页面，同一个改动里改它的英文版。只改一边等于两边说法不一样。
+- **结构和中文一模一样**：frontmatter 一字不差；`#` 到 `####` 的标题个数、级别、顺序一样；代码块个数一样。这样两边才对得上，锚点也能按位置换算。
+- **代码照抄**，只翻译注释和中文字符串，翻了字符串就同步改「效果」里写的输出。代码本身在演示中文的（按中文地区格式化、UTF-8 字节数这类）原样保留。
+- **语气照 MDN 英文版**：陈述句，美式英语，标题句首大写。固定的译法：参见 See also、示例 Examples、对应的 iOS API Corresponding iOS API、值 Value、语法 Syntax、参数 Parameters、返回值 Return value、异常 Exceptions、写错时 Invalid values、未在模拟器验证 not verified in the simulator。成员页标题写成 `` `UIButton`: `setTitle()` method ``。
+- **核对**：`python3 docs/check-translation.py docs` 检查每个中文页面都有英文版、结构一致、英文正文里没有中文。
+
 ## 写完自查
 
 - [ ] 类页上每个成员都有自己的页面，链接都通
@@ -227,6 +237,7 @@ API 文档只回答使用者的四个问题：
 - [ ] 每个属性的可读、可写是否和 `types/` 一致
 - [ ] 未验证的效果有没有标出来
 - [ ] `bash docs/check-links.sh` 通过
+- [ ] 改过的页面英文版也改了，`python3 docs/check-translation.py docs` 通过
 
 ## 其他类型的页面
 
