@@ -140,6 +140,30 @@ press.minimumPressDuration = 1;
 
 **效果**：要按住 1 秒才派发 `began`。单位是秒，不是毫秒。**未在模拟器验证。**
 
+## 手指按下时变暗
+
+点按识别器要等手指松开才派发事件，做不出「按下时变暗、松开时恢复」。用长按识别器，把 [`minimumPressDuration`](../api/ui-long-press-gesture-recognizer/minimumpressduration.md) 设成 `0`：手指一按下它就开始。沿用 `card`：
+
+```js
+const touch = new UILongPressGestureRecognizer();
+touch.minimumPressDuration = 0;
+touch.addEventListener('began', () => {
+  card.alpha = 0.6;
+});
+touch.addEventListener('ended', () => {
+  card.alpha = 1;
+  console.log('点了卡片');
+});
+touch.addEventListener('cancelled', () => {
+  card.alpha = 1;
+});
+card.addGestureRecognizer(touch);
+```
+
+**效果**：手指按在卡片上，卡片立刻变淡；松开时恢复，控制台输出 `点了卡片`；触摸被系统打断（比如来电）时也恢复。**未在模拟器验证。**
+
+> **注意**：这样设之后，这个识别器在手指按下的那一刻就认定了手势。卡片放在可以滚动的列表里时，它可能抢在滚动之前，让列表滚不动；和同一个视图上的别的识别器也可能冲突。**未在模拟器验证。** 这类效果用 [`UIButton`](../api/ui-button.md) 能做到的，优先用按钮。
+
 ## 长按之后跟着手指移动
 
 长按被认出之后，手指每次移动都派发 `changed`，抬起时派发 `ended`。

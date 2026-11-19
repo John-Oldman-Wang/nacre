@@ -23,7 +23,7 @@ function repo(packages) {
   fs.writeFileSync(path.join(root, 'LICENSE.md'), LICENSE);
   fs.mkdirSync(path.join(root, 'ios'), { recursive: true });
   fs.writeFileSync(path.join(root, 'ios', 'project.yml'),
-                   'a:\n        MARKETING_VERSION: "0.1.0"\nb:\n        MARKETING_VERSION: "0.1.0"\n');
+                   'a:\n        MARKETING_VERSION: "0.1.0"\n        NACRE_VERSION: "0.1.0"\nb:\n        MARKETING_VERSION: "0.1.0"\n');
   for (const [dir, { pkg, files = {} }] of Object.entries(packages)) {
     const at = path.join(root, 'packages', dir);
     fs.mkdirSync(at, { recursive: true });
@@ -134,7 +134,7 @@ test('不发布的包没标 private：报出来，免得被误发出去', () => 
 
 // ---------------------------------------------------------------- 改版本
 
-test('改版本：每个包的版本、包之间的依赖、框架的版本号一起改', () => {
+test('改版本：每个包的版本、包之间的依赖、框架的版本号、启动日志里的版本一起改', () => {
   const root = repo({
     types: good('@nacrejs/types', 'types'),
     camera: good('@nacrejs/camera', 'camera',
@@ -148,7 +148,7 @@ test('改版本：每个包的版本、包之间的依赖、框架的版本号�
   assert.deepEqual(read('camera').peerDependencies,
                    { '@nacrejs/ios': '0.0.2-beta.3', '@nacrejs/types': '0.0.2-beta.3', other: '^1.0.0' });
   assert.equal(fs.readFileSync(path.join(root, 'ios', 'project.yml'), 'utf8'),
-               'a:\n        MARKETING_VERSION: "0.0.2"\nb:\n        MARKETING_VERSION: "0.0.2"\n');
+               'a:\n        MARKETING_VERSION: "0.0.2"\n        NACRE_VERSION: "0.0.2-beta.3"\nb:\n        MARKETING_VERSION: "0.0.2"\n');
 });
 
 test('改版本：不像版本号的拒绝，什么都不改', () => {

@@ -186,7 +186,7 @@ xcrun simctl launch --console-pty booted com.example.myapp
 **效果**：第一条编译，没有 `error` 就是成功（会打两行以 `[MT]` 开头的提示，可以不管）；第二条装到开着的那个模拟器上；第三条启动 App，并把它的输出接到终端：
 
 ```
-[nacre] V8 14.9.207.39 initialized in 9.1 ms, context ready in 14.3 ms
+[nacre] Nacre 0.0.1, V8 14.9.207.39 initialized in 9.1 ms, context ready in 14.3 ms
 [nacre] builtin script ready in 32.0 ms (40 parts)
 [nacre] main.js finished in 0.4 ms
 [JS][log] 起来了

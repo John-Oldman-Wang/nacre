@@ -14,6 +14,7 @@ native: UILongPressGestureRecognizer.minimumPressDuration
 - 可读，可写。
 - 默认值是 `0.5`。
 - 按够这么久时派发 [`began`](../ui-gesture-recognizer/began-event.md)。
+- 设成 `0`：手指一按下就派发 `began`，移动时派发 `changed`，松开时派发 `ended`。用来做「手指按下时变暗、松开时恢复」这类效果，点按识别器做不到，它要等手指松开才派发。**未在模拟器验证。**
 
 ### 怎么得知它变了
 
@@ -34,6 +35,15 @@ press.minimumPressDuration = 1;
 ```
 
 **效果**：要按住 1 秒才派发 `began`。**未在模拟器验证。**
+
+```js
+const touch = new UILongPressGestureRecognizer();
+touch.minimumPressDuration = 0;
+```
+
+**效果**：手指一按下就派发 `began`。**未在模拟器验证。**
+
+见指南里的[手指按下时变暗](../../guides/gestures.md#手指按下时变暗)。
 
 ## 对应的 iOS API
 
