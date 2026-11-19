@@ -170,6 +170,76 @@
   }
 })();`;
 
+
+  // 网页的 console 转给 App（console-message 事件）。注入到每张网页、每个框架，
+  // 在网页自己的脚本之前跑。照 Electron 的四个 level；参数照浏览器的写法连成一行
+  // （%s %d %i %f %o %O %c %% 照格式替换，对象写成 JSON）。没被捕获的异常和拒绝
+  // 也发一条 error，文字照 Chromium 控制台的写法。原来的 console 方法照常调
+  const CONSOLE_SCRIPT = `(function () {
+  var handler = window.webkit && window.webkit.messageHandlers &&
+                window.webkit.messageHandlers.nacreConsole;
+  if (!handler) return;
+  function text(v) {
+    if (typeof v === 'string') return v;
+    if (v === undefined) return 'undefined';
+    if (v instanceof Error) return v.name + ': ' + v.message;
+    if (typeof v === 'object' && v !== null) {
+      try { var s = JSON.stringify(v); if (s !== undefined) return s; } catch (e) {}
+    }
+    return String(v);
+  }
+  function format(args) {
+    var out = [];
+    var i = 0;
+    if (typeof args[0] === 'string' && args.length > 1) {
+      i = 1;
+      out.push(args[0].replace(/%([sdifoOc%])/g, function (m, k) {
+        if (k === '%') return '%';
+        if (i >= args.length) return m;
+        var v = args[i++];
+        if (k === 'c') return '';
+        if (k === 'd' || k === 'i') return String(parseInt(v, 10));
+        if (k === 'f') return String(parseFloat(v));
+        return text(v);
+      }));
+    }
+    for (; i < args.length; i++) out.push(text(args[i]));
+    return out.join(' ');
+  }
+  // 调 console 的那一行：调用栈第 0 帧是这里，第 1 帧是接管的方法，第 2 帧是调用者
+  function where() {
+    var lines = String((new Error()).stack || '').split('\\n');
+    var line = lines[2] || '';
+    var at = line.lastIndexOf('@');
+    var m = /^(.*):(\\d+):(\\d+)$/.exec(at >= 0 ? line.slice(at + 1) : line);
+    return m ? { source: m[1], line: Number(m[2]) } : { source: '', line: 0 };
+  }
+  function send(level, message, lineNumber, sourceId) {
+    try {
+      handler.postMessage(JSON.stringify({
+        level: level, message: message, lineNumber: lineNumber, sourceId: sourceId
+      }));
+    } catch (e) {}
+  }
+  var levels = { log: 'info', info: 'info', warn: 'warning', error: 'error', debug: 'debug' };
+  Object.keys(levels).forEach(function (name) {
+    var original = console[name];
+    console[name] = function () {
+      var w = where();
+      send(levels[name], format(Array.prototype.slice.call(arguments)), w.line, w.source);
+      if (typeof original === 'function') return original.apply(console, arguments);
+    };
+  });
+  window.addEventListener('error', function (e) {
+    var err = e.error;
+    var message = err instanceof Error ? err.name + ': ' + err.message : String(e.message || 'Script error.');
+    send('error', 'Uncaught ' + message, e.lineno || 0, e.filename || String(location.href));
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    send('error', 'Uncaught (in promise) ' + text(e.reason), 0, String(location.href));
+  });
+})();`;
+
   // webContents -> 预加载脚本的路径（preload-error 事件要带上）
   const preloadPaths = new WeakMap();
   // webContents -> Map(频道 -> 处理函数)，ipc.handle 登记的
@@ -262,8 +332,11 @@
      * 只听事件，失败时不该因此多报一条「未处理的拒绝」。自己 await 或者
      * .catch 的照常拿得到错误
      */
-    loadURL(url) {
-      const loading = nativeCallAsync(this, 'loadURL', [toText(url)]).then(() => undefined);
+    loadURL(url, options) {
+      // options 照 Electron，现在只认 baseURLForDataURL：data: 地址里的相对路径按它找
+      const o = options == null ? {} : options;
+      const base = has(o, 'baseURLForDataURL') ? toText(o.baseURLForDataURL) : null;
+      const loading = nativeCallAsync(this, 'loadURL', [toText(url), base]).then(() => undefined);
       loading.catch(() => {});
       return loading;
     }
@@ -357,6 +430,8 @@
         ? {} : options.webPreferences;
       const checked = {};
       if (has(prefs, 'partition')) checked.partition = toText(prefs.partition);
+      if (has(prefs, 'javascript')) checked.javascript = toBoolean(prefs.javascript);
+      checked.consoleScript = CONSOLE_SCRIPT;
       let preloadPath = null;
       if (has(prefs, 'preload')) {
         // 读出来、查语法、拼好再交给原生。语法在这里查（用运行时自己的

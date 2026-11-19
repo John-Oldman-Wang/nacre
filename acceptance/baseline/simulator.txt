@@ -20,6 +20,7 @@
 + # 转成 false
 + # 间隔的重复每次都回一趟队列（别的定时器插得进来）
 + #x# 像素、scale # → size #x#
++ %s %d %% 照格式替换
 + '#' 转成 #
 + 'false' 是非空字符串，转成 true
 + 'false' 转成 true
@@ -66,6 +67,7 @@
 + DataView 被拒: TypeMismatchError
 + Date 抛（第一版不支持）
 + Date.prototype.toLocaleString 认地区了
++ Error 写成 名字: 说明
 + GC 之后用孤儿锚点建约束并激活
 + GC 之后：actions 里还是原来那个按钮的包装
 + GC 之后：textFields 里还是原来那个输入框的包装
@@ -604,6 +606,7 @@
 + barTintColor 写得进去，读回原来的写法
 + barTintColor 写颜色名
 + base 下的点段
++ baseURLForDataURL 不是完整的地址：拒绝
 + baseWritingDirection 写错：不抛、值不变
 + baseWritingDirection 读写
 + baselineOffset
@@ -1135,6 +1138,7 @@
 + evaluatePolicy：不认识的策略同步抛，并列出可选值
 + event.target 是这个文本视图
 + event.type
++ executeJavaScript 里的 console 也转过来
 + executeJavaScript：Map 带回来是空对象
 + executeJavaScript：NaN 变成 null
 + executeJavaScript：null
@@ -1262,6 +1266,8 @@
 + hour#: false 换成 # 小时制
 + href 能拼回去
 + httpOnly 筛
++ https 的 baseURI
++ https 的 baseURLForDataURL 也行
 + hyphenationFactor 读写
 + hyphenationFactor 超出 # 到 #
 + iOS # 专属的 cellularIMEI# 可用
@@ -1430,6 +1436,10 @@
 + items 里有 null 被拒
 + items 里有别的类的对象被拒
 + items 里有字符串被拒
++ javascript: 'false' 按布尔转成 true，脚本会跑
++ javascript: false：executeJavaScript 照样能用
++ javascript: false：网页的脚本不跑
++ javascript: undefined 视为没带
 + json() 解析出数组
 + kern
 + kern 给 "#"：按数转
@@ -1471,6 +1481,7 @@
 + lineHeightMultiple 读写
 + lineJoin 写得进去
 + lineJoin 写错：不抛、值不变
++ lineNumber 是行号
 + lineSpacing 给 "#"：按数转
 + lineSpacing 给负数
 + lineSpacing 给转不成数的
@@ -1690,6 +1701,7 @@
 + options 不是数组
 + options 传 null 可以
 + options 传 null 当成空对象
++ options 传 null 等于不传
 + options 传 null 视为没带
 + options 传 {} 可以
 + options 给 null：照常
@@ -2075,6 +2087,7 @@
 + snapshot() 给的是副本，改它不影响列表
 + snapshotViewAfterScreenUpdates 返回视图
 + sourceApplication 是字符串或者 null
++ sourceId 是字符串
 + sourceInformation 是 null 或者两个布尔
 + sourceType
 + sourceType 默认是 photoLibrary（系统的默认值，照实给）
@@ -2252,6 +2265,7 @@
 + translationInView(null)：窗口坐标系，也是 (#, #)
 + type
 + type 写得进去
++ type 是 console-message
 + type 是 openurl
 + undefined 抛
 + undefined 被拒
@@ -2407,6 +2421,8 @@
 + 不在界面里的网页，定时器被放慢了（# 秒不到 # 次）
 + 不在窗口里：不是 first responder
 + 不在里面的页面 tabBarController 是 null
++ 不带 baseURLForDataURL：标题
++ 不带 baseURLForDataURL：照旧
 + 不带动画
 + 不带动画呈现：animated 是 false
 + 不拦 tel: 链接：加载失败，errorCode 是 -#
@@ -2453,6 +2469,7 @@
 + 不给效果：effect 是 null
 + 不能 new
 + 不能加字段
++ 不能取消
 + 不能后退时 goBack() 是空操作
 + 不能往上加字段
 + 不能继承
@@ -2575,6 +2592,7 @@
 + 事件延后一轮派发：发完当场还没收到
 + 事件延后一轮，同步读不到
 + 事件是 ErrorEvent
++ 事件是 Event
 + 事件是可取消的
 + 事件的 target 是 application
 + 事件的 target 是 webContents
@@ -2601,6 +2619,7 @@
 + 五个方向都写得进去
 + 五个都挂上了
 + 五种力度都建得出来
++ 五种方法的 level
 + 交还之后不再是 first responder
 + 什么都不给：抛 TypeError
 + 从 Request 再构造一个：signal 跟过去了，中止照样取消
@@ -2728,6 +2747,7 @@
 + 八种鲜明样式都建得出来
 + 六个类都在全局上
 + 六行字不限行数时想要的高度（# pt 的字）
++ 关了 JS：只收到 App 执行的那条
 + 关完是 CLOSED
 + 关掉之后 presentedViewController 清了
 + 关掉之后不生成隐式动画
@@ -3656,6 +3676,7 @@
 + 对照：构造参数里的枚举写错照旧抛（列表的外观）
 + 对照：没进 run loop 的 display link 被回收
 + 对照：真的带了 scale 是另一个结果
++ 对象按 JSON 写，undefined 写成 undefined
 + 对象里有函数：抛 DataCloneError
 + 对象里有原生对象的包装：抛 DataCloneError
 + 对齐
@@ -3725,6 +3746,7 @@
 + 布尔：# / # / 'false' / '' / null / undefined / {} / NaN 都按真假值
 + 布局是 UICollectionViewCompositionalLayout
 + 带 animated 也是当场就少
++ 带 baseURLForDataURL 的 data: 地址加载成功
 + 带 delay 和 options：animations 照样当场执行
 + 带 sender 也照常 push
 + 带动画呈现：animated 是 true
@@ -4081,6 +4103,7 @@
 + 撤掉高度约束后塌成上下两个间距
 + 播完停在最后一帧
 + 收任何可迭代的东西（Set）
++ 收到 # 条
 + 收到 close 事件
 + 收到 error | message
 + 收到 input 时读得到 text
@@ -4524,6 +4547,7 @@
 + 标题写得进去
 + 标题可以写成 null
 + 标题没了
++ 标题照常
 + 标题给 null：空串
 + 标题给数字：转成字符串
 + 标题里的数字和 null 转成字符串
@@ -4650,6 +4674,10 @@
 + 没给过期时间：session 是 true，没有 expirationDate 这个字段
 + 没给高度约束的那条高 #
 + 没给高度约束，三行字排出来就是 #
++ 没被处理的拒绝：level 是 error
++ 没被处理的拒绝：message
++ 没被捕获的异常：level 是 error
++ 没被捕获的异常：message
 + 没设 keyPath 就设 values 要抛
 + 没设 keyPath 就设值要抛
 + 没设过 attributedPlaceholder 是 null
@@ -4753,6 +4781,7 @@
 + 直接建的控件：不认识的事件名当自定义事件
 + 相对 URL 无 base 时抛
 + 相对 URL 被拒（没有 base）
++ 相对路径的图片按 baseURLForDataURL 加载出来
 + 相对路径相对 App 包：地址是 file:// 开头
 + 看着像数的字符串按数转
 + 真的聚焦和交还：先 focus 再 blur
@@ -4825,6 +4854,8 @@
 + 第一个参数是视图被拒
 + 第一个工具条里的还在
 + 第一帧和这张图不是同一个对象
++ 第一条的 level
++ 第一条的 message：参数用空格连起来
 + 第一次请求的是第 # 项
 + 第一页也能找回导航控制器
 + 第一页多了「弹一张卡片 ↑」，弹出来能拖走也能点「完成」
@@ -4909,6 +4940,7 @@
 + 网络图解出来了
 + 网页和运行时拿到的是同一张表
 + 网页开着的时候写的：不用刷新就看得到
++ 网页的 baseURI 是给的地址
 + 网页的 document.cookie 看得到普通的，看不到 httpOnly 的
 + 网页的 innerWidth 等于视图的宽（pt）
 + 网页的 prefers-color-scheme 跟视图的外观一致
@@ -4922,6 +4954,7 @@
 + 网页自己后退：地址是上一页的
 + 网页自己后退：拦住了，还在这一页
 + 网页跳到一个会重定向的地址：只问一次
++ 网页里的 console.log 照常返回
 + 置 null 读回 null
 + 而 scroll 不再派发
 + 而且没有再来问
@@ -5923,6 +5956,7 @@
 + 默认的那一份里也没有
 + 默认空串不是 null
 + 默认缩放是 #
++ 默认网页的脚本会跑
 + 默认能滚
 + 默认自动纠错
 + 默认跑完就摘掉

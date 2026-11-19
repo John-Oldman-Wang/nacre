@@ -27,7 +27,6 @@
 | 知道用户点了哪一条推送通知 | `UNUserNotificationCenterDelegate` |
 | 接着别的设备上做到一半的事继续做（接力），或者从系统搜索的结果打开 | `scene:continueUserActivity:` 里通用链接以外的活动类型。这些活动现在不派发任何事件 |
 | 读链接附带的其他信息 | `UISceneOpenURLOptions` 的 `annotation`、`openInPlace` |
-| 读系统语言和地区 | `NSLocale` |
 | 把字体大小档位读成 `'large'` 这类统一的名字 | `UIContentSizeCategory` 的映射。现在是 iOS 的原始字符串 |
 | 拒绝已经上报之后才补挂处理函数时得到更正通知 | Web 的 `rejectionhandled` |
 | 锁定或读取屏幕方向 | `UIWindowScene.effectiveGeometry` |
@@ -1374,6 +1373,39 @@
 | 读服务器启用的协议扩展（`extensions`） | `NSURLSessionWebSocketTask` 不提供 |
 | 断开后自动重连。运行时不做，写法见[保持一条长期使用的连接](../guides/websocket.md#保持一条长期使用的连接) | 无 |
 | App 在后台时保持连接 | iOS 的后台任务 |
+
+## `WebContents`
+
+原来在 `docs/api/web-contents.md`。
+
+| 想做的事 | 对应的原生能力 |
+| --- | --- |
+| 拦住服务器重定向 | Electron 的 `will-redirect` |
+| 拦住 `<iframe>` 里的跳转 | Electron 的 `will-frame-navigate` |
+| 网页同步地向 App 要一个结果 | Electron 的 `ipcRenderer.sendSync` |
+| 从本地加载用到模块脚本、用 `fetch` 读本地文件的网页 | Electron 的 `protocol.handle`；`WKURLSchemeHandler`（让本地文件以自己定的协议提供） |
+| 自己指定本地网页能读哪个目录 | `loadFileURL:allowingReadAccessToURL:` 的第二个参数 |
+| 加载进度的百分比 | `estimatedProgress` |
+| 网页内跳转的通知（只改 `#` 后面的部分） | Electron 的 `did-navigate-in-page` |
+| 历史记录的列表、跳到某一条 | Electron 的 `navigationHistory.getAllEntries()`、`goToIndex()`；`backForwardList` |
+
+## `WebView`
+
+原来在 `docs/api/web-view.md`。
+
+| 想做的事 | 对应的原生能力 |
+| --- | --- |
+| 让预加载脚本和网页的脚本互相隔离 | Electron 的 `contextIsolation`；`WKContentWorld` |
+| 在 `<iframe>` 里也执行预加载脚本 | Electron 的 `nodeIntegrationInSubFrames`；`WKUserScript` 的 `forMainFrameOnly` |
+| 预加载脚本的类型定义（`ipcRenderer`、`contextBridge`） | |
+| 让不在界面里的网页不被放慢 | Electron 的 `backgroundThrottling`。系统没有起作用的公开开关。替代做法见[先加载，要用的时候再显示](../guides/web-pages.md#先加载要用的时候再显示) |
+| 处理网页打开新窗口的请求（`window.open`、`target="_blank"`） | Electron 的 `setWindowOpenHandler`；`WKUIDelegate` |
+| 显示网页的 `alert()`、`confirm()`、`prompt()` | `WKUIDelegate` |
+| 改 User-Agent、缩放 | Electron 的 `setUserAgent`、`setZoomFactor`；`customUserAgent`、`pageZoom` |
+| 从屏幕左边缘右滑后退 | `allowsBackForwardNavigationGestures` |
+| 用 Safari 的开发者工具调试网页 | `inspectable` |
+| 调网页滚动的行为（回弹、内边距） | `WKWebView.scrollView` |
+| 下载文件 | Electron 的 `will-download`；`WKDownload` |
 
 ## 从 API 正文里删掉的「还不能做」
 

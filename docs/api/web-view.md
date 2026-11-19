@@ -216,11 +216,12 @@ console.log(shop.webContents.session.isPersistent(), guest.webContents.session.i
 
 | Electron | 这里 | 差别 |
 | --- | --- | --- |
-| `new WebContentsView({ webPreferences })` | `new WebView({ webPreferences })` | 只支持 `partition` 和 `preload` |
+| `new WebContentsView({ webPreferences })` | `new WebView({ webPreferences })` | 只支持 `partition`、`preload` 和 `javascript` |
 | `view.setBounds({ x, y, width, height })` | `web.frame = new CGRect(x, y, width, height)` | 也可以用约束 |
 | `win.contentView.addChildView(view)` | `page.view.addSubview(web)` | |
 | `view.webContents` | `web.webContents` | 相同 |
 | `webPreferences.preload` | 相同 | 相对路径的起点是 App 包。不隔离，相当于 `contextIsolation: false` |
+| `webPreferences.javascript` | 相同 | 默认 `true` |
 
 `WebContents`、`ipcRenderer` 这些对象各自的对照在它们的页面上。
 
@@ -232,24 +233,6 @@ console.log(shop.webContents.session.isPersistent(), guest.webContents.session.i
 | `configuration.websiteDataStore` | `webPreferences.partition` |
 | `WKUserScript`（文档开始时注入，只进主文档） | `webPreferences.preload` |
 | 释放 `WKWebView` | `contents.close()` |
-
-## 还不能做的
-
-| 想做的事 | 对应的能力 |
-| --- | --- |
-| 让预加载脚本和网页的脚本互相隔离 | Electron 的 `contextIsolation`；`WKContentWorld` |
-| 在 `<iframe>` 里也执行预加载脚本 | Electron 的 `nodeIntegrationInSubFrames`；`WKUserScript` 的 `forMainFrameOnly` |
-| 预加载脚本的类型定义（`ipcRenderer`、`contextBridge`） | |
-| 让不在界面里的网页不被放慢 | Electron 的 `backgroundThrottling`。系统没有起作用的公开开关。替代做法见[先加载，要用的时候再显示](../guides/web-pages.md#先加载要用的时候再显示) |
-| 处理网页打开新窗口的请求（`window.open`、`target="_blank"`） | Electron 的 `setWindowOpenHandler`；`WKUIDelegate` |
-| 显示网页的 `alert()`、`confirm()`、`prompt()` | `WKUIDelegate` |
-| 改 User-Agent、缩放 | Electron 的 `setUserAgent`、`setZoomFactor`；`customUserAgent`、`pageZoom` |
-| 从屏幕左边缘右滑后退 | `allowsBackForwardNavigationGestures` |
-| 用 Safari 的开发者工具调试网页 | `inspectable` |
-| 调网页滚动的行为（回弹、内边距） | `WKWebView.scrollView` |
-| 下载文件 | Electron 的 `will-download`；`WKDownload` |
-
-加载、导航、消息方面还不能做的，见 [`WebContents`](web-contents.md#还不能做的)。
 
 ## 参见
 
