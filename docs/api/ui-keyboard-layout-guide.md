@@ -30,7 +30,7 @@ native: UIKeyboardLayoutGuide
 
 ## 事件
 
-不派发事件。
+不派发事件。自己算位置、要知道键盘什么时候弹出和收起时，监听屏幕上的 [`keyboardshow`](ui-screen/keyboardshow-event.md)、[`keyboardhide`](ui-screen/keyboardhide-event.md)、[`keyboardchange`](ui-screen/keyboardchange-event.md)。
 
 ## 示例
 

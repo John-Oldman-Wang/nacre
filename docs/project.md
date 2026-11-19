@@ -125,7 +125,7 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 | 原生类 | 一律 final，不做继承。`class X extends UIView {}` 在 `new X()` 时抛 | [包装](internals/wrapper.md) |
 | 属性名拼错 | 运行时不报错，不禁止往包装上挂自己的数据；拼错由类型检查挡 | [原生类](api/native-classes.md) |
 | 事件名 | 按用户做了什么来命名，全小写；Web 上有含义相同的事件就用它的名字，含义不同的不借；改名不留旧名。网页那一组照 Electron。不认识的事件名不拒绝，当自定义事件 | [事件](internals/events.md#事件名按用户做了什么来命名) |
-| 事件能不能取消 | 原生的通知延后一轮派发，不可取消；系统当场来问、要立刻给答案的，当场派发，可取消 | [事件](internals/events.md) |
+| 事件能不能取消 | 原生的通知延后一轮派发，不可取消；系统当场来问、要立刻给答案的，当场派发，可取消；系统这一刻正在做一件 JS 要跟着做的事（键盘的动画），当场派发，不可取消 | [事件](internals/events.md) |
 | 所有权 | 收对象参数并持有它的成员，JS 一侧要记所有权边，`check-api.sh` 核对 | [包装](internals/wrapper.md) |
 | 接类的初稿 | 先用 `bindgen` 的 `scaffold` 照头文件写出一个域的初稿，写完就是普通的手写文件，直接改。不设「生成的、不许手改」的文件 | [bindgen](internals/bindgen.md) |
 

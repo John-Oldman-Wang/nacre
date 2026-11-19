@@ -362,6 +362,12 @@ void NacreEmitEventWithObject(id object, const char* className, NSString* type,
 BOOL NacreEmitEventSync(id object, const char* className, NSString* type,
                         NSString* json);
 
+// 「当场的通知」：系统不等答案，但这一刻正在做一件 JS 要跟着做的事。第一处是
+// 键盘：系统在键盘的动画里发通知，监听器这时候改的布局会跟着键盘一起动；
+// 延后一轮再改，动画已经过去了（真机实测）。当场派发一个**不可取消**的事件。
+// 只能在主线程调；不在主线程、引擎不在了，就不派发
+void NacreEmitEventNow(id object, const char* className, NSString* type, NSString* json);
+
 // 「当场执行的一段代码」类（UIKit 收一个 block、在调用里面就执行它）：
 // JS 侧把那段代码登记成一个号（内置脚本的 callWithBlock / registerBlock），
 // 连同别的参数一起传过来，原生在 block 里调这个。argsJSON 是参数数组的

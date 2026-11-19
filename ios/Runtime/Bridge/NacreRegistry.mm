@@ -331,7 +331,17 @@ BOOL NacreEmitEventSync(id object, const char* className, NSString* type, NSStri
         @"sync event \"%@\" dropped: not on the main thread", type]);
     return NO;
   }
-  return ask(object, className, type, json);
+  return ask(object, className, type, json, YES);
+}
+
+void NacreEmitEventNow(id object, const char* className, NSString* type, NSString* json) {
+  NacreSyncAsk ask = SyncAsk();
+  if (ask == nil || !NSThread.isMainThread) {
+    if (ask != nil) WriteRuntimeLog([NSString stringWithFormat:
+        @"event \"%@\" dropped: not on the main thread", type]);
+    return;
+  }
+  ask(object, className, type, json, NO);
 }
 
 void NacreCallBlock(NSInteger blockId, NSString* argsJSON) {
