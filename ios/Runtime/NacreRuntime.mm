@@ -674,8 +674,14 @@ nacre::NativeObjectRef CreateBlob(
     *engine = std::make_unique<nacre::Engine>(std::move(host));
     double t2 = NowMs();
 
-    WriteRuntimeLog([NSString stringWithFormat:@"V8 %s initialized in %.1f ms, context ready in %.1f ms",
-                                               nacre::Engine::V8Version(), t1 - t0, t2 - t1]);
+    // 第一行带上 Nacre 自己的版本：看日志、接崩溃上报时要知道跑的是哪一版。
+    // NACRE_VERSION 是编译时从 project.yml 定义进来的；别的工程引这个文件没定义时
+    // 写 unknown，不让编译失败
+#ifndef NACRE_VERSION
+#define NACRE_VERSION "unknown"
+#endif
+    WriteRuntimeLog([NSString stringWithFormat:@"Nacre %s, V8 %s initialized in %.1f ms, context ready in %.1f ms",
+                                               NACRE_VERSION, nacre::Engine::V8Version(), t1 - t0, t2 - t1]);
   }];
 
   // 内置脚本装没装好。第 2 步失败时置上，第 3 步看它决定跑不跑 main.js。
