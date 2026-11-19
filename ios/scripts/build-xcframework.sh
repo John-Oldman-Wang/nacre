@@ -28,6 +28,15 @@ for (const dir of fs.readdirSync('packages').sort()) {
 
 command -v xcodegen >/dev/null || { echo "请先安装 XcodeGen：brew install xcodegen"; exit 1; }
 
+# 先说要打哪几个。CI 上出现过只打出了核心、能力包一个都没打、步骤却算成功的情况，
+# 原因从步骤的成败看不出来，所以开头列出来、结尾逐个核对
+COUNT=0
+for build in $BUILDS; do COUNT=$((COUNT + 1)); done
+echo "要打 $COUNT 个：$(for build in $BUILDS; do printf '%s ' "${build%%=*}"; done)"
+if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+  echo "::notice::要打 $COUNT 个 framework：$(for build in $BUILDS; do printf '%s ' "${build%%=*}"; done)"
+fi
+
 bash ios/scripts/fetch-v8.sh
 (cd ios && xcodegen generate --quiet)
 
@@ -88,3 +97,16 @@ for build in $BUILDS; do
 
   echo "构建完成：$OUT（$(du -sh "$OUT" | cut -f1)）"
 done
+
+# 逐个核对都打出来了：少一个就失败，不让它算成功
+MISSING=""
+for build in $BUILDS; do
+  OUT="${build#*=}"
+  [ -f "$OUT/ios-arm64/${build%%=*}.framework/${build%%=*}" ] || MISSING="$MISSING ${build%%=*}"
+done
+if [ -n "$MISSING" ]; then
+  echo "没打出来：$MISSING"
+  [ "${GITHUB_ACTIONS:-}" = "true" ] && echo "::error::要打 $COUNT 个，没打出来的：$MISSING"
+  exit 1
+fi
+echo "全部打完：$COUNT 个"
