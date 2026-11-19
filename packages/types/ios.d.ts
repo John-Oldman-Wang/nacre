@@ -47,4 +47,5 @@
 /// <reference path="./ios/system-controls.d.ts" />
 /// <reference path="./ios/view-additions.d.ts" />
 /// <reference path="./ios/navigation-additions.d.ts" />
+/// <reference path="./ios/locale.d.ts" />
 /// <reference path="./ios/screen.d.ts" />

@@ -29,6 +29,8 @@
 + <iframe> 里的加载：不派发 will-navigate
 + @ 开头的名字是运行时保留的
 + @#x/@#x 被自动选中（倍率 > #）
++ @calendar=japanese 的 calendarIdentifier
++ @collation=phonebook 的 collationIdentifier
 + APNG：不带扩展名也找得到，帧数
 + APNG：播 # 遍
 + ASIdentifierManager 不能 new
@@ -72,6 +74,9 @@
 + GIF：播一遍的时长（秒）
 + GIF：每帧时长（秒）
 + HTTP 状态
++ ISOCountryCodes 里有 CN
++ ISOCurrencyCodes 里有 CNY
++ ISOLanguageCodes 里有 en
 + Infinity 抛
 + Infinity 被拒
 + Info.plist 里声明了 nacre-acceptance 这个协议
@@ -497,6 +502,7 @@
 + appendAttributedString
 + appendAttributedString 给字符串
 + appendPath 之后 bounds 扩大
++ application 上能监听 localechange
 + application.keychain 是能力包挂在原型上的取值器
 + application.scenes 里也只有一个
 + applySnapshot 给的不是快照
@@ -564,6 +570,9 @@
 + automatic 样式下切到年月：可以
 + autorepeat 可写
 + autoreverses 写得进去
++ autoupdatingCurrentLocale 和 currentLocale 是同一个地区
++ autoupdatingCurrentLocale 是 NSLocale
++ availableLocaleIdentifiers 里有 de_DE
 + availableModes 是数组
 + availableModes 至少有一个
 + availableModes 里都是 UIScreenMode
@@ -838,6 +847,8 @@
 + canLoadObjectOfClass(UIImage)
 + canParse 不抛
 + cancelsTouchesInView 可写
++ canonicalLanguageIdentifierFromString
++ canonicalLocaleIdentifierFromString
 + capInsets 收普通对象
 + card 宽
 + card 自己身上有约束
@@ -871,6 +882,7 @@
 + collectionViewLayout 是建的时候给的那个
 + colors 读回来两个
 + colors 读回来是字符串，而且是原样
++ commonISOCurrencyCodes 里有 USD
 + compact
 + compact 样式下切到倒计时：datePickerMode "countDownTimer" only works with the wheels style, but preferredDatePickerStyle is "compact"; set it to "wheels" or "automatic" first
 + compact 样式下切到年月：datePickerMode "yearAndMonth" only works with the wheels style, but preferredDatePickerStyle is "compact"; set it to "wheels" or "automatic" first
@@ -927,6 +939,10 @@
 + currentAttributedTitle 是只读的
 + currentDevice 是 UIDevice
 + currentEDRHeadroom 是正数
++ currentLocale 是 NSLocale
++ currentLocale 的 decimalSeparator 是字符串
++ currentLocale 的 languageCode 是字符串
++ currentLocale 的 localeIdentifier 不是空串
 + currentMaximumTrackImage 同上
 + currentMinimumTrackImage 是当前状态那张
 + currentMode 写不是显示模式的值抛 TypeError
@@ -952,6 +968,22 @@
 + dateStyle + timeStyle，换到纽约是前一天晚上
 + dateStyle 不能和单个字段一起用，抛 TypeError
 + de-DE 欧元（中间是不换行空格）
++ de_DE 用公制
++ de_DE 的 calendarIdentifier
++ de_DE 的 collationIdentifier
++ de_DE 的 collatorIdentifier 是字符串
++ de_DE 的 languageCode
++ de_DE 的 languageIdentifier 是字符串
++ de_DE 的 localeIdentifier
++ de_DE 的 regionCode
++ de_DE 的 scriptCode 是 null
++ de_DE 的 variantCode 是 null
++ de_DE 的千分位是点
++ de_DE 的单引号
++ de_DE 的小数点是逗号
++ de_DE 的引号
++ de_DE 的货币
++ de_DE 的货币符号
 + decode 不改输入
 + decode 不给参数是空串
 + decode 在别的对象上调用：抛 TypeError
@@ -1034,6 +1066,11 @@
 + ellipsoidalAltitude 是有限的数或 null
 + en-IN 的分组是 #-#-#
 + en-US 千分位
++ en_US 不用公制
++ en_US 的小数点
++ en_US 的货币
++ en_US 的货币符号
++ en_US_POSIX 的 variantCode
 + enablesReturnKeyAutomatically
 + encode 不给参数是空的
 + encode 在别的对象上调用：抛 TypeError
@@ -1431,6 +1468,7 @@
 + loadURL 返回 Promise
 + loadURL、后退、前进、reload()：都不派发 will-navigate
 + localStorage 能用
++ localeWithLocaleIdentifier 和 new 一样
 + localizedCancelTitle 写 null 读回 null
 + localizedCancelTitle 写进去读出来
 + localizedCancelTitle 默认 null
@@ -1441,6 +1479,16 @@
 + localizedFallbackTitle 写进去读出来
 + localizedFallbackTitle 默认 null
 + localizedModel 是非空字符串
++ localizedStringForCalendarIdentifier
++ localizedStringForCollationIdentifier
++ localizedStringForCollatorIdentifier 是字符串或 null
++ localizedStringForCountryCode
++ localizedStringForCurrencyCode
++ localizedStringForLanguageCode
++ localizedStringForLocaleIdentifier
++ localizedStringForScriptCode
++ localizedStringForScriptCode 繁体
++ localizedStringForVariantCode 是字符串或 null
 + location
 + location 不是 null
 + location 只读
@@ -1521,6 +1569,9 @@
 + new CGPoint()：不给的参数是 #
 + new CGPoint(NaN, #)：以前静默变成 #，现在抛
 + new NSItemProvider(image) 建得出来
++ new NSLocale 得到 NSLocale
++ new NSLocale() 不抛
++ new NSLocale() 的 localeIdentifier 是空串
 + new NSObject()
 + new NSTextAttachment()：没有图片
 + new PHPickerConfiguration() 建得出来
@@ -1674,6 +1725,10 @@
 + preferredIndicatorImage 写 null
 + preferredIndicatorImage 原样读回来
 + preferredIndicatorImage 给的不是图：preferredIndicatorImage needs a native object or null, got "circle.fill"
++ preferredLanguages 只读：写了抛 TypeError
++ preferredLanguages 是字符串数组
++ preferredLanguages 至少有一个
++ preferredLanguages[#] 的语言和 Intl 的默认地区一样
 + preferredMode 是 UIScreenMode
 + preload-error 带着路径
 + preload-error 带着错误
@@ -2045,6 +2100,7 @@
 + systemFontOfSize(NaN)：以前是闪退
 + systemItem 给的是 UIBarButtonItem
 + systemLayoutSizeFittingSize 解出高度
++ systemLocale 是 NSLocale
 + systemName
 + systemVersion 只读: true
 + systemVersion 形如 # 或 #.#
@@ -2204,6 +2260,15 @@
 + writeBytes 发起平均 # ms，端到端平均 # ms（# 次 # MB 串行，端到端含排队）
 + zPosition 写得进去
 + zh-CN 紧凑写法
++ zh-Hans-CN（短横线）的 scriptCode
++ zh-Hant-TW（短横线）的 scriptCode
++ zh_Hans_CN 的 languageCode
++ zh_Hans_CN 的 localeIdentifier 去掉了文字
++ zh_Hans_CN 的 regionCode
++ zh_Hans_CN 的 scriptCode 是 null
++ zh_Hans_CN 的货币
++ zh_Hant_CN 的 scriptCode
++ zh_Hant_TW 的 scriptCode 是 null
 + zoomToRect 给的不是矩形抛 TypeError
 + { style: undefined } 等于没带
 + ẛ̣ 的 NFC
@@ -2701,6 +2766,7 @@
 + 写了 attributedPlaceholder，placeholder 读出来是其中的文字
 + 写了之后 changeCount 变大
 + 写了之后 hasStrings
++ 写了之后没变
 + 写了五条，读出来五条
 + 写了分区的网页，session 是那个分区的
 + 写了标题不会自己显示范围条
@@ -3170,6 +3236,7 @@
 + 原生模块：落单的代理项照旧被拒
 + 原生派发的不可取消
 + 参数不够也保留旧值
++ 参数不是字符串时转成字符串
 + 参数不是视图被拒: feedbackGeneratorForView needs a UIView
 + 参数不是识别器被拒: addGestureRecognizer needs a UIGestureRecognizer
 + 反转不改形状
@@ -3206,6 +3273,7 @@
 + 只改 #：不派发 will-navigate
 + 只改 #：地址确实变了
 + 只有 BOM：空串
++ 只有语言没有地区：regionCode 是 null
 + 只清 cookie：cookie 全没了
 + 只清 cookie：localStorage 还在
 + 只给 url：属于那一个主机，hostOnly 是 true
@@ -3567,6 +3635,7 @@
 + 屏幕底部有一个输入框：点它弹键盘、框会被顶上去、回车收起
 + 屏幕的 displayScale 和 scale 一样
 + 属性写进去的效果：GC 后读回来还是原来那个包装
++ 属性只读：写 regionCode 抛 TypeError
 + 属性给 null 等于没给
 + 属性给的不是对象
 + 属性赋值也能换栈
@@ -4475,6 +4544,8 @@
 + 没有 body：json() 因为解析空串被拒
 + 没有 body：text()
 + 没有 body：可以再读一次
++ 没有 componentsFromLocaleIdentifier
++ 没有 countryCode
 + 没有 delegate
 + 没有 domainState 这个成员
 + 没有 evaluateAccessControl 这个成员
@@ -4487,6 +4558,7 @@
 + 没有 popViewControllerAnimated（已有 popViewController）
 + 没有 setCredential 这个成员
 + 没有 type 的 Blob 不加 Content-Type
++ 没有 windowsLocaleCodeFromLocaleIdentifier
 + 没有串行（# 个的耗时 < 单次的 # 倍）
 + 没有做成 CNContact 成员的字段名也能写（只是让详情页显示它）
 + 没有内容时回车键是灰的
@@ -4609,6 +4681,7 @@
 + 玻璃：读回来的是 UIGlassEffect
 + 生命周期事件: active | 此刻 state
 + 生命周期事件: foreground | 此刻 state
++ 用中文的名字
 + 用代码关掉不算点了按钮：事件没有派发
 + 用代码改 text 和选中的范围没有派发事件
 + 用代码选中和取消，不派发 itemselect / itemdeselect
@@ -4804,6 +4877,7 @@
 + 背景色可以清掉
 + 能取消监听 brightnesschange
 + 能取消监听 capturedchange
++ 能取消监听 localechange
 + 能取消监听 modechange
 + 能取消监听 referencedisplaymodestatuschange
 + 能挂多个
@@ -4840,6 +4914,8 @@
 + 自己派发的事件上没有 results
 + 自己给了 Content-Type 就不覆盖
 + 至少前四个访问级别可用
++ 英文从左往右
++ 英文的行从上往下
 + 范围外没有
 + 范围外没有底色
 + 范围给的不是对象
@@ -5489,6 +5565,7 @@
 + 问的是重定向之前的那个地址
 + 问过之后 biometryType 仍是四个名字之一
 + 阻尼变大之后更快停下
++ 阿拉伯文从右往左
 + 限两行之后想要的高度变小
 + 限制：<script type="module"> 不执行
 + 限制：XMLHttpRequest 也读不了

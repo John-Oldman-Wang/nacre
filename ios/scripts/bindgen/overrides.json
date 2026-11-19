@@ -29,6 +29,19 @@
       "navigationBar",
       "delegate"
     ],
+    "NSLocale": [
+      "countryCode",
+      "exemplarCharacterSet",
+      "objectForKey",
+      "displayNameForKey",
+      "componentsFromLocaleIdentifier",
+      "localeIdentifierFromComponents",
+      "localeIdentifierFromWindowsLocaleCode",
+      "windowsLocaleCodeFromLocaleIdentifier",
+      "supportsSecureCoding",
+      "encodeWithCoder",
+      "copyWithZone"
+    ],
     "UIScreen": [
       "coordinateSpace",
       "fixedCoordinateSpace",
@@ -36,5 +49,5 @@
       "overscanCompensationInsets"
     ]
   },
-  "exclude_why": "这三个是给子类覆盖的，Apple 的文档写明不要直接调（要重新布局调 setNeedsLayout / layoutIfNeeded，要更新约束调 setNeedsUpdateConstraints）。名字上看不出来，所以在这里排除。 UITextView.borderStyle 在 iOS 上只有 none 一个值（另一个值是 visionOS 的），生成出来没有用。 UINavigationController.navigationBar 定了暂不接（2026-11-19）：它返回 UINavigationBar，那个类没接，接它只为改系统导航条的外观，标题和按钮已经能通过 navigationItem 设，等有人要改外观再接。UINavigationController.delegate 的两个回调已经做成了事件 beforeshow 和 show。 UIScreen.coordinateSpace / fixedCoordinateSpace 返回 UICoordinateSpace 协议对象，那个协议没接；坐标换算用视图上现成的 convert 系列。UIScreen.overscanCompensation / overscanCompensationInsets 是给接电视这类有过扫描的外接显示器用的，iPhone 的屏幕没有过扫描，App 用不到。"
+  "exclude_why": "这三个是给子类覆盖的，Apple 的文档写明不要直接调（要重新布局调 setNeedsLayout / layoutIfNeeded，要更新约束调 setNeedsUpdateConstraints）。名字上看不出来，所以在这里排除。 UITextView.borderStyle 在 iOS 上只有 none 一个值（另一个值是 visionOS 的），生成出来没有用。 UINavigationController.navigationBar 定了暂不接（2026-11-19）：它返回 UINavigationBar，那个类没接，接它只为改系统导航条的外观，标题和按钮已经能通过 navigationItem 设，等有人要改外观再接。UINavigationController.delegate 的两个回调已经做成了事件 beforeshow 和 show。 NSLocale.countryCode 是 Apple 打算废弃的旧名，值和 regionCode 一样；exemplarCharacterSet 返回 NSCharacterSet，那个类没接；objectForKey / displayNameForKey 按 NSLocaleKey 常量取值，和各个属性、localizedStringFor… 那组方法重复；componentsFromLocaleIdentifier / localeIdentifierFromComponents 的键是一组字符串常量，拆用 new NSLocale(id) 的属性、拼用 canonicalLocaleIdentifierFromString 能做到同样的事；Windows 区域代码的一对 App 用不到；supportsSecureCoding、encodeWithCoder、copyWithZone 是归档和复制的协议成员，JS 用不到。 UIScreen.coordinateSpace / fixedCoordinateSpace 返回 UICoordinateSpace 协议对象，那个协议没接；坐标换算用视图上现成的 convert 系列。UIScreen.overscanCompensation / overscanCompensationInsets 是给接电视这类有过扫描的外接显示器用的，iPhone 的屏幕没有过扫描，App 用不到。"
 }
