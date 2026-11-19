@@ -10,7 +10,23 @@ type UIScreenEventType =
   | 'brightnesschange'
   | 'modechange'
   | 'capturedchange'
-  | 'referencedisplaymodestatuschange';
+  | 'referencedisplaymodestatuschange'
+  | 'keyboardshow'
+  | 'keyboardhide'
+  | 'keyboardchange';
+
+/**
+ * 键盘的三个事件：`keyboardshow`、`keyboardhide`、`keyboardchange`。
+ * 当场派发：监听器在键盘的动画里执行，这时候改的布局跟着键盘一起动。不能取消。
+ */
+interface UIScreenKeyboardEvent extends Event {
+  /** 动画结束时键盘的位置，屏幕坐标，单位 pt。键盘的高度是 `frame.height`。 */
+  readonly frame: CGRect;
+  /** 动画开始时键盘的位置。 */
+  readonly previousFrame: CGRect;
+  /** 键盘动画的时长，单位秒。 */
+  readonly duration: number;
+}
 
 /**
  * 一块屏幕。不能 `new`，从场景拿：

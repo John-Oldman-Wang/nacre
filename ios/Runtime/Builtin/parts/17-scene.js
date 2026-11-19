@@ -52,6 +52,7 @@
     toInteger,
     toNumber,
     toPoint,
+    toRect,
     toText,
     toTextOrNull,
     native,
@@ -785,6 +786,13 @@
       }
     } else if (field !== undefined && payload !== undefined) {
       defineField(event, field, payload);
+    } else if (payload !== undefined && payload !== null &&
+               typeof payload === 'object' && 'previousFrame' in payload && 'duration' in payload) {
+      // 键盘的三个事件（屏幕上的 keyboardshow / keyboardhide / keyboardchange）。
+      // 按负载的形状认：两个位置转成 CGRect，和别处一致
+      defineField(event, 'frame', toRect(payload.frame));
+      defineField(event, 'previousFrame', toRect(payload.previousFrame));
+      defineField(event, 'duration', payload.duration);
     } else if (payload !== undefined && payload !== null &&
                typeof payload === 'object' && 'wasClean' in payload) {
       // WebSocket 关闭。按**负载的形状**认，不按事件名——'close' 这个名字
