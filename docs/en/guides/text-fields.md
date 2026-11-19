@@ -731,11 +731,13 @@ For how to write constraints, see [Auto Layout](../api/auto-layout.md).
 If you set views' `frame` yourself instead of using constraints, listen for the [`keyboardchange`](../api/ui-screen/keyboardchange-event.md) event on the screen. The event carries `frame`, where the keyboard will be when its animation ends; the keyboard's height is `frame.height`.
 
 ```js
-const screen = e.scene.screen;   // inside the sceneconnect callback
-screen.addEventListener('keyboardchange', (event) => {
-  const keyboard = /** @type {UIScreenKeyboardEvent} */ (event);
-  const top = Math.min(keyboard.frame.y, screen.bounds.height);
-  field.frame = new CGRect(16, top - 16 - 40, 358, 40);
+application.addEventListener('sceneconnect', (e) => {
+  const screen = e.scene.screen;
+  screen.addEventListener('keyboardchange', (event) => {
+    const keyboard = /** @type {UIScreenKeyboardEvent} */ (event);
+    const top = Math.min(keyboard.frame.y, screen.bounds.height);
+    field.frame = new CGRect(16, top - 16 - 40, 358, 40);
+  });
 });
 ```
 
