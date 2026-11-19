@@ -137,6 +137,9 @@ NSString* SceneActivationName(UISceneActivationState state);
 const char* StateName(int state);
 void RebuildEnvironment(const std::shared_ptr<AppSnapshot>& snapshot);
 std::string InfoDictionaryJSON();
+// 宿主交给运行时的脚本目录（模板里是 App 包里的 JS/）。application.fileSystem.assets
+// 是它下面的 assets/：CLI 把项目的 assets/ 拷到那里
+void NacreSetScriptsDirectory(NSURL* directory);
 
 // ---- 枚举（数字枚举的宏在 NacreExtension.h，这里是另外两种）----
 // 值是 NSString 常量的枚举（kCAFillRuleNonZero、kCACornerCurveCircular…）。

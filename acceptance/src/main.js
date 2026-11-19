@@ -30,6 +30,7 @@ import { assert, assertStats } from './support.js';
 import { stepSubclass } from './steps/subclass.js';
 import { stepStorage } from './steps/storage.js';
 import { stepFileSystem } from './steps/filesystem.js';
+import { stepBundle } from './steps/bundle.js';
 import { stepKeychain } from './steps/keychain.js';
 import { stepColor } from './steps/color.js';
 import { stepTextField } from './steps/textfield.js';
@@ -182,6 +183,7 @@ application.addEventListener('sceneconnect', (e) => {
   run('stepSubclass', () => stepSubclass());
   run('stepStorage', () => stepStorage());
   run('stepFileSystem', () => stepFileSystem());
+  run('stepBundle', () => stepBundle());
   run('stepKeychain', () => stepKeychain());
   run('stepColor', () => stepColor(ctx));
   run('stepWindow', () => stepWindow(ctx));

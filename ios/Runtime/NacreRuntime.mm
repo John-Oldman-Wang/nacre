@@ -183,6 +183,7 @@ nacre::NativeObjectRef CreateBlob(
 - (void)startWithScriptsDirectory:(NSURL *)directory {
   if (_started) return;
   _started = YES;
+  NacreSetScriptsDirectory(directory);
 
   // 环境快照。JS 现在和 UIKit 同线程，本可以直接读，
   // 但保留快照能让 environmentJSON 一次拿齐，少几次 UIKit 往返。

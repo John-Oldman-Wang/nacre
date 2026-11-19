@@ -266,7 +266,7 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 | 图层和动画 | `CALayer` 一组、`UIBezierPath`、Core Animation、`CATransaction`、`CADisplayLink` |
 | 交互 | `UIControl`、`UIButton`、`UITextField` 和键盘、手势识别器 |
 | 网络 | `fetch` / `Request` / `Response`（含流式读取 `response.body`）、`URL` / `URLSearchParams` / `Headers`、`Blob`、`AbortController`、`WebSocket` |
-| 数据 | 本地存储 `application.storage`、文件读写 `application.fileSystem` |
+| 数据 | 本地存储 `application.storage`、文件读写 `application.fileSystem`（含只读的 `assets`：项目的 `assets/` 在包里的位置）、`NSBundle` |
 | 网页 | `WebView`、`webContents`、`session` |
 | 按地区格式化 | `Intl.NumberFormat`、`Intl.DateTimeFormat`，以及数字和日期的 `toLocale*String`（排序还没做） |
 | 小而无代价的 | `crypto`（随机数、UUID）、`UIDevice`、剪贴板、触感反馈 |

@@ -449,6 +449,7 @@ export default defineConfig({
           items: [
             api('application.storage', 'storage'),
             api('application.fileSystem', 'filesystem'),
+            api('NSBundle', 'ns-bundle'),
           ],
         },
         {
@@ -563,6 +564,7 @@ export default defineConfig({
             internals('WebView', 'web-view'),
             internals('本地存储', 'storage'),
             internals('文件读写', 'filesystem'),
+            internals('App 包', 'bundle'),
             internals('Keychain', 'keychain'),
           ],
         },

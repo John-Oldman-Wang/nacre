@@ -510,6 +510,11 @@
 + arrayBuffer 长度
 + arrayForKey 对非数组给 null
 + assetIdentifier 没有接
++ assets 只读：写了抛 TypeError
++ assets 是包里的 JS/assets
++ assets 是绝对路径
++ assets 末尾不带斜杠
++ assets 里没有的文件：exists 是 false
 + atIndex 插到最前
 + atIndex 是负数：atIndex must be a non-negative integer, got -#
 + atIndex 超过段数：插在最后
@@ -805,6 +810,13 @@
 + btoa：用到 + 和 / 的那两个值
 + btoa：空串
 + btoa：表情抛 InvalidCharacterError
++ bundleIdentifier 和 application 的一样
++ bundlePath 只读：写了抛 TypeError
++ bundlePath 是 .app 目录
++ bundleWithIdentifier 不认识的是 null
++ bundleWithIdentifier 拿到 App 的包
++ bundleWithPath 不存在的路径是 null
++ bundleWithPath 拿到同一个包
 + buttonType 读回来
 + buttonWithType 给的是 UIButton
 + calculationMode 写得进去
@@ -972,6 +984,7 @@
 + deleteCharactersInRange 越界
 + deselectItemAtIndexPath
 + destroyed 不会来第二次
++ developmentLocalization 是字符串或 null
 + deviceOwnerAuthenticationWithBiometrics 的原因：code 是数
 + deviceOwnerAuthenticationWithBiometrics 的原因：domain
 + deviceOwnerAuthenticationWithBiometrics 的原因：message 是非空字符串
@@ -1103,6 +1116,9 @@
 + expirationDate 不是数
 + extraDark 只有 tvOS 有，这里不认
 + f# 开头的：每个字节一个 U+FFFD
++ familyNames 只读：写了抛 TypeError
++ familyNames 是字符串数组
++ familyNames 里有 Helvetica Neue
 + fast 读回字符串
 + fatal + stream：结尾没凑齐的，到冲的那一次才抛
 + fatal 不影响去 BOM
@@ -1136,6 +1152,9 @@
 + font
 + font 给 null
 + font 给字符串
++ fontNamesForFamilyName 不认识的家族是空数组
++ fontNamesForFamilyName 给的名字能建字体
++ fontNamesForFamilyName 里有 HelveticaNeue
 + font：读回来是写进去的那个对象
 + foregroundColor：写的字符串原样读回
 + formatRange 还不能用，抛 TypeError
@@ -1239,6 +1258,7 @@
 + indexPathsForVisibleItems 是空数组
 + indexPathsForVisibleItems 的个数和 visibleCells 相同
 + indicatorImageForPage 页码越界：indicatorImageForPage: page # is out of range; expected # to #
++ infoDictionary 里有包名
 + initialVelocity 写得进去
 + inline
 + input 不带文字，回头读 text
@@ -1415,6 +1435,9 @@
 + loadURL 返回 Promise
 + loadURL、后退、前进、reload()：都不派发 will-navigate
 + localStorage 能用
++ localizations 是字符串数组
++ localizedAttributedStringForKey 的文字
++ localizedAttributedStringForKey 给富文本
 + localizedCancelTitle 写 null 读回 null
 + localizedCancelTitle 写进去读出来
 + localizedCancelTitle 默认 null
@@ -1424,7 +1447,11 @@
 + localizedFallbackTitle 写空串读回空串（隐藏那个按钮）
 + localizedFallbackTitle 写进去读出来
 + localizedFallbackTitle 默认 null
++ localizedInfoDictionary 是对象或 null
 + localizedModel 是非空字符串
++ localizedStringForKey 带 table 和 localizations
++ localizedStringForKey 没有的键、不给 value 给键本身
++ localizedStringForKey 没有的键给 value
 + location
 + location 不是 null
 + location 只读
@@ -1436,6 +1463,8 @@
 + longitude
 + longitude 写入即抛
 + loopCount 直接赋给 repeatCount
++ mainBundle 是 NSBundle
++ mainBundle 读两次是同一个对象
 + maskView 写 null
 + maskView 写进去读回来是同一个对象
 + maskedCorners 默认四个角全圆
@@ -1497,6 +1526,7 @@
 + new CGPoint('#', null)
 + new CGPoint()：不给的参数是 #
 + new CGPoint(NaN, #)：以前静默变成 #，现在抛
++ new NSBundle() 抛 TypeError
 + new NSItemProvider(image) 建得出来
 + new NSObject()
 + new NSTextAttachment()：没有图片
@@ -1568,6 +1598,8 @@
 + numberOfSegments 只读：Cannot set property numberOfSegments of #<UISegmentedControl> which has only a getter
 + numberOfTapsRequired 可写
 + numberOfTouchesRequired 可写
++ objectForInfoDictionaryKey 没有的键是 null
++ objectForInfoDictionaryKey 读得到包名
 + observedProgress 没接：属性不存在
 + ok
 + onTintColor 写 UIColor，读回名字
@@ -1614,6 +1646,14 @@
 + path 筛：路径一模一样的
 + path 能清掉
 + path 设成 null 读回来是 null
++ pathForResource 名字带扩展名、不给类型
++ pathForResource 带 forLocalization 不抛
++ pathForResource 找 main.js
++ pathForResource 找不到是 null
++ pathForResource 按名字和类型找
++ pathsForResourcesOfType 带 forLocalization 是数组
++ pathsForResourcesOfType 是字符串数组
++ pathsForResourcesOfType 里有 dot.png
 + path、secure、httpOnly、sameSite 的默认值
 + performChanges 不给参数：performChanges needs { creationRequestForAssetFromImage: image }, got undefined
 + performChanges 的图片不是 UIImage：creationRequestForAssetFromImage must be a UIImage, got "dot.png"
@@ -1647,6 +1687,10 @@
 + preferredIndicatorImage 写 null
 + preferredIndicatorImage 原样读回来
 + preferredIndicatorImage 给的不是图：preferredIndicatorImage needs a native object or null, got "circle.fill"
++ preferredLocalizations 是字符串数组，至少一个
++ preferredLocalizationsFromArray 不给数组抛 TypeError
++ preferredLocalizationsFromArray 按给的偏好挑
++ preferredLocalizationsFromArray 是字符串数组，至少一个
 + preload-error 带着路径
 + preload-error 带着错误
 + prepareForDisplay 给回一张图
@@ -1670,6 +1714,9 @@
 + protocol 带冒号
 + push 之后栈深 #
 + query 拼成地址里 ? 后面的部分
++ readBytes 读得到 assets 里的文件
++ readDirectory 列得出 assets 里的文件和目录
++ readText 读得到 assets 里的文件
 + readWrite 不支持：它要另一句权限文案：accessLevel "readWrite" is not supported: reading the photo library needs a different usage description; expected one of: addOnly. To let the user choose photos, use PHPickerViewController, which needs no permission
 + reason 默认是 AbortError
 + reconfigure 用的还是原来那个单元格
@@ -1715,6 +1762,7 @@
 + requireGestureRecognizerToFail 给的是视图被拒
 + resignFirstResponder 返回 true
 + resolvedOptions 的键和顺序
++ resourcePath 和 bundlePath 一样
 + return 不是同步派发的：刚触发完还是 #
 + returnKeyType
 + returnKeyType 写错：不抛、值不变
@@ -1955,6 +2003,7 @@
 + stack 宽
 + startAnimating 没有返回值
 + stat 不存在的文件
++ stat 读得到 assets 里文件的大小
 + stat.modified 是个像样的时间戳
 + stat.size 和实际字节数一致
 + state 只读: true
@@ -4427,6 +4476,8 @@
 + 没有 CLCircularRegion
 + 没有 CLGeocoder
 + 没有 CLHeading
++ 没有 URLForResource
++ 没有 allBundles
 + 没有 body 不加 Content-Type
 + 没有 body：GET 请求的 text()
 + 没有 body：arrayBuffer() 是 # 字节
@@ -4439,8 +4490,10 @@
 + 没有 domainState 这个成员
 + 没有 evaluateAccessControl 这个成员
 + 没有 evaluatedPolicyDomainState 这个成员
++ 没有 executablePath
 + 没有 isCredentialSet 这个成员
 + 没有 keyPath 的动画也建得出来
++ 没有 load
 + 没有 localizedReason 这个成员
 + 没有 maxBiometryFailures 这个成员
 + 没有 navigationBar
