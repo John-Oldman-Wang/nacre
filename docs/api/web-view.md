@@ -234,24 +234,6 @@ console.log(shop.webContents.session.isPersistent(), guest.webContents.session.i
 | `WKUserScript`（文档开始时注入，只进主文档） | `webPreferences.preload` |
 | 释放 `WKWebView` | `contents.close()` |
 
-## 还不能做的
-
-| 想做的事 | 对应的能力 |
-| --- | --- |
-| 让预加载脚本和网页的脚本互相隔离 | Electron 的 `contextIsolation`；`WKContentWorld` |
-| 在 `<iframe>` 里也执行预加载脚本 | Electron 的 `nodeIntegrationInSubFrames`；`WKUserScript` 的 `forMainFrameOnly` |
-| 预加载脚本的类型定义（`ipcRenderer`、`contextBridge`） | |
-| 让不在界面里的网页不被放慢 | Electron 的 `backgroundThrottling`。系统没有起作用的公开开关。替代做法见[先加载，要用的时候再显示](../guides/web-pages.md#先加载要用的时候再显示) |
-| 处理网页打开新窗口的请求（`window.open`、`target="_blank"`） | Electron 的 `setWindowOpenHandler`；`WKUIDelegate` |
-| 显示网页的 `alert()`、`confirm()`、`prompt()` | `WKUIDelegate` |
-| 改 User-Agent、缩放 | Electron 的 `setUserAgent`、`setZoomFactor`；`customUserAgent`、`pageZoom` |
-| 从屏幕左边缘右滑后退 | `allowsBackForwardNavigationGestures` |
-| 用 Safari 的开发者工具调试网页 | `inspectable` |
-| 调网页滚动的行为（回弹、内边距） | `WKWebView.scrollView` |
-| 下载文件 | Electron 的 `will-download`；`WKDownload` |
-
-加载、导航、消息方面还不能做的，见 [`WebContents`](web-contents.md#还不能做的)。
-
 ## 参见
 
 - [显示网页](../guides/web-pages.md)：加载、处理失败、限制跳转、本地网页的完整写法。

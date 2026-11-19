@@ -187,20 +187,6 @@ console.log(contents.getURL(), contents.isLoading());
 | `webViewWebContentProcessDidTerminate:` | `render-process-gone` 事件 |
 | 释放 `WKWebView` | `contents.close()` |
 
-## 还不能做的
-
-| 想做的事 | 对应的能力 |
-| --- | --- |
-| 拦住服务器重定向 | Electron 的 `will-redirect` |
-| 拦住 `<iframe>` 里的跳转 | Electron 的 `will-frame-navigate` |
-| 网页同步地向 App 要一个结果 | Electron 的 `ipcRenderer.sendSync` |
-| 在 App 这边看到网页的 `console` 输出 | Electron 的 `console-message` |
-| 从本地加载用到模块脚本、用 `fetch` 读本地文件的网页 | Electron 的 `protocol.handle`；`WKURLSchemeHandler`（让本地文件以自己定的协议提供） |
-| 自己指定本地网页能读哪个目录 | `loadFileURL:allowingReadAccessToURL:` 的第二个参数 |
-| 加载进度的百分比 | `estimatedProgress` |
-| 网页内跳转的通知（只改 `#` 后面的部分） | Electron 的 `did-navigate-in-page` |
-| 历史记录的列表、跳到某一条 | Electron 的 `navigationHistory.getAllEntries()`、`goToIndex()`；`backForwardList` |
-
 ## 参见
 
 - [`WebView`](web-view.md)：装着这张网页的视图，以及预加载脚本、存储分区的说明。
