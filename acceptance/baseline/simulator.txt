@@ -573,6 +573,9 @@
 + autoupdatingCurrentLocale 和 currentLocale 是同一个地区
 + autoupdatingCurrentLocale 是 NSLocale
 + availableLocaleIdentifiers 里有 de_DE
++ availableModes 是数组
++ availableModes 至少有一个
++ availableModes 里都是 UIScreenMode
 + backgroundColor 写 null 退回默认
 + backgroundColor 可写
 + backgroundColor：语义色读回短名
@@ -793,10 +796,17 @@
 + boundingRectWithSize 的选项写错：列出能用的
 + boundingRectWithSize 给的是 CGRect
 + bounds 不受 transform 影响
++ bounds 从原点开始
++ bounds 写了抛 TypeError
 + bounds 包住整条折线
 + bounds 是 CGRect
++ bounds 竖着放：高比宽大
 + bounds 读写
 + bounds 跟着 frame 走
++ brightness 写不是数的抛 TypeError
++ brightness 写大于 # 抛 TypeError
++ brightness 写负数抛 TypeError
++ brightness 在 # 到 # 之间
 + bringSubviewToFront(不是视图)
 + btoa 不给参数：抛 TypeError
 + btoa 和 atob 都是函数
@@ -818,6 +828,7 @@
 + buttonWithType 给的是 UIButton
 + calculationMode 写得进去
 + calculationMode 写错：不抛、值不变
++ calibratedLatency 是不小于 # 的数
 + canEvaluatePolicy(生物认证) 是布尔
 + canEvaluatePolicy(生物认证或密码) 是布尔
 + canEvaluatePolicyError(deviceOwnerAuthentication) 不抛
@@ -927,12 +938,16 @@
 + currentAttributedTitle 是 normal 的那个
 + currentAttributedTitle 是只读的
 + currentDevice 是 UIDevice
++ currentEDRHeadroom 是正数
 + currentLocale 是 NSLocale
 + currentLocale 的 decimalSeparator 是字符串
 + currentLocale 的 languageCode 是字符串
 + currentLocale 的 localeIdentifier 不是空串
 + currentMaximumTrackImage 同上
 + currentMinimumTrackImage 是当前状态那张
++ currentMode 写不是显示模式的值抛 TypeError
++ currentMode 是 UIScreenMode
++ currentMode 的大小
 + currentPage 可写
 + currentPageIndicatorImageForPage 页码越界：currentPageIndicatorImageForPage: page # is out of range; expected # to #
 + currentPageIndicatorTintColor 可写
@@ -1340,6 +1355,7 @@
 + isCameraDeviceAvailable("front") 是布尔
 + isCameraDeviceAvailable("rear") 是布尔
 + isCameraDeviceAvailable：不认识的摄像头：isCameraDeviceAvailable has no value "back"; expected one of: rear / front
++ isCaptured 是 false（没在录屏）
 + isContinuous 可写
 + isCrashed() 是 false
 + isDescendantOfView(不是视图)
@@ -1491,6 +1507,7 @@
 + mass 写得进去
 + maximumDate 写无效的 Date：maximumDate must be a valid Date, got an invalid one
 + maximumDate 可写
++ maximumFramesPerSecond 是正整数
 + maximumLineHeight 读写
 + maximumLinearExposure 写 #
 + maximumLinearExposure 写 '#' 得到 #
@@ -1523,15 +1540,21 @@
 + minuteInterval 超过 #：minuteInterval must divide # evenly and be between # and #, got #
 + minuteInterval 转不出数：minuteInterval must be a finite number, got "quarter"
 + minuteInterval 除不尽 #：minuteInterval must divide # evenly and be between # and #, got #
++ mirroredScreen 是 null（没有在镜像别的屏幕）
 + mode 写 compact
 + mode 写 default
 + mode 写错：不抛、值不变
++ mode 的 size 是 CGSize
 + model
 + moveToPoint 之后不再是空的
 + multiplier 默认 #
 + mutableCopy()：可改
 + name 是非空字符串
 + name 筛
++ nativeBounds 是 CGRect
++ nativeBounds 的宽
++ nativeBounds 的高
++ nativeScale 是正数
 + navigationItem 不是 null
 + new Blob 吃 TypedArray
 + new Blob 拼字符串
@@ -1566,6 +1589,8 @@
 + new UINavigationController(root)
 + new UIResponder()
 + new UIScene()
++ new UIScreen() 抛 TypeError
++ new UIScreenMode() 抛 TypeError
 + new UIScrollView()
 + new UIStackView([...])
 + new UIView()
@@ -1680,6 +1705,7 @@
 + pick 和 cancel 都订得上
 + picker.configuration 是 PHPickerConfiguration
 + ping 拿到 pong
++ pixelAspectRatio 是正数
 + placeholder 也是同一份
 + placeholder 写得进去
 + placeholder 给数字：转成字符串
@@ -1689,6 +1715,7 @@
 + popToRoot 一次弹掉两个
 + port 为默认时读出空串
 + position 是中心点
++ potentialEDRHeadroom 不小于 currentEDRHeadroom
 + preferredAssetRepresentationMode 写 automatic
 + preferredAssetRepresentationMode 写 compatible
 + preferredAssetRepresentationMode 写 current
@@ -1702,6 +1729,7 @@
 + preferredLanguages 是字符串数组
 + preferredLanguages 至少有一个
 + preferredLanguages[#] 的语言和 Intl 的默认地区一样
++ preferredMode 是 UIScreenMode
 + preload-error 带着路径
 + preload-error 带着错误
 + prepareForDisplay 给回一张图
@@ -1730,6 +1758,7 @@
 + reconfigure 用的还是原来那个单元格
 + reconfigure 的那一项内容更新了
 + reconfigureItemsWithIdentifiers 不抛
++ referenceDisplayModeStatus 是四个值之一
 + registerClass 不抛
 + registerClass 标识是空串
 + registerClass 没给标识
@@ -1794,6 +1823,8 @@
 + sameSite 写错：列出能用的
 + scale 不动平移
 + scale 可写
++ scale 和外观特征的 displayScale 一样
++ scale 是正数
 + scale 给 Infinity 被拒
 + scale 给数字字符串：按数用
 + scale(#) 两轴都是 #
@@ -1802,6 +1833,9 @@
 + scene 不是场景：抛 TypeError
 + scene 就是这个场景
 + scene.openURL 兑现
++ scene.screen 写了抛 TypeError
++ scene.screen 是 UIScreen
++ scene.screen 读两次是同一个对象
 + scene.traitCollection 是 UITraitCollection
 + sceneconnect 只来了一次（键盘的内部场景不算数）
 + scopeButtonTitles 写得进去
@@ -1991,6 +2025,7 @@
 + sliderStyle 可写
 + snapshot() 是现在的数据
 + snapshot() 给的是副本，改它不影响列表
++ snapshotViewAfterScreenUpdates 返回视图
 + sourceApplication 是字符串或者 null
 + sourceInformation 是 null 或者两个布尔
 + sourceType
@@ -2157,6 +2192,7 @@
 + tracking
 + trackingAuthorizationStatus 只读，写了抛 TypeError
 + trackingAuthorizationStatus 是字符串
++ traitCollection 是 UITraitCollection
 + traitchange 是继承来的，照常订得上
 + transfer 没成，那个 ArrayBuffer 还能用
 + transfer 的报错里写明了是 transfer 还不支持
@@ -2211,6 +2247,8 @@
 + visibleCells 是空数组
 + visibleCells 里每一个都是 cellProvider 返回过的那些对象
 + visibleViewController 同栈顶
++ wantsSoftwareDimming 写 true
++ wantsSoftwareDimming 默认 false
 + webContents 是 WebContents
 + webContents：不认识的事件名当自定义事件
 + webPreferences 传 null 等于不传
@@ -3595,6 +3633,7 @@
 + 屏幕上：一条工具条（加、分享、删），下面一个带范围按钮的搜索框
 + 屏幕上：两个单行输入框和一块多行输入，点任意一个，键盘上面有一条工具条，右端的按钮能收键盘（肉眼看）
 + 屏幕底部有一个输入框：点它弹键盘、框会被顶上去、回车收起
++ 屏幕的 displayScale 和 scale 一样
 + 属性写进去的效果：GC 后读回来还是原来那个包装
 + 属性只读：写 regionCode 抛 TypeError
 + 属性给 null 等于没给
@@ -3744,6 +3783,7 @@
 + 抗压缩也接受数字
 + 折行之后比一行高
 + 抛之前的那几句执行了，网页照常加载
++ 抛了之后亮度没变
 + 抛了之后值没变
 + 抛了之后原值没动（以前 undefined 会把它静默写成 #）
 + 抛了之后栈没变
@@ -4835,11 +4875,19 @@
 + 聚焦和失焦各只派发了一次
 + 聚焦派发 focus
 + 背景色可以清掉
++ 能取消监听 brightnesschange
++ 能取消监听 capturedchange
 + 能取消监听 localechange
++ 能取消监听 modechange
++ 能取消监听 referencedisplaymodestatuschange
 + 能挂多个
 + 能清掉
 + 能滚的那块没有固有大小（-# 表示没有）
 + 能用生物认证时 biometryType 不是 none
++ 能监听 brightnesschange
++ 能监听 capturedchange
++ 能监听 modechange
++ 能监听 referencedisplaymodestatuschange
 + 脚本改 location 的 navigationType 是 other
 + 脚本改 location：派发一次 will-navigate
 + 自定义协议的链接：地址原样给

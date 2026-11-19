@@ -456,6 +456,8 @@ export default defineConfig({
           text: '系统能力',
           items: [
             api('UIDevice', 'ui-device'),
+            api('UIScreen', 'ui-screen'),
+            api('UIScreenMode', 'ui-screen-mode'),
             api('UIPasteboard', 'ui-pasteboard'),
             api('UIFeedbackGenerator', 'ui-feedback-generator'),
             api('UIImpactFeedbackGenerator', 'ui-impact-feedback-generator'),

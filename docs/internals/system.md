@@ -1,4 +1,4 @@
-# 系统能力：设备、剪贴板、触感反馈
+# 系统能力：设备、屏幕、剪贴板、触感反馈
 
 ← [实现原理](README.md)
 
@@ -37,6 +37,51 @@
 | `systemVersion` | `27.2` |
 | `localizedModel` | `iPhone`（系统语言是英文） |
 | `UIDevice.currentDevice` 读两次 | 同一个包装 |
+
+## `UIScreen`
+
+客户反馈（2026-11-19）要读屏幕的大小、倍率、调亮度。初稿是 bindgen 的 `scaffold`，之后手改。
+
+### 屏幕只从场景拿
+
+`UIScreen.mainScreen` 和 `UIScreen.screens` 在 iOS 26 废弃了，Apple 让从 `windowScene.screen` 拿。所以只接了 `UIWindowScene.screen` 这一个入口，类方法一个都没接。`screen` 挂在场景的原型上，写在屏幕这个域自己的 part（`50-screen.js`）里，没去改场景那一组的文件。
+
+场景对屏幕的包装记了所有权边：系统的屏幕一直活着，由场景拿着它的包装，读两次是同一个对象。
+
+### 两个类都不能 `new`
+
+bindgen 照头文件给两个类都写了构造（`UIScreen` 继承了 `NSObject` 的 `init`）。系统不让 App 自己造屏幕，`[[UIScreen alloc] init]` 造出来的东西没有意义。红跑时验收 App 跑到这一组之后提前退出，最可能是它（没单独查）。改成 `nativeOnly`，原生那边的构造删掉。
+
+### `brightness` 在 JS 一侧拦范围
+
+ObjC 里写 0 到 1 以外的值不报错。这里照 `intensity` 的先例在 JS 一侧拦，抛 `TypeError`：取值范围归各 API 自己管（project.md 第 13 条）。
+
+### 没接的四个
+
+`coordinateSpace`、`fixedCoordinateSpace`（返回的是协议对象，要先有 `UICoordinateSpace` 的形态）；`overscanCompensation`、`overscanCompensationInsets`（只对外接电视有意义）。记在 `overrides.json` 的 `exclude` 里：它管 `scaffold` 不生成这几个，`report` 里它们还是列在「还没接」。
+
+### 事件
+
+四个通知各对应一个事件：`brightnesschange`、`modechange`、`capturedchange`、`referencedisplaymodestatuschange`。有人订阅才往通知中心挂观察者，`object` 指定这块屏幕，最后一个监听器摘掉时一起摘。EDR 的两个值头文件里没有对应的通知，没有事件。
+
+`isCaptured` 头文件标着「打算废弃」（让用外观特征的 `sceneCaptureState`），但还没废弃，照接。`sceneCaptureState` 没接。
+
+### 实测
+
+| | 结果（iPhone Air 模拟器，iOS 27.2） |
+| --- | --- |
+| `bounds` | `420 × 912` pt |
+| `scale`、`nativeScale` | `3`、`3`；`scale` 和 `traitCollection.displayScale` 相同 |
+| `nativeBounds` | `1260 × 2736`，等于 `bounds × nativeScale` |
+| `maximumFramesPerSecond` | `60`（模拟器） |
+| `calibratedLatency` | `0` |
+| `brightness` | `0.5` |
+| `currentEDRHeadroom`、`potentialEDRHeadroom` | `1`、`1` |
+| `referenceDisplayModeStatus` | `notSupported` |
+| `availableModes` | 1 个，就是 `currentMode`；它的 `size` 等于 `nativeBounds` 的大小 |
+| `mirroredScreen`、`isCaptured` | `null`、`false` |
+
+没验的：写 `brightness` 之后屏幕的样子、四个事件真的派发（要在设备上调亮度、录屏）、外接显示器、真机上的刷新率。
 
 ## `UIPasteboard`
 
