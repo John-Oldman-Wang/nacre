@@ -51,13 +51,6 @@ const picker = new PHPickerViewController(config);
 | `config.filter = PHPickerFilter.imagesFilter` | `config.filter = PHPickerFilter.imagesFilter` |
 | `config.selection = PHPickerConfigurationSelectionOrdered` | `config.selection = 'ordered'` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 预先选中几张、知道选中的是相册里的哪一张 | `initWithPhotoLibrary:`、`preselectedAssetIdentifiers` |
-| 隐藏选图界面的搜索框等部件、去掉位置信息 | `disabledCapabilities`、`edgesWithoutContentMargins`、`metadataOptions`、`searchText` |
-
 ## 参见
 
 - [`PHPickerViewController`](photos.md)：用这份配置建选图界面

@@ -4,7 +4,7 @@ type: reference
 
 # `Intl.NumberFormat`：`formatToParts()` 方法
 
-**`formatToParts()`** 方法在标准里用来把格式化的结果拆成整数、小数、货币符号等部分。这里还不能用：调用时抛 `TypeError`。
+**`formatToParts()`** 方法在标准里用来把格式化的结果拆成整数、小数、货币符号等部分。这里调用时抛 `TypeError`。
 
 ## 语法
 
@@ -45,4 +45,3 @@ try {
 ## 参见
 
 - [`format()`](format.md)
-- [还不能做的](../intl.md#还不能做的)

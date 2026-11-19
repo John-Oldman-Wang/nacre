@@ -67,14 +67,6 @@ picker.addEventListener('pick', async (event) => {
 | `[provider canLoadObjectOfClass:UIImage.class]` | `provider.canLoadObjectOfClass(UIImage)` |
 | `[provider loadObjectOfClass:UIImage.class completionHandler:^(id image, NSError *error) { … }]` | `await provider.loadObjectOfClass(UIImage)` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 取出选中的视频 | `loadFileRepresentationForTypeIdentifier:completionHandler:` |
-| 取图片的原始文件数据（不解码成 `UIImage`） | `loadDataRepresentationForTypeIdentifier:completionHandler:` |
-| 用提供者传图片以外的东西 | `NSItemProvider` 的其余成员 |
-
 ## 参见
 
 - [`PHPickerResult`](ph-picker-result.md)：选中的每一项带一个提供者

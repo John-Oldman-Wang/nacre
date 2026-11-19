@@ -14,7 +14,7 @@ native: CALayer.contents
 - 可读，可写。
 - 默认值是 `null`，表示没有内容。
 - 读出来的是写进去的那个对象。
-- 图片被拉伸到铺满图层。指定图片怎么摆放（`contentsGravity`）还不能做，需要时用 [`UIImageView`](../ui-image-view.md)。
+- 图片被拉伸到铺满图层。要按别的方式摆放图片，用 [`UIImageView`](../ui-image-view.md)。
 - 动图写进去显示的是第一帧。要播放，见指南[显示图片](../../guides/images.md#自己控制动图的播放)。
 - 只写自己创建的图层的 `contents`。视图自己的图层（`view.layer`）的内容由视图管理。
 - `imageNamed()` 找不到图片时返回 `null`，`contents = null` 不会出错。

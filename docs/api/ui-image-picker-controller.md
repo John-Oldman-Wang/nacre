@@ -10,7 +10,7 @@ status: partial
 
 `UIImagePickerController` 是一个[页面](ui-view-controller.md)，用页面的 [`presentViewController()`](ui-view-controller/presentviewcontroller.md) 弹出来。用户拍完或者取消时它各派发一个事件，App 在监听器里取照片、把它关掉。
 
-这个包只做一件事：用系统的界面拍一张照片。从相册选图是另一个包 `@nacrejs/photos`；录视频、扫码、自己画取景界面都不在这里，见[还不能做的](#还不能做的)。
+这个包只做一件事：用系统的界面拍一张照片。从相册选图是另一个包 `@nacrejs/photos`。
 
 > **注意**：凡是拍照界面弹出来之后的效果（界面的样子、两个事件、事件带的照片），目前**未在模拟器验证，真机上也还没有验证**。模拟器没有摄像头，拍不了照。静态方法的返回值、属性的默认值和读写、各种写错时的报错，在模拟器（iPhone Air，iOS 27.2）的验收里验过。
 
@@ -131,7 +131,7 @@ nacre: @nacrejs/camera needs NSCameraUsageDescription in Info.plist: a sentence 
 | `'camera'` | 相机 | 能。这种来源在设备上不可用时抛 `TypeError` |
 | `'photoLibrary'`、`'savedPhotosAlbum'` | 相册，两种列法 | 不能，抛 `TypeError` |
 
-新建的 `UIImagePickerController` 读出来是 `'photoLibrary'`，这是系统的默认值。所以**新建之后必须把 `sourceType` 写成 `'camera'`**，它才是拍照界面。没写就弹出来，出现的不是相机，而是系统选照片的界面（**未验证**）；这不是这个包支持的用法，系统的头文件也已经把相册的两个值标成将来要移除。从相册选图用 `@nacrejs/photos`。
+新建的 `UIImagePickerController` 读出来是 `'photoLibrary'`，这是系统的默认值。所以**新建之后必须把 `sourceType` 写成 `'camera'`**，它才是拍照界面。没写就弹出来，出现的不是相机，而是系统选照片的界面（**未验证**）。从相册选图用 `@nacrejs/photos`。
 
 `cameraDevice` 和 `cameraFlashMode` 只对相机有意义，所以只在 `sourceType` 是 `'camera'` 时能读写。
 
@@ -243,21 +243,6 @@ application.addEventListener('sceneconnect', (e) => {
 - ObjC 里来源不可用时写 `sourceType` 会抛异常，App 直接终止（Apple 文档的说法，**未验证**）。这里是能 `catch` 的 `TypeError`。
 - ObjC 里 `UIImagePickerController` 继承自 `UINavigationController`。这里它继承的是 `UIViewController`，`picker instanceof UINavigationController` 是 `false`。
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 | 状态 |
-| --- | --- | --- |
-| 把拍到的照片上传到服务器，或者存成文件 | `UIImageJPEGRepresentation`、`UIImagePNGRepresentation` | 未实现。[`UIImage`](ui-image.md#还不能做的) 现在不能编码成字节，拍到的照片只能显示和交给[分享面板](ui-activity-view-controller.md) |
-| 从相册选一张照片 | `PHPickerViewController` | 不在这个包里，用 `@nacrejs/photos`。`sourceType` 写 `'photoLibrary'` 抛 `TypeError` |
-| 把拍到的照片存进相册 | `UIImageWriteToSavedPhotosAlbum` | 不在这个包里，用 `@nacrejs/photos`。它要另一句权限文案 |
-| 录视频 | `mediaTypes`、`cameraCaptureMode`、`videoQuality`、`videoMaximumDuration`、`startVideoCapture` | 未实现。只拍照片 |
-| 扫二维码和条码 | `AVCaptureSession`、`AVCaptureMetadataOutput`，或者 `DataScannerViewController` | 未实现。要接实时取景 |
-| 自己画取景界面，自己放快门按钮 | `showsCameraControls`、`cameraOverlayView`、`cameraViewTransform`、`takePicture`，或者 `AVCaptureSession` | 未实现。同上 |
-| 读照片的拍摄参数（光圈、时间、方向） | `info[UIImagePickerControllerMediaMetadata]` | 未实现 |
-| 拍实况照片 | `info[UIImagePickerControllerLivePhoto]` | 未实现 |
-| 查询或者主动申请相机权限 | `AVCaptureDevice.authorizationStatusForMediaType:`、`requestAccessForMediaType:` | 未实现。权限提示框由系统在第一次打开拍照界面时弹出 |
-| 监听导航的 `beforeshow` / `show`，改它里面的页面 | `UINavigationControllerDelegate`、`viewControllers` | 不提供。拍照界面内部的页面是系统私有的 |
-
 ## 参见
 
 - [拍一张照片](../guides/take-photo.md)：先问设备、弹出、关掉、裁剪、包成 Promise
@@ -267,4 +252,3 @@ application.addEventListener('sceneconnect', (e) => {
 - [核心和能力包](capabilities.md)：哪些能力要单独装
 - [`UIActivityViewController`](ui-activity-view-controller.md)：把拍到的照片交给系统的分享面板
 - [结构体](structs.md)：`cropRect` 的类型 `CGRect`
-- [实现原理：拍照](../internals/camera.md)

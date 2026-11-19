@@ -56,10 +56,6 @@ status: partial
 | [`move()`](filesystem/move.md) | 移动或改名 |
 | [`copy()`](filesystem/copy.md) | 复制 |
 
-## 事件
-
-没有事件。文件被修改时没有通知，见[还不能做的](#还不能做的)。
-
 ## 路径
 
 路径是绝对路径字符串。用目录属性加上 `/` 和文件名拼出来：
@@ -72,7 +68,7 @@ console.log(path.startsWith('/'));
 
 **结果**：输出 `true`。`path` 是 `documents` 目录下 `notes` 子目录里 `今天.txt` 的绝对路径。文件名和目录名可以用中文。
 
-运行时没有拼接路径的函数。目录属性末尾不带 `/`，拼的时候要自己写。
+目录属性末尾不带 `/`，拼路径时自己加上。
 
 以下情况**未在模拟器验证**：
 
@@ -124,17 +120,9 @@ readMissing();
 
 ## 文件大小
 
-读和写都是整个文件一次完成：读的函数把整个文件读进内存，写入的内容也要先整个在内存里。没有分段读写，能处理的文件大小受可用内存限制。
+读和写都是整个文件一次完成：读的函数把整个文件读进内存，写入的内容也要先整个在内存里，所以能处理的文件大小受可用内存限制。
 
-实测在模拟器上写一个 4 MB 的文件：
-
-| 步骤 | 耗时 | 是否占用界面所在的线程 |
-| --- | --- | --- |
-| `new Blob([数据])`，把数据包成 `Blob` | 1.2 ms | 是 |
-| 调用 `writeBytes()` 到它返回 Promise | 低于 1 ms | 是 |
-| 从调用到 Promise 完成 | 8.0 ms | 否 |
-
-写入本身不占用界面所在的线程。占用的是 `new Blob([数据])` 这一步，它把数据复制一份，耗时和数据大小成正比。真机上的耗时**未验证**。
+写入本身不占用界面所在的线程。占用的是 `new Blob([数据])` 这一步：它把数据复制一份，耗时和数据大小成正比。真机上**未验证**。
 
 ## 示例
 
@@ -197,19 +185,6 @@ main().catch((err) => {
 | `[fm copyItemAtPath:toPath:error:]` | `await fs.copy(from, to)` |
 | `NSError **` | Promise 被拒绝，`err.code` 和 `err.domain` 是原值 |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 | 现在怎么办 |
-| --- | --- | --- |
-| 分段读写大文件 | `NSFileHandle`、`NSInputStream` | 整个读进内存 |
-| 在文件末尾追加内容 | `NSFileHandle` | 读出来拼好再整个写回 |
-| 文件被修改时得到通知 | `DispatchSource` | 没有替代办法 |
-| 设置文件在设备锁定时的加密等级 | `NSFileProtectionKey` | 没有替代办法 |
-| 把某个文件排除在备份之外 | `NSURLIsExcludedFromBackupKey` | 放进 `caches` |
-| 读写 iCloud 里的文件 | `NSFileCoordinator` | 没有替代办法 |
-| 符号链接、权限位 | `NSFileManager` 的对应方法 | 没有替代办法 |
-| 让用户从「文件」App 里选文件 | `UIDocumentPickerViewController` | 没有替代办法 |
-
 ## 参见
 
 - [读写文件](../guides/files.md)：选哪个目录、存 JSON、缓存下载的图片、按错误类别处理
@@ -217,4 +192,3 @@ main().catch((err) => {
 - [`fetch`](fetch.md)：`Blob` 的说明在那一页；下载的内容可以直接写成文件
 - [本地存储](storage.md)：设置和少量状态放那里
 - [Keychain](keychain.md)：令牌和密码放那里
-- [实现原理](../internals/filesystem.md)：这一页各项耗时的实测记录

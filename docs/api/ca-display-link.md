@@ -72,12 +72,6 @@ link.addToRunLoop(NSRunLoop.mainRunLoop, { forMode: 'common' });
 | `link.paused = YES` | `link.isPaused = true` |
 | `link.preferredFrameRateRange = CAFrameRateRangeMake(30, 60, 30)` | `link.preferredFrameRateRange = new CAFrameRateRange(30, 60, 30)` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 每帧回调一次的 `requestAnimationFrame()`。现在用 `CADisplayLink` | — |
-
 ## 参见
 
 - [每一帧执行一次代码](../guides/frame-callback.md)

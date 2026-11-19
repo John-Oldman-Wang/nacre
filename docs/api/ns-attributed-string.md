@@ -242,23 +242,6 @@ application.addEventListener('sceneconnect', (e) => {
 | `label.attributedText = text` | `label.attributedText = text` |
 | `[button setAttributedTitle:text forState:UIControlStateNormal]` | `button.setAttributedTitle(text, { forState: ['normal'] })` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 | 状态 |
-| --- | --- | --- |
-| 把 HTML 或 Markdown 转成富文本 | `initWithData:options:documentAttributes:error:`、`initWithMarkdown:…` | 未实现 |
-| 自己控制文字怎么排、读每一行的位置 | TextKit：`NSLayoutManager`、`NSTextLayoutManager`、`NSTextStorage` | 未实现 |
-| 点文本视图里的链接时得到通知、决定要不要打开 | `UITextViewDelegate` 的链接相关方法 | 未实现 |
-| 设置输入框里接下来打的字用什么样式；改链接的样式 | `typingAttributes`、`defaultTextAttributes`、`linkTextAttributes` | 未实现 |
-| 读一个属性连续生效的范围 | `attributesAtIndex:effectiveRange:` 的出参 | 用 `enumerateAttributesInRange()` 代替 |
-| 遍历时中途停下、从后往前遍历、只遍历某一个属性 | `enumerateAttributesInRange:` 的 `stop` 和 `options`、`enumerateAttribute:inRange:…` | 未实现 |
-| 放自己起名字的属性 | 任意字符串作键 | 未实现。写入时名字不认识会抛；读出时不认识的键不出现 |
-| 倾斜、横向拉伸、竖排、凸版效果、文字高亮、书写方向覆盖 | `NSObliquenessAttributeName`、`NSExpansionAttributeName`、`NSVerticalGlyphFormAttributeName`、`NSTextEffectAttributeName`、`NSTextHighlightStyleAttributeName`、`NSWritingDirectionAttributeName` | 未实现。前三个系统已经标为将废弃 |
-| 制表位、列表、按 CJK 规则断行的策略 | `tabStops`、`textLists`、`lineBreakStrategy` | 未实现 |
-| 附件显示文件、显示一个视图；调附件左右的间距 | `initWithData:ofType:`、`NSTextAttachmentViewProvider`、`lineLayoutPadding` | 未实现 |
-| 把富文本直接画到图片或图层上 | `drawAtPoint:`、`drawInRect:` | 未实现 |
-| 改 `string` 而保留属性 | `mutableString` | 用 `replaceCharactersInRange()` 代替 |
-
 ## 参见
 
 - [显示带样式的文字](../guides/attributed-text.md)：一段加样式、下划线、行距、图文混排、量尺寸
@@ -268,4 +251,3 @@ application.addEventListener('sceneconnect', (e) => {
 - [`UIColor`](ui-color.md)：颜色怎么写，写错了会怎样
 - [结构体](structs.md)：`CGSize`、`CGRect`
 - [单位](units.md)
-- [实现原理：富文本](../internals/attributed-string.md)

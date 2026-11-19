@@ -156,18 +156,9 @@ application.addEventListener('sceneconnect', (e) => {
 | `countDownDuration` 超出 0 到 86399 | 改成 60 |
 | 倒计时或年月模式配 `compact`、`inline` 样式 | 抛一个 JS 接不住的原生异常 |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 让选择器用另一种语言或地区的格式显示 | `locale` |
-| 让选择器按另一个时区显示 | `timeZone` |
-| 换一种历法（农历、佛历） | `calendar` |
-
 ## 参见
 
 - [让用户选日期和时间](../guides/date-pickers.md)：选样式、只选时间、选时长、用代码改日期
 - [`UIControl`](ui-control.md)：`isEnabled`、全部控件事件
 - [`Intl.DateTimeFormat`](intl-date.md)：把选中的 `Date` 按地区写成文字
 - [`UIStackView`](ui-stack-view.md)：把选择器和别的控件排在一起
-- [实现原理](../internals/value-controls.md)：默认值和边界行为是怎么量的

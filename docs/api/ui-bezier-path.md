@@ -197,15 +197,6 @@ application.addEventListener('sceneconnect', (e) => {
 | `shapeLayer.path = path.CGPath` | `shapeLayer.path = path` |
 | `path.lineWidth = 3`，再 `[path stroke]` | `shapeLayer.lineWidth = 3`，线宽在图层上 |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 让路径自己把自己画出来。现在用 `CAShapeLayer` 画 | `-fill`、`-stroke`、`-addClip`，以及路径上的 `lineWidth`、`lineCapStyle`、`lineJoinStyle`、`miterLimit`、`flatness`。这些只能在自定义绘制（`drawRect:`）里用，原生里靠继承来做，而[原生类不能继承](native-classes.md) |
-| 读出路径里的每个点 | `CGPath` 的遍历 |
-| 从 `CGPath` 创建路径 | `bezierPathWithCGPath:` |
-| 读路径上的虚线设置。虚线设在 `CAShapeLayer` 上 | `getLineDash:count:phase:` |
-
 ## 参见
 
 - [画一条路径](../guides/drawing-paths.md)：矩形、圆弧、扇形、曲线、几个形状放一起、点击判断
@@ -213,4 +204,3 @@ application.addEventListener('sceneconnect', (e) => {
 - [动画](ca-animation.md)：让图层沿路径移动，或者让形状从一条路径变成另一条
 - [结构体](structs.md)：`CGPoint`、`CGRect`、`CGSize`、`CGAffineTransform`
 - [单位](units.md)
-- [实现原理：图层和路径](../internals/ca-layer.md)

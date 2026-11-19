@@ -55,12 +55,6 @@ picker.addEventListener('contactpropertyselect', (event) => {
 | --- | --- |
 | `property.contact`、`key`、`value`、`identifier`、`label` | 相同 |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 选中地址、生日这类字段时拿到值 | `value` 是 `CNPostalAddress`、`NSDateComponents`。未实现，`value` 是 `null`；`key` 仍然说明选的是哪种字段 |
-
 ## 参见
 
 - [`contactpropertyselect`](contacts/contactpropertyselect-event.md)：它从这里来

@@ -62,12 +62,6 @@ console.log(bytes.length, Array.from(bytes));
 
 和 Web 相同。浏览器里还有 `TextEncoderStream`，这里没有。
 
-## 还不能做的
-
-| 想做的事 | 对应的 Web 能力 | 状态 |
-| --- | --- | --- |
-| 边读数据流边编码 | `TextEncoderStream` | 未实现 |
-
 ## 参见
 
 - [`TextDecoder`](text-decoder.md)：把字节解码成字符串

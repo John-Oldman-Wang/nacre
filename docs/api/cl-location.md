@@ -94,16 +94,6 @@ manager.requestLocation().then((here) => {
 | `location.timestamp`（`NSDate`） | `location.timestamp`（`Date`） |
 | `location.sourceInformation.isSimulatedBySoftware` | `location.sourceInformation?.isSimulatedBySoftware` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 算两个位置之间的距离 | `distanceFromLocation:` |
-| 位置在建筑的第几层 | `CLLocation.floor` |
-| 自己造一个 `CLLocation` | `initWithLatitude:longitude:` 一组 |
-
-这几个成员在 `CLLocation` 上不存在：`'floor' in location` 和 `'distanceFromLocation' in location` 都是 `false`。
-
 ## 参见
 
 - [`CLLocationManager`](cl-location-manager.md)：位置从哪来

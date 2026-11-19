@@ -10,7 +10,7 @@ status: partial
 
 **通知**是系统替 App 展示给用户的一条消息：屏幕顶上滑下来的横幅、锁屏上的一行、**通知中心**（从屏幕顶部往下拉出来的列表）里的一项，可以带声音，可以改 App 图标右上角的数字（**角标**）。通知由系统展示，所以 App 没在运行时也能送达。
 
-由 App 自己交给系统的通知叫**本地通知**。由服务器经苹果的推送服务送到手机上的叫**远程推送**。这个包能发的只有本地通知；远程推送的通知到了、被点了，App 从同样的两个事件得知，但向苹果注册推送、拿到设备令牌还不能做，见[还不能做的](#还不能做的)。
+由 App 自己交给系统的通知叫**本地通知**。由服务器经苹果的推送服务送到手机上的叫**远程推送**。这个包发的是本地通知；远程推送的通知到了、被点了，App 也从同样的两个事件得知。
 
 它属于 `@nacrejs/user-notifications` 这个包。包里的其余类都是一条通知的组成部分：
 
@@ -266,23 +266,6 @@ application.addEventListener('sceneconnect', (e) => {
 | `userNotificationCenter:didReceiveNotificationResponse:withCompletionHandler:` | `notificationclick` 事件，`event.response` |
 | `error.code == UNErrorCodeNotificationsNotAllowed` | `error.name === 'NotAllowedError'` |
 
-## 还不能做的
-
-下面这些都没有。表里的方法，调用会抛「不是函数」的 `TypeError`；属性，读到的是 `undefined`；类，读它的名字会抛 `ReferenceError`。
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 让 App 能收到远程推送：向苹果注册、拿到设备令牌 | `registerForRemoteNotifications`、`application:didRegisterForRemoteNotificationsWithDeviceToken:`，以及推送的 entitlement |
-| 收到远程推送时在后台执行一段代码（静默推送） | `application:didReceiveRemoteNotification:fetchCompletionHandler:` |
-| 通知上的自定义按钮、在通知上直接回复 | `UNNotificationCategory`、`UNNotificationAction`、`UNTextInputNotificationAction`、`setNotificationCategories:`、内容的 `categoryIdentifier` |
-| 用户划掉通知时得到通知 | `UNNotificationCategoryOptionCustomDismissAction`（要先能登记分类） |
-| 到了某个地方时送达 | `UNLocationNotificationTrigger` |
-| 按通知的内容逐条决定前台显不显示 | 在 `willPresentNotification:` 里按通知决定。现在只有一个对所有通知生效的属性 |
-| 系统的通知设置里那个「在 App 里设置」按钮被点了 | `userNotificationCenter:openSettingsForNotification:` |
-| 通知送达之前改它的内容、自定义通知的界面 | 通知服务扩展、通知内容扩展 |
-
-内容、声音、触发器各自还不能做的，见各自的类页。
-
 ## 参见
 
 - [发本地通知](../guides/local-notifications.md)：申请授权、各种触发方式、处理点击、撤销、角标
@@ -290,4 +273,3 @@ application.addEventListener('sceneconnect', (e) => {
 - [`Application`](application.md)：`active` 事件，App 回到前台时重新读通知设置
 - [枚举](enums.md)：授权状态和选项为什么是字符串和字符串数组，写错了会怎样
 - [运行时怎么工作](how-it-works.md)：事件的回调为什么在下一轮执行
-- [实现原理：通知](../internals/user-notifications.md)

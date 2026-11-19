@@ -84,7 +84,7 @@ TypeError: Illegal constructor: UIFont is created by the runtime, not by new
 
 `fontWithName()` 没有回退列表：一次只能指定一个名字，取不到时换成什么由 App 的代码决定。要知道有哪些名字可以用，读 [`familyNames`](ui-font/familynames.md) 和 [`fontNamesForFamilyName()`](ui-font/fontnamesforfamilyname.md)。
 
-**随 App 打包的字体文件目前不能用。** 运行时没有注册字体文件的接口，命令行工具生成的工程里也没有声明字体文件的配置。能用的只有系统自带的字体。
+能用的字体都是系统自带的。
 
 ## 字重
 
@@ -284,23 +284,8 @@ application.addEventListener('sceneconnect', (e) => {
 | `font-weight: 100`–`900` | 九个字重名。每一级和 CSS 的数值是否一一对应没有核对过 |
 | `font-family: A, B, sans-serif` 回退列表 | 没有。`fontWithName()` 取不到时返回 `null` |
 | `px`、`em`、`rem` | 只有 pt |
-| `@font-face` 加载字体文件 | 不能用 |
 | `line-height` | 没有对应的可写属性。`lineHeight` 是只读的字体度量。富文本的段落样式能调行距，见 [`NSParagraphStyle`](ns-paragraph-style.md) |
 | Canvas 的 `measureText()` | 字体的高度信息读 `UIFont` 的度量属性，一段文字的宽高读标签的 `intrinsicContentSize` |
-
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 复制一个字体并改字号 | `fontWithSize:`。替代写法见指南[设置字体](../guides/fonts.md) |
-| 同时指定斜体和粗细，或使用小型大写字母等字体特性 | `UIFontDescriptor` |
-| 列出系统里有哪些字体 | `UIFont.familyNames`、`fontNamesForFamilyName:` |
-| 使用随 App 打包的字体文件 | `CTFontManagerRegisterFontsForURL`、Info.plist 的 `UIAppFonts` |
-| 让标签在用户改了文字大小后自动换字号 | `UILabel.adjustsFontForContentSizeCategory`。替代写法见指南[设置字体](../guides/fonts.md) |
-| 让自己指定的字体按文字大小设置缩放 | `UIFontMetrics` |
-| 用圆体、衬线体等系统字体的其他设计 | `UIFontDescriptor` 的 `fontDescriptorWithDesign:` |
-| 用数字指定字重 | `UIFontWeight` 的任意浮点值。只接受九个名字 |
-| 不经过视图，直接量一段纯文字的宽高 | `NSString` 的 `sizeWithAttributes:`。替代写法是读标签的 `intrinsicContentSize`、调用 `sizeThatFits()`，或用富文本的 `boundingRectWithSize()` |
 
 ## 参见
 
@@ -310,4 +295,3 @@ application.addEventListener('sceneconnect', (e) => {
 - [`application`](application.md)：`contentSizeCategory` 和 `contentsizecategorychange` 事件
 - [枚举](enums.md)：字符串取值的通用规则，写错时怎么报错
 - [单位](units.md)：pt 是什么
-- [实现原理：桥接](../internals/bridge.md)

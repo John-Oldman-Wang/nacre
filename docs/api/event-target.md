@@ -55,4 +55,3 @@ bus.dispatchEvent(new Event('login'));
 - [`Event`](event.md)：事件对象
 - [`Application`](application.md)：最常用的事件目标
 - [运行时怎么工作](how-it-works.md#事件)：原生事件什么时候派发
-- [实现原理：事件](../internals/events.md)

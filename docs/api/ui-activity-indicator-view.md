@@ -163,4 +163,3 @@ load();
 - [`UIStackView`](ui-stack-view.md)：把转圈和文字排成一行
 - [颜色](ui-color.md)
 - [单位](units.md)
-- [实现原理：转圈和进度条](../internals/indicators.md)

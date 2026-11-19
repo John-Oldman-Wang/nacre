@@ -115,15 +115,8 @@ console.log(Math.abs(t.a - Math.cos(Math.PI / 6)) < 0.0001);
 | `CGAffineTransformInvert(t)`（不可逆时返回 `t` 本身） | `t.invert()`（不可逆时返回 `null`） |
 | `CGAffineTransformIsIdentity(t)` | `t.isIdentity` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 三维变换（透视、绕 x 或 y 轴翻转） | `CATransform3D`、`CALayer.transform` |
-
 ## 参见
 
 - [结构体](structs.md)：所有结构体共同的规则
 - [`UIView.transform`](ui-view/transform.md)：变换对 `frame` 的影响
 - [单位](units.md)：pt、弧度和角度
-- [实现说明](../internals/structs.md)：变换为什么在 JS 里计算

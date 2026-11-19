@@ -53,13 +53,6 @@ main();
 - `parts` 的元素不能是 `Blob`，`new Blob([blob])` 抛 `TypeError`。
 - 没有 `slice()`、`stream()`、`bytes()`。没有 `File`。
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 用几个 `Blob` 拼成一个新的 `Blob` | 未实现 |
-| 取 `Blob` 的一段（`slice()`） | 未实现 |
-
 ## 参见
 
 - [`Response` 的 `blob()`](response/blob.md)：把下载的内容读成 `Blob`

@@ -47,4 +47,3 @@ console.log(i >= 0 && i < titles.length ? titles[i] : '没有选中');
 ## 参见
 
 - [`scopechange`](scopechange-event.md) 事件
-- [参数转换](../../internals/conversion.md)

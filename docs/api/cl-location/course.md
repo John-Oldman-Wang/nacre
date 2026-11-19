@@ -14,7 +14,7 @@ native: CLLocation.course
 - 只读。给它赋值抛 `TypeError`。
 - 正北是 0，顺时针增加，正东是 90，范围 0 到 359.9。
 - 系统量不出方向时是 `null`，设备没在移动时就是这样。这时 [`courseAccuracy`](courseaccuracy.md) 也是 `null`。
-- 它是移动的方向，不是设备朝向的方向。设备朝向哪（指南针）还不能做。
+- 它是移动的方向，不是设备朝向的方向。
 
 ## 示例
 

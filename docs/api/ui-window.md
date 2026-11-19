@@ -130,13 +130,6 @@ application.addEventListener('sceneconnect', (e) => {
 - `becomeKeyWindow` 和 `resignKeyWindow` 没有对应的方法。在 ObjC 里它们是系统通知窗口用的，不是让 App 调用的。要让窗口成为 key window 用 `makeKeyWindow()`，要得知变化用 `becomekey` / `resignkey` 事件。
 - 原生代码要用一个属性保存窗口，否则窗口会被释放。JS 里不需要，也不推荐。
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 列出一个场景里的所有窗口，或拿到场景当前的 key window | `UIWindowScene.windows`、`keyWindow` |
-| 继承 `UIWindow`，接管触摸事件的分发 | 子类化、`sendEvent:`。`sendEvent:` 不计划提供 |
-
 ## 参见
 
 - [建窗口和处理场景](../guides/scenes-and-windows.md)：第一个窗口、换根页面、隐藏窗口、叠加窗口、场景重建
@@ -144,6 +137,4 @@ application.addEventListener('sceneconnect', (e) => {
 - [`application`](application.md)：`sceneconnect` 事件在它上面派发
 - [`UIViewController`](ui-view-controller.md)：`rootViewController` 的类型
 - [`UIView`](ui-view.md)：窗口的父类，`isHidden` 等继承来的成员
-- [原生类](native-classes.md)：为什么不能继承，以及几种「没有原生对象」的报错
-- [实现原理：包装机制](../internals/wrapper.md)：窗口为什么不会被回收
-- [实现原理：事件](../internals/events.md)：事件为什么稍后派发
+- [原生类](native-classes.md)：不能继承，以及几种「没有原生对象」的报错

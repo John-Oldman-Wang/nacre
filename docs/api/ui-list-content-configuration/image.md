@@ -14,7 +14,6 @@ native: UIListContentConfiguration.image
 - 可读，可写。
 - 默认值是 `null`。
 - 写 `null` 清掉（实测）。
-- 图片的大小和颜色还不能改，见[还不能做的](../ui-list-content-configuration.md#还不能做的)。
 
 ### 写错时
 

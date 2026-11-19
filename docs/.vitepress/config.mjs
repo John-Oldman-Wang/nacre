@@ -70,7 +70,6 @@ const api = (text, file) => {
   const items = file ? members(file) : null;
   return items ? { text, link: `/api/${file}`, collapsed: true, items } : { text, link: `/api/${file}` };
 };
-const internals = (text, file) => ({ text, link: `/internals/${file}` });
 
 export default defineConfig({
   lang: 'zh-CN',
@@ -85,14 +84,13 @@ export default defineConfig({
   // 它们在 GitHub 上点得开，在站点上没有对应页面，构建时不当成死链。
   ignoreDeadLinks: [/\/packages\//],
 
-  // 工作记录，不发布
-  srcExclude: ['findings.md'],
+  // 站上只放 API 和指南。实现原理、项目说明、写法规范是我们自己的，留在仓库里
+  // 不发布；docs/README.md 是仓库里的文档目录，站点首页是 docs/index.md
+  srcExclude: ['README.md', 'findings.md', 'project.md', 'writing-guide.md', 'internals/**'],
 
   rewrites: {
-    'README.md': 'index.md',
     'guides/README.md': 'guides/index.md',
     'api/README.md': 'api/index.md',
-    'internals/README.md': 'internals/index.md',
   },
 
   markdown: {
@@ -108,8 +106,6 @@ export default defineConfig({
     nav: [
       { text: '指南', link: '/guides/', activeMatch: '^/guides/' },
       { text: 'API', link: '/api/', activeMatch: '^/api/' },
-      { text: '实现原理', link: '/internals/', activeMatch: '^/internals/' },
-      { text: '项目说明', link: '/project' },
     ],
 
     sidebar: {
@@ -502,98 +498,6 @@ export default defineConfig({
             api('CNContactFormatter', 'cn-contact-formatter'),
             api('ATTrackingManager', 'app-tracking-transparency'),
             api('ASIdentifierManager', 'as-identifier-manager'),
-          ],
-        },
-      ],
-      '/internals/': [
-        {
-          text: '运行时',
-          items: [
-            internals('总览', ''),
-            internals('运行时', 'runtime'),
-            internals('桥的通道', 'bridge'),
-            internals('参数转换', 'conversion'),
-            internals('包装机制', 'wrapper'),
-            internals('事件模型', 'events'),
-            internals('定时器', 'timers'),
-            internals('Intl', 'intl'),
-            internals('地区', 'locale'),
-            internals('Web 标准的五个全局', 'web-globals'),
-            internals('隐私清单', 'privacy-manifest'),
-            internals('验收怎么判通过', 'acceptance'),
-            internals('交付物、工程和类型检查', 'delivery'),
-            internals('还没做的设计和没解的问题', 'pending'),
-            internals('能力包', 'capabilities'),
-            internals('接入一组类', 'adding-classes'),
-            internals('bindgen', 'bindgen'),
-            internals('原生模块', 'native-modules'),
-          ],
-        },
-        {
-          text: '值的表示',
-          items: [
-            internals('结构体', 'structs'),
-            internals('枚举和位掩码', 'enums'),
-            internals('颜色', 'ui-color'),
-            internals('图片', 'ui-image'),
-            internals('动图', 'animated-image'),
-          ],
-        },
-        {
-          text: '界面',
-          items: [
-            internals('Auto Layout', 'auto-layout'),
-            internals('滚动', 'scrolling'),
-            internals('导航', 'navigation'),
-            internals('系统弹窗和分享面板', 'alerts'),
-            internals('外观特征', 'traits'),
-            internals('毛玻璃', 'effects'),
-            internals('输入框', 'text-input'),
-            internals('多行输入', 'text-view'),
-            internals('列表', 'collection-view'),
-            internals('富文本', 'attributed-string'),
-            internals('页面的出现和消失', 'appearance'),
-            internals('被链接打开', 'open-url'),
-            internals('图层', 'ca-layer'),
-            internals('动画', 'ca-animation'),
-            internals('数值控件', 'value-controls'),
-            internals('转圈和进度条', 'indicators'),
-            internals('工具条和搜索框', 'bars'),
-          ],
-        },
-        {
-          text: '网络和存储',
-          items: [
-            internals('网络', 'network'),
-            internals('WebView', 'web-view'),
-            internals('本地存储', 'storage'),
-            internals('文件读写', 'filesystem'),
-            internals('App 包', 'bundle'),
-            internals('Keychain', 'keychain'),
-          ],
-        },
-        {
-          text: '系统能力',
-          items: [
-            internals('设备、剪贴板、触感反馈', 'system'),
-            internals('跟踪授权和广告标识', 'app-tracking-transparency'),
-            internals('随机数', 'crypto'),
-            internals('面容 ID 认证', 'local-authentication'),
-            internals('拍照', 'camera'),
-            internals('相册', 'photos'),
-            internals('通讯录选择器', 'contacts'),
-            internals('定位', 'core-location'),
-            internals('通知', 'user-notifications'),
-          ],
-        },
-      ],
-      '/': [
-        {
-          text: '项目',
-          items: [
-            { text: '文档首页', link: '/' },
-            { text: '项目说明', link: '/project' },
-            { text: '文档写法', link: '/writing-guide' },
           ],
         },
       ],

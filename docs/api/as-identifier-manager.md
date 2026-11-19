@@ -54,12 +54,6 @@ console.log(id === ZERO ? '没有可用的广告标识' : id);
 | `[ASIdentifierManager sharedManager]` | `ASIdentifierManager.sharedManager()` |
 | `manager.advertisingIdentifier.UUIDString` | `manager.advertisingIdentifier` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 读「限制广告跟踪」开关 | `advertisingTrackingEnabled`，iOS 14 起废弃。不提供，用 [`ATTrackingManager.trackingAuthorizationStatus`](app-tracking-transparency/trackingauthorizationstatus.md) |
-
 ## 参见
 
 - [`ATTrackingManager`](app-tracking-transparency.md)：申请跟踪授权，授权之后广告标识才是真实的值

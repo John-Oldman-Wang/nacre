@@ -19,7 +19,7 @@ native: UIView.clearsContextBeforeDrawing
 - 可读，可写。
 - 默认值是 `true`（按 Apple 的文档，**未在模拟器验证**）。
 - 写入时按 `Boolean()` 转换：`1`、非空字符串、对象都是 `true`；`0`、`''`、`null`、`undefined`、`NaN` 都是 `false`。所以写 `'false'` 得到 `true`。
-- 读出来的类型、写回原值读到的不变，在验收用例里核对过。自己绘制视图内容（`drawRect:`）还不能做，所以这个属性目前没有可见的效果。
+- 读出来的类型、写回原值读到的不变，在验收用例里核对过。写它没有可见的效果。
 
 ## 示例
 

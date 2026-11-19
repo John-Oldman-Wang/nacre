@@ -60,14 +60,6 @@ function fill(cell) {
 | `content.text = @"x"` | `content.text = 'x'` |
 | `content.image = image` | `content.image = image` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 改文字的字体和颜色、图片的大小 | `textProperties`、`secondaryTextProperties`、`imageProperties`。可以在单元格的 `contentView` 里放自己的视图 |
-| 带样式的文字 | `attributedText`、`secondaryAttributedText` |
-| 改内边距和间距 | `directionalLayoutMargins`、`imageToTextPadding` |
-
 ## 参见
 
 - [`UICollectionViewListCell`](ui-collection-view-list-cell.md)

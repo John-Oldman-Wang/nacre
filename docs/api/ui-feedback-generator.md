@@ -99,14 +99,6 @@ application.addEventListener('sceneconnect', (e) => {
 | --- | --- |
 | `navigator.vibrate(200)`，指定震动的毫秒数 | 没有对应。只能从系统预设的几种震感里选 |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 指明震动发生在视图里的哪个位置 | `impactOccurredAtLocation:`、`selectionChangedAtLocation:` 等 |
-| 自己编排震动的时长、强度和节奏 | Core Haptics（`CHHapticEngine`） |
-| 知道用户有没有关掉触感反馈 | 无。系统不提供这个查询 |
-
 ## 参见
 
 - [让手机震一下](../guides/haptics.md)：按场合选类、复用生成器、减小延迟

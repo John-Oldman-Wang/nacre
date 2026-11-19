@@ -60,7 +60,7 @@ application.addEventListener('sceneconnect', () => {
 
 ## 对应的 iOS API
 
-ObjC 里没有这个属性。系统在通知到的那一刻调委托的 `userNotificationCenter:willPresentNotification:withCompletionHandler:` 来问，App 在里面调 `completionHandler(UNNotificationPresentationOptionBanner | UNNotificationPresentationOptionSound)`。JS 这边预先设 `center.foregroundPresentationOptions = ['banner', 'sound']`，系统来问时按它回答。原因见[实现原理](../../internals/user-notifications.md#前台显示是预先设的)。
+ObjC 里没有这个属性。系统在通知到的那一刻调委托的 `userNotificationCenter:willPresentNotification:withCompletionHandler:` 来问，App 在里面调 `completionHandler(UNNotificationPresentationOptionBanner | UNNotificationPresentationOptionSound)`。JS 这边预先设 `center.foregroundPresentationOptions = ['banner', 'sound']`，系统来问时按它回答。
 
 ## 参见
 

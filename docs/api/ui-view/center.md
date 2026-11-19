@@ -17,7 +17,7 @@ native: UIView.center
 - [`transform`](transform.md) 不改变 `center`。设了变换的视图要改位置，写 `center`。
 - 写入只在执行的那一刻生效。父视图的大小之后变了，视图不会自动重新居中；要一直保持居中，用约束对齐 [`centerXAnchor`](centerxanchor.md) 和 [`centerYAnchor`](centeryanchor.md)。
 - 写入时可以给 `CGPoint`，也可以给 `{ x, y }`。读出来的结构体字段只读，每次读得到一个新对象，见[结构体](../structs.md)。
-- 没有变化通知。视图的位置、大小、层级变化的通知还没有实现，见[还不能做的](../ui-view.md#还不能做的)。
+- 没有变化通知。
 
 ### 写错时
 

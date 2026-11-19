@@ -45,12 +45,6 @@ picker.addEventListener('contactselect', (event) => {
 | --- | --- |
 | `[CNContactFormatter stringFromContact:contact style:CNContactFormatterStyleFullName]` | `CNContactFormatter.stringFromContact(contact, { style: 'fullName' })` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 姓名的其他拼法：指定姓在前还是名在前、带格式的文字 | `CNContactFormatter` 的实例、`attributedStringFromContact:`。未实现 |
-
 ## 参见
 
 - [`CNContact`](cn-contact.md)：`givenName`、`familyName`

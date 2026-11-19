@@ -174,19 +174,6 @@ application.addEventListener('sceneconnect', (e) => {
 | `picker.delegate = self` 加上实现 `picker:didFinishPicking:` | `picker.addEventListener('pick', (e) => { e.results })` |
 | `[page presentViewController:picker animated:YES completion:nil]` | `page.presentViewController(picker, { animated: true })` |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 读相册里已有的照片、相簿 | `PHAsset`、`PHAssetCollection`、`PHImageManager`，以及 `PHAccessLevelReadWrite`。要完整的相册权限 |
-| 相册变了时得到通知 | `PHPhotoLibraryChangeObserver` |
-| 取出选中的视频 | `NSItemProvider` 的 `loadFileRepresentationForTypeIdentifier:completionHandler:` |
-| 取出实况照片里会动的那一段 | `PHLivePhoto`、`PHLivePhotoView` |
-| 知道选中的是相册里的哪一张、预先选中几张 | `PHPickerConfiguration` 的 `initWithPhotoLibrary:`、`preselectedAssetIdentifiers`，`PHPickerResult.assetIdentifier` |
-| 选图界面显示着的时候改它 | `PHPickerViewController` 的 `updatePickerUsingConfiguration:`、`deselectAssetsWithIdentifiers:`、`moveAssetWithIdentifier:afterAssetWithIdentifier:`、`scrollToInitialPosition`、`zoomIn`、`zoomOut` |
-
-配置、筛选条件、提供者、相册各自还不能做的，见各自的类页。
-
 ## 参见
 
 - [从相册选图、把图存进相册](../guides/pick-photos.md)：选图、取图、存图的完整做法
@@ -194,4 +181,3 @@ application.addEventListener('sceneconnect', (e) => {
 - [`UIImage`](ui-image.md)：取出来的图片的类型
 - [核心和能力包](capabilities.md)：哪些能力要单独装
 - [系统分享面板](ui-activity-view-controller.md)：让用户自己决定把图片存到哪
-- [实现原理：相册](../internals/photos.md)

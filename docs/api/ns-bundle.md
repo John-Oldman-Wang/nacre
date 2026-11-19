@@ -95,16 +95,6 @@ console.log(path === application.fileSystem.assets + '/web/data.json');
 | `NSLocalizedString(@"key", nil)` | `NSBundle.mainBundle.localizedStringForKey('key')` |
 | `[bundle URLForResource:@"data" withExtension:@"json"]` | `bundle.pathForResource('data', { ofType: 'json' })`，得到路径 |
 
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 以 URL 的形式拿资源 | `URLForResource:withExtension:` 一组。用 `pathForResource()` 拿路径 |
-| 加载包里的代码 | `load`、`principalClass`、`classNamed:`。iOS 上不能动态加载代码 |
-| 读程序文件、frameworks 和插件的路径 | `executablePath`、`privateFrameworksPath`、`builtInPlugInsPath` |
-| 列出所有加载了的包 | `allBundles`、`allFrameworks` |
-| 按需下载的资源 | `NSBundleResourceRequest` |
-
 ## 参见
 
 - [`application.fileSystem`](filesystem.md)：读写文件；`assets` 是项目 `assets/` 在包里的位置
