@@ -33,4 +33,4 @@ console.log(NSBundle.mainBundle.preferredLocalizations[0]);
 ## 参见
 
 - [`NSBundle`](../ns-bundle.md)
-- `NSLocale.preferredLanguages`：用户的偏好，不管 App 支持不支持
+- [`NSLocale.preferredLanguages`](../ns-locale/preferredlanguages.md)：用户的偏好，不管 App 支持不支持

@@ -109,5 +109,5 @@ console.log(path === application.fileSystem.assets + '/web/data.json');
 
 - [`application.fileSystem`](filesystem.md)：读写文件；`assets` 是项目 `assets/` 在包里的位置
 - [`application.info`](application/info.md)：App 的 Info.plist
-- `NSLocale`：用户的语言偏好和地区
+- [`NSLocale`](ns-locale.md)：用户的语言偏好和地区
 - [`UIFont.familyNames`](ui-font/familynames.md)：包里和系统里有哪些字体

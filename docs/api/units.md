@@ -167,13 +167,8 @@ setTimeout(() => {
 | `CGFloat`（点） | 数，单位 pt |
 | `NSTimeInterval`、`CFTimeInterval`（秒） | 数，单位秒 |
 | `traitCollection.displayScale` | `traitCollection.displayScale` |
+| `UIScreen.mainScreen.scale` | `scene.screen.scale`，见 [`UIScreen`](ui-screen.md) |
 | `M_PI` | `Math.PI` |
-
-## 还不能做的
-
-| 想做的事 | 对应的原生能力 |
-| --- | --- |
-| 读屏幕的像素尺寸和点尺寸 | `UIScreen` 的 `bounds`、`nativeBounds`。可以读窗口根视图的 `bounds` 得到窗口的点尺寸 |
 
 ## 参见
 

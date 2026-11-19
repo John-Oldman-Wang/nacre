@@ -233,6 +233,7 @@ API 分两类：
 | [`performance`](performance.md) | **`Performance`** 表示一个只用来量时间长短的时钟。 |
 | [`Intl.NumberFormat`](intl.md) | **`Intl.NumberFormat`** 表示一个按某个地区的习惯把数字写成文字的格式化对象，可以写普通的数、金额、百分比。 |
 | [`Intl.DateTimeFormat`](intl-date.md) | **`Intl.DateTimeFormat`** 表示一个按某个地区的习惯把时刻写成文字的格式化对象。 |
+| [`NSLocale`](ns-locale.md) | **`NSLocale`** 表示一个地区：一种语言，加上国家或地区，以及跟着它们走的格式。 |
 | [`crypto`](crypto.md) | **`Crypto`** 表示系统的随机数来源。 |
 | [`TextEncoder`](text-encoder.md) | **`TextEncoder`** 表示一个把字符串编码成 UTF-8 字节的编码器。 |
 | [`TextDecoder`](text-decoder.md) | **`TextDecoder`** 表示一个把 UTF-8 字节解码成字符串的解码器。 |
@@ -251,6 +252,8 @@ API 分两类：
 | 页面 | 说明 |
 | --- | --- |
 | [`UIDevice`](ui-device.md) | **`UIDevice`** 表示运行 App 的这台设备。 |
+| [`UIScreen`](ui-screen.md) | **`UIScreen`** 表示一块屏幕：它的大小、像素密度、亮度、刷新率，以及此刻有没有被录制。 |
+| [`UIScreenMode`](ui-screen-mode.md) | **`UIScreenMode`** 表示屏幕的一种显示模式：一种分辨率和像素形状。 |
 | [`UIPasteboard`](ui-pasteboard.md) | **`UIPasteboard`** 表示系统剪贴板。 |
 | [`UIFeedbackGenerator`](ui-feedback-generator.md) | **`UIFeedbackGenerator`** 表示一个触感反馈的生成器。 |
 | [`UIImpactFeedbackGenerator`](ui-impact-feedback-generator.md) | **`UIImpactFeedbackGenerator`** 表示撞击类的触感反馈生成器：两个东西碰到一起时的那一下震动，比如按钮按下、卡片落到位、拖动的东西碰到边界。 |

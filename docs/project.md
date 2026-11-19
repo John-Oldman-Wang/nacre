@@ -260,7 +260,7 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 | 运行时本身 | V8、事件循环、定时器和微任务、`console`、`performance`、全局错误出口、`EventTarget` / `Event`、`TextEncoder` / `TextDecoder`、`atob` / `btoa`、`structuredClone` |
 | 桥 | 包装和所有权、参数转换、结构体、枚举 |
 | App | `application`：状态、生命周期事件、场景、`openURL`（往外打开）、`openurl` 事件（被链接打开）、`nativeModules`（宿主和第三方的原生模块） |
-| 窗口和页面 | `UIWindowScene`、`UIWindow`、`UIViewController`、`UINavigationController`、`UITabBarController`、导航条上的东西 |
+| 窗口和页面 | `UIWindowScene`、`UIScreen`、`UIWindow`、`UIViewController`、`UINavigationController`、`UITabBarController`、导航条上的东西 |
 | 视图和布局 | `UIView`、Auto Layout、`UIStackView`、`UIScrollView`、外观特征 |
 | 文字、图片、颜色 | `UILabel`、`UIFont`、`UIImage` / `UIImageView`（含 GIF / APNG / WebP 动图）、颜色、富文本（`NSAttributedString` 一组） |
 | 图层和动画 | `CALayer` 一组、`UIBezierPath`、Core Animation、`CATransaction`、`CADisplayLink` |
@@ -268,7 +268,7 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 | 网络 | `fetch` / `Request` / `Response`（含流式读取 `response.body`）、`URL` / `URLSearchParams` / `Headers`、`Blob`、`AbortController`、`WebSocket` |
 | 数据 | 本地存储 `application.storage`、文件读写 `application.fileSystem`（含只读的 `assets`：项目的 `assets/` 在包里的位置）、`NSBundle` |
 | 网页 | `WebView`、`webContents`、`session` |
-| 按地区格式化 | `Intl.NumberFormat`、`Intl.DateTimeFormat`，以及数字和日期的 `toLocale*String`（排序还没做） |
+| 按地区格式化 | `Intl.NumberFormat`、`Intl.DateTimeFormat`，以及数字和日期的 `toLocale*String`（排序还没做）；`NSLocale`：用户的首选语言和地区 |
 | 小而无代价的 | `crypto`（随机数、UUID）、`UIDevice`、剪贴板、触感反馈 |
 
 **单独的包**（钥匙串是第一个，也是「能力包长什么样」的样板；后六个是 2026-11-16 并行做的）：

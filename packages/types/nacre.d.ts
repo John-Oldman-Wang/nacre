@@ -704,6 +704,8 @@ type ApplicationEventType =
   | 'screenshot'
   | 'significanttimechange'
   | 'contentsizecategorychange'
+  // 用户改了地区设置（货币、数字和日期的格式……），重新读 NSLocale.currentLocale
+  | 'localechange'
   | 'protecteddataavailable'
   | 'protecteddataunavailable'
   | 'backgroundrefreshstatuschange'

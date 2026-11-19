@@ -53,6 +53,7 @@
 | [图片](ui-image.md) | Asset Catalog 实测、解码线程 |
 | [动图](animated-image.md) | GIF / APNG / WebP：帧挂在哪、为什么用图层动画播、预算、实测 |
 | [`Intl`](intl.md) | 为什么结果和 Safari 逐条相同、为什么运行时里有了 Swift、哪些选项不支持 |
+| [地区](locale.md) | 为什么不做 `navigator`、地区变了的事件为什么挂在 `application` 上、没接的成员、实测 |
 | [定时器](timers.md) | 调度、时间预算、未处理拒绝的结算、`performance.now()` 的时钟 |
 | [系统能力](system.md) | `UIDevice` 为什么只做静态信息；剪贴板为什么是同步属性、一次写入为什么收到两次 `change`；触感反馈为什么不给 `new` |
 | [数值控件](value-controls.md) | 开关、滑块、步进器、分段、页码、日期：UIKit 对越界的值有三种反应、哪些先拦、日期怎么过桥 |
