@@ -13,6 +13,7 @@
     nativeCallAsync,
     nativeCallObject,
     nativeClassCall,
+    nativeClassCallValue,
     nativeGet,
     nativeGetObjectArray,
     nativeOnly,
@@ -49,6 +50,12 @@
       const o = options || {};
       return nativeClassCall('UIFont', 'monospacedDigitSystemFontOfSize:weight:',
                              [toNumber(size, 'size'), has(o, 'weight') ? o.weight : 'regular']);
+    }
+    // 能用的全部字体家族的名字，和一个家族里各个字体的名字（传给 fontWithName）。
+    // 原生在 NacreBundle.mm：包里登记了哪些字体，和读包里的东西是一件事
+    static get familyNames() { return nativeClassCallValue('UIFont', 'familyNames', []); }
+    static fontNamesForFamilyName(familyName) {
+      return nativeClassCallValue('UIFont', 'fontNamesForFamilyName:', [toText(familyName)]);
     }
     static fontWithName(name, options) {
       const o = options || {};

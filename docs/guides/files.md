@@ -72,6 +72,8 @@ iOS 给每个 App 一块独立的存储空间，里面有几个用途固定的�
 | [`caches`](../api/filesystem/caches.md) | 能重新得到的内容：下载的图片、接口返回的缓存 | 设备存储空间不足时会删 | 否 |
 | [`temporary`](../api/filesystem/temporary.md) | 用完就不要的临时文件 | 随时可能删 | 否 |
 
+项目里 `assets/` 目录的文件打包在 App 里，从第五个属性 [`assets`](../api/filesystem/assets.md) 读：项目里的 `assets/config/rates.json` 在 App 里是 `fs.assets + '/config/rates.json'`。它只能读。要改的话，先复制到 `applicationSupport` 再改。
+
 「系统会不会删」和「是否进入备份」两列来自 iOS 的定义，**未在模拟器验证**。
 
 `applicationSupport` 目录在 App 第一次运行时是否已经存在，**未在模拟器验证**。往里面写文件之前先调一次 `makeDirectory(fs.applicationSupport)`。

@@ -35,6 +35,8 @@
     get applicationSupport() { return nativeGet(this, 'applicationSupport'); }
     /** 系统随时删 */
     get temporary() { return nativeGet(this, 'temporary'); }
+    /** 项目的 assets/ 在 App 包里的位置。只读的目录：真机上往里写会被拒绝 */
+    get assets() { return nativeGet(this, 'assets'); }
 
     readText(path) {
       return nativeCallAsync(this, 'readText', [filePath(path, 'readText')]);

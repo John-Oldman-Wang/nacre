@@ -85,9 +85,16 @@ NSString* SearchPath(NSSearchPathDirectory directory) {
 
 }  // namespace
 
-// 四个目录常量。走同步的属性通道——它们是进程里定死的字符串，不碰磁盘
+// 项目的 assets/ 在 App 包里的位置：宿主给的脚本目录下面的 assets/。启动时记一次
+static NSString* gAssetsPath = @"";
+void NacreSetScriptsDirectory(NSURL* directory) {
+  gAssetsPath = [directory.path stringByAppendingPathComponent:@"assets"] ?: @"";
+}
+
+// 五个目录常量。走同步的属性通道——它们是进程里定死的字符串，不碰磁盘
 id ReadFileSystemProperty(id object, NSString* key) {
   if (![object isKindOfClass:NSFileManager.class]) return nil;
+  if ([key isEqualToString:@"assets"]) return gAssetsPath;
   if ([key isEqualToString:@"documents"]) return SearchPath(NSDocumentDirectory);
   if ([key isEqualToString:@"caches"]) return SearchPath(NSCachesDirectory);
   if ([key isEqualToString:@"applicationSupport"]) {
