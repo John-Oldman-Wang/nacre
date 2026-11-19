@@ -22,7 +22,7 @@ new WebView({ webPreferences })
 
 **`options.webPreferences`**
 
-对象，可以不传。下面两个成员都只能在这里指定，创建之后不能改。
+对象，可以不传。下面三个成员都只能在这里指定，创建之后不能改。
 
 **`options.webPreferences.partition`**
 
@@ -39,6 +39,15 @@ new WebView({ webPreferences })
 字符串，[预加载脚本](../web-view.md#预加载脚本)的路径。相对路径从 App 包的根开始，`/` 开头的是绝对路径。App 包是安装到设备上的那个目录，里面是 App 的程序和打包进去的资源文件。不写就没有预加载脚本，网页里没有消息通道。
 
 脚本在创建的这一刻就被读出来并检查语法，所以文件读不到、有语法错时，构造函数当场抛。
+
+**`options.webPreferences.javascript`**
+
+布尔值，网页自己的脚本跑不跑。默认 `true`。照布尔转换：`'false'` 是非空字符串，得到 `true`。
+
+- `true`：网页里的脚本照常执行。
+- `false`：网页里的 `<script>`（写在网页里的、引用的文件）、`javascript:` 地址都不执行。[预加载脚本](../web-view.md#预加载脚本)、App 调的 [`executeJavaScript()`](../web-contents/executejavascript.md) 不受影响，照样能用（`executeJavaScript` 实测；预加载脚本来自 Apple 的说明，**未在模拟器验证**）。
+
+显示不可信的 HTML（服务器下发的协议、帮助文章、用户发的内容）时设成 `false`，内容里即使混进了脚本也不会执行。
 
 ### 返回值
 

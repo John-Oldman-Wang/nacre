@@ -216,11 +216,12 @@ console.log(shop.webContents.session.isPersistent(), guest.webContents.session.i
 
 | Electron | 这里 | 差别 |
 | --- | --- | --- |
-| `new WebContentsView({ webPreferences })` | `new WebView({ webPreferences })` | 只支持 `partition` 和 `preload` |
+| `new WebContentsView({ webPreferences })` | `new WebView({ webPreferences })` | 只支持 `partition`、`preload` 和 `javascript` |
 | `view.setBounds({ x, y, width, height })` | `web.frame = new CGRect(x, y, width, height)` | 也可以用约束 |
 | `win.contentView.addChildView(view)` | `page.view.addSubview(web)` | |
 | `view.webContents` | `web.webContents` | 相同 |
 | `webPreferences.preload` | 相同 | 相对路径的起点是 App 包。不隔离，相当于 `contextIsolation: false` |
+| `webPreferences.javascript` | 相同 | 默认 `true` |
 
 `WebContents`、`ipcRenderer` 这些对象各自的对照在它们的页面上。
 

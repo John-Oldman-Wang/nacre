@@ -564,3 +564,42 @@ iOS 27.2 模拟器（iPhone Air）和 iOS 26.0 模拟器（iPhone 17）上各跑
 ## 链接 WebKit
 
 `project.yml` 的 `OTHER_LDFLAGS` 里加了 `-framework WebKit`。ObjC++ 文件里的 `#import` 不会自动链接框架（自动链接靠模块，而 `.mm` 不开模块）；UIKit 那些能链上是因为 Swift 的那几个文件引用了它们。
+
+## HTML 字符串、关掉 JS、console（2026-11-19）
+
+客户反馈要三样：加载 HTML 字符串、关掉网页的 JS、把网页的 console 和报错转给 App。都照 Electron。
+
+### HTML 字符串：本来就能，补的是 `baseURLForDataURL`
+
+`loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))` 一直能用（验收里大量这么写），这也是 Electron 的写法。客户绕道写缓存文件再 `loadFile`，缺的其实是「HTML 里的相对路径从哪找」。补的是 Electron 的 `loadURL(url, { baseURLForDataURL })`。
+
+实现：带了它、`url` 又是 `data:` 地址时，把 `data:` 地址解开（类型和编码自己取，内容交给 `NSData dataWithContentsOfURL:` 解，base64 和百分号编码它都认），交给 `loadData:MIMEType:characterEncodingName:baseURL:`。`loadHTMLString:baseURL:` 是它的特例。不是 `data:` 地址时这个选项不起作用，和 Electron 一样。给了但不是完整的地址就拒绝，这一条是我们加的：Electron 的文档没说。
+
+实测（iPhone Air 模拟器，iOS 27.2）：
+
+- `file://…/JS/assets/web/` 当 base，网页里 `<img src="sub/pic.png">` 加载出来了。`loadData` 加 `file:` 的 base 在真机上能不能读到文件**没验**：真机对本地文件的读取权限比模拟器严（见上面 `loadFile` 那几节）。
+- `document.baseURI` 是给的 base。
+- 带 base 加载完，`getURL()` 是 base，不再是 `data:` 地址。
+
+### 关掉 JS：只做创建时的
+
+原生是 `WKWebpagePreferences.allowsContentJavaScript`。它能设在两处：`configuration.defaultWebpagePreferences`（创建时，之后每次加载都按它）和导航委托的 `decidePolicyForNavigationAction:preferences:decisionHandler:`（每次加载单独决定）。只做了前一处，对应 Electron 的 `webPreferences.javascript`。后一处等有人要了再说。旧的 `WKPreferences.javaScriptEnabled` 在 iOS 14 废弃。
+
+新接口的文档只说网页自己的脚本不跑，没说注入的脚本；旧接口的文档说「不影响注入的脚本」。实测：关掉之后 `executeJavaScript()` 照样能用；console 的注入脚本照样在，App 执行的 `console.log` 照样派发 `console-message`。预加载脚本没单独验。
+
+### console：注入一段脚本
+
+WKWebView 没有把网页的控制台交给 App 的接口。做法是每张网页在文档一开始注入一段脚本（`WKUserScript`，所有框架，网页自己的世界），接管 `console.log` / `info` / `warn` / `error` / `debug`，监听 `error` 和 `unhandledrejection`，每一条通过单向的消息通道 `nacreConsole` 发给 App，再派发成 `console-message`。这段脚本写在 `14-web.js` 里，构造时交给原生，和预加载脚本一样。
+
+- `level` 照 Electron 的四个字符串：`log` 和 `info` 都是 `info`、`warn` 是 `warning`。
+- 文字的写法照浏览器控制台：参数用空格连，`%s %d %i %f %o %O %c %%` 替换。对象写成 JSON 是我们定的。
+- 没被捕获的异常和拒绝，文字照 Chromium 控制台：`Uncaught Error: boom`、`Uncaught (in promise) Error: nope`。Electron 的文档没说这两种会不会派发 `console-message`，这里会：客户要的「网页报错」就是这个。
+- 行号和文件从 `new Error().stack` 里取调用者那一帧（WebKit 的格式是 `函数@地址:行:列`）。data: 网页的文件是整个 `data:` 地址。
+- 每张网页都注入，不管有没有人听：网页每打一条日志都会过一次通道。按「能用就先用着」，没量开销。
+
+网页能把 `console` 的方法再换掉，也能直接往 `nacreConsole` 里塞东西。原生只收形状对的（`level` 是那四个之一、`message` 是字符串），内容不做别的检查。
+
+### 验收里读标题
+
+写用例时有三条用 `getTitle()` 判断脚本跑没跑，`loadURL` 兑现的那一刻读到的是空串。这是已经写进文档的行为（标题和「加载完」谁先到不固定），用例改成在网页里读 `document.title`。
+

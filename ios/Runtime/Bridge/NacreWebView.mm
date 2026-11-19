@@ -48,7 +48,7 @@ static NSArray<NSString*>* WebContentsEventNamesList(void) {
     names = @[
       @"will-navigate", @"did-start-loading", @"did-stop-loading", @"did-finish-load",
       @"did-fail-load", @"did-navigate", @"page-title-updated", @"ipc-message",
-      @"preload-error", @"render-process-gone", @"destroyed"
+      @"preload-error", @"console-message", @"render-process-gone", @"destroyed"
     ];
   });
   return names;
@@ -88,12 +88,20 @@ static void RejectLoadWithError(NacreAsyncDone done, NSError* error) {
 // 网页和 App 之间那条消息通道在网页里的名字：
 // window.webkit.messageHandlers.nacreIPC。只有配了预加载脚本才注册
 static NSString* const kNacreIPCName = @"nacreIPC";
+// 网页的 console 转给 App 的那条通道：window.webkit.messageHandlers.nacreConsole。
+// 每张网页都有，单向，不答复
+static NSString* const kNacreConsoleName = @"nacreConsole";
 
 // 系统的 userContentController **强持有**它的消息处理者，而它自己又被
 // WKWebView 的配置拿着。让 NacreWebContents 直接当处理者就成了环，所以隔
 // 一个只有弱引用的小对象
 @class NacreWebContents;
 @interface NacreWebMessageRelay : NSObject <WKScriptMessageHandlerWithReply>
+@property(nonatomic, weak) NacreWebContents* contents;
+@end
+
+// console 那条通道的处理者。和上面一样只弱引用网页，免得成环
+@interface NacreWebConsoleRelay : NSObject <WKScriptMessageHandler>
 @property(nonatomic, weak) NacreWebContents* contents;
 @end
 
@@ -121,6 +129,8 @@ static NSString* const kNacreIPCName = @"nacreIPC";
 - (instancetype)initWithWebView:(WKWebView*)webView;
 - (void)close;
 - (void)installPreloadScript:(NSString*)script;
+- (void)installConsoleScript:(NSString*)script;
+- (void)receiveConsole:(WKScriptMessage*)message;
 - (void)receiveMessage:(WKScriptMessage*)message reply:(void (^)(id, NSString*))reply;
 - (void)answerInvoke:(NSInteger)replyId ok:(BOOL)ok payload:(id)payload;
 @end
@@ -135,6 +145,13 @@ static NSString* const kNacreIPCName = @"nacreIPC";
     return;
   }
   [contents receiveMessage:message reply:replyHandler];
+}
+@end
+
+@implementation NacreWebConsoleRelay
+- (void)userContentController:(WKUserContentController*)controller
+      didReceiveScriptMessage:(WKScriptMessage*)message {
+  [self.contents receiveConsole:message];
 }
 @end
 
@@ -228,6 +245,49 @@ static NSString* const kNacreIPCName = @"nacreIPC";
   [controller addScriptMessageHandlerWithReply:relay
                                   contentWorld:WKContentWorld.pageWorld
                                           name:kNacreIPCName];
+}
+
+// script 是 JS 那边写好的一段：接管网页的 console 几个方法，监听没被捕获的
+// 异常和拒绝，每一条都发到 nacreConsole。文档一开始就注入，所有框架都注入
+// ——<iframe> 里打的日志也该看得到。它跑在网页自己的世界里，否则接管不了
+// 网页的 console
+- (void)installConsoleScript:(NSString*)script {
+  WKUserContentController* controller = self.webView.configuration.userContentController;
+  [controller addUserScript:[[WKUserScript alloc]
+                                  initWithSource:script
+                                   injectionTime:WKUserScriptInjectionTimeAtDocumentStart
+                                forMainFrameOnly:NO]];
+  NacreWebConsoleRelay* relay = [NacreWebConsoleRelay new];
+  relay.contents = self;
+  [controller addScriptMessageHandler:relay
+                         contentWorld:WKContentWorld.pageWorld
+                                 name:kNacreConsoleName];
+}
+
+// console 那头发来一条：{ level, message, lineNumber, sourceId } 的 JSON 文本。
+// 形状不对的丢掉——这条通道网页里谁都够得着
+- (void)receiveConsole:(WKScriptMessage*)message {
+  id body = message.body;
+  id decoded = [body isKindOfClass:NSString.class]
+                   ? nacre_bridge::DecodeJSON(((NSString*)body).UTF8String ?: "")
+                   : nil;
+  NSDictionary* entry = [decoded isKindOfClass:NSDictionary.class] ? decoded : nil;
+  id level = entry[@"level"];
+  id text = entry[@"message"];
+  id line = entry[@"lineNumber"];
+  id source = entry[@"sourceId"];
+  static NSSet<NSString*>* levels = [NSSet setWithArray:@[ @"info", @"warning", @"error", @"debug" ]];
+  if (![level isKindOfClass:NSString.class] || ![levels containsObject:level] ||
+      ![text isKindOfClass:NSString.class]) {
+    return;
+  }
+  [self emit:@"console-message"
+      payload:@{
+        @"level" : level,
+        @"message" : text,
+        @"lineNumber" : [line isKindOfClass:NSNumber.class] ? line : @0,
+        @"sourceId" : [source isKindOfClass:NSString.class] ? source : @"",
+      }];
 }
 
 // 网页那头发来一条。内容是一段 JSON 文本：{ kind, channel, args }
@@ -540,9 +600,17 @@ nacre::NativeObjectRef WebViewConstruct(id options) {
   if (partitionValue != nil && ![partitionValue isKindOfClass:NSString.class]) return {};
   NSString* partition = partitionValue ?: @"";
 
+  // 网页自己的脚本跑不跑。不带就是跑。只管网页的脚本：我们注入的（预加载、
+  // console）和 executeJavaScript 不受它管
+  id javascript = prefs[@"javascript"];
+  if (javascript != nil && ![javascript isKindOfClass:NSNumber.class]) return {};
+
   WKWebViewConfiguration* config = [WKWebViewConfiguration new];
   // 分区名 → 数据存储的换算在 NacreWebSession.mm，Session 用的是同一个
   config.websiteDataStore = WebStoreForPartition(partition);
+  if (javascript != nil) {
+    config.defaultWebpagePreferences.allowsContentJavaScript = [javascript boolValue];
+  }
   WKWebView* webView = [[WKWebView alloc] initWithFrame:CGRectZero configuration:config];
   NacreWebContents* contents = [[NacreWebContents alloc] initWithWebView:webView];
   contents.partition = partition;
@@ -550,6 +618,9 @@ nacre::NativeObjectRef WebViewConstruct(id options) {
   id preloadScript = prefs[@"preloadScript"];
   if (preloadScript != nil && ![preloadScript isKindOfClass:NSString.class]) return {};
   if ([preloadScript length] > 0) [contents installPreloadScript:preloadScript];
+  id consoleScript = prefs[@"consoleScript"];
+  if (consoleScript != nil && ![consoleScript isKindOfClass:NSString.class]) return {};
+  if ([consoleScript length] > 0) [contents installConsoleScript:consoleScript];
   NacreWebView* view = [[NacreWebView alloc] initWithContents:contents];
   return {(void*)CFAutorelease(CFBridgingRetain(view)), "WebView"};
 }
@@ -681,6 +752,22 @@ static NSURL* ReadAccessRootFor(NSURL* fileURL) {
   return fileURL.URLByDeletingLastPathComponent;
 }
 
+// data: 地址逗号前面那一段：data:[<类型>][;charset=<编码>][;base64],<内容>。
+// 只取类型和编码，内容交给系统解（base64 和百分号编码都是它解）
+static bool DataURLHeader(NSURL* url, NSString** mime, NSString** charset) {
+  NSString* text = url.absoluteString;
+  NSRange comma = [text rangeOfString:@","];
+  if (![text.lowercaseString hasPrefix:@"data:"] || comma.location == NSNotFound) return false;
+  NSString* header = [text substringWithRange:NSMakeRange(5, comma.location - 5)];
+  NSArray<NSString*>* parts = [header componentsSeparatedByString:@";"];
+  NSString* type = [parts.firstObject stringByRemovingPercentEncoding] ?: @"";
+  if (type.length > 0) *mime = type;
+  for (NSString* part in parts) {
+    if ([part.lowercaseString hasPrefix:@"charset="]) *charset = [part substringFromIndex:8];
+  }
+  return true;
+}
+
 // loadURL / loadFile：一次性的请求-响应，所以是 Promise（原则 5）。加载完
 // 兑现，失败、被停掉、被别的导航顶掉都拒绝
 bool WebViewCallAsync(id object, const std::string& name, const std::string& argsJSON,
@@ -743,12 +830,41 @@ bool WebViewCallAsync(id object, const std::string& name, const std::string& arg
     }
   }
 
-  // file: 的地址不管从哪个入口来，都走专门加载本地文件的那个接口——
-  // 它带着「能读哪个目录」。用普通的 loadRequest: 加载本地文件，真机上
-  // 读不到页面引用的别的文件
-  WKNavigation* navigation =
-      url.isFileURL ? [webView loadFileURL:url allowingReadAccessToURL:ReadAccessRootFor(url)]
-                    : [webView loadRequest:[NSURLRequest requestWithURL:url]];
+  // loadURL(url, { baseURLForDataURL })：照 Electron，只对 data: 地址起作用。
+  // 把 data: 地址解开，交给带 baseURL 的 loadData:——网页里的相对路径按它找
+  NSURL* baseURL = nil;
+  id baseValue = (name == "loadURL" && values.count > 1) ? values[1] : nil;
+  if ([baseValue isKindOfClass:NSString.class]) {
+    baseURL = [NSURL URLWithString:baseValue];
+    if (baseURL == nil || baseURL.scheme.length == 0) {
+      RejectLoad(done, @"TypeError",
+                 @"loadURL: baseURLForDataURL must be an absolute URL, like https://example.com/", 0,
+                 @"");
+      return true;
+    }
+  }
+  WKNavigation* navigation = nil;
+  if (baseURL != nil && [url.scheme caseInsensitiveCompare:@"data"] == NSOrderedSame) {
+    NSString* mime = @"text/plain";
+    NSString* charset = @"utf-8";
+    if (!DataURLHeader(url, &mime, &charset)) {
+      RejectLoad(done, @"TypeError", @"loadURL: invalid data: URL", 0, @"");
+      return true;
+    }
+    NSData* body = [NSData dataWithContentsOfURL:url];
+    if (body == nil) {
+      RejectLoad(done, @"TypeError", @"loadURL: invalid data: URL", 0, @"");
+      return true;
+    }
+    navigation = [webView loadData:body MIMEType:mime characterEncodingName:charset baseURL:baseURL];
+  } else {
+    // file: 的地址不管从哪个入口来，都走专门加载本地文件的那个接口——
+    // 它带着「能读哪个目录」。用普通的 loadRequest: 加载本地文件，真机上
+    // 读不到页面引用的别的文件
+    navigation =
+        url.isFileURL ? [webView loadFileURL:url allowingReadAccessToURL:ReadAccessRootFor(url)]
+                      : [webView loadRequest:[NSURLRequest requestWithURL:url]];
+  }
   if (navigation == nil) {
     RejectLoad(done, @"Error", @"the page refused to start loading", 0, @"");
     return true;

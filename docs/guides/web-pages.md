@@ -255,6 +255,25 @@ await contents.loadFile('JS/web/help.html', { query: { topic: 'fees' }, hash: 'r
 
 > **注意**：本地网页里 `<script type="module">` 不执行，`fetch` 也读不了本地文件。用到这两样的网页（比如 Vite 默认的打包结果）不能这样加载，见[本地网页的限制](../api/web-contents.md#本地网页的限制)。
 
+## 显示一段 HTML
+
+服务器下发的协议、帮助文章是一段 HTML 字符串时，把它写成 `data:` 地址，用 [`loadURL()`](../api/web-contents/loadurl.md) 加载。不用先写进文件。
+
+```js
+const article = new WebView({ webPreferences: { javascript: false } });
+const html = '<!doctype html><meta name="viewport" content="width=device-width">' +
+  '<h1>用户协议</h1><p>……</p><img src="logo.png">';
+await article.webContents.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html), {
+  baseURLForDataURL: 'https://example.com/legal/',
+});
+```
+
+**效果**
+
+- 显示这段 HTML。图片按 `baseURLForDataURL` 找：`https://example.com/legal/logo.png`。**这张远程图片未在模拟器验证**；按相对路径找 App 包里的图片验过，见 [`loadURL()`](../api/web-contents/loadurl.md#显示一段-html引用-app-包里的图片)。
+- `javascript: false`：内容里混进了 `<script>` 也不会执行。内容是自己写的、需要脚本时，去掉这一项。
+- 不带 `baseURLForDataURL` 时，HTML 里的相对路径找不到东西；绝对地址照常加载。**未在模拟器验证。**
+
 ## 加载 App 下载下来的网页
 
 `loadFile` 也接受绝对路径。App 把网页下载或写到自己的目录里之后，可以直接加载。

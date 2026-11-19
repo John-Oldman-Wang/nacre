@@ -14,6 +14,7 @@ type WebContentsEventType =
   | 'page-title-updated'
   | 'ipc-message'
   | 'preload-error'
+  | 'console-message'
   | 'render-process-gone'
   | 'destroyed';
 
@@ -37,6 +38,11 @@ interface WebPreferences {
    * 文件读不到、有语法错时，`new WebView` 当场抛。
    */
   preload?: string;
+  /**
+   * 网页自己的脚本跑不跑。默认 `true`。`false` 时 `<script>`、`javascript:` 地址都不执行；
+   * 预加载脚本和 `executeJavaScript()` 照样能用。
+   */
+  javascript?: boolean;
 }
 
 /**
@@ -158,6 +164,18 @@ interface WebContentsPageTitleUpdatedEvent extends Event {
   readonly title: string;
 }
 
+/** `console-message` 事件：网页调了 `console` 的方法，或者有异常没被捕获。 */
+interface WebContentsConsoleMessageEvent extends Event {
+  /** `'info'`（`log`、`info`）、`'warning'`、`'error'`（含没被捕获的异常）、`'debug'`。 */
+  readonly level: 'info' | 'warning' | 'error' | 'debug';
+  /** 参数用空格连起来的文字。 */
+  readonly message: string;
+  /** 在第几行调的。拿不到时是 0。 */
+  readonly lineNumber: number;
+  /** 在哪个文件调的：脚本文件或者网页的地址。拿不到时是空串。 */
+  readonly sourceId: string;
+}
+
 /** 每个事件名对应的事件对象。`addEventListener` 按它给回调的参数定类型。 */
 interface WebContentsEventMap {
   'will-navigate': WebContentsWillNavigateEvent;
@@ -169,6 +187,7 @@ interface WebContentsEventMap {
   'page-title-updated': WebContentsPageTitleUpdatedEvent;
   'ipc-message': WebContentsIpcMessageEvent;
   'preload-error': WebContentsPreloadErrorEvent;
+  'console-message': WebContentsConsoleMessageEvent;
   'render-process-gone': Event;
   'destroyed': Event;
 }
@@ -219,7 +238,7 @@ declare class WebContents extends NSObject {
    *
    * 不等这个 Promise、只听事件也可以：失败时不会多报一条未处理的拒绝。
    */
-  loadURL(url: string): Promise<void>;
+  loadURL(url: string, options?: { baseURLForDataURL?: string }): Promise<void>;
   /**
    * 加载一个本地的网页文件。
    *
