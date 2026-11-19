@@ -45,7 +45,10 @@ echo "校验 SHA256"
     "$SHA_DEVICE" "$DEVICE" "$SHA_SIM" "$SIM" | shasum -a 256 -c - )
 
 STAGE="$(mktemp -d)"
-trap 'rm -rf "$STAGE"' EXIT
+# 没走到最后的都算失败：bash 3.2 中途因错误退出时 EXIT trap 里的 $? 是 0，
+# 见 build-xcframework.sh 里同样的注释
+FINISHED=0
+trap 'rm -rf "$STAGE"; [ "$FINISHED" = 1 ] || exit 1' EXIT
 tar -xzf "$CACHE/$DEVICE" -C "$STAGE"
 tar -xzf "$CACHE/$SIM" -C "$STAGE"
 
@@ -57,3 +60,4 @@ cp "$STAGE/ios-arm64-simulator/lib/"*.a "$DEST/lib/iphonesimulator/"
 echo "$RELEASE" > "$STAMP"
 
 echo "V8 $VERSION 已安装到 Vendor/v8"
+FINISHED=1

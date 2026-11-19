@@ -93,7 +93,7 @@ line.backgroundColor = 'separator';
 
 ## 角度：弧度
 
-角度的单位都是**弧度**。包括 [`CGAffineTransform.rotation()`](structs.md#cgaffinetransform) 的参数、[`UIBezierPath`](ui-bezier-path.md) 画圆弧的起止角。
+角度的单位都是**弧度**。包括 [`CGAffineTransform.rotation()`](cg-affine-transform.md) 的参数、[`UIBezierPath`](ui-bezier-path.md) 画圆弧的起止角。
 
 从角度换算成弧度：
 
