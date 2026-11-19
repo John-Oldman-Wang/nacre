@@ -245,6 +245,7 @@ API 分两类：
 | --- | --- |
 | [`application.storage`](storage.md) | **`application.storage`** 表示 App 的键值存储。 |
 | [`application.fileSystem`](filesystem.md) | **`application.fileSystem`** 表示 App 自己的文件存储。 |
+| [`NSBundle`](ns-bundle.md) | **`NSBundle`** 表示一个包：磁盘上一个装着程序和资源的目录。 |
 
 ### 系统能力
 

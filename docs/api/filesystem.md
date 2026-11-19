@@ -5,7 +5,7 @@ status: partial
 
 # `application.fileSystem`
 
-**`application.fileSystem`** 表示 App 自己的文件存储。它给出四个目录的路径，并提供读文件、写文件、建目录、列目录、删除、移动、复制、查询文件信息的函数。
+**`application.fileSystem`** 表示 App 自己的文件存储。它给出五个目录的路径（四个读写的，一个是项目的 `assets/` 在 App 包里的位置，只读），并提供读文件、写文件、建目录、列目录、删除、移动、复制、查询文件信息的函数。
 
 `application.fileSystem` 在整个 App 里只有一个，任何时候都能用，包括脚本顶层。它的类是 `FileSystem`。
 
@@ -21,7 +21,7 @@ status: partial
 
 ## 属性
 
-四个目录的绝对路径。四个值在 App 运行期间不变。
+五个目录的绝对路径。五个值在 App 运行期间不变。
 
 | 属性 | 说明 |
 | --- | --- |
@@ -29,6 +29,7 @@ status: partial
 | [`applicationSupport`](filesystem/applicationsupport.md) <small>只读</small> | App 自己的数据。系统不会删，进入备份 |
 | [`caches`](filesystem/caches.md) <small>只读</small> | 能重新得到的内容。存储空间不足时系统会删 |
 | [`temporary`](filesystem/temporary.md) <small>只读</small> | 用完就不要的临时文件。系统随时可能删 |
+| [`assets`](filesystem/assets.md) <small>只读</small> | 项目的 `assets/` 在 App 包里的位置。只能读，不能写 |
 
 ## 函数
 
@@ -76,10 +77,10 @@ console.log(path.startsWith('/'));
 以下情况**未在模拟器验证**：
 
 - 传相对路径（不以 `/` 开头）时读写的是哪里。
-- 读写四个目录之外的路径会怎样。
-- 四个目录的绝对路径在 App 更新或重装之后是否变化。保存文件位置时，只保存目录属性后面的那一段（如 `'/notes/今天.txt'`），每次使用时再和目录属性拼起来，这样路径变化也不受影响。
+- 读写这几个目录之外的路径会怎样。
+- 这几个目录的绝对路径在 App 更新或重装之后是否变化。保存文件位置时，只保存目录属性后面的那一段（如 `'/notes/今天.txt'`），每次使用时再和目录属性拼起来，这样路径变化也不受影响。
 
-用户卸载 App 时，四个目录里的文件全部随 App 删除（来自 iOS 的定义，**未在模拟器验证**）。App 进程结束后重新启动，`documents` 里的文件还在：验收里第一次运行写一个文件，第二次启动读到了它。
+用户卸载 App 时，前四个目录里的文件全部随 App 删除（来自 iOS 的定义，**未在模拟器验证**）。App 进程结束后重新启动，`documents` 里的文件还在：验收里第一次运行写一个文件，第二次启动读到了它。
 
 ## 出错时得到什么
 

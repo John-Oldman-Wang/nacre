@@ -40,6 +40,8 @@ declare class FileSystem extends NSObject {
   readonly applicationSupport: string;
   /** 系统随时删。 */
   readonly temporary: string;
+  /** 项目的 `assets/` 目录在 App 包里的位置。只读：真机上往里写会被拒绝。 */
+  readonly assets: string;
 
   readText(path: string): Promise<string>;
   readBytes(path: string): Promise<ArrayBuffer>;

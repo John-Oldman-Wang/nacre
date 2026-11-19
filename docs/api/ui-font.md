@@ -43,6 +43,13 @@ TypeError: Illegal constructor: UIFont is created by the runtime, not by new
 | [`UIFont.preferredFontForTextStyle()`](ui-font/preferredfontfortextstyle.md) | 按用途取系统字体，字号取决于用户的文字大小设置 |
 | [`UIFont.fontWithName()`](ui-font/fontwithname.md) | 按名字取系统里装着的其他字体。取不到时返回 `null` |
 
+有哪些字体：
+
+| 成员 | 说明 |
+| --- | --- |
+| [`UIFont.familyNames`](ui-font/familynames.md) <small>只读</small> | 能用的全部字体家族的名字 |
+| [`UIFont.fontNamesForFamilyName()`](ui-font/fontnamesforfamilyname.md) | 一个家族里各个字体的名字，可以传给 `fontWithName()` |
+
 ## 实例属性
 
 还继承 `NSObject` 的属性。全部只读，给它们赋值抛 `TypeError`。
@@ -75,7 +82,7 @@ TypeError: Illegal constructor: UIFont is created by the runtime, not by new
 
 「系统字体」是 iOS 界面默认使用的字体。它一定存在，取字体的方法不会返回 `null`，并且有九种粗细可选。
 
-`fontWithName()` 没有回退列表：一次只能指定一个名字，取不到时换成什么由 App 的代码决定。
+`fontWithName()` 没有回退列表：一次只能指定一个名字，取不到时换成什么由 App 的代码决定。要知道有哪些名字可以用，读 [`familyNames`](ui-font/familynames.md) 和 [`fontNamesForFamilyName()`](ui-font/fontnamesforfamilyname.md)。
 
 **随 App 打包的字体文件目前不能用。** 运行时没有注册字体文件的接口，命令行工具生成的工程里也没有声明字体文件的配置。能用的只有系统自带的字体。
 

@@ -100,6 +100,10 @@ declare class UIFont extends NSObject {
   ): UIFont;
   /** 系统里没有这个字体名时返回 null——这是合法答案，不是错误。 */
   static fontWithName(name: string, options: { size: number }): UIFont | null;
+  /** 能用的全部字体家族的名字：系统的，加上 App 包里登记了的。每次读给一个新数组。 */
+  static readonly familyNames: readonly string[];
+  /** 一个字体家族里各个字体的名字，可以传给 `fontWithName`。不认识的家族给空数组。 */
+  static fontNamesForFamilyName(familyName: string): string[];
   /** 动态字体：跟随系统的「文字大小」设置。 */
   static preferredFontForTextStyle(style: UIFontTextStyle): UIFont;
 
