@@ -491,6 +491,6 @@ set origin(value) { requireNative(this, 'origin'); nativeSet(this, 'origin', str
 - **事件、委托、要 JS 当场回答的回调**它写不出，始终是手写。
 - **有一种位掩码会写错**：里面混着占几位的字段的（`UIViewAnimationOptions` 里的动画曲线）。没有去认。
 - **撞名检查**：名字要和 ECMAScript 内置比对，冲突时报错，见[运行时](runtime.md#原生-api-为什么裸暴露在全局)。没做。
-- **两页清单还不是正经的文档**：[补上的成员](../api/view-additions.md)和[取色控件](../api/system-controls.md)只有名字和类型，没有例子和效果。
+- ~~**两页清单还不是正经的文档**~~：已改。`UIColorWell` 有了正式的类页（[`system-controls.md`](../api/system-controls.md)）；补上的成员写成了各自那个类的成员页，[`view-additions.md`](../api/view-additions.md) 只剩一句指向它们。
 - **手写的几处不一致**，对照时看出来的，要不要改齐没定：`thumbImageForState` 这类取值方法收单个状态名，而它配对的 `setThumbImage` 收数组；`popViewController` 把 `Animated` 切掉了，`animationWithKeyPath` 又是整段留着的；`CAAnimation.removedOnCompletion` 没有用 `is` 开头的名字。
 - **C 函数**：CoreGraphics 全是 C 函数（564 个）。已定的判据是只做值类型算术的在 JS 里实现，要碰系统状态的才过桥，见[结构体](structs.md)。

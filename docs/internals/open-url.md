@@ -1,6 +1,6 @@
 # 被链接打开：`openurl` 是怎么接的
 
-别的 App 或者一条链接打开这个 App 时，`application` 派发 `openurl`。用法见 [API 文档](../api/application.md#被别的-app-或一条链接打开时)，协议和域名怎么声明见[配置 App](../guides/project-config.md#声明自定义协议)。
+别的 App 或者一条链接打开这个 App 时，`application` 派发 `openurl`。用法见 [API 文档](../guides/open-links.md)，协议和域名怎么声明见[配置 App](../guides/project-config.md#声明自定义协议)。
 
 文件：`ios/Runtime/Bridge/NacreOpenURL.mm`（原生那一半）、`ios/Runtime/Builtin/parts/21-application.js`（`OpenURLEvent` 和事件的落点）、`packages/ios/bin/nacre-ios.js`（`ios.urlSchemes`）、`packages/types/nacre.d.ts`、`acceptance/src/steps/openurl.js`。
 

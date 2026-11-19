@@ -380,13 +380,13 @@ nacre/
 API 文档的写法有单独的规范：[文档写法](writing-guide.md)（2026-11-11 定）。要点：
 
 - **读者**是做过前端或图形开发、但没碰过 iOS 的人。iOS 特有的词都要解释
-- **顺序按「怎么用、什么效果」排**：完整例子 → 常见用法 → 概念 → 成员说明 → 对照表 → 还不能做的
+- **结构照 MDN**：类页只列成员和例子，一个属性、方法或事件一页，教步骤的内容写成指南
 - **每段代码后面都有「效果」**；每个数值写单位；可读和可写分开写
 - 没在模拟器验证过的效果标「未验证」
 
 对照表是**承诺的一部分**：底层说「和 Apple 文档一一对上」，那就要让人能照着 Apple 文档查到 JS 怎么写。
 
-API 文档的样板是 [`api/ui-button.md`](api/ui-button.md)，实现原理的样板是 [`internals/ca-layer.md`](internals/ca-layer.md)。API 文档已经全部按这份规范改过。
+API 文档的样板是类页 [`api/ui-button.md`](api/ui-button.md)、它的成员页 `api/ui-button/` 和指南 [`guides/buttons.md`](guides/buttons.md)；实现原理的样板是 [`internals/ca-layer.md`](internals/ca-layer.md)。
 
 ### 文件拆分规则
 
@@ -569,7 +569,6 @@ Commit message 格式：
 | 网络和数据 | `Blob.slice`；`crypto.subtle`；剪贴板的图片、网址、多条内容；`rejectionhandled` 事件；网络状态；后台任务 |
 | 网页 | 让本地网页用上模块脚本和 `fetch` 的自定义协议 |
 | 系统能力（做成包） | 推送的注册（`@nacrejs/push`，要推送的签名，现在验不了）；通用链接、Apple 登录（能写，验不了：要显式包名的描述文件和真实域名）；扫码（相机的实时取景）；应用内购买（先不做）；无障碍 |
-| 文档 | 两页还只是清单：[补上的成员](api/view-additions.md)和[取色控件](api/system-controls.md)。要按文档写法写（例子、效果、默认值），补上的成员最后该并进各自那个类的页面 |
 | 机制 | bindgen 还写不出的：数组、日期、类方法、带参数的构造、带完成回调的方法；已接的类上带对象的方法；能力包里的类。事件和委托它始终写不出。[现在的做法和还没做的](internals/bindgen.md) |
 
 ### 发布之后接着做的
