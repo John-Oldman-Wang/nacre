@@ -125,8 +125,9 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 | 原生类 | 一律 final，不做继承。`class X extends UIView {}` 在 `new X()` 时抛 | [包装](internals/wrapper.md) |
 | 属性名拼错 | 运行时不报错，不禁止往包装上挂自己的数据；拼错由类型检查挡 | [原生类](api/native-classes.md) |
 | 事件名 | 按用户做了什么来命名，全小写；Web 上有含义相同的事件就用它的名字，含义不同的不借；改名不留旧名。网页那一组照 Electron。不认识的事件名不拒绝，当自定义事件 | [事件](internals/events.md#事件名按用户做了什么来命名) |
-| 事件能不能取消 | 原生的通知延后一轮派发，不可取消；系统当场来问、要立刻给答案的，当场派发，可取消；系统这一刻正在做一件 JS 要跟着做的事（键盘的动画），当场派发，不可取消 | [事件](internals/events.md) |
+| 事件能不能取消 | 原生的通知延后一轮派发，不可取消；系统当场来问、要立刻给答案的，当场派发，可取消；系统这一刻正在做一件 JS 要跟着做的事（键盘、转屏的动画），当场派发，不可取消 | [事件](internals/events.md) |
 | 所有权 | 收对象参数并持有它的成员，JS 一侧要记所有权边，`check-api.sh` 核对 | [包装](internals/wrapper.md) |
+| 覆写点 | UIKit 只能靠子类覆写拿到的能力，先看 UIKit 怎么用它：系统每次都来调的通知类（出现、消失），替换基类方法、转成事件；要「真的覆写」才生效的 getter（方向、状态栏），给 JS 能 `new` 的页面预置原生子类，JS 里是可写属性，系统的页面上写了抛 | [页面的覆写点](internals/page-overrides.md) |
 | 接类的初稿 | 先用 `bindgen` 的 `scaffold` 照头文件写出一个域的初稿，写完就是普通的手写文件，直接改。不设「生成的、不许手改」的文件 | [bindgen](internals/bindgen.md) |
 
 ### 性能：能用就先用着
@@ -549,18 +550,12 @@ Commit message 格式：
 
 做完一条删一条，不留记录。带「分析」链接的条目，分析在[还没做的设计和没解的问题](internals/pending.md)；这里每条只写一行。
 
-### 已经定了，还没做
-
-| | 定的是什么 |
-| --- | --- |
-| 屏幕方向 | 读 `scene.effectiveGeometry.interfaceOrientation`、写 `scene.supportedOrientations`、变化通知 `geometrychange`。[分析](internals/pending.md#屏幕方向方案已定未实现) |
-
 ### 要建设的能力
 
 | 域 | 还缺什么 |
 | --- | --- |
 | 列表 | 网格和自定义布局、分区的头尾、左滑操作、行右侧的附件 |
-| 页面 | 半屏卡片（`UISheetPresentationController` 的 detents）；iOS 18 的 `UITab` 和标签栏的外观定制；状态栏；页面的 `toolbarItems`（导航控制器的工具条有了，往上放按钮要它）；系统导航条的外观（`UINavigationBar` 和 `UINavigationBarAppearance` 一组，定了暂不接：标题和按钮用 `navigationItem` 已经够用，有人要改外观再接） |
+| 页面 | 半屏卡片（`UISheetPresentationController` 的 detents）；iOS 18 的 `UITab` 和标签栏的外观定制；页面的 `toolbarItems`（导航控制器的工具条有了，往上放按钮要它）；系统导航条的外观（`UINavigationBar` 和 `UINavigationBarAppearance` 一组，定了暂不接：标题和按钮用 `navigationItem` 已经够用，有人要改外观再接） |
 | 滚动 | 下拉刷新（`UIRefreshControl`，JS 自己也拼得出来，优先级低）；双指捏合缩放（`zoomScale` 一组属性已经有了，还差系统当场问的「缩放哪个子视图」和缩放的事件） |
 | 输入 | 两种输入框的 `markedTextRange`（输入法组字的范围）；多行输入的 `beforeinput` 一类事件；键盘设置里的密码规则（`passwordRules`，它的类还没接）；搜索框上九个之外的键盘设置 |
 | 手势 | 识别器的委托那一组（同时识别、是否开始），照输入框的 `before…` 事件做 |

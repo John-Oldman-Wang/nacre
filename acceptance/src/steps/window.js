@@ -25,6 +25,8 @@ export function stepWindow(ctx) {
   console.log('  windowScene === scene =', lazy.windowScene === scene);
 
   const vc = new UIViewController();
+  // 验收 App 声明了横屏（页面的方向那一步要转屏），根页面平时只允许竖屏
+  vc.supportedInterfaceOrientations = ['portrait'];
   console.log('  new UIViewController() 成功, instanceof =', vc instanceof UIViewController);
   win.rootViewController = vc;
   console.log('  rootViewController 写入后读回是同一个 =', win.rootViewController === vc);

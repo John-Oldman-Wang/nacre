@@ -176,7 +176,7 @@ Mac 上执行过：没人听时连交 10 条，订阅的那一刻发出后 8 条
 
 系统在通知到的那一刻调 `willPresentNotification:withCompletionHandler:`，等委托回答怎么显示。JS 的事件是延后一轮派发的，当场答不了。
 
-这里用的是项目里已经定过的那个办法（[屏幕方向](pending.md#屏幕方向方案已定未实现)是同一个模式）：把系统当场要的答案，换成 JS 预先声明的状态。`foregroundPresentationOptions` 存在原生那一侧，系统来问时直接拿它回答，不进 JS；事件照常延后一轮发。
+这里用的是项目里已经定过的那个办法（[屏幕方向](page-overrides.md)是同一个模式）：把系统当场要的答案，换成 JS 预先声明的状态。`foregroundPresentationOptions` 存在原生那一侧，系统来问时直接拿它回答，不进 JS；事件照常延后一轮发。
 
 - **默认是空的。** 值只在内存里，每次启动都是空的。
 - **它是这个包自己加的属性，ObjC 里没有。** 名字里的 `foreground` 是为了说清它只管 App 在前台的时候。

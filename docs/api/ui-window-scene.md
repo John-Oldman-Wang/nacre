@@ -33,6 +33,8 @@ status: partial
 | [`traitCollection`](ui-window-scene/traitcollection.md) <small>只读</small> | 整个场景的外观特征，比如系统设置里是深色还是浅色 |
 | [`isFullScreen`](ui-window-scene/isfullscreen.md) <small>只读</small> | 场景是否占满整个屏幕 |
 | [`screen`](ui-window-scene/screen.md) <small>只读</small> | 这个场景显示在哪块屏幕上 |
+| [`effectiveGeometry`](ui-window-scene/effectivegeometry.md) <small>只读</small> | 此刻的几何信息：界面的方向、是不是锁着 |
+| [`statusBarManager`](ui-window-scene/statusbarmanager.md) <small>只读</small> | 状态栏此刻的样子 |
 | [`title`](ui-window-scene/title.md) | 多任务切换器的卡片上显示的标题 |
 | [`subtitle`](ui-window-scene/subtitle.md) | 多任务切换器的卡片上显示的副标题 |
 
@@ -41,6 +43,7 @@ status: partial
 | 方法 | 说明 |
 | --- | --- |
 | [`openURL()`](ui-window-scene/openurl.md) | 让系统打开一个 URL：跳到 Safari、拨号、跳到别的 App |
+| [`requestGeometryUpdateWithPreferences()`](ui-window-scene/requestgeometryupdatewithpreferences.md) | 请求把界面转到某个方向 |
 
 ## 事件
 
@@ -51,6 +54,7 @@ status: partial
 | [`foreground`](ui-window-scene/foreground-event.md) | 这个场景即将回到前台 |
 | [`active`](ui-window-scene/active-event.md) | 这个场景已经变为活跃，用户可以交互 |
 | [`traitchange`](ui-window-scene/traitchange-event.md) | 场景的外观特征变了 |
+| [`geometrychange`](ui-window-scene/geometrychange-event.md) | 界面转了方向。当场派发，监听器在转屏动画里执行 |
 
 - 事件不能取消。回调不是在状态变化的那一刻同步执行，而是稍后执行，见[运行时怎么工作](how-it-works.md#事件)。
 - 场景上也可以监听和派发自定义名字的事件，用法和普通的 `EventTarget` 一样。

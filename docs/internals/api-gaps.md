@@ -1236,10 +1236,6 @@
 | 想做的事 | 对应的原生能力 |
 | --- | --- |
 | 列出这个场景里的所有窗口，找到当前接收键盘输入的窗口 | `windows`、`keyWindow` |
-| 读当前的屏幕方向（竖屏、横屏） | `effectiveGeometry.interfaceOrientation`。[方案已定](pending.md#屏幕方向方案已定未实现) |
-| 锁定屏幕方向，只允许竖屏或横屏 | `supportedInterfaceOrientationsForWindowScene:`。方案同上 |
-| 屏幕方向变化时收到通知 | `windowScene:didUpdateEffectiveGeometry:`。方案同上 |
-| 读屏幕的大小和像素密度 | `screen` |
 | 限制窗口的最小和最大尺寸，请求改变窗口大小 | `sizeRestrictions`、`requestGeometryUpdate:` |
 | 指定哪个场景响应外部事件、场景何时销毁（iPad 多窗口） | `activationConditions`、`destructionConditions` |
 | `openURL()` 带选项，比如只允许通用链接 | `openURL:options:completionHandler:` 的 `options` |

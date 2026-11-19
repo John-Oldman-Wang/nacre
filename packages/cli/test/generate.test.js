@@ -201,6 +201,41 @@ test('文案里的引号、反斜杠、换行要转义', () => {
                /"NSCameraUsageDescription" = "Pour \\"scanner\\"\\\\ici\\nsuite";/);
 });
 
+test('不写方向：只允许竖屏', () => {
+  const out = generate({ ...BASE });
+  assert.equal(out.ok, true, out.stderr);
+  assert.match(out.yaml, /UISupportedInterfaceOrientations: .*UIInterfaceOrientationPortrait/);
+  assert.doesNotMatch(out.yaml, /UIInterfaceOrientationLandscape/);
+});
+
+test('ios.orientations：名字和 JS 里一样，合称拆开写进 Info.plist', () => {
+  const out = generate({ ...BASE, ios: { orientations: ['portrait', 'landscape'] } });
+  assert.equal(out.ok, true, out.stderr);
+  assert.equal(out.yaml.match(/UISupportedInterfaceOrientations/g).length, 1);
+  assert.match(out.yaml, /UIInterfaceOrientationPortrait/);
+  assert.match(out.yaml, /UIInterfaceOrientationLandscapeLeft/);
+  assert.match(out.yaml, /UIInterfaceOrientationLandscapeRight/);
+  assert.doesNotMatch(out.yaml, /UpsideDown/);
+});
+
+for (const [what, orientations, expected] of [
+  ['不是数组', 'portrait', /ios\.orientations must be a list/],
+  ['空数组', [], /at least one/],
+  ['名字写错', ['sideways'], /"sideways".*portrait.*landscapeRight/s],
+]) {
+  test('ios.orientations ' + what + '：报错', () => {
+    const out = generate({ ...BASE, ios: { orientations } });
+    assert.equal(out.ok, false);
+    assert.match(out.stderr, expected);
+  });
+}
+
+test('ios.infoPlist 里写 UISupportedInterfaceOrientations：报错，让改用 ios.orientations', () => {
+  const out = generate({ ...BASE, ios: { infoPlist: { UISupportedInterfaceOrientations: ['UIInterfaceOrientationPortrait'] } } });
+  assert.equal(out.ok, false);
+  assert.match(out.stderr, /ios\.orientations/);
+});
+
 test('ios.infoPlist 里不是文案的值原样带过去：数组、布尔、数、字典', () => {
   const out = generate({
     ...BASE,

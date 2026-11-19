@@ -79,6 +79,7 @@ import { stepNavigationAdditions } from './steps/navigation-additions.js';
 import { stepLocale } from './steps/locale.js';
 import { stepScreen } from './steps/screen.js';
 import { stepKeyboard } from './steps/keyboard.js';
+import { stepPageOverrides } from './steps/page-overrides.js';
 import { stepGestures } from './steps/gestures.js';
 import { stepAlerts } from './steps/alerts.js';
 import { stepEffects } from './steps/effects.js';
@@ -274,6 +275,7 @@ application.addEventListener('sceneconnect', (e) => {
     ['stepNativeModules', () => stepNativeModules(ctx)],
     ['stepWebAdditions', () => stepWebAdditions(ctx)],
     ['stepKeyboard', () => stepKeyboard(ctx)],
+    ['stepPageOverrides', () => stepPageOverrides(ctx)],
   ];
   // 收尾的几步排在最后，先后和原来一样。结尾三张和网页的比对各有几万条，要在
   // 主线程上跑十几秒：它们等生命周期那一步的 GC 检查结束、并且主线程闲下来
@@ -319,7 +321,13 @@ application.addEventListener('sceneconnect', (e) => {
     const pending = /** @type {any} */ (run(later[index][0], later[index][1]));
     const next = () => { setTimeout(() => runLater(index + 1), 0); };
     if (pending !== undefined && pending !== null && typeof pending.then === 'function') {
-      pending.then(next, next);
+      // async 的步骤中途抛了，Promise 被拒绝：和同步的步骤一样记一条失败。
+      // 原来这里是 then(next, next)，拒绝被吞掉，那一步后面的断言没跑也看不出来
+      pending.then(next, (/** @type {unknown} */ err) => {
+        console.log('  ✗ 步骤 ' + later[index][0] + ' 中途抛了，它后面的断言没跑: ' +
+                    (err instanceof Error ? err.message : String(err)));
+        next();
+      });
     } else {
       next();
     }

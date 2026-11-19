@@ -261,6 +261,9 @@ export default defineConfig({
           text: '窗口和页面',
           items: [
             api('UIWindowScene', 'ui-window-scene'),
+            api('UIWindowSceneGeometry', 'ui-window-scene-geometry'),
+            api('UIWindowSceneGeometryPreferencesIOS', 'ui-window-scene-geometry-preferences-ios'),
+            api('UIStatusBarManager', 'ui-status-bar-manager'),
             api('UISceneSession', 'ui-scene-session'),
             api('UIWindow', 'ui-window'),
             api('UIViewController', 'ui-view-controller'),

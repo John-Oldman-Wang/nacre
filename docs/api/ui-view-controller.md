@@ -74,6 +74,16 @@ status: partial
 | [`traitCollection`](ui-view-controller/traitcollection.md) <small>只读</small> | 页面所处环境的外观特征：深色还是浅色、文字多大 |
 | [`overrideUserInterfaceStyle`](ui-view-controller/overrideuserinterfacestyle.md) | 强制这个页面用浅色或深色 |
 
+方向和状态栏（只有 `new` 出来的页面能写，系统的页面写了抛 `TypeError`）：
+
+| 属性 | 说明 |
+| --- | --- |
+| [`supportedInterfaceOrientations`](ui-view-controller/supportedinterfaceorientations.md) | 这个页面允许界面转到哪些方向 |
+| [`preferredInterfaceOrientationForPresentation`](ui-view-controller/preferredinterfaceorientationforpresentation.md) | 全屏弹出时一出来是什么方向 |
+| [`prefersInterfaceOrientationLocked`](ui-view-controller/prefersinterfaceorientationlocked.md) | 希望锁住方向 |
+| [`prefersStatusBarHidden`](ui-view-controller/prefersstatusbarhidden.md) | 状态栏藏不藏 |
+| [`preferredStatusBarStyle`](ui-view-controller/preferredstatusbarstyle.md) | 状态栏的字是黑是白 |
+
 ## 实例方法
 
 模态呈现：
@@ -91,6 +101,14 @@ status: partial
 | [`removeFromParentViewController()`](ui-view-controller/removefromparentviewcontroller.md) | 离开父控制器 |
 | [`willMoveToParentViewController()`](ui-view-controller/willmovetoparentviewcontroller.md) | 通知「即将换父控制器」 |
 | [`didMoveToParentViewController()`](ui-view-controller/didmovetoparentviewcontroller.md) | 通知「已经换好父控制器」 |
+
+方向和状态栏（写对应的属性时已经自动调了）：
+
+| 方法 | 说明 |
+| --- | --- |
+| [`setNeedsUpdateOfSupportedInterfaceOrientations()`](ui-view-controller/setneedsupdateofsupportedinterfaceorientations.md) | 通知系统重新来问允许的方向 |
+| [`setNeedsStatusBarAppearanceUpdate()`](ui-view-controller/setneedsstatusbarappearanceupdate.md) | 通知系统重新来问状态栏 |
+| [`setNeedsUpdateOfPrefersInterfaceOrientationLocked()`](ui-view-controller/setneedsupdateofprefersinterfaceorientationlocked.md) | 通知系统重新来问是否锁方向 |
 
 ## 事件
 

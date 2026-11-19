@@ -638,6 +638,7 @@ const RESERVED_INFO_KEYS = {
   CFBundleShortVersionString: 'version',
   CFBundleVersion: 'buildNumber',
   CFBundleURLTypes: 'ios.urlSchemes',
+  UISupportedInterfaceOrientations: 'ios.orientations',
   // 启动屏由生成器配：给了底色或图时这两个键里用的是哪一个，取决于给了什么
   UILaunchScreen: 'launchScreen',
   UILaunchStoryboardName: 'launchScreen',
@@ -678,6 +679,38 @@ function readURLSchemes(ios) {
     seen.add(key);
   }
   return list;
+}
+
+// App 允许的方向。名字和 JS 里页面的 supportedInterfaceOrientations 一样，认三个合称；
+// 不写是只有竖屏。页面上的 supportedInterfaceOrientations 是在这个范围里再收窄
+const ORIENTATIONS = {
+  portrait: ['UIInterfaceOrientationPortrait'],
+  portraitUpsideDown: ['UIInterfaceOrientationPortraitUpsideDown'],
+  landscapeLeft: ['UIInterfaceOrientationLandscapeLeft'],
+  landscapeRight: ['UIInterfaceOrientationLandscapeRight'],
+  landscape: ['UIInterfaceOrientationLandscapeLeft', 'UIInterfaceOrientationLandscapeRight'],
+  all: ['UIInterfaceOrientationPortrait', 'UIInterfaceOrientationPortraitUpsideDown',
+        'UIInterfaceOrientationLandscapeLeft', 'UIInterfaceOrientationLandscapeRight'],
+  allButUpsideDown: ['UIInterfaceOrientationPortrait', 'UIInterfaceOrientationLandscapeLeft',
+                     'UIInterfaceOrientationLandscapeRight'],
+};
+const ORIENTATION_ORDER = ORIENTATIONS.all;
+
+function readOrientations(ios) {
+  const list = ios.orientations;
+  if (list === undefined) return ['UIInterfaceOrientationPortrait'];
+  const choices = Object.keys(ORIENTATIONS).join(', ');
+  if (!Array.isArray(list)) fail('ios.orientations must be a list of orientation names, e.g. ["portrait", "landscape"]');
+  if (list.length === 0) fail('ios.orientations needs at least one orientation; expected some of: ' + choices);
+  const chosen = new Set();
+  for (const name of list) {
+    const values = typeof name === 'string' ? ORIENTATIONS[name] : undefined;
+    if (values === undefined) {
+      fail('ios.orientations has no value ' + JSON.stringify(name) + '; expected one of: ' + choices);
+    }
+    for (const value of values) chosen.add(value);
+  }
+  return ORIENTATION_ORDER.filter((value) => chosen.has(value));
 }
 
 // 把配置读成生成工程要用的几样东西：
@@ -759,6 +792,7 @@ function readProjectConfig(config, capabilities) {
   }
   // 自定义协议：一组，标识用 App 的包名。角色写 Editor——这些协议是这个 App
   // 自己定义的（Viewer 是「我能打开别人定义的协议」）
+  info.UISupportedInterfaceOrientations = readOrientations(ios);
   const urlSchemes = readURLSchemes(ios);
   if (urlSchemes.length > 0) {
     info.CFBundleURLTypes = [{
@@ -876,8 +910,6 @@ ${infoLines}${localizations}
         ${launch === null ? 'UILaunchScreen: {}'
                           : 'UILaunchStoryboardName: ' + JSON.stringify(LAUNCH_STORYBOARD)}
         UIApplicationSupportsIndirectInputEvents: true
-        UISupportedInterfaceOrientations:
-          - UIInterfaceOrientationPortrait
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
           UISceneConfigurations:
