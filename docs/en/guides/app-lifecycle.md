@@ -6,7 +6,7 @@ This guide shows where code goes as the app moves from launch to the background,
 
 - **Put the code that builds the UI in the [`sceneconnect`](../api/application/sceneconnect-event.md) callback, and register the listener at the top level of `main.js`.** The runtime finishes executing all of `main.js` before the system creates a scene. Events are not replayed: if you register only after some Promise fulfills, you may already have missed it.
 - **Finish saving data you need to keep in [`background`](../api/application/background-event.md).** Write it to [`application.storage`](../api/storage.md), whose writes are synchronous. Don't wait for [`beforeterminate`](../api/application/beforeterminate-event.md): it isn't necessarily fired when the app is terminated in the background.
-- **On [`memorywarning`](../api/application/memorywarning-event.md), drop data you can get again.** The runtime doesn't release anything on the app's behalf.
+- **On [`memorywarning`](../api/application/memorywarning-event.md), drop data you can get again.** The runtime doesn't decide what to drop for the app; after the listeners run, it has the JS engine reclaim memory, so objects the listeners let go of are reclaimed then.
 - **Keep app-wide shared data in your module's own variables, not on `application`.** `application` is an ordinary JS object and you can add properties to it, but the type definitions don't include them, so every read and write needs a cast; and `application` exists for as long as the app runs, so anything attached to it is never garbage-collected. In particular, don't attach scenes, windows, or view controllers to it.
 
 ## First app

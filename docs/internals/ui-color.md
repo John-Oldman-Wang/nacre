@@ -206,6 +206,12 @@ iOS 层是一张**写死的名字表**，不是用名字拼 selector 再 `perfor
 
 弱引用而不是强引用，是因为算出来的颜色（`rgba(0,0,0,${opacity})` 在动画里）会无界增长；而弱引用的「不稳定」**观察不到**——只有没人持有时才回收，那之后没有任何代码拿得到旧对象。
 
+### 剩下的两处不相等，定了不算问题（2026-11-20）
+
+候选 A 之后还剩两处 `===` 不成立：`UIColor.redColor` 和 `'#f00'` 是两个对象；`layer` 的 `borderColor`、`shadowColor` 读两次是两个对象（底下是 `CGColorRef`，桥上每次用 `colorWithCGColor:` 新包一个）。原来记在已知问题里，候选 B 和「按 `CGColorRef` 缓存」是给它们准备的。
+
+定了不做：网页上读样式也是这样，Typed OM 的 `el.attributeStyleMap.get('color')` 每读一次是一个新对象，没人拿两次读出来的值做 `===`。要比颜色就比它的值。
+
 ---
 
 ← 返回[实现原理](README.md) ・ [API 文档](../api/ui-color.md)
