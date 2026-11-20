@@ -74,6 +74,16 @@ Appearance:
 | [`traitCollection`](ui-view-controller/traitcollection.md) <small>read-only</small> | The appearance traits of the view controller's environment: dark or light, how large the text is |
 | [`overrideUserInterfaceStyle`](ui-view-controller/overrideuserinterfacestyle.md) | Forces this view controller to use light or dark |
 
+Orientation and status bar (writable only on view controllers created with `new`; writing on a system view controller throws `TypeError`):
+
+| Property | Description |
+| --- | --- |
+| [`supportedInterfaceOrientations`](ui-view-controller/supportedinterfaceorientations.md) | Which orientations this view controller allows the interface to rotate to |
+| [`preferredInterfaceOrientationForPresentation`](ui-view-controller/preferredinterfaceorientationforpresentation.md) | The orientation it starts in when presented full screen |
+| [`prefersInterfaceOrientationLocked`](ui-view-controller/prefersinterfaceorientationlocked.md) | Asks for the orientation to be locked |
+| [`prefersStatusBarHidden`](ui-view-controller/prefersstatusbarhidden.md) | Whether the status bar is hidden |
+| [`preferredStatusBarStyle`](ui-view-controller/preferredstatusbarstyle.md) | Whether the status bar text is dark or light |
+
 ## Instance methods
 
 Modal presentation:
@@ -91,6 +101,14 @@ Parent and child view controllers:
 | [`removeFromParentViewController()`](ui-view-controller/removefromparentviewcontroller.md) | Leaves the parent view controller |
 | [`willMoveToParentViewController()`](ui-view-controller/willmovetoparentviewcontroller.md) | Notifies "about to change parent" |
 | [`didMoveToParentViewController()`](ui-view-controller/didmovetoparentviewcontroller.md) | Notifies "finished changing parent" |
+
+Orientation and status bar (called automatically when the corresponding property is written):
+
+| Method | Description |
+| --- | --- |
+| [`setNeedsUpdateOfSupportedInterfaceOrientations()`](ui-view-controller/setneedsupdateofsupportedinterfaceorientations.md) | Tells the system to ask again for the allowed orientations |
+| [`setNeedsStatusBarAppearanceUpdate()`](ui-view-controller/setneedsstatusbarappearanceupdate.md) | Tells the system to ask again about the status bar |
+| [`setNeedsUpdateOfPrefersInterfaceOrientationLocked()`](ui-view-controller/setneedsupdateofprefersinterfaceorientationlocked.md) | Tells the system to ask again whether to lock the orientation |
 
 ## Events
 

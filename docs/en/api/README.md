@@ -55,6 +55,9 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 | Page | Description |
 | --- | --- |
 | [`UIWindowScene`](ui-window-scene.md) | **`UIWindowScene`** represents one instance of the App's UI, called a scene. |
+| [`UIWindowSceneGeometry`](ui-window-scene-geometry.md) | **`UIWindowSceneGeometry`** represents a scene's geometry at a given moment: the interface orientation and whether the orientation is locked. |
+| [`UIWindowSceneGeometryPreferencesIOS`](ui-window-scene-geometry-preferences-ios.md) | **`UIWindowSceneGeometryPreferencesIOS`** represents the preferences for a rotation request: which orientations you want. |
+| [`UIStatusBarManager`](ui-status-bar-manager.md) | **`UIStatusBarManager`** represents how a scene's status bar looks at the moment. |
 | [`UISceneSession`](ui-scene-session.md) | **`UISceneSession`** represents a scene's session: the scene's persistent identity. |
 | [`UIWindow`](ui-window.md) | **`UIWindow`** represents a window: the outermost view that hosts the interface in a scene. |
 | [`UIViewController`](ui-view-controller.md) | **`UIViewController`** represents the manager of one screen of content, called a view controller. |
