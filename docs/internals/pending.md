@@ -35,14 +35,6 @@
 
 > 记这条 TODO 时担心的「C 函数怎么暴露」**在仿射变换这里没出现**：`CGAffineTransformMakeScale` 那几个全是纯算术，静态工厂在 JS 里算就行，过桥的只有六个数。判据记在[实现原理](structs.md)里——**C 函数只在值类型上做算术就在 JS 侧实现，真要跨桥的是会碰系统状态的那些**。
 
-## 视图布局变化没有通知
-
-子图层不走 Auto Layout 是 **iOS 的事实**，不是我们的缺口——`CALayer.autoresizingMask` 和 `layoutManager` 在 iOS 上都标着 `API_UNAVAILABLE(ios)`，`CAConstraintLayoutManager.h` 整个文件也是。原生 App 在 `layoutSubviews` 里手写子图层的 frame。
-
-（2026-11-16 讨论过，暂时不做：布局绝大多数是 JS 自己引起的，做完调一次 `layoutIfNeeded()` 就读得到；系统引起的那几种里，文字大小有 `traitchange`，键盘有 `keyboardLayoutGuide`，旋转和半屏卡片还没有。受影响的只有手动按 `frame` 摆的子图层，试用报告里没人提过。等真有人被挡住再做。）
-
-于是 JS 侧现在只能在自己知道布局变了的时候重设一次，**系统驱动的重新布局（旋转、动态字体、键盘）跟不上**。三条路：覆写 `layoutSubviews`（M2）、`+layerClass`（M2）、**KVO 监听 `view.layer.bounds` 做成 `layoutchange` 事件（不需要 M2）**。第三条该单独走一遍 SOP——它是新发明一个事件，而且 KVO 在布局动画期间的时序没实测过。
-
 ## 还没做成包的几项系统能力
 
 原来是一张十行的表，做完的删了，下面是没做的几行。
