@@ -235,6 +235,10 @@ class Engine {
   // Chrome 就是这么在帧间隙做 GC 的。只能在 JS 所在线程调用。
   void RunIdleTasks(double idle_time_in_seconds);
 
+  // 系统说内存不够了：让 V8 尽快释放内存（会做一次完整的 GC）。iOS 的内存警告
+  // 只有一个级别，对应 V8 的 kCritical。只能在 JS 所在线程调用。
+  void NotifyMemoryPressure();
+
   // 把一个 App 级事件派发给 JS 里的 application。只能在 JS 线程上调用。
   // 内置脚本还没执行时静默忽略。
   void EmitAppEvent(const std::string& type);

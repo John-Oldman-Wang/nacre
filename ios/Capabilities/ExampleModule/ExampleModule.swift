@@ -15,6 +15,7 @@
 import CryptoKit
 import Foundation
 import Nacre
+import UIKit
 
 // @objc(…) 把类在 ObjC 运行时里的名字定下来。不写的话名字前面带模块名
 // （NacreExampleModule.ExampleModuleProvider），NSPrincipalClass 就得照那个写
@@ -83,6 +84,15 @@ private func makeExampleModule() -> NacreModule {
   module.addMethod("argumentCount") { args in args.count }
   module.addMethod("typeOf") { args in typeName(args.first) }
   module.addMethod("isMainThread") { _ in Thread.isMainThread }
+
+  // 发一次系统的内存警告通知，和模拟器菜单里 Simulate Memory Warning 一样。
+  // 验收用它测「内存警告之后运行时让 V8 回收」：命令行触发不了这个通知
+  // （见 docs/internals/runtime.md）。真的模块里不会有这种方法
+  module.addMethod("simulateMemoryWarning") { _ in
+    NotificationCenter.default.post(name: UIApplication.didReceiveMemoryWarningNotification,
+                                    object: UIApplication.shared)
+    return nil
+  }
 
   module.addMethod("add") { args in
     // 参数不对就报错：返回一个 NSError，JS 那边 call() 把它抛出来

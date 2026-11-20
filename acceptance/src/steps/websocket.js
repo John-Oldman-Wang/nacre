@@ -33,8 +33,11 @@ export function stepWebSocket(ctx) {
     () => { console.log('  ✗ 没开就发居然成功了'); },
     (e) => {
       assert('没开就发被拒', e.name, 'InvalidStateError');
+      // 连接可能已经自己失败了（CLOSED）。照 WHATWG，对 CLOSED 的连接调 close() 什么都不做
+      const before = idle.readyState;
       idle.close();
-      assert('close 之后是 CLOSING', idle.readyState, WebSocket.CLOSING);
+      assert('close 之后是 CLOSING', idle.readyState,
+             before === WebSocket.CLOSED ? WebSocket.CLOSED : WebSocket.CLOSING);
     },
   );
 

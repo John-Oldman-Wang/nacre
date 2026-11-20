@@ -1076,8 +1076,13 @@ export function stepWebView(ctx) {
       assert('网页的 document.cookie 看得到普通的，看不到 httpOnly 的',
              await settled(partitioned.executeJavaScript('document.cookie')), 'fromapp=yes');
       await jar.set({ url: 'https://httpbin.org/', name: 'live', value: '1' });
-      assert('网页开着的时候写的：不用刷新就看得到',
-             String(await settled(partitioned.executeJavaScript('document.cookie'))).includes('live=1'), true);
+      // cookie 要先过一趟网页的进程，写完立刻读会赌时序（真机上三次挂两次）：最多等 3 秒
+      let seenLive = false;
+      for (let i = 0; i < 30 && !seenLive; i++) {
+        seenLive = String(await settled(partitioned.executeJavaScript('document.cookie'))).includes('live=1');
+        if (!seenLive) await sleep(100);
+      }
+      assert('网页开着的时候写的：不用刷新就看得到', seenLive, true);
       await partitioned.executeJavaScript('document.cookie = "frompage=1; max-age=600; path=/"; 1');
       await sleep(300);
       assert('网页自己写的，App 这边读得到', (await jar.get({ name: 'frompage' })).length, 1);

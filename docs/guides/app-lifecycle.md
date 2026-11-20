@@ -6,7 +6,7 @@
 
 - **建界面的代码写在 [`sceneconnect`](../api/application/sceneconnect-event.md) 的回调里，监听器在 `main.js` 顶层注册。** 运行时先把整个 `main.js` 执行完，系统随后才创建场景。事件不会补发：等某个 Promise 兑现之后才注册，可能已经错过了。
 - **需要保留的数据在 [`background`](../api/application/background-event.md) 里保存完。** 写进 [`application.storage`](../api/storage.md)，它的写入是同步的。不要等 [`beforeterminate`](../api/application/beforeterminate-event.md)：App 在后台被结束时它不一定派发。
-- **收到 [`memorywarning`](../api/application/memorywarning-event.md) 时丢掉能重新得到的数据。** 运行时不替 App 释放任何东西。
+- **收到 [`memorywarning`](../api/application/memorywarning-event.md) 时丢掉能重新得到的数据。** 运行时不替 App 决定扔掉什么；监听器执行完之后，运行时会让 JS 引擎回收一次，监听器里放掉的对象这时就被回收。
 - **App 范围内共享的数据放在模块自己的变量里，不挂在 `application` 上。** `application` 是一个普通的 JS 对象，可以往上面加属性，但类型定义里没有这些属性，每次读写都要转型；`application` 在 App 运行期间一直存在，挂在上面的东西永远不会被回收。场景、窗口、页面尤其不要挂上去。
 
 ## 第一个 App

@@ -29,8 +29,6 @@
 | 读链接附带的其他信息 | `UISceneOpenURLOptions` 的 `annotation`、`openInPlace` |
 | 把字体大小档位读成 `'large'` 这类统一的名字 | `UIContentSizeCategory` 的映射。现在是 iOS 的原始字符串 |
 | 拒绝已经上报之后才补挂处理函数时得到更正通知 | Web 的 `rejectionhandled` |
-| 锁定或读取屏幕方向 | `UIWindowScene.effectiveGeometry` |
-| 收到内存警告时让运行时自己也释放内存 | 现在只派发 `memorywarning` 事件 |
 
 ## `ASIdentifierManager`
 

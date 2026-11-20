@@ -111,10 +111,6 @@ NACRE_ENUM_MAP(ImagePickerCameraFlashMode, UIImagePickerControllerCameraFlashMod
                @"auto": @(UIImagePickerControllerCameraFlashModeAuto),
                @"on": @(UIImagePickerControllerCameraFlashModeOn))
 
-static NSString* CameraEventNames(void) {
-  return [NSString stringWithFormat:@"%@ / %@", kNacreCameraCancelEvent, kNacreCameraFinishEvent];
-}
-
 // 页面出现和消失的四个事件（核心的 appearance 域）。这四个名字放行给它
 static BOOL IsAppearanceEventName(NSString* type) {
   return [@[@"beforeappear", @"appear", @"beforedisappear", @"disappear"]

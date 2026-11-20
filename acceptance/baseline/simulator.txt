@@ -2804,6 +2804,11 @@
 + 内存分区写的，落盘分区里没有
 + 内存分区自己能写能读
 + 内存分区里没有这些
++ 内存警告：memorywarning 到了一次
++ 内存警告：target 是 application
++ 内存警告：不能取消
++ 内存警告：监听器执行时缓存里的对象还在
++ 内存警告：监听器放掉的对象，警告之后 # 秒内被回收了
 + 内容加到 contentView 上
 + 内容对齐能写
 + 内容比可视区高，所以能滚
@@ -4158,6 +4163,7 @@
 + 收到一次 destroyed
 + 收到了 blur
 + 收到了 focus
++ 收到原生事件: memorywarning | target 是 application
 + 收到的 url 和打开的一字不差
 + 收到的事件和顺序
 + 收尾 clear 干净
@@ -4620,6 +4626,7 @@
 + 横向的 size class
 + 横屏时根视图变宽了
 + 次数给小数：向零取整
++ 此刻 application.state
 + 段落样式 copy()：不可改
 + 段落样式 mutableCopy()：可改
 + 每一种形式都往返得回去
