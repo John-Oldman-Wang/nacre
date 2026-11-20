@@ -1,6 +1,6 @@
 {
   "name": "@nacrejs/types",
-  "version": "0.0.1-beta.1",
+  "version": "0.0.1",
   "description": "Nacre 运行时的 TypeScript 类型定义",
   "license": "FSL-1.1-MIT",
   "repository": {

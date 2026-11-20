@@ -67,6 +67,10 @@ jobs:
         with:
           node-version: 24
           registry-url: 'https://registry.npmjs.org'
+      # Node 24 自带的 npm 是哪一版不由我们定，不赌它够不够 11.5.1：装 11 里最新的那个。
+      # 不跟到 12，大版本升级要我们自己决定
+      - name: 升级 npm
+        run: npm install -g npm@11
       # 用 GitHub 默认装齐了的那个 Xcode 26（现在是 26.6），写死版本号，换版本要改这里。
       # 原来用支持的最老的 26.0，但这台机器上 26.0 的 iOS 平台组件不一定装着：同样的
       # 26.0，有一次编过了，另一次报「Unable to find a destination」。默认的那个 GitHub
