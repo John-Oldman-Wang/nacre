@@ -45,6 +45,7 @@ App 图标和启动屏上的图不写在这份文件里。它们是项目根目�
 | `launchScreen` | 否 | 色值字符串，或 `{ light, dark }` | [启动屏](#启动屏)的底色。写在最外层，不在 `ios` 下面 |
 | `ios.languages` | 否 | 语言代码的数组 | App 支持哪些语言。第一个是默认语言 |
 | `ios.urlSchemes` | 否 | 协议名的数组 | 哪些自定义协议（`myapp://…`）的链接能打开这个 App |
+| `ios.orientations` | 否 | 方向名的数组 | [App 允许的方向](#声明-app-允许的方向)。默认只有竖屏 |
 | `ios.infoPlist` | 否 | 对象 | 写进 Info.plist 的键值。权限文案写在这里 |
 | `ios.entitlements` | 否 | 对象 | App 的 entitlement |
 
@@ -392,6 +393,22 @@ xcrun simctl openurl booted 'myapp://orders/42'
 - 用户在浏览器的地址栏里直接输入这个地址，不会打开 App；从别的 App 或网页里点才会。
 - 系统在 App 安装时去取那份文件，并缓存一段时间；改了文件之后不会马上生效。
 
+## 声明 App 允许的方向
+
+```json
+{
+  "name": "Shop",
+  "bundleId": "com.example.shop",
+  "ios": { "orientations": ["portrait", "landscape"] }
+}
+```
+
+**效果**：App 允许竖屏和两种横屏。不写 `ios.orientations` 时只允许竖屏。
+
+可以写的名字和页面的 [`supportedInterfaceOrientations`](../api/ui-view-controller/supportedinterfaceorientations.md) 一样：`portrait`、`portraitUpsideDown`、`landscapeLeft`、`landscapeRight`，以及三个合称 `landscape`、`all`、`allButUpsideDown`。
+
+这里声明的是 App **最多**允许哪些方向。哪个页面实际能转，再由那个页面的 `supportedInterfaceOrientations` 收窄。比如 App 声明了横屏，大多数页面设成只允许竖屏，只有看图的页面放开横屏。
+
 ## 写别的 Info.plist 键
 
 `ios.infoPlist` 里的值不限于文案，数组、布尔、数、嵌套的对象都可以：
@@ -409,7 +426,7 @@ xcrun simctl openurl booted 'myapp://orders/42'
 
 **效果**：这两个键原样出现在 App 的 Info.plist 里。
 
-有八个键不能写在这里，写了生成时报错：
+有九个键不能写在这里，写了生成时报错：
 
 | 键 | 改用 |
 | --- | --- |
@@ -418,6 +435,7 @@ xcrun simctl openurl booted 'myapp://orders/42'
 | `CFBundleShortVersionString` | `version` |
 | `CFBundleVersion` | `buildNumber` |
 | `CFBundleURLTypes` | `ios.urlSchemes` |
+| `UISupportedInterfaceOrientations` | `ios.orientations` |
 | `UILaunchScreen`、`UILaunchStoryboardName` | `launchScreen` 和 `launch.png`，见[启动屏](#启动屏) |
 | `UIApplicationSceneManifest` | 不能改，它由启动代码决定 |
 
@@ -452,6 +470,9 @@ xcrun simctl openurl booted 'myapp://orders/42'
 | `ios.urlSchemes` 不是数组 | `ios.urlSchemes must be a list of scheme names (without ://), e.g. ["myapp"]` |
 | 协议名写错了 | `ios.urlSchemes: "myapp://" is not a scheme name. It must start with a letter, followed only by letters, digits, +, - and . (no ://)` |
 | 协议名写了两次 | `ios.urlSchemes: MyApp is listed twice (scheme names are case-insensitive)` |
+| `ios.orientations` 不是数组 | `ios.orientations must be a list of orientation names, e.g. ["portrait", "landscape"]` |
+| `ios.orientations` 是空的 | `ios.orientations needs at least one orientation; expected some of: portrait, portraitUpsideDown, landscapeLeft, landscapeRight, landscape, all, allButUpsideDown` |
+| 方向名写错了 | `ios.orientations has no value "sideways"; expected one of: portrait, portraitUpsideDown, landscapeLeft, landscapeRight, landscape, all, allButUpsideDown` |
 | 写了系统自己的协议 | `ios.urlSchemes: https is a system scheme; an app that declares it never receives it. To open the app from https links, set up universal links (associated domains), not this` |
 | 在 `ios.infoPlist` 里写了 `CFBundleURLTypes` | `ios.infoPlist.CFBundleURLTypes: this key is controlled by ios.urlSchemes in nacre.config.json; change that instead` |
 | 写了由别的配置项管的键 | `ios.infoPlist.CFBundleIdentifier: this key is controlled by bundleId in nacre.config.json; change that instead` |

@@ -50,3 +50,4 @@
 /// <reference path="./ios/bundle.d.ts" />
 /// <reference path="./ios/locale.d.ts" />
 /// <reference path="./ios/screen.d.ts" />
+/// <reference path="./ios/page-overrides.d.ts" />

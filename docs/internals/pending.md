@@ -4,26 +4,6 @@
 
 这一页放两类东西：方案已经想过、但还没实现的设计；已经知道、但还没解决的问题。每一条在 [`project.md`](../project.md) 的「还要做的」里有一行，这里是它的分析。做完一条，就把它从这里删掉，把最后的做法写进对应主题的那一页。
 
-## 屏幕方向（方案已定，未实现）
-
-从 `ui-window-scene.md` 搬过来——它是设计方案，不是已有的 API。
-
-方向是第一个能完整走通「读 + 写 + 变化通知」三格的能力，而且「写」那一格会把**「系统要同步返回值，就转成 JS 预先声明的状态」**这个模式第一次落地。
-
-**iOS 26 挪过位置**：`UIWindowScene.interfaceOrientation` 已废弃，方向现在在 `effectiveGeometry` 上；旧的 `windowScene:didUpdateCoordinateSpace:interfaceOrientation:traitCollection:` 也废弃了，换成 `windowScene:didUpdateEffectiveGeometry:`。
-
-| 格 | JS 形态 | 原生怎么实现 |
-| --- | --- | --- |
-| **读** | `scene.effectiveGeometry.interfaceOrientation` | 新增 `UIWindowSceneGeometry` 类，先只暴露 `interfaceOrientation` 和 `isInterfaceOrientationLocked` |
-| **写** | `scene.supportedOrientations = ['portrait', 'landscapeLeft']` | 运行时存下这个值；`SceneDelegate` 实现 `supportedInterfaceOrientationsForWindowScene:`，**直接返回存的值，不回 JS**；写入时调 `setNeedsUpdateOfSupportedInterfaceOrientations` |
-| **变化通知** | `scene` 上的 `geometrychange` 事件 | 实现 `windowScene:didUpdateEffectiveGeometry:` |
-
-「写」这一格的关键是：**系统的回调是同步的，但回调的内容来自异步设置的状态**。这正是 Apple 推荐的写法——`shouldAutorotate` 的废弃说明里原话就是「更新你支持的方向，然后调 `setNeedsUpdateOfSupportedInterfaceOrientations` 表示变了」。React Native 生态的方向库也是这个模式，只是它要求 App 开发者手改 `AppDelegate`，我们做进运行时。
-
-用**属性**而不是方法（`scene.supportedOrientations = [...]`），因为它表达的是状态而非动作——原则 2。
-
-两个要分清的：**设备方向 ≠ 界面方向**（`UIDevice.orientation` 是物理朝向，含面朝上/朝下；`interfaceOrientation` 是界面实际显示的方向，App 锁竖屏时设备横过来界面不变）；以及实际开发中更常用的是**每个页面**的方向（`UIViewController.supportedInterfaceOrientations`），scene 这层管的是窗口整体。
-
 ## 不可变原生值对象的相等性
 
 **已实现一半：不可变原生值对象的相等性。** 颜色这一侧的候选 A（按构造参数池化）做掉了——同一个串永远拿到同一个 `UIColor`。剩下的缺口仍在：`UIColor.redColor` 和 `'#f00'` 是两个不同的原生对象。下面是当初的分析。

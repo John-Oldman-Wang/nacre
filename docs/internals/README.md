@@ -36,6 +36,7 @@
 | [毛玻璃](effects.md) | 玻璃效果为什么每次读回来都是新对象、直接加子视图为什么在原生一侧拦、量到的默认值；验收还没跑 |
 | [本地存储](storage.md) | 为什么叫 get/set、验值为什么在 JS 侧、落盘怎么验 |
 | [文件读写](filesystem.md) | 为什么有上层对象、名字为什么不叫 files、错误的两层分工 |
+| [页面的覆写点](page-overrides.md) | 方向和状态栏为什么用原生预置子类、替换基类为什么对状态栏不行、转屏时哪个时机在动画里、`ios.orientations` |
 | [App 包](bundle.md) | `fileSystem.assets` 为什么指向 `assets/` 而不是整个包、`NSBundle` 接了哪些、字体的名字为什么放在这里、实测 |
 | [输入框](text-input.md) | 为什么不卡 M1b、撤掉了哪个属性、三个坑 |
 | [多行输入](text-view.md) | 事件为什么走通知不占委托、`NSRange` 怎么在登记的域里定义、量到的默认值和连带行为；验收还没在 App 里跑 |

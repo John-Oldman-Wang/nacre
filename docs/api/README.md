@@ -55,6 +55,9 @@ API 分两类：
 | 页面 | 说明 |
 | --- | --- |
 | [`UIWindowScene`](ui-window-scene.md) | **`UIWindowScene`** 表示 App 界面的一个实例，称为场景。 |
+| [`UIWindowSceneGeometry`](ui-window-scene-geometry.md) | **`UIWindowSceneGeometry`** 表示场景在某一刻的几何信息：界面的方向、方向是不是锁着。 |
+| [`UIWindowSceneGeometryPreferencesIOS`](ui-window-scene-geometry-preferences-ios.md) | **`UIWindowSceneGeometryPreferencesIOS`** 表示请求转屏时的偏好：想要哪几个方向。 |
+| [`UIStatusBarManager`](ui-status-bar-manager.md) | **`UIStatusBarManager`** 表示场景的状态栏此刻的样子。 |
 | [`UISceneSession`](ui-scene-session.md) | **`UISceneSession`** 表示场景的会话：场景的持久身份。 |
 | [`UIWindow`](ui-window.md) | **`UIWindow`** 表示窗口：一个场景里承载界面的最外层视图。 |
 | [`UIViewController`](ui-view-controller.md) | **`UIViewController`** 表示一屏内容的管理者，下文称为页面。 |
