@@ -279,7 +279,7 @@ delegate 挂在 `vc.presentationController` 上，而那个对象**要开始呈�
 
 `presentationControllerShouldDismiss:` 要同步返回 BOOL。**没做**——UIKit 自己已经给了状态版本：`isModalInPresentation`。
 
-这是[那条规则](pending.md#屏幕方向方案已定未实现)的第二次应用（第一次是屏幕方向）。两次都说明：**UIKit 里「要同步回答的问题」往往同时存在一个属性版本**，先找那个，找不到才需要 M1b。
+这是[那条规则](page-overrides.md)的第二次应用（第一次是屏幕方向）。两次都说明：**UIKit 里「要同步回答的问题」往往同时存在一个属性版本**，先找那个，找不到才需要 M1b。
 
 ### 三条实测
 

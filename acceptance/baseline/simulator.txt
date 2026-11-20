@@ -410,6 +410,7 @@
 + UIView.viewForLastBaselineLayout 读出来是 UIView 或 null
 + UIViewController：traitchange 能订也能退
 + UIVisualEffect 是基类，不能 new
++ UIWindowSceneGeometry 不能 new
 + UIWindowScene：traitchange 能订也能退
 + UIWindow：traitchange 能订也能退
 + URLSearchParams body 的默认 Content-Type
@@ -1079,6 +1080,7 @@
 + effect 写颜色对象被拒
 + effect 写鲜明，读回来是同一个对象
 + effect 可以清掉
++ effectiveGeometry 是 UIWindowSceneGeometry
 + ellipsoidalAltitude 是有限的数或 null
 + en-IN 的分组是 #-#-#
 + en-US 千分位
@@ -1228,6 +1230,10 @@
 + fromPartition('persist:') 也是
 + fromValue 收图片，读出来是 UIImage
 + generalPasteboard 是 UIPasteboard
++ geometrychange 来了
++ geometrychange：previousInterfaceOrientation
++ geometrychange：监听器里挪的视图跟着转屏动画走
++ geometrychange：监听器里读到的已经是新方向
 + get 取第一个
 + get 的 url 不合法
 + get 给字符串
@@ -1406,6 +1412,8 @@
 + isHighlighted 写入生效
 + isInteractive
 + isInteractive 写得进去
++ isInteractivelyResizing 是 false
++ isInterfaceOrientationLocked 是布尔
 + isMainFrame 是 true
 + isMomentary 可写
 + isOn
@@ -1462,6 +1470,7 @@
 + keyboardhide：previousFrame 是 CGRect
 + keyboardhide：当场派发（endEditing 返回之前监听器就执行了）
 + keys 列得出来
++ landscape 是两种横屏的合称，读回来拆开
 + large 自己想要的大小是 #×#
 + latitude
 + latitude 写入即抛
@@ -1783,6 +1792,8 @@
 + preferredIndicatorImage 写 null
 + preferredIndicatorImage 原样读回来
 + preferredIndicatorImage 给的不是图：preferredIndicatorImage needs a native object or null, got "circle.fill"
++ preferredInterfaceOrientationForPresentation 写得进去
++ preferredInterfaceOrientationForPresentation 默认是一个方向名
 + preferredLanguages 只读：写了抛 TypeError
 + preferredLanguages 是字符串数组
 + preferredLanguages 至少有一个
@@ -1792,6 +1803,15 @@
 + preferredLocalizationsFromArray 按给的偏好挑
 + preferredLocalizationsFromArray 是字符串数组，至少一个
 + preferredMode 是 UIScreenMode
++ preferredStatusBarStyle 写得进去
++ preferredStatusBarStyle 写错：不变
++ preferredStatusBarStyle 默认 default
++ preferredStatusBarStyle：状态栏的样式跟着变
++ prefersInterfaceOrientationLocked 写得进去
++ prefersInterfaceOrientationLocked 默认 false
++ prefersStatusBarHidden
++ prefersStatusBarHidden 按布尔转
++ prefersStatusBarHidden 默认 false
 + preload-error 带着路径
 + preload-error 带着错误
 + prepareForDisplay 给回一张图
@@ -2011,6 +2031,9 @@
 + setItems：顺序照给的
 + setMaximumTrackImage
 + setMinimumTrackImage
++ setNeedsStatusBarAppearanceUpdate() 能调
++ setNeedsUpdateOfPrefersInterfaceOrientationLocked() 能调
++ setNeedsUpdateOfSupportedInterfaceOrientations() 能调
 + setOn(false, { animated: true })：值当场就变
 + setOn(true)
 + setParagraphStyle 给普通对象
@@ -2117,6 +2140,8 @@
 + stat.size 和实际字节数一致
 + state 只读: true
 + status
++ statusBarFrame 是 CGRect
++ statusBarManager 是 UIStatusBarManager
 + stepValue
 + stepValue 可写
 + stepValue 是负数：stepValue must be greater than #, got -#
@@ -2155,6 +2180,8 @@
 + suggestedName 是字符串或 null
 + superlayer 指回去
 + superlayer 读两次是同一个包装
++ supportedInterfaceOrientations 写进去读得回来
++ supportedInterfaceOrientations 默认：四个方向
 + supportsAlpha 写 # 得到 false
 + supportsAlpha 写 false
 + supportsAlpha 写 true
@@ -2433,6 +2460,7 @@
 + 不带 baseURLForDataURL：照旧
 + 不带动画
 + 不带动画呈现：animated 是 false
++ 不带参数：没有偏好
 + 不拦 tel: 链接：加载失败，errorCode 是 -#
 + 不指定分区：加到最后一个
 + 不指定时不可取消
@@ -2669,6 +2697,8 @@
 + 值能清掉
 + 值越大滑块越靠右
 + 值配不上 keyPath 就抛
++ 偏好的方向可写
++ 偏好的方向读得回来
 + 偏移写进去了
 + 停下之后不转了
 + 停下之后仍然显示
@@ -2745,10 +2775,12 @@
 + 克隆普通对象：里面的数组也是另一个
 + 克隆稀疏数组：洞还是洞，长度不变
 + 克隆结构体（CGRect）：抛 DataCloneError
++ 兑现时已经是横屏
 + 兑现的是 CLLocation
 + 全名不合法，保留旧值
 + 全局上有 CLLocation
 + 全局上有 CLLocationManager
++ 全屏弹出的页面：状态栏默认显示
 + 全屏的页关掉：底下的页再派发出现
 + 全清：已经打开的网页里 localStorage 当场变空
 + 八个事件名都订得上、退得掉
@@ -3088,6 +3120,7 @@
 + 卡片关掉：底下的页也不派发出现
 + 卡片收到 traitchange：dark → light，previousTraitCollection 是 UITraitCollection
 + 卡片收到 traitchange：light → dark，previousTraitCollection 是 UITraitCollection
++ 卡片收到 traitchange：light → light，previousTraitCollection 是 UITraitCollection
 + 卡片里的子视图也跟着变了
 + 压低上限，value 跟着被钉下来
 + 压非 UIViewController 被拒: pushViewController: expects a UIViewControll…
@@ -3313,6 +3346,7 @@
 + 原生模块：落单的代理项照旧被拒
 + 原生派发的不可取消
 + 参数不够也保留旧值
++ 参数不是偏好对象：抛 TypeError
 + 参数不是字符串时转成字符串
 + 参数不是视图被拒: feedbackGeneratorForView needs a UIView
 + 参数不是识别器被拒: addGestureRecognizer needs a UIGestureRecognizer
@@ -3691,7 +3725,9 @@
 + 对齐写得进去
 + 对齐写错：不抛、值不变
 + 导航控制器上也订得上
++ 导航控制器也有这几个属性
 + 导航控制器自己也派发出现
++ 导航控制器里：设在它显示的页面上，状态栏藏起来了
 + 导航控制器：不认识的事件名当自定义事件
 + 导航栈：GC 后栈顶还是原来那个包装
 + 导航栈：标题也还在
@@ -3746,6 +3782,7 @@
 + 已经中止的 signal 带在 Request 上：直接被拒
 + 已经是 null 时写空串：还是 null
 + 已经是空串时写 null：还是空串
++ 已经是竖屏，请求竖屏：当场兑现
 + 已经有的名字不能再暴露（改不掉）
 + 已编码的不重复编码
 + 布尔
@@ -3880,6 +3917,7 @@
 + 拍照界面上 dismiss 当自定义事件
 + 拍照界面上 dismissattempt 当自定义事件
 + 拍照界面上 show 当自定义事件
++ 拒绝的原因是页面不支持
 + 拒绝的错误 name 是 NetworkError
 + 拖动上没有 edges
 + 拖动不是边缘拖动
@@ -4133,6 +4171,7 @@
 + 改了读出来的缓冲区：Blob 自己的内容不变
 + 改克隆出来的，原来的不变
 + 改副本不影响原来的
++ 改回 false：状态栏又出来了
 + 改回 true 当场隐藏
 + 改回跟随：又收到一次
 + 改成 false 当场显示出来
@@ -4384,6 +4423,7 @@
 + 最小缩放写得进去
 + 有 base 就能解析
 + 有 prompt 时自己想要的高是 #
++ 有一个不认识的名字：整次不生效
 + 有内容时 hasText 为真
 + 有宽有高
 + 有选区时 deleteBackward 删掉选中的
@@ -4426,6 +4466,7 @@
 + 构造参数：开头的 U+FEFF 还在
 + 构造参数：长度按码元算
 + 构造完没有选中的
++ 构造时写错方向名：抛 TypeError
 + 构造时给四段
 + 构造时给样式名被拒（要的是效果对象）
 + 构造时给的 image
@@ -4535,6 +4576,7 @@
 + 标签 "utf-#" 抛 RangeError
 + 标签 "utf-#" 认成 utf-#
 + 标签 "utf-#le" 抛 RangeError
++ 标签控制器也有这几个属性
 + 标签栏控制器上也订得上
 + 标签栏控制器：不认识的事件名当自定义事件
 + 标签栏：选中的那一页出现
@@ -4570,11 +4612,13 @@
 + 样式写得进去
 + 样式给数字被拒（枚举只认名字）
 + 样式给数字：不抛、值不变
++ 根页面只允许竖屏时请求横屏：拒绝
 + 椭圆路径的 bounds
 + 模态的事件名也能订
 + 模态页：不认识的事件名当自定义事件
 + 模糊：工厂给的是 UIBlurEffect
 + 横向的 size class
++ 横屏时根视图变宽了
 + 次数给小数：向零取整
 + 段落样式 copy()：不可改
 + 段落样式 mutableCopy()：可改
@@ -4646,6 +4690,7 @@
 + 没有 type 的 Blob 不加 Content-Type
 + 没有 windowsLocaleCodeFromLocaleIdentifier
 + 没有串行（# 个的耗时 < 单次的 # 倍）
++ 没有偏好的方向：抛 TypeError
 + 没有做成 CNContact 成员的字段名也能写（只是让详情页显示它）
 + 没有内容时回车键是灰的
 + 没有内容时是 null
@@ -4758,6 +4803,7 @@
 + 父页面关掉：子页面跟着派发消失
 + 状态已定时 requestWhenInUseAuthorization() 兑现成现在的状态
 + 现在七段
++ 现在是竖屏
 + 现在能后退
 + 玻璃容器：new 得出来
 + 玻璃容器：spacing 默认 #
@@ -4832,6 +4878,7 @@
 + 空地址：拒绝，TypeError
 + 空壳上读 advertisingIdentifier 抛 TypeError
 + 空字符留着，两边照常合成
++ 空数组不生效（系统要求至少一个方向）
 + 空数组＝一个角都不圆
 + 空文本视图：null 或者长度 #
 + 空栈没有栈顶
@@ -4883,6 +4930,8 @@
 + 系统当场来问：resignFirstResponder 返回之前监听器已经跑过
 + 系统的拖动识别器上读得到拖动的属性
 + 系统的拖动识别器：最少 # 根手指，最多 # 根
++ 系统的页面上设 prefersStatusBarHidden：抛 TypeError
++ 系统的页面上读得到系统的值
 + 系统自动建的 tabBarItem 用的是页面的 title
 + 系统自带的标签换成了给人看的写法
 + 约束对象能从 view 读回来
@@ -5090,7 +5139,9 @@
 + 说明写得进去
 + 说明可以写成 null
 + 说明给数字：转成字符串
++ 请求横屏：兑现
 + 请求的次数比单元格的个数多（有复用）
++ 请求竖屏：兑现
 + 读不存在的文件
 + 读两次 cookies 是同一个对象
 + 读两次 ipc 是同一个对象
@@ -5162,6 +5213,7 @@
 + 转不出数的时长被拒: minimumPressDuration must be a finite number, got "soon"
 + 转不出数的被拒
 + 转不出有限数被拒
++ 转回竖屏了
 + 转场写得进去
 + 转成字符串
 + 轻扫是 UIGestureRecognizer

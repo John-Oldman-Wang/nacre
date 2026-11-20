@@ -3,6 +3,7 @@
   "bundleId": "nacre.acceptance",
   "ios": {
     "urlSchemes": ["nacre-acceptance"],
+    "orientations": ["portrait", "landscape"],
     "infoPlist": {
       "NSUserTrackingUsageDescription": "The acceptance suite asks for tracking permission to check that the prompt and the advertising identifier work.",
       "NSFaceIDUsageDescription": "The acceptance suite uses Face ID to check that authentication works",
