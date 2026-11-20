@@ -124,7 +124,7 @@ export function stepNativeModules(ctx) {
          'isMainThread,nonFinite,sha256,simulateMemoryWarning,typeOf,unsupported');
   assert('methods.async 的内容', mod.methods.async.join(','),
          'bytesAsync,cachedBytesAsync,drop,echoAsync,echoLater,emitLater,failLater,nestedBytesAsync,' +
-         'resolveThenReject,settleTwice,threads,unsupportedAsync');
+         'resolveThenReject,settleTwice,simulateSheetSwipeDown,threads,unsupportedAsync');
   assert('同名的第二个模块没有盖掉先登记的', mod.methods.sync.includes('shadow'), false);
   assert('events 的内容', mod.events.join(','), 'data,tick');
   assert('events 是冻结的', Object.isFrozen(mod.events), true);

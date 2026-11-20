@@ -127,6 +127,7 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 | 事件能不能取消 | 原生的通知延后一轮派发，不可取消；系统当场来问、要立刻给答案的，当场派发，可取消；系统这一刻正在做一件 JS 要跟着做的事（键盘、转屏的动画），当场派发，不可取消 | [事件](internals/events.md) |
 | 所有权 | 收对象参数并持有它的成员，JS 一侧要记所有权边，`check-api.sh` 核对 | [包装](internals/wrapper.md) |
 | 覆写点 | UIKit 只能靠子类覆写拿到的能力，先看 UIKit 怎么用它：系统每次都来调的通知类（出现、消失），替换基类方法、转成事件；要「真的覆写」才生效的 getter（方向、状态栏），给 JS 能 `new` 的页面预置原生子类，JS 里是可写属性，系统的页面上写了抛 | [页面的覆写点](internals/page-overrides.md) |
+| 组件不接 | 现成的界面部件不接：JS 用已有的能力拼得出来的（开关、滑块、标签栏、导航条的外观、列表的格子）。已经接了的保留，只修 bug，不再补成员。要接的是 JS 拼不出来的**能力**：绘制和交互的基础（视图、图层、文字、输入法、滚动的手感、手势）、系统的页面和服务（弹窗、分享、选图、毛玻璃）、和系统的对接（场景、键盘、转屏）。2026-11-20 定 | — |
 | 接类的初稿 | 先用 `bindgen` 的 `scaffold` 照头文件写出一个域的初稿，写完就是普通的手写文件，直接改。不设「生成的、不许手改」的文件 | [bindgen](internals/bindgen.md) |
 
 ### 性能：能用就先用着
@@ -552,15 +553,12 @@ Commit message 格式：
 
 | 域 | 还缺什么 |
 | --- | --- |
-| 列表 | 网格和自定义布局、分区的头尾、左滑操作、行右侧的附件 |
-| 页面 | 半屏卡片（`UISheetPresentationController` 的 detents）；iOS 18 的 `UITab` 和标签栏的外观定制；页面的 `toolbarItems`（导航控制器的工具条有了，往上放按钮要它）；系统导航条的外观（`UINavigationBar` 和 `UINavigationBarAppearance` 一组，定了暂不接：标题和按钮用 `navigationItem` 已经够用，有人要改外观再接） |
-| 滚动 | 下拉刷新（`UIRefreshControl`，JS 自己也拼得出来，优先级低）；双指捏合缩放（`zoomScale` 一组属性已经有了，还差系统当场问的「缩放哪个子视图」和缩放的事件） |
-| 输入 | 两种输入框的 `markedTextRange`（输入法组字的范围）；多行输入的 `beforeinput` 一类事件；键盘设置里的密码规则（`passwordRules`，它的类还没接）；搜索框上九个之外的键盘设置 |
+| 滚动 | 拖动结束时改滚动停下的位置（`scrollViewWillEndDragging:withVelocity:targetContentOffset:`，系统当场来问的那一类）；双指捏合缩放（`zoomScale` 一组属性已经有了，还差系统当场问的「缩放哪个子视图」和缩放的事件） |
+| 输入 | 两种输入框的 `markedTextRange`（输入法组字的范围）；多行输入的 `beforeinput` 一类事件；键盘设置里的密码规则（`passwordRules`，它的类还没接） |
 | 手势 | 识别器的委托那一组（同时识别、是否开始），照输入框的 `before…` 事件做 |
-| 控件 | `UIPickerView` |
-| 绘图和动画 | 自定义绘制（不做继承，要另找形态）；`CGPath`、`mask`、`shadowPath`；`CATransition`；`UIView` 的关键帧动画、转场、`UIViewPropertyAnimator`；`CATransform3D`（[分析](internals/pending.md#layertransformcatransform3d还没暴露)） |
+| 绘图和动画 | 图层的 `transform`：旋转、缩放动画（Core Animation 支持 `transform.rotation.z`、`transform.scale` 这类 keyPath，我们的白名单没放）和 `CATransform3D`（翻面要 `m34` 的透视），两件一起做；自定义绘制（不做继承，要另找形态）；`CGPath`、`mask`、`shadowPath`；`CATransition`；`UIView` 的关键帧动画、转场、`UIViewPropertyAnimator` |
 | 外观 | 颜色常量缺 `systemGray2`–`systemGray6`、`systemFill` 一组、`systemGroupedBackground` 一组；外观特征的其余各项 |
-| 富文本 | 见 [API 文档](api/ns-attributed-string.md)的「还不能做的」：HTML 和 Markdown 转换、文字排版的底层对象、链接的点击 |
+| 富文本 | 文字排版的底层对象、链接的点击。HTML 和 Markdown 转成富文本定了不做：HTML 用 `WebView` 显示，Markdown 由 JS 的解析库拼成富文本 |
 | 网络和数据 | `Blob.slice`；`crypto.subtle`；剪贴板的图片、网址、多条内容；`rejectionhandled` 事件；网络状态；后台任务 |
 | 网页 | 让本地网页用上模块脚本和 `fetch` 的自定义协议 |
 | 系统能力（做成包） | 推送的注册（`@nacrejs/push`，要推送的签名，现在验不了）；通用链接、Apple 登录（能写，验不了：要显式包名的描述文件和真实域名）；扫码（相机的实时取景）；应用内购买（先不做）；无障碍 |
@@ -568,31 +566,15 @@ Commit message 格式：
 
 ### 发布之后接着做的
 
-| | 还缺什么 |
-| --- | --- |
-| CI | bindgen 的用例和完整的验收还没进 CI |
-| 自己编 V8 | 现成的 V8 包里带着 glibc 的 `sin` 和 `cos`（LGPL-2.1），关不掉。现在是如实声明。要去掉得自己编 V8、关掉 `v8_use_libm_trig_functions` |
-| 给能力包的头 | `NacreExtension.h` 可空性标注不全，引它的文件一编译就是五千多条警告 |
-| 命令 | 一条命令编译、装到模拟器并启动；建新项目。现在生成工程之后的几步要用户自己跑 |
-| 文档站 | 工作流改成了从 `main` 部署；仓库设置里 github-pages 环境的放行规则要跟着加上 `main` |
+现在没有。
 
 ### 客户建议
 
-| 来源 | 内容 | 状态 |
-| --- | --- | --- |
-| 工程和接入（2026-11-16） | 给能力包的接口要有单独的版本号，头变了必须升；真机一键运行的脚本，启动后把日志接到终端；报错行号还原回源文件（source map）；只改了 JS 时不重新编译 | 都核对过属实，没开工。[分析](internals/pending.md#客户反馈工程和接入2026-11-16) |
-| 外部审查的架构建议（2026-11-17） | 七条里做了三处：运行时入口文件拆出了事件的中转对象和网络；内置脚本从 `ctx` 取的名字有了机械检查；订阅入口不再靠匹配报错文案。剩下的：所有权规则靠手写、桥的结果约定不统一、API 有多份手写的来源、测试分层、扩展接口和版本边界 | 前三条等 bindgen 时一起处理；测试分层定了不做：不在 Node 里跑内置脚本，不按改动自动挑验收步骤，Debug 和 Release 不同时跑（[理由](internals/acceptance.md#定了不做的两条)）；版本边界和上面「工程和接入」的接口版本号是同一件事 |
+现在没有。
 
 ### 已知的问题
 
-每条的分析都在[那一页](internals/pending.md)。
-
-- 被模态呈现的 `UINavigationController` 收不到关闭事件（订阅是按类分流的）。
-- V8 的内存上限没有设过，也没量过。
-- `check-api.sh` 的三处盲区：标量按名字的并集核对、不分类；对象数组那条通道不核对；挂到原型上的方法不核对（类型一致和所有权都没人盯）。
-- 验收：单行输入框选区「正在编辑时」那一组赌了时序（等前面的输入框交出焦点，超时就不跑，基线里它是必须出现的）；八十多处「未验证」是自由格式，没有统一的出口；约 450 行 ✓ 不是共用的断言函数打的；外网的请求没有换成本机服务；没接进 CI；真机上不比基线。
-- `UIScrollView.scrollIndicatorInsets`：SDK 里废弃的只是它的 getter（iOS 13 起），setter 是 Apple 推荐的「两个指示条一起设」的便捷写法。现在读写都接了，读出来的值在两个指示条设得不一样时没有定义。要不要改成只能写，没定。
-- 性能上两处慢，原因没查：SF Symbol 第一次加载、空闲之后第一次渲染。颜色解析第一次要多久也没量过。
+现在没有。新发现的写在这里，分析写进[还没做的设计和没解的问题](internals/pending.md)。
 
 ### 欠的验证
 

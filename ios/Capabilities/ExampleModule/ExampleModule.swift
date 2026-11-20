@@ -154,6 +154,34 @@ private func makeExampleModule() -> NacreModule {
     background.asyncAfter(deadline: .now() + delay) { resolve(value) }
   }
 
+  // 照 UIKit「用户把卡片往下拖走」的顺序走一遍：先调卡片的呈现委托
+  // presentationControllerWillDismiss:，关掉（不带动画），关完再调
+  // presentationControllerDidDismiss:。真的拖拽要手指，自动跑的验收靠它。
+  // 兑现成被关掉的那一页的类名；没有弹出的页面时兑现 null。真的模块里不会有这种方法
+  module.addAsyncMethod("simulateSheetSwipeDown") { _, resolve, _ in
+    let window = UIApplication.shared.connectedScenes
+      .compactMap { $0 as? UIWindowScene }
+      .flatMap { $0.windows }
+      .first { $0.isKeyWindow }
+    var top = window?.rootViewController
+    while let next = top?.presentedViewController { top = next }
+    guard let page = top, let presenter = page.presentingViewController else {
+      resolve(nil)
+      return
+    }
+    let controller = page.presentationController
+    let delegate = controller?.delegate
+    if let controller = controller {
+      delegate?.presentationControllerWillDismiss?(controller)
+    }
+    presenter.dismiss(animated: false) {
+      if let controller = controller {
+        delegate?.presentationControllerDidDismiss?(controller)
+      }
+      resolve(NSStringFromClass(type(of: page)))
+    }
+  }
+
   module.addAsyncMethod("threads") { _, resolve, _ in
     let handlerOnMain = Thread.isMainThread
     background.async {

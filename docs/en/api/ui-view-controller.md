@@ -245,8 +245,6 @@ A modal view controller can be dismissed in two ways, and only one of them fires
 
 When code dismisses, the code already knows the moment: the Promise returned by `dismissViewController()` fulfills after the dismiss animation ends, so put the cleanup after it. The events fire on **the presented view controller**.
 
-> **Note:** When the presented view controller is a `UINavigationController`, it does not receive these three events: listening for the three names on it does not throw, but they do not fire when the system dismisses it. The four appear and disappear events are not affected.
-
 ## Examples
 
 ### Present a sheet

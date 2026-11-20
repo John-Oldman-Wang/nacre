@@ -61,6 +61,36 @@ export function stepModal(ctx) {
     // 实测：程序调用 dismiss 到底会不会走那几个 delegate
     console.log('  实测：程序 dismiss 之后收到的事件 = [' + dismissLog.join(', ') + ']');
 
+    // ---- 用户把卡片往下拖走：普通页面和导航控制器都要收到关闭事件 ----
+    // 拖拽要手指，这里由示例模块照 UIKit 拖走时的顺序调卡片的呈现委托
+    const example = application.nativeModules.get('example');
+    if (example === null) {
+      assert('拖走卡片：示例模块在', false, true);
+    } else {
+      /** @param {UIViewController} page */
+      const swipeDown = async (page) => {
+        /** @type {string[]} */
+        const log = [];
+        for (const type of ['beforedismiss', 'dismiss', 'dismissattempt']) {
+          page.addEventListener(type, () => log.push(type));
+        }
+        page.modalPresentationStyle = 'pageSheet';
+        await vc.presentViewController(page, { animated: false });
+        const closed = await example.callAsync('simulateSheetSwipeDown');
+        return { closed, log: log.join(','), presented: vc.presentedViewController };
+      };
+
+      const plain = await swipeDown(new UIViewController());
+      assert('拖走普通页面的卡片：关掉的是它', plain.closed !== null, true);
+      assert('拖走普通页面的卡片：收到的关闭事件', plain.log, 'beforedismiss,dismiss');
+      assert('拖走普通页面的卡片：presentedViewController 清了', plain.presented, null);
+
+      const stack = await swipeDown(new UINavigationController(new UIViewController()));
+      assert('拖走导航控制器的卡片：关掉的是它', stack.closed !== null, true);
+      assert('拖走导航控制器的卡片：收到的关闭事件', stack.log, 'beforedismiss,dismiss');
+      assert('拖走导航控制器的卡片：presentedViewController 清了', stack.presented, null);
+    }
+
     // ---- 留一个入口给真实的拖拽测试 ----
     const draggable = makePage({
       title: '可以拖走',

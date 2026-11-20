@@ -32,6 +32,11 @@
 
 #include "NativeObjectRef.h"
 
+// 可空性：下面没标的指针都是「不会为空」，可能为空的逐个标了 _Nullable。
+// 一个头里只要有一处标了，编译器就要求全部都标；以前只标了几处，引这个头的
+// 每个文件都报一遍「缺少可空性标注」，8 个能力包编一次八千多条
+NS_ASSUME_NONNULL_BEGIN
+
 // 把一个 ObjC 对象交成 NativeObjectRef 里的裸指针，**同时让它活过这次交接**。
 //
 // NativeObjectRef 只是「指针 + 类名」，不持有对象；真正持有的是引擎的
@@ -55,7 +60,7 @@
 // 它**不管跨轮的事**：对象要等下一轮主队列才用（延后派发、异步兑现）时，
 // 让 block 捕获对象本身，在 block 里面再造 ref——见 NacreRuntime.mm 的
 // emitEvent:from:className:then:。
-static inline void* NacreKeep(id _Nullable object) {
+static inline void* _Nullable NacreKeep(id _Nullable object) {
   return object != nil ? (void*)CFAutorelease(CFBridgingRetain(object)) : nullptr;
 }
 
@@ -93,11 +98,11 @@ namespace nacre_bridge {
 
 // ---- JSON ----
 // 过桥的值都是 JSON 文本。能力拿到的 argsJSON 用它解开
-id DecodeJSON(const std::string& json);
+id _Nullable DecodeJSON(const std::string& json);
 // 反方向：把一个值编成 JSON 文本（call 通道的 *out、事件带的数据）。顶层可以
 // 是字符串、数、布尔；nil 编成 null；JSON 表示不了的东西（NSDate 之类）会先
 // 被换成能表示的，编不出来给 "null"，不抛
-std::string EncodeJSON(id value);
+std::string EncodeJSON(id _Nullable value);
 
 // ---- 取参：原生层只收类型精确的值 ----
 //
@@ -107,9 +112,9 @@ std::string EncodeJSON(id value);
 //
 // 正常使用时走不到这些报错（内置脚本已经把值转好了）；走到了，说明
 // 运行时自己漏了一处转换，报错能直接指出是哪个属性或哪个方法。
-bool RequireNumber(id value, NSString* what, std::string* error);    // 有限的数，不含布尔
-bool RequireInteger(id value, NSString* what, std::string* error);   // 上一条 + 没有小数部分
-bool RequireBool(id value, NSString* what, std::string* error);      // 只认 true / false
+bool RequireNumber(id _Nullable value, NSString* what, std::string* error);    // 有限的数，不含布尔
+bool RequireInteger(id _Nullable value, NSString* what, std::string* error);   // 上一条 + 没有小数部分
+bool RequireBool(id _Nullable value, NSString* what, std::string* error);      // 只认 true / false
 
 // 取参失败时的返回值。能变成任何返回类型的「空值」；对返回 bool / BOOL 的
 // 函数是 true——那些函数的约定是「返回真表示我认领了」，而这里确实认领了，
@@ -188,7 +193,7 @@ NSString* JoinEnumNames(NSDictionary<NSString*, NSNumber*>* table);
   NSString* NamesFor##FuncName(void);
 
 /// 枚举写错时的报错文案，把可选值列全
-std::string EnumError(NSString* what, id given, NSString* choices);
+std::string EnumError(NSString* what, id _Nullable given, NSString* choices);
 // ---- 能力域的注册 ----
 //
 // 分发链原来是一串写死的 if：每个能力域一个函数，按顺序问「认不认领」。
@@ -225,12 +230,12 @@ void NacreRegisterBuiltinParts(Class anchor);
 // ---- 方法调用的参数包 ----
 // 标量在 values 里（JSON 解出来的，对象位是 null），对象按同样的下标在 ptrs 里。
 struct NacreArgs {
-  NSArray* values;
-  const std::vector<void*>* ptrs;
-  id value(NSUInteger i) const {
+  NSArray* _Nullable values;
+  const std::vector<void*>* _Nullable ptrs;
+  id _Nullable value(NSUInteger i) const {
     return values != nil && i < values.count ? values[i] : nil;
   }
-  id object(size_t i) const {
+  id _Nullable object(size_t i) const {
     return ptrs != nullptr && i < ptrs->size() ? (__bridge id)(*ptrs)[i] : nil;
   }
 };
@@ -293,46 +298,46 @@ struct NacreSubscribed {
 };
 
 struct NacreDomain {
-  const char* name = nullptr;
+  const char* _Nullable name = nullptr;
   std::vector<Class> classes;
 
   // 属性
-  id (*read)(id object, NSString* key) = nullptr;
-  BOOL (*write)(id object, NSString* key, id value, std::string* error) = nullptr;
-  nacre::NativeObjectRef (*readObject)(id object, const std::string& name) = nullptr;
-  bool (*writeObject)(id object, const std::string& name, id value,
+  id _Nullable (*_Nullable read)(id object, NSString* key) = nullptr;
+  BOOL (*_Nullable write)(id object, NSString* key, id _Nullable value, std::string* error) = nullptr;
+  nacre::NativeObjectRef (*_Nullable readObject)(id object, const std::string& name) = nullptr;
+  bool (*_Nullable writeObject)(id object, const std::string& name, id _Nullable value,
                       std::string* error) = nullptr;
-  void (*readObjectArray)(id object, const std::string& name,
+  void (*_Nullable readObjectArray)(id object, const std::string& name,
                           std::vector<nacre::NativeObjectRef>& refs) = nullptr;
-  bool (*writeObjectArray)(id object, const std::string& name,
+  bool (*_Nullable writeObjectArray)(id object, const std::string& name,
                            const std::vector<void*>& values, std::string* error) = nullptr;
 
   // 方法。sel 是完整的 ObjC selector
-  bool (*callVoid)(id object, const std::string& name) = nullptr;
-  bool (*call)(id object, NSString* sel, const NacreArgs& args, std::string* out,
+  bool (*_Nullable callVoid)(id object, const std::string& name) = nullptr;
+  bool (*_Nullable call)(id object, NSString* sel, const NacreArgs& args, std::string* out,
                std::string* error) = nullptr;
-  bool (*callObject)(id object, NSString* sel, const NacreArgs& args,
+  bool (*_Nullable callObject)(id object, NSString* sel, const NacreArgs& args,
                      nacre::NativeObjectRef* out, std::string* error) = nullptr;
-  bool (*callObjectArray)(id object, NSString* sel, const NacreArgs& args,
+  bool (*_Nullable callObjectArray)(id object, NSString* sel, const NacreArgs& args,
                           std::vector<nacre::NativeObjectRef>* out,
                           std::string* error) = nullptr;
-  bool (*callAsync)(id object, const std::string& name, const std::string& argsJSON,
+  bool (*_Nullable callAsync)(id object, const std::string& name, const std::string& argsJSON,
                     const std::vector<void*>& argPtrs, NacreAsyncDone done) = nullptr;
 
   // 类级
-  bool (*construct)(const std::string& className, const NacreArgs& args,
+  bool (*_Nullable construct)(const std::string& className, const NacreArgs& args,
                     nacre::NativeObjectRef* out, std::string* error) = nullptr;
-  bool (*classCall)(const std::string& className, NSString* sel, const NacreArgs& args,
+  bool (*_Nullable classCall)(const std::string& className, NSString* sel, const NacreArgs& args,
                     std::string* out, std::string* error) = nullptr;
-  bool (*classCallObject)(const std::string& className, NSString* sel,
+  bool (*_Nullable classCallObject)(const std::string& className, NSString* sel,
                           const NacreArgs& args, nacre::NativeObjectRef* out,
                           std::string* error) = nullptr;
-  nacre::NativeObjectRef (*classObject)(const std::string& className,
+  nacre::NativeObjectRef (*_Nullable classObject)(const std::string& className,
                                         const std::string& name) = nullptr;
 
   // 事件订阅。JS 侧某个事件名第一次有监听器时 on = YES，最后一个移走时 NO。
   // 回答三种之一，见 NacreSubscribed
-  NacreSubscribed (*subscribe)(id object, NSString* type, BOOL on, std::string* error) = nullptr;
+  NacreSubscribed (*_Nullable subscribe)(id object, NSString* type, BOOL on, std::string* error) = nullptr;
 };
 void NacreRegisterDomain(const NacreDomain& domain);
 
@@ -342,9 +347,9 @@ void NacreRegisterDomain(const NacreDomain& domain);
 // 三种负载：没有、一段 JSON 文本（事件对象上多出那几个字段）、一个原生对象。
 void NacreEmitEvent(id object, const char* className, NSString* type);
 void NacreEmitEventWithJSON(id object, const char* className, NSString* type,
-                            NSString* json);
+                            NSString* _Nullable json);
 void NacreEmitEventWithObject(id object, const char* className, NSString* type,
-                              id payload, const char* payloadClass);
+                              id _Nullable payload, const char* payloadClass);
 
 // ---- 同步回调：系统问、JS 当场答 ----
 //
@@ -360,13 +365,14 @@ void NacreEmitEventWithObject(id object, const char* className, NSString* type,
 // 引擎不在了，都返回 NO——也就是按「要」处理，默认行为照常发生。
 // json 是事件带的字段（一个 JSON 对象的文本），没有就传 nil。
 BOOL NacreEmitEventSync(id object, const char* className, NSString* type,
-                        NSString* json);
+                        NSString* _Nullable json);
 
 // 「当场的通知」：系统不等答案，但这一刻正在做一件 JS 要跟着做的事。第一处是
 // 键盘：系统在键盘的动画里发通知，监听器这时候改的布局会跟着键盘一起动；
 // 延后一轮再改，动画已经过去了（真机实测）。当场派发一个**不可取消**的事件。
 // 只能在主线程调；不在主线程、引擎不在了，就不派发
-void NacreEmitEventNow(id object, const char* className, NSString* type, NSString* json);
+void NacreEmitEventNow(id object, const char* className, NSString* type,
+                       NSString* _Nullable json);
 
 // 「当场执行的一段代码」类（UIKit 收一个 block、在调用里面就执行它）：
 // JS 侧把那段代码登记成一个号（内置脚本的 callWithBlock / registerBlock），
@@ -395,3 +401,5 @@ void NacreAddDelegatePart(id object, id part);
 void NacreRemoveDelegatePart(id object, id part);
 
 }  // namespace nacre_bridge
+
+NS_ASSUME_NONNULL_END

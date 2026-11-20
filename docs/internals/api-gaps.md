@@ -389,7 +389,6 @@
 
 | 想做的事 | 对应的原生能力 | 状态 |
 | --- | --- | --- |
-| 把 HTML 或 Markdown 转成富文本 | `initWithData:options:documentAttributes:error:`、`initWithMarkdown:…` | 未实现 |
 | 自己控制文字怎么排、读每一行的位置 | TextKit：`NSLayoutManager`、`NSTextLayoutManager`、`NSTextStorage` | 未实现 |
 | 点文本视图里的链接时得到通知、决定要不要打开 | `UITextViewDelegate` 的链接相关方法 | 未实现 |
 | 设置输入框里接下来打的字用什么样式；改链接的样式 | `typingAttributes`、`defaultTextAttributes`、`linkTextAttributes` | 未实现 |
@@ -1194,7 +1193,6 @@
 | 自己写页面切换的动画 | `UIViewControllerAnimatedTransitioning` |
 | 两个子页面之间带动画地切换 | `transitionFromViewController:toViewController:duration:options:animations:completion:` |
 | 自己控制子页面什么时候算出现、什么时候算消失 | `beginAppearanceTransition:animated:`、`shouldAutomaticallyForwardAppearanceMethods` |
-| 被模态呈现的导航控制器收到关闭事件 | 导航控制器只接受导航事件。标签栏控制器上可以监听这三个事件名 |
 | 用代码关闭模态页时也收到事件 | 系统不发这个通知。在调 `dismissViewController()` 的地方自己处理 |
 | 在回调里同步决定「这次让不让用户关闭」 | `presentationControllerShouldDismiss:`。不做，用 `isModalInPresentation` 预先声明 |
 | 每个页面单独控制屏幕方向、状态栏样式 | `supportedInterfaceOrientations`、`preferredStatusBarStyle` |
