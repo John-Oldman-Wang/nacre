@@ -553,18 +553,29 @@ Commit message 格式：
 
 ### 要建设的能力
 
-| 域 | 还缺什么 |
+**先做：**
+
+| 域 | 什么 |
 | --- | --- |
-| 滚动 | 拖动结束时改滚动停下的位置（`scrollViewWillEndDragging:withVelocity:targetContentOffset:`，系统当场来问的那一类）；双指捏合缩放（`zoomScale` 一组属性已经有了，还差系统当场问的「缩放哪个子视图」和缩放的事件） |
-| 输入 | 两种输入框的 `markedTextRange`（输入法组字的范围）；多行输入的 `beforeinput` 一类事件；键盘设置里的密码规则（`passwordRules`，它的类还没接） |
+| 滚动 | 拖动结束时改滚动停下的位置（`scrollViewWillEndDragging:withVelocity:targetContentOffset:`，系统当场来问的那一类） |
+| 输入 | 两种输入框的 `markedTextRange`（输入法组字的范围：拼音还没选字时输入框里已经有字母） |
 | 手势 | 识别器的委托那一组（同时识别、是否开始），照输入框的 `before…` 事件做 |
-| 绘图和动画 | 图层的 `transform`：旋转、缩放动画（Core Animation 支持 `transform.rotation.z`、`transform.scale` 这类 keyPath，我们的白名单没放）和 `CATransform3D`（翻面要 `m34` 的透视），两件一起做；自定义绘制（不做继承，要另找形态）；`CGPath`、`mask`、`shadowPath`；`CATransition`；`UIView` 的关键帧动画、转场、`UIViewPropertyAnimator` |
-| 外观 | 颜色常量缺 `systemGray2`–`systemGray6`、`systemFill` 一组、`systemGroupedBackground` 一组；外观特征的其余各项 |
-| 富文本 | 文字排版的底层对象、链接的点击。HTML 和 Markdown 转成富文本定了不做：HTML 用 `WebView` 显示，Markdown 由 JS 的解析库拼成富文本 |
-| 网络和数据 | `Blob.slice`；`crypto.subtle`；剪贴板的图片、网址、多条内容；`rejectionhandled` 事件；网络状态；后台任务 |
+| 绘图和动画 | 图层的 `transform`：旋转、缩放动画（`transform.rotation.z`、`transform.scale` 这类 keyPath，白名单没放）和 `CATransform3D`（翻面要 `m34` 的透视），两件一起做（[分析](internals/pending.md#layertransformcatransform3d还没暴露)）；`mask` |
+| 外观 | 颜色常量缺的 `systemGray2`–`systemGray6`、`systemFill` 一组、`systemGroupedBackground` 一组 |
+| 网络和数据 | 网络状态（连没连上、换了网络） |
+
+**留着，按需要做：**
+
+| 域 | 什么 |
+| --- | --- |
+| 滚动 | 双指捏合缩放：`zoomScale` 一组属性已经有了，还差系统当场问的「缩放哪个子视图」和缩放的事件 |
+| 输入 | 多行输入的 `beforeinput` 一类事件 |
+| 绘图和动画 | `shadowPath`；`UIViewPropertyAnimator`（跟着手指走、可以打断和反向的动画） |
+| 富文本 | 链接的点击 |
+| 网络和数据 | `crypto.subtle`；后台任务；排最后的：`Blob.slice`、剪贴板的图片和网址和多条内容、`rejectionhandled` 事件 |
 | 网页 | 让本地网页用上模块脚本和 `fetch` 的自定义协议 |
-| 系统能力（做成包） | 推送的注册（`@nacrejs/push`，要推送的签名，现在验不了）；通用链接、Apple 登录（能写，验不了：要显式包名的描述文件和真实域名）；扫码（相机的实时取景）；应用内购买（先不做）；无障碍 |
-| 机制 | bindgen 还写不出的：数组、日期、类方法、带参数的构造、带完成回调的方法；已接的类上带对象的方法；能力包里的类。事件和委托它始终写不出。[现在的做法和还没做的](internals/bindgen.md) |
+| 无障碍 | 读屏要的标签和提示（`accessibilityLabel` 一组），核心视图上的属性 |
+| 系统能力（做成包） | 推送的注册（`@nacrejs/push`）、通用链接、Apple 登录：都能写，卡在验证上，要显式包名的描述文件，通用链接还要真实域名；扫码（相机的实时取景）；应用内购买（先不做） |
 
 ### 发布之后接着做的
 
