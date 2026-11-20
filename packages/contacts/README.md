@@ -1,34 +1,34 @@
 # `@nacrejs/contacts`
 
-Nacre 的通讯录选择器：让用户从通讯录里选联系人。**装了才有 `CNContactPickerViewController` 这一组类。**
+A capability package for [Nacre](https://john-oldman-wang.github.io/nacre/), a JavaScript runtime for iOS apps: letting the user pick contacts with the system contact picker. It provides `CNContactPickerViewController` and `CNContact`. The app has it only if the project installs this package.
 
-用的是系统的选择器。它在系统自己的进程里运行，App 只拿得到用户选中的联系人，**不需要通讯录权限**：装这个包的项目不用在 `nacre.config.json` 里写权限文案，清单里 `requires.infoPlist` 是空的。
+[Documentation](https://john-oldman-wang.github.io/nacre/api/contacts) · [中文文档](https://john-oldman-wang.github.io/nacre/zh/api/contacts)
 
+The system picker gives the app only the contacts the user picks, so no contacts permission is needed.
+
+## Install
+
+In a Nacre project, two steps.
+
+**1. Install the package.**
+
+```bash
+npm install @nacrejs/contacts
 ```
-packages/contacts/
-├─ index.d.ts                  类型：选择器、联系人那一组只读的值、姓名的格式化
-├─ nacre-ios.json              清单：这是一个能力包、它的 framework 叫什么、它不要项目写任何键
-└─ NacreContacts.xcframework/  预编译的 framework（构建产物，不提交）
+
+**2. Bring in its types at the top of the entry file.**
+
+```js
+/// <reference types="@nacrejs/types" />
+/// <reference types="@nacrejs/contacts" />
 ```
 
-源码不在这里，在 `ios/Capabilities/Contacts/`。`ios/` 下是源码，`packages/` 下是交付出去的东西。
+**Effect**: after you regenerate `ios/` and rebuild, the app includes this capability, and `typeof CNContactPickerViewController !== 'undefined'` is `true`.
 
-## 怎么用
+Without the package, its classes don't exist: reading one throws `ReferenceError`, and type checking reports it first.
 
-见 [API 文档](../../docs/api/contacts.md)。装上、加一行类型引用，就能用。
+For how to use it, see [Contact picker](https://john-oldman-wang.github.io/nacre/api/contacts). For all capability packages, see [Core and capability packages](https://john-oldman-wang.github.io/nacre/api/capabilities).
 
-## 这个包不做的
+## License
 
-读整个通讯录、新建和修改联系人、通讯录的变化通知。这三样都要用 `CNContactStore`，用了它项目就必须写 `NSContactsUsageDescription`，而这个包的目的是不需要权限。
-
-## 没装的时候
-
-| | |
-| --- | --- |
-| 生成的工程 | 不嵌 `NacreContacts.framework`，产物里没有它，也不链接系统的 Contacts 和 ContactsUI |
-| 运行时 | 全局没有 `CNContactPickerViewController`、`CNContact` 这些类 |
-| 类型检查 | 写到这些类报 `Cannot find name` |
-
----
-
-← 返回[项目说明](../../docs/project.md) ・ [实现原理](../../docs/internals/contacts.md) ・ [能力包是怎么搭的](../../docs/internals/capabilities.md)
+FSL-1.1-MIT, see `LICENSE.md`.

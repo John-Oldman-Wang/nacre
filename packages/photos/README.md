@@ -1,46 +1,48 @@
 # `@nacrejs/photos`
 
-Nacre 的相册能力：从相册选图、把图片存进相册。**装了才有 `PHPickerViewController`、`PHPhotoLibrary` 这几个类。**
+A capability package for [Nacre](https://john-oldman-wang.github.io/nacre/), a JavaScript runtime for iOS apps: picking images from the photo library and saving images to it. It provides `PHPickerViewController`, `PHPhotoLibrary` and the classes around them. The app has it only if the project installs this package.
 
+[Documentation](https://john-oldman-wang.github.io/nacre/api/photos) · [中文文档](https://john-oldman-wang.github.io/nacre/zh/api/photos)
+
+Picking images needs no permission, but the usage description is required as soon as the package is installed.
+
+## Install
+
+In a Nacre project, three steps.
+
+**1. Install the package.**
+
+```bash
+npm install @nacrejs/photos
 ```
-packages/photos/
-├─ index.d.ts                类型：六个类、五个枚举、事件带的数据
-├─ nacre-ios.json            清单：这是一个能力包、它的 framework 叫什么、要项目写哪个 Info.plist 键
-└─ NacrePhotos.xcframework/  预编译的 framework（构建产物，不提交）
+
+**2. Bring in its types at the top of the entry file.**
+
+```js
+/// <reference types="@nacrejs/types" />
+/// <reference types="@nacrejs/photos" />
 ```
 
-源码不在这里，在 `ios/Capabilities/Photos/`——和 `ios/` 对 `packages/ios/` 的关系一样：`ios/` 下是源码，`packages/` 下是交付出去的东西。
-
-## 怎么用
-
-见 [API 文档](../../docs/api/photos.md)。装上、加一行类型引用、在 `nacre.config.json` 里写一句存图的权限文案，就能用。
-
-## 要项目写什么
-
-清单里声明了一个要求：
+**3. Write its usage description in `nacre.config.json`.**
 
 ```json
-"requires": { "infoPlist": ["NSPhotoLibraryAddUsageDescription"] }
+{
+  "ios": {
+    "infoPlist": {
+      "NSPhotoLibraryAddUsageDescription": "Used to save images to your photo library"
+    }
+  }
+}
 ```
 
-这一句是存图时系统的权限提示框里给用户看的话，只有写 App 的人写得出来，所以包不带内容，由项目写在 `nacre.config.json` 的 `ios.infoPlist` 里。没写的话生成工程时就报错，点名是这个包要这个键。写法见[配置 App](../../docs/guides/project-config.md#写权限文案)。
+`NSPhotoLibraryAddUsageDescription` is the sentence iOS shows the user when the app first asks to add images to the photo library. Only you can write it, so the package doesn't ship one. If it's missing, `nacre generate` stops with an error that names the key. See [Writing usage descriptions](https://john-oldman-wang.github.io/nacre/guides/project-config#writing-usage-descriptions).
 
-选图不需要任何权限。但装了这个包就得写这一句：App Store 上传时的检查看的是二进制里有没有相册的符号，不看代码用没用到。
+**Effect**: after you regenerate `ios/` and rebuild, the app includes this capability, and `typeof PHPickerViewController !== 'undefined'` is `true`.
 
-## 没装的时候
+Without the package, its classes don't exist: reading one throws `ReferenceError`, and type checking reports it first.
 
-| | |
-| --- | --- |
-| 生成的工程 | 不嵌 `NacrePhotos.framework`，产物里没有它，也不链接 PhotosUI 和 Photos |
-| 运行时 | 全局上没有 `PHPickerViewController`、`PHPhotoLibrary` 等六个类（`typeof PHPickerViewController` 是 `'undefined'`） |
-| 类型检查 | `new PHPickerConfiguration()` 报 `Cannot find name 'PHPickerConfiguration'` |
+For how to use it, see [Photo library](https://john-oldman-wang.github.io/nacre/api/photos). For all capability packages, see [Core and capability packages](https://john-oldman-wang.github.io/nacre/api/capabilities).
 
-三处是一致的。
+## License
 
-## 它为什么不自己引 `@nacrejs/types`
-
-和 `@nacrejs/keychain` 同一个原因：`index.d.ts` 用到的 `NSObject`、`UIViewController`、`UIImage` 是 `@nacrejs/types` 声明的全局类型，用 Nacre 的入口文件本来就引了它；在这里再写一行三斜线引用，包是用 `file:` 或 workspace 链接进来的时候 TypeScript 找不到（`TS2688`）。两个包的关系写在 `peerDependencies` 里。
-
----
-
-← 返回[项目说明](../../docs/project.md) ・ [相册是怎么接的](../../docs/internals/photos.md) ・ [能力包是怎么搭的](../../docs/internals/capabilities.md)
+FSL-1.1-MIT, see `LICENSE.md`.

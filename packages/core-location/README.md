@@ -1,36 +1,46 @@
 # `@nacrejs/core-location`
 
-Nacre 的定位能力：使用 App 期间的位置。**装了才有 `CLLocationManager`。**
+A capability package for [Nacre](https://john-oldman-wang.github.io/nacre/), a JavaScript runtime for iOS apps: the device location while the app is in use. It provides `CLLocationManager` and `CLLocation`. The app has it only if the project installs this package.
 
+[Documentation](https://john-oldman-wang.github.io/nacre/api/cl-location-manager) · [中文文档](https://john-oldman-wang.github.io/nacre/zh/api/cl-location-manager)
+
+## Install
+
+In a Nacre project, three steps.
+
+**1. Install the package.**
+
+```bash
+npm install @nacrejs/core-location
 ```
-packages/core-location/
-├─ index.d.ts                       类型：CLLocationManager、CLLocation、CLLocationCoordinate2D
-├─ nacre-ios.json                   清单：这是一个能力包、它的 framework 叫什么、要项目写哪个键
-└─ NacreCoreLocation.xcframework/   预编译的 framework（构建产物，不提交）
+
+**2. Bring in its types at the top of the entry file.**
+
+```js
+/// <reference types="@nacrejs/types" />
+/// <reference types="@nacrejs/core-location" />
 ```
 
-源码不在这里，在 `ios/Capabilities/CoreLocation/`：`ios/` 下是源码，`packages/` 下是交付出去的东西。
+**3. Write its usage description in `nacre.config.json`.**
 
-## 怎么用
+```json
+{
+  "ios": {
+    "infoPlist": {
+      "NSLocationWhenInUseUsageDescription": "Used to show stores near you"
+    }
+  }
+}
+```
 
-见 [API 文档](../../docs/api/cl-location-manager.md)。三步：
+`NSLocationWhenInUseUsageDescription` is the sentence iOS shows the user when the app asks for location access. Only you can write it, so the package doesn't ship one. If it's missing, `nacre generate` stops with an error that names the key. See [Writing usage descriptions](https://john-oldman-wang.github.io/nacre/guides/project-config#writing-usage-descriptions).
 
-1. 装上这个包。
-2. 在 `nacre.config.json` 的 `ios.infoPlist` 里写 `NSLocationWhenInUseUsageDescription`：系统问用户同不同意定位时，提示框里显示这句话。没写的话生成工程时报错。
-3. 在入口文件顶上加一行 `/// <reference types="@nacrejs/core-location" />`。
+**Effect**: after you regenerate `ios/` and rebuild, the app includes this capability, and `typeof CLLocationManager !== 'undefined'` is `true`.
 
-## 它为什么是一个包
+Without the package, its classes don't exist: reading one throws `ReferenceError`, and type checking reports it first.
 
-用定位的 App 要在自己的 Info.plist 里写一句给用户看的话。Apple 上传时的检查扫的是二进制里的符号：定位放在核心里的话，每一个用 Nacre 的 App 都得写这一句，哪怕它不用定位。判据见[项目说明 3.8 节](../../docs/project.md#38-核心和能力包)。
+For how to use it, see [Location](https://john-oldman-wang.github.io/nacre/api/cl-location-manager). For all capability packages, see [Core and capability packages](https://john-oldman-wang.github.io/nacre/api/capabilities).
 
-## 没装的时候
+## License
 
-| | |
-| --- | --- |
-| 生成的工程 | 不嵌 `NacreCoreLocation.framework`，产物里没有它，也不链 CoreLocation |
-| 运行时 | 全局上没有 `CLLocationManager`、`CLLocation`、`CLLocationCoordinate2D` |
-| 类型检查 | `new CLLocationManager()` 报 `Cannot find name 'CLLocationManager'` |
-
----
-
-← 返回[项目说明](../../docs/project.md) ・ [能力包是怎么搭的](../../docs/internals/capabilities.md) ・ [定位的实现原理](../../docs/internals/core-location.md)
+FSL-1.1-MIT, see `LICENSE.md`.
