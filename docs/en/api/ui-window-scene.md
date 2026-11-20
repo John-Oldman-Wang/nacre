@@ -33,6 +33,8 @@ Can't be created with `new`. `new UIWindowScene()` throws `TypeError: Illegal co
 | [`traitCollection`](ui-window-scene/traitcollection.md) <small>read-only</small> | The appearance traits of the whole scene, such as whether Settings is set to dark or light |
 | [`isFullScreen`](ui-window-scene/isfullscreen.md) <small>read-only</small> | Whether the scene fills the whole screen |
 | [`screen`](ui-window-scene/screen.md) <small>read-only</small> | Which screen this scene appears on |
+| [`effectiveGeometry`](ui-window-scene/effectivegeometry.md) <small>read-only</small> | The current geometry: the interface orientation and whether it is locked |
+| [`statusBarManager`](ui-window-scene/statusbarmanager.md) <small>read-only</small> | What the status bar looks like right now |
 | [`title`](ui-window-scene/title.md) | The title shown on the card in the app switcher |
 | [`subtitle`](ui-window-scene/subtitle.md) | The subtitle shown on the card in the app switcher |
 
@@ -41,6 +43,7 @@ Can't be created with `new`. `new UIWindowScene()` throws `TypeError: Illegal co
 | Method | Description |
 | --- | --- |
 | [`openURL()`](ui-window-scene/openurl.md) | Asks the system to open a URL: go to Safari, dial a number, go to another App |
+| [`requestGeometryUpdateWithPreferences()`](ui-window-scene/requestgeometryupdatewithpreferences.md) | Asks to rotate the interface to a given orientation |
 
 ## Events
 
@@ -51,6 +54,7 @@ Can't be created with `new`. `new UIWindowScene()` throws `TypeError: Illegal co
 | [`foreground`](ui-window-scene/foreground-event.md) | This scene is about to return to the foreground |
 | [`active`](ui-window-scene/active-event.md) | This scene has become active and the user can interact |
 | [`traitchange`](ui-window-scene/traitchange-event.md) | The scene's appearance traits changed |
+| [`geometrychange`](ui-window-scene/geometrychange-event.md) | The interface rotated. Dispatched on the spot; listeners run inside the rotation animation |
 
 - Events are not cancelable. Callbacks don't run synchronously at the moment the state changes; they run a little later. See [How the runtime works](how-it-works.md#events).
 - You can also listen for and dispatch events with custom names on a scene, the same as with any `EventTarget`.

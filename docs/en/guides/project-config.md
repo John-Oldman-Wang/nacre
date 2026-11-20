@@ -45,6 +45,7 @@ After changing `nacre.config.json`, or replacing the icon or the launch screen i
 | `launchScreen` | No | Color string, or `{ light, dark }` | The background color of the [launch screen](#launch-screen). Written at the top level, not under `ios` |
 | `ios.languages` | No | Array of language codes | Which languages the app supports. The first is the default language |
 | `ios.urlSchemes` | No | Array of scheme names | Which custom schemes (`myapp://…`) can open this app |
+| `ios.orientations` | No | Array of orientation names | [The orientations the app allows](#declaring-the-orientations-the-app-allows). Defaults to portrait only |
 | `ios.infoPlist` | No | Object | Keys and values written into Info.plist. Usage descriptions go here |
 | `ios.entitlements` | No | Object | The app's entitlements |
 
@@ -392,6 +393,22 @@ Once both are configured, on the JS side you listen for [`openurl`](open-links.m
 - Typing the address directly into the browser's address bar does not open the app; only tapping it from another app or a web page does.
 - The system fetches that file when the app is installed and caches it for a while; changes to the file do not take effect immediately.
 
+## Declaring the orientations the app allows
+
+```json
+{
+  "name": "Shop",
+  "bundleId": "com.example.shop",
+  "ios": { "orientations": ["portrait", "landscape"] }
+}
+```
+
+**Effect**: the app allows portrait and both landscape orientations. Without `ios.orientations`, only portrait is allowed.
+
+The names you can use are the same as for a view controller's [`supportedInterfaceOrientations`](../api/ui-view-controller/supportedinterfaceorientations.md): `portrait`, `portraitUpsideDown`, `landscapeLeft`, `landscapeRight`, plus three combined names: `landscape`, `all`, and `allButUpsideDown`.
+
+This declares the **most** orientations the app allows. Which view controllers can actually rotate is then narrowed by each view controller's `supportedInterfaceOrientations`. For example, the app declares landscape, most view controllers are set to portrait only, and only the image viewer also allows landscape.
+
 ## Writing other Info.plist keys
 
 Values in `ios.infoPlist` are not limited to usage descriptions; arrays, booleans, numbers, and nested objects all work:
@@ -409,7 +426,7 @@ Values in `ios.infoPlist` are not limited to usage descriptions; arrays, boolean
 
 **Effect**: these two keys appear unchanged in the app's Info.plist.
 
-Eight keys cannot be written here; writing them makes generation report an error:
+Nine keys cannot be written here; writing them makes generation report an error:
 
 | Key | Use instead |
 | --- | --- |
@@ -418,6 +435,7 @@ Eight keys cannot be written here; writing them makes generation report an error
 | `CFBundleShortVersionString` | `version` |
 | `CFBundleVersion` | `buildNumber` |
 | `CFBundleURLTypes` | `ios.urlSchemes` |
+| `UISupportedInterfaceOrientations` | `ios.orientations` |
 | `UILaunchScreen`, `UILaunchStoryboardName` | `launchScreen` and `launch.png`; see [Launch screen](#launch-screen) |
 | `UIApplicationSceneManifest` | Cannot be changed; it is determined by the startup code |
 
@@ -452,6 +470,9 @@ When the configuration has an error, generation stops before changing any file. 
 | `ios.urlSchemes` is not an array | `ios.urlSchemes must be a list of scheme names (without ://), e.g. ["myapp"]` |
 | An invalid scheme name | `ios.urlSchemes: "myapp://" is not a scheme name. It must start with a letter, followed only by letters, digits, +, - and . (no ://)` |
 | A scheme name listed twice | `ios.urlSchemes: MyApp is listed twice (scheme names are case-insensitive)` |
+| `ios.orientations` is not an array | `ios.orientations must be a list of orientation names, e.g. ["portrait", "landscape"]` |
+| `ios.orientations` is empty | `ios.orientations needs at least one orientation; expected some of: portrait, portraitUpsideDown, landscapeLeft, landscapeRight, landscape, all, allButUpsideDown` |
+| An invalid orientation name | `ios.orientations has no value "sideways"; expected one of: portrait, portraitUpsideDown, landscapeLeft, landscapeRight, landscape, all, allButUpsideDown` |
 | A system scheme listed | `ios.urlSchemes: https is a system scheme; an app that declares it never receives it. To open the app from https links, set up universal links (associated domains), not this` |
 | `CFBundleURLTypes` written in `ios.infoPlist` | `ios.infoPlist.CFBundleURLTypes: this key is controlled by ios.urlSchemes in nacre.config.json; change that instead` |
 | A key governed by another option | `ios.infoPlist.CFBundleIdentifier: this key is controlled by bundleId in nacre.config.json; change that instead` |
