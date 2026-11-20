@@ -1,36 +1,46 @@
 # `@nacrejs/local-authentication`
 
-Nacre 的面容 ID / 触控 ID 认证能力：全局的 `LAContext` 类。**装了才有。**
+A capability package for [Nacre](https://john-oldman-wang.github.io/nacre/), a JavaScript runtime for iOS apps: Face ID and Touch ID authentication. It provides `LAContext`. The app has it only if the project installs this package.
 
-```
-packages/local-authentication/
-├─ index.d.ts                             类型：LAContext、LAPolicy、LABiometryType、LAError
-├─ nacre-ios.json                         清单：这是一个能力包、它的 framework 叫什么、要项目写哪些键
-└─ NacreLocalAuthentication.xcframework/  预编译的 framework（构建产物，不提交）
-```
+[Documentation](https://john-oldman-wang.github.io/nacre/api/la-context) · [中文文档](https://john-oldman-wang.github.io/nacre/zh/api/la-context)
 
-源码在 `ios/Capabilities/LocalAuthentication/`。
+## Install
 
-## 怎么用
+In a Nacre project, three steps.
 
-见 [API 文档](../../docs/api/la-context.md)。三步：装上这个包；在 `nacre.config.json` 的 `ios.infoPlist` 里写 `NSFaceIDUsageDescription`；在入口文件顶上加一行类型引用。
+**1. Install the package.**
 
-## 它要项目写什么
-
-清单里声明了 `requires.infoPlist: ["NSFaceIDUsageDescription"]`。这是面容 ID 第一次使用时系统提示框里的那句话，内容只有写 App 的人写得出来，所以包不带内容，只提要求。装了包而没写，生成 `ios/` 时报错并停下：
-
-```
-nacre: @nacrejs/local-authentication needs NSFaceIDUsageDescription in Info.plist: a sentence shown to the user explaining why the app needs this permission. Put it in ios.infoPlist in nacre.config.json
+```bash
+npm install @nacrejs/local-authentication
 ```
 
-## 没装的时候
+**2. Bring in its types at the top of the entry file.**
 
-| | |
-| --- | --- |
-| 生成的工程 | 不嵌 `NacreLocalAuthentication.framework`，App 的二进制不链接系统的 LocalAuthentication 框架 |
-| 运行时 | `typeof LAContext` 是 `'undefined'` |
-| 类型检查 | `new LAContext()` 报 `Cannot find name 'LAContext'` |
+```js
+/// <reference types="@nacrejs/types" />
+/// <reference types="@nacrejs/local-authentication" />
+```
 
----
+**3. Write its usage description in `nacre.config.json`.**
 
-← 返回[项目说明](../../docs/project.md) ・ [能力包是怎么搭的](../../docs/internals/capabilities.md)
+```json
+{
+  "ios": {
+    "infoPlist": {
+      "NSFaceIDUsageDescription": "Used to unlock your account"
+    }
+  }
+}
+```
+
+`NSFaceIDUsageDescription` is the sentence iOS shows the user when the app uses Face ID for the first time. Only you can write it, so the package doesn't ship one. If it's missing, `nacre generate` stops with an error that names the key. See [Writing usage descriptions](https://john-oldman-wang.github.io/nacre/guides/project-config#writing-usage-descriptions).
+
+**Effect**: after you regenerate `ios/` and rebuild, the app includes this capability, and `typeof LAContext !== 'undefined'` is `true`.
+
+Without the package, its classes don't exist: reading one throws `ReferenceError`, and type checking reports it first.
+
+For how to use it, see [`LAContext`](https://john-oldman-wang.github.io/nacre/api/la-context). For all capability packages, see [Core and capability packages](https://john-oldman-wang.github.io/nacre/api/capabilities).
+
+## License
+
+FSL-1.1-MIT, see `LICENSE.md`.

@@ -1,36 +1,32 @@
 # `@nacrejs/keychain`
 
-Nacre 的 Keychain 能力：令牌和密码的安全存放。**装了才有 `application.keychain`。**
+A capability package for [Nacre](https://john-oldman-wang.github.io/nacre/), a JavaScript runtime for iOS apps: secure storage for tokens and passwords in the keychain. It provides `application.keychain`. The app has it only if the project installs this package.
 
-它是第一个从核心里拆出来的能力，所以也是「一个能力包长什么样」的样板。
+[Documentation](https://john-oldman-wang.github.io/nacre/api/keychain) · [中文文档](https://john-oldman-wang.github.io/nacre/zh/api/keychain)
 
+## Install
+
+In a Nacre project, two steps.
+
+**1. Install the package.**
+
+```bash
+npm install @nacrejs/keychain
 ```
-packages/keychain/
-├─ index.d.ts                  类型：Keychain 类，和 application.keychain 的声明合并
-├─ nacre-ios.json              清单：这是一个能力包、它的 framework 叫什么
-└─ NacreKeychain.xcframework/  预编译的 framework（构建产物，不提交）
+
+**2. Bring in its types at the top of the entry file.**
+
+```js
+/// <reference types="@nacrejs/types" />
+/// <reference types="@nacrejs/keychain" />
 ```
 
-源码不在这里，在 `ios/Capabilities/Keychain/`——和 `ios/` 对 `packages/ios/` 的关系一样：`ios/` 下是源码，`packages/` 下是交付出去的东西。
+**Effect**: after you regenerate `ios/` and rebuild, the app includes this capability, and `'keychain' in application` is `true`.
 
-## 怎么用
+Without the package, `'keychain' in application` is `false` and `application.keychain` is `undefined`, and type checking reports it first.
 
-见 [API 文档](../../docs/api/keychain.md)。装上、加一行类型引用，就能用。
+For how to use it, see [Keychain](https://john-oldman-wang.github.io/nacre/api/keychain). For all capability packages, see [Core and capability packages](https://john-oldman-wang.github.io/nacre/api/capabilities).
 
-## 没装的时候
+## License
 
-| | |
-| --- | --- |
-| 生成的工程 | 不嵌 `NacreKeychain.framework`，产物里没有它 |
-| 运行时 | `'keychain' in application` 是 `false`，全局也没有 `Keychain` 这个类 |
-| 类型检查 | `application.keychain` 报 `Property 'keychain' does not exist on type 'Application'` |
-
-三处是一致的。没有做成「属性在、读了才抛」——那样类型是绿的，运行时才炸。
-
-## 它为什么不自己引 `@nacrejs/types`
-
-`index.d.ts` 用到的 `NSObject`、`Application` 是 `@nacrejs/types` 声明的全局类型，但这个文件里**没有** `/// <reference types="@nacrejs/types" />`。用 Nacre 的入口文件本来就引了它；而在这里再写一行，TypeScript 会从这个文件的**真实路径**往上找 `node_modules`——包是用 `file:` 或 workspace 链接进来的时候就找不到了（实测报 `TS2688`）。两个包的关系写在 `peerDependencies` 里。
-
----
-
-← 返回[项目说明](../../docs/project.md) ・ [能力包是怎么搭的](../../docs/internals/capabilities.md)
+FSL-1.1-MIT, see `LICENSE.md`.

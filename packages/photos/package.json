@@ -1,6 +1,6 @@
 {
   "name": "@nacrejs/photos",
-  "version": "0.0.1-beta.1",
+  "version": "0.0.1",
   "description": "Nacre 的相册能力：从相册选图、把图片存进相册。装了才有 PHPickerViewController 和 PHPhotoLibrary",
   "license": "FSL-1.1-MIT",
   "repository": {
@@ -15,8 +15,8 @@
     "NacrePhotos.xcframework"
   ],
   "peerDependencies": {
-    "@nacrejs/ios": "0.0.1-beta.1",
-    "@nacrejs/types": "0.0.1-beta.1"
+    "@nacrejs/ios": "0.0.1",
+    "@nacrejs/types": "0.0.1"
   },
   "publishConfig": {
     "access": "public",
