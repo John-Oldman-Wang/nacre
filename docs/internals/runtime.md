@@ -94,6 +94,15 @@ V8 启动、线程、审阅问题和验证结果。
 
 （下面这一段是 2026-11-17 从 `project.md` 搬过来的：那份文件不再放实现原理。）
 
+## 内存警告：先给 JS，再给 V8
+
+系统的内存警告（`UIApplicationDidReceiveMemoryWarningNotification`）到了，运行时在同一个任务里做两件事：先派发 JS 的 `memorywarning`，再调 `Isolate::MemoryPressureNotification(kCritical)`。2026-11-20 补上的后一半，在那之前 V8 完全不知道系统内存紧张，只有 `kCFRunLoopBeforeWaiting` 那条空闲时的增量 GC。
+
+- **用 `MemoryPressureNotification`，不用 `LowMemoryNotification`。** 前者是嵌入方报告内存压力的正式接口，`kCritical` 的注释是「尽快释放内存」；V8 头文件里把强制 GC 的 `RequestGarbageCollectionForTesting` 标成只给测试用，正常调度要用前者。iOS 的内存警告只有一个级别，所以直接对应 `kCritical`，不用 `kModerate`。
+- **先 JS 后 V8。** 垃圾回收只收没人引用的对象，JS 自己留着的缓存只有 JS 能放。监听器先清缓存，V8 再回收，刚放掉的对象这一次就收掉；反过来要等下一次 GC。
+- **实测**（模拟器，验收的 `stepMemoryPressure`）：对象只被一个缓存数组拿着，监听器里清空数组，警告之后 3 秒内 `FinalizationRegistry` 的回调到了，期间没有制造任何分配压力。不转给 V8 时同样的用例 3 秒内等不到回调。
+- 验收里的警告由示例原生模块发（`simulateMemoryWarning`，原生那边 post 同一个通知）：命令行触发不了这个通知，见上面「验证结果」里那条。
+
 ## JS 为什么跑在主线程
 
 最初定的是 JS 跑在独立线程（裸任务队列、不挂 run loop），理由是「JS 不卡 UI」。后来发现这条路和一个更早的决定冲突，必须改。

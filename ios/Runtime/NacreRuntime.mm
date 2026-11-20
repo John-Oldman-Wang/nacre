@@ -866,7 +866,11 @@ nacre::NativeObjectRef CreateBlob(
                   if (!strongSelf) return;
                   std::string eventType = type.UTF8String;
                   [strongSelf postToJS:^{
-                    if (*engine) (*engine)->EmitAppEvent(eventType);
+                    if (!*engine) return;
+                    (*engine)->EmitAppEvent(eventType);
+                    // 内存警告：JS 的监听器先执行、扔掉自己的缓存，再让 V8 回收，
+                    // 监听器刚放掉的对象这一次就收掉。反过来的话要等下一次 GC
+                    if (eventType == "memorywarning") (*engine)->NotifyMemoryPressure();
                   }];
                 }];
     [self->_observers addObject:token];

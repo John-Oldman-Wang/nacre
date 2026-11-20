@@ -4,36 +4,9 @@
 
 这一页放两类东西：方案已经想过、但还没实现的设计；已经知道、但还没解决的问题。每一条在 [`project.md`](../project.md) 的「还要做的」里有一行，这里是它的分析。做完一条，就把它从这里删掉，把最后的做法写进对应主题的那一页。
 
-## 不可变原生值对象的相等性
-
-**已实现一半：不可变原生值对象的相等性。** 颜色这一侧的候选 A（按构造参数池化）做掉了——同一个串永远拿到同一个 `UIColor`。剩下的缺口仍在：`UIColor.redColor` 和 `'#f00'` 是两个不同的原生对象。下面是当初的分析。
-
-**TODO：不可变原生值对象的相等性怎么给 JS。** 以颜色为起点，但这是通用问题——所有不可变的「值类对象」（将来的 `NSString`、`CGColor`、`NSNumber`）都会遇到。
-
-现状：主要路径的 `===` 已经成立，因为常量是原生单例、`copy` 对不可变对象返回自己、包装机制保证指针到 JS 对象一对一。缺口只剩**重复构造同值颜色**，以及**常量 vs 构造的同值色**（`UIColor.redColor` 和 `colorWithRed(1,0,0,1)` 实测 `isEqual:` 为 YES 但指针不同）。
-
-两个候选，都不急着做：
-
-| | 做法 | 代价 |
-| --- | --- | --- |
-| A | `Map<构造参数, WeakRef>`，只池化我们自己构造的颜色 | O(1)、零风险，但盖不住「常量 vs 构造」 |
-| B | 新建对象后用 `isEqual:` 和池子里的逐个比，相等就返回池里的、让新对象被回收 | 语义最准（实测 `isEqual:` 连动态色和图案色都处理得对），但**需要一个可遍历的弱集合** |
-
-**B 卡在 JS 上，不是卡在 iOS 上。** `WeakSet` 只有 `add` / `has` / `delete`，不可遍历、也不能按值查；`WeakRef` / `FinalizationRegistry` 同样不可枚举。这是 ECMAScript 的有意设计——遍历弱集合会泄漏 GC 时机。所以 B 要么用强引用的池子（泄漏，且每次构造要跨桥 O(n) 次 `isEqual:`），要么退化成「按 key 查」，而那就是 A。
-
-为了做到 B 去耦合垃圾回收，复杂度和收益不成比例。倾向先做 A，再把 `isEqual()` 作为逃生口暴露出去（从 `NSObject` 继承，一行的事），两个加起来既便宜又没有静默的坑。
-
-实测数据见 [`UIColor` 文档的「实测：相等性和 `description`」](ui-color.md#实测相等性和-description)。真正动手要等视图层起来、看清真实代码里怎么写颜色。
-
 ## 颜色解析的性能还没实测
 
 现在解析在 JS 侧，靠池化摊掉——同一个串只解析一次，之后是 `Map.get` + `WeakRef.deref`。而**过桥写属性那一次省不掉**，所以稳态成本里解析接近零；把解析挪到原生反而会让重复字符串每次都过桥。但**首次解析在 jitless 下到底多少微秒没量过**。先给验收用例加一条基准，有数再谈优化。WebAssembly 这条路不通——lite mode / jitless 下编译不了 wasm。
-
-## 有一条验收断言在真机上不稳
-
-`网页开着的时候写的：不用刷新就看得到`（`acceptance/src/steps/webview.js` 的 cookie 那一段）：App 写一条 cookie，紧接着读网页里的 `document.cookie`。真机上三次里挂两次，模拟器上没见过挂。
-
-它是写完**立刻**读，而那条 cookie 要先过一趟网页进程。（2026-11-15 在模拟器的 Debug 下也挂了一次，不再只是真机上的事。）改法是轮询等它出现、给个超时，和验收里别处等异步结果的写法一致。不是搬目录造成的，是写这条断言时赌了时序。
 
 ## `check-api.sh` 的标量核对是按名字的并集，不分类
 
@@ -42,12 +15,6 @@
 ## `check-api.sh` 不核对「对象数组」那条通道
 
 它只比标量读写和对象读写两栏，所以 `colors`、`sublayers`、`viewControllers`、`values`、`timingFunctions`、`animations` 这些**三边都没人盯着**——原生层删一个、JS 侧漏一个，脚本一声不吭。这是早就存在的缺口（`sublayers` 那会儿就有了），做 A6-2 时又宽了三条。补法和已有的两栏一样：从 `ReadXxxObjectArray` / `WriteXxxObjectArray` 里按正则收名字，和 `nativeGetObjectArray` / `nativeSetObjectArray` 的调用点以及 d.ts 对。
-
-## `layer` 上的颜色读两次不相等
-
-`borderColor` / `shadowColor` 在 ObjC 里是 `CGColorRef`，桥上用 `colorWithCGColor:` 包成 `UIColor`，而它**每次新建一个对象**（实测两次指针不同）。于是包装机制「同一个原生指针永远同一个 JS 对象」的保证在这里失效。
-
-底下的 `CGColor` 指针是稳定的，所以补法是按 `CGColorRef` 缓存 `UIColor`。不急：日常不会拿边框色做 `===`，而且真要补也等 `UITraitCollection` 一起（动态色定死是同一个根因，见 [`CALayer` 文档](ca-layer.md)）。
 
 ## 订阅按事件名分流，而不是按类分流
 
@@ -58,25 +25,15 @@
 
 两个都是同一个根因。改法是先按事件名查一张总表，再决定交给哪个 trampoline。做 5c 时撞出来的。
 
-## 内存警告没转给 V8
+## V8 的内存上限没设过
 
-`UIApplicationDidReceiveMemoryWarningNotification` 现在只转成 JS 的 `memorywarning` 事件（`NacreRuntime.mm`），而 `Isolate::MemoryPressureNotification(MemoryPressureLevel)` **全仓库零调用**。也就是说系统喊内存不够时 V8 完全不知情，不会因此收一次内存——我们现在只有 `kCFRunLoopBeforeWaiting` 那条空闲增量 GC。Chrome 在这个信号上是会通知 V8 的。改动很小（一行转发），但 `kModerate` / `kCritical` 怎么映射要定一下，所以算新增能力，要走一遍 SOP。不要紧，排在后面。
-
-连带的一条事实：**V8 的内存我们一个字节都没限。** `Isolate::CreateParams` 只设了 `array_buffer_allocator`，`constraints` 是默认构造的（`max_old_generation_size_` 等全是 0，`stack_limit_` 是 nullptr），也没有任何地方调 `SetFlagsFromString`。传 0 的含义是让 V8 按设备物理内存自己算，**算出来多少没量过**——要知道得调 `GetHeapStatistics().heap_size_limit`，那个没暴露。
+内存警告已经转给 V8 了（见[运行时](runtime.md#内存警告先给-js再给-v8)）。剩下的一条事实：**V8 的内存我们一个字节都没限。** `Isolate::CreateParams` 只设了 `array_buffer_allocator`，`constraints` 是默认构造的（`max_old_generation_size_` 等全是 0，`stack_limit_` 是 nullptr），也没有任何地方调 `SetFlagsFromString`。传 0 的含义是让 V8 按设备物理内存自己算，**算出来多少没量过**——要知道得调 `GetHeapStatistics().heap_size_limit`，那个没暴露。
 
 ## `layer.transform`（`CATransform3D`）还没暴露
 
 `UIView.transform`（`CGAffineTransform`）已经做了，见[结构体文档](../api/cg-affine-transform.md)。剩下 3D 的那一半：16 个字段，而且 `m34` 那种透视参数单靠结构体不好用，要和动画一起看。
 
 > 记这条 TODO 时担心的「C 函数怎么暴露」**在仿射变换这里没出现**：`CGAffineTransformMakeScale` 那几个全是纯算术，静态工厂在 JS 里算就行，过桥的只有六个数。判据记在[实现原理](structs.md)里——**C 函数只在值类型上做算术就在 JS 侧实现，真要跨桥的是会碰系统状态的那些**。
-
-## 视图布局变化没有通知
-
-子图层不走 Auto Layout 是 **iOS 的事实**，不是我们的缺口——`CALayer.autoresizingMask` 和 `layoutManager` 在 iOS 上都标着 `API_UNAVAILABLE(ios)`，`CAConstraintLayoutManager.h` 整个文件也是。原生 App 在 `layoutSubviews` 里手写子图层的 frame。
-
-（2026-11-16 讨论过，暂时不做：布局绝大多数是 JS 自己引起的，做完调一次 `layoutIfNeeded()` 就读得到；系统引起的那几种里，文字大小有 `traitchange`，键盘有 `keyboardLayoutGuide`，旋转和半屏卡片还没有。受影响的只有手动按 `frame` 摆的子图层，试用报告里没人提过。等真有人被挡住再做。）
-
-于是 JS 侧现在只能在自己知道布局变了的时候重设一次，**系统驱动的重新布局（旋转、动态字体、键盘）跟不上**。三条路：覆写 `layoutSubviews`（M2）、`+layerClass`（M2）、**KVO 监听 `view.layer.bounds` 做成 `layoutchange` 事件（不需要 M2）**。第三条该单独走一遍 SOP——它是新发明一个事件，而且 KVO 在布局动画期间的时序没实测过。
 
 ## 还没做成包的几项系统能力
 

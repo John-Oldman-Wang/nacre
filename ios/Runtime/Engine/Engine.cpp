@@ -1911,6 +1911,11 @@ void Engine::RunIdleTasks(double idle_time_in_seconds) {
   v8::platform::RunIdleTasks(g_platform.get(), impl_->isolate, idle_time_in_seconds);
 }
 
+void Engine::NotifyMemoryPressure() {
+  v8::Isolate::Scope isolate_scope(impl_->isolate);
+  impl_->isolate->MemoryPressureNotification(v8::MemoryPressureLevel::kCritical);
+}
+
 void Engine::PumpMessageLoop() {
   v8::Isolate::Scope isolate_scope(impl_->isolate);
   while (v8::platform::PumpMessageLoop(g_platform.get(), impl_->isolate)) {

@@ -23,7 +23,7 @@ application.addEventListener('memorywarning', (event) => { })
 - To trigger it in the simulator, choose Simulate Memory Warning from the Device menu (verified by testing).
 - The callback runs later; see [How the runtime works](../how-it-works.md#events).
 
-At this point the app should discard data it can get back: cached images, data that's already parsed but can be parsed again, view controllers that aren't on screen. The runtime itself doesn't discard any data in JS because of a memory warning; the app's code decides what to release. Not handling this event doesn't cause an error. If memory is still insufficient, the system terminates the app, with no notification. **"Not releasing memory gets the app terminated" comes from iOS's definitions and is not verified in the simulator.**
+At this point the app should discard data it can get back: cached images, data that's already parsed but can be parsed again, view controllers that aren't on screen. The runtime doesn't discard any data that JS still holds; the app's code decides what to release. After all listeners have run, the runtime has the JS engine reclaim memory: objects the listeners let go of, and that nothing else references, are reclaimed at that point (verified by testing). Not handling this event doesn't cause an error. If memory is still insufficient, the system terminates the app, with no notification. **"Not releasing memory gets the app terminated" comes from iOS's definitions and is not verified in the simulator.**
 
 ## Examples
 
