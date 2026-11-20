@@ -74,6 +74,9 @@ jobs:
       # 核对脚本是在 macOS 上写的，没在 Linux 上跑过，所以放在这一段
       - name: 三边核对
         run: bash ios/scripts/check-api.sh
+      # 提取头文件那部分要调 clang 读 SDK，所以也放在这一段
+      - name: bindgen 的用例
+        run: node --test ios/scripts/bindgen/test/*.test.mjs
       - name: 装 XcodeGen
         run: brew install xcodegen
       - uses: actions/cache@v4

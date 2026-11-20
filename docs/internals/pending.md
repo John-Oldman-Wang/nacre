@@ -4,31 +4,6 @@
 
 这一页放两类东西：方案已经想过、但还没实现的设计；已经知道、但还没解决的问题。每一条在 [`project.md`](../project.md) 的「还要做的」里有一行，这里是它的分析。做完一条，就把它从这里删掉，把最后的做法写进对应主题的那一页。
 
-## 颜色解析的性能还没实测
-
-现在解析在 JS 侧，靠池化摊掉——同一个串只解析一次，之后是 `Map.get` + `WeakRef.deref`。而**过桥写属性那一次省不掉**，所以稳态成本里解析接近零；把解析挪到原生反而会让重复字符串每次都过桥。但**首次解析在 jitless 下到底多少微秒没量过**。先给验收用例加一条基准，有数再谈优化。WebAssembly 这条路不通——lite mode / jitless 下编译不了 wasm。
-
-## `check-api.sh` 的标量核对是按名字的并集，不分类
-
-做输入框时咬了一次：`textAlignment` 只在 `UILabel` 分支接了原生，`UITextField` 漏了，而名字在集合里所以脚本没报，运行时才抛，连带整个 `sceneconnect` 中断、黑屏。同一家的还有「标量接了不等于对象属性也接了」——那是另一条通道。要改成按类比对，得先让脚本知道每个分支属于哪个类。
-
-## `check-api.sh` 不核对「对象数组」那条通道
-
-它只比标量读写和对象读写两栏，所以 `colors`、`sublayers`、`viewControllers`、`values`、`timingFunctions`、`animations` 这些**三边都没人盯着**——原生层删一个、JS 侧漏一个，脚本一声不吭。这是早就存在的缺口（`sublayers` 那会儿就有了），做 A6-2 时又宽了三条。补法和已有的两栏一样：从 `ReadXxxObjectArray` / `WriteXxxObjectArray` 里按正则收名字，和 `nativeGetObjectArray` / `nativeSetObjectArray` 的调用点以及 d.ts 对。
-
-## 订阅按事件名分流，而不是按类分流
-
-现在 `setSubscription:` 是按对象的类挑分支的，于是两个问题：
-
-- ~~**原生类上只能用它自己认识的事件名**，Web 里合法的「在任意 EventTarget 上挂自定义事件」做不到~~ ← **2026-11-17 解决了**：不认识的事件名不再拒绝，当自定义事件。没有改分流的方式，是在订阅的入口把「不认识」这一种报错清掉
-- **被模态呈现的 `UINavigationController` 收不到关闭事件**——它的分支只认导航事件，`beforedismiss` 那三条过不去。这一条还在：现在监听不报错了，但系统关掉它时仍然不派发
-
-两个都是同一个根因。改法是先按事件名查一张总表，再决定交给哪个 trampoline。做 5c 时撞出来的。
-
-## V8 的内存上限没设过
-
-内存警告已经转给 V8 了（见[运行时](runtime.md#内存警告先给-js再给-v8)）。剩下的一条事实：**V8 的内存我们一个字节都没限。** `Isolate::CreateParams` 只设了 `array_buffer_allocator`，`constraints` 是默认构造的（`max_old_generation_size_` 等全是 0，`stack_limit_` 是 nullptr），也没有任何地方调 `SetFlagsFromString`。传 0 的含义是让 V8 按设备物理内存自己算，**算出来多少没量过**——要知道得调 `GetHeapStatistics().heap_size_limit`，那个没暴露。
-
 ## `layer.transform`（`CATransform3D`）还没暴露
 
 `UIView.transform`（`CGAffineTransform`）已经做了，见[结构体文档](../api/cg-affine-transform.md)。剩下 3D 的那一半：16 个字段，而且 `m34` 那种透视参数单靠结构体不好用，要和动画一起看。
@@ -46,14 +21,6 @@
 | 通用链接 | 关联域名的 entitlement | 能写，验不了：同上，另外要一个放了关联文件的真实域名 |
 | Apple 登录 | 对应的 entitlement | 能写，验不了：同上 |
 | 应用内购买 | 能力开关 | 先不做。系统的新接口只有 Swift，测试要商品配置；客户自己也说金融 App 一般不用 |
-
-## 两处慢，原因没查
-
-| | 实测 | 状态 |
-| --- | --- | --- |
-| SF Symbol 首次加载慢 | 每个新名字冷加载约 11.7 ms，在主线程上；一次建很多图标时主线程阻塞 1.0–1.5 s，运行时自己打出了 `Timer callback blocked the main thread` 警告 | 要查，可能需要后台预热 |
-| 空闲后第一次渲染变慢 | 空闲 30 s 后重建列表 199–418 ms，紧接着再来一次只要 36–41 ms | **原因未查**。猜测是字节码被回收或 GC，未验证 |
-| 桥本身不是瓶颈 | `new UIView` 约 4 µs，写属性 2–7 µs，建约束约 10 µs，`addSubview` 约 12 µs | 好消息 |
 
 ## iOS 26 暂时不跑
 

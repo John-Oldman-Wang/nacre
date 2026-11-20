@@ -3938,6 +3938,12 @@
 + 拖动：默认 state
 + 拖动：默认最多 # 根（UINT_MAX）
 + 拖动：默认最少 # 根手指
++ 拖走导航控制器的卡片：presentedViewController 清了
++ 拖走导航控制器的卡片：关掉的是它
++ 拖走导航控制器的卡片：收到的关闭事件
++ 拖走普通页面的卡片：presentedViewController 清了
++ 拖走普通页面的卡片：关掉的是它
++ 拖走普通页面的卡片：收到的关闭事件
 + 拦住之后 defaultPrevented 是 true
 + 拦住之后 isLoading() 是 false
 + 拦住之后一个加载事件都没有
