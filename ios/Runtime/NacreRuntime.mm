@@ -1274,15 +1274,16 @@ nacre::NativeObjectRef CreateBlob(
     UINavigationController* nav = (UINavigationController*)object;
     NSString* name = @(type.c_str());
     // @ 开头的两个名字是运行时自己订的，不在对外的事件名表里。
-    // @dismissed 是「被模态呈现的那一页」的事，导航控制器也可能被呈现，
-    // 所以不在这里处理，往下落到模态那一支
+    // 模态的三条（和运行时自己订的 @dismissed）是「被模态呈现的那一页」的事，
+    // 导航控制器也可能被呈现，所以不在这里处理，往下落到模态那一支
     const BOOL internalStack = [name isEqualToString:@"@stack"];
-    const BOOL internalDismissed = [name isEqualToString:@"@dismissed"];
-    if (!internalStack && !internalDismissed && !IsNavEventName(name)) {
+    const BOOL presentation =
+        [name isEqualToString:@"@dismissed"] || IsPresentationEventName(name);
+    if (!internalStack && !presentation && !IsNavEventName(name)) {
       return NacreSubscribed::UnknownEvent;
     }
     NacreNavDelegate* d = objc_getAssociatedObject(nav, kNacreNavDelegateKey);
-    if (internalDismissed) {
+    if (presentation) {
       // 交给下面模态那一支
     } else if (on) {
       if (d == nil) {
@@ -1302,7 +1303,7 @@ nacre::NativeObjectRef CreateBlob(
                                  OBJC_ASSOCIATION_RETAIN_NONATOMIC);
       }
     }
-    if (!internalDismissed) return true;
+    if (!presentation) return true;
   }
   // 放在 UINavigationController 之后：它是 UIViewController 的子类，
   // 导航事件先认走，剩下的才轮到模态事件

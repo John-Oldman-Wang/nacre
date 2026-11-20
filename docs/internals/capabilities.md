@@ -70,6 +70,8 @@ packages/keychain/               → @nacrejs/keychain
 
 **它在 framework 里的可见性是 private**：进 `PrivateHeaders/`，不进 umbrella header。它是 ObjC++ 的头（有 `std::string`），Swift 读不了；普通宿主也不该看见它。公开头还是只有 `Nacre.h` 和 `NacreRuntime.h`。
 
+**可空性标全了**（2026-11-20）：整个头包在 `NS_ASSUME_NONNULL` 里，可能为空的逐个标 `_Nullable`：`DecodeJSON` 的返回值、`EncodeJSON` / `Require…` / `EnumError` 收的值、`NacreArgs` 的两个成员和两个取值函数、`NacreDomain` 里的名字和每个函数指针（用不到的通道留空）、`read` 的返回值、两个 `write` 收的值、事件出口带的 json 和负载、`NacreKeep` 的返回值。原来只标了几处，而一个头里只要有一处标了，编译器就要求全部都标：引这个头的每个文件都把没标的指针报一遍，8 个能力包各编一次是 8288 条警告，`run-sim.sh` 之外看不见真正要紧的警告。标全之后是 0 条，也没冒出别的警告。标注只给编译器看，不改变生成的代码。
+
 `NativeObjectRef` 为此单独成了一个头（`Engine/NativeObjectRef.h`）：引擎和能力包都要它，而它什么都不依赖——不认识 V8，也不认识 iOS。`NacreExtension.h` 用引号 include 它（`#include "NativeObjectRef.h"`），这样在核心自己的工程里和在 `PrivateHeaders/` 里都找得到。
 
 **这个头不是给第三方用的。** 当初设想它是宿主扩展点的雏形；后来（2026-11-16）第三方和 App 团队接自己的原生代码有了单独的一层，公开的 `NacreModule.h`，见[原生模块](native-modules.md)。这个头留给「把一个原生类完整暴露给 JS」的场合，形状没定死；枚举宏只搬了数字枚举那一对，字符串枚举和位掩码的还在内部头里，谁用到再搬。
