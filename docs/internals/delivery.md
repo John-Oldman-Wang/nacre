@@ -251,6 +251,12 @@ npm 上同一个版本只能发一次，所以「每次合并都发」第二次�
 
 认证走 npm 的可信发布，不存令牌——绕过两步验证的令牌 2027 年 1 月起不能直接发布。每个包要在 npmjs.com 上登记「这个仓库的 `release.yml` 可以发布」，而包得先存在才能登记，所以第一个版本是手动发的。
 
+0.0.1 是第一个这样发出去的版本（2026-11-20），踩到三处：
+
+- **登记时要勾「Allow npm publish」**。新建的可信发布默认只有 `npm stage publish`：CI 发出去的版本是暂存的，要有人用两步验证逐个批准才装得到，而且命令得换成 `npm stage publish`。我们的流程是合并即发布，所以 11 个包都勾了直接发布，`npm dist-tag` 不用勾（通道是 `npm publish --tag` 带上的）。一个包一个包点太慢，可以用 `npm trust github <包> --repo John-Oldman-Wang/nacre --file release.yml --allow-publish --yes` 循环配，要 npm 11.15 以上。
+- **登记后 2 天内要发一次**，否则这条登记作废。
+- 可信发布要 npm 11.5.1 以上。Node 24 自带的 npm 是哪一版不由我们定，所以发布那一步之前先 `npm install -g npm@11`，不跟到 12。
+
 两个工作流写下的时候一次都没在 GitHub 上跑过。手动触发 `release` 默认是演练（`npm publish --dry-run`），用它可以先把「Xcode 26 上编不编得过」这一关单独过掉，不和「发布通不通」搅在一起。
 
 ### 演练做成了脚本
