@@ -197,6 +197,7 @@ function sidebar(lang) {
             guide('做一个多行输入框', 'multiline-text'),
             guide('做一个搜索框', 'search'),
             guide('响应手势', 'gestures'),
+            guide('让读屏念对你的界面', 'accessibility'),
           ],
         },
         {

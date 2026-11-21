@@ -167,3 +167,15 @@ set path(value) { nativeSetOwned(this, 'path', value); }
 | 对象读写 | 52 / 13 | **55 / 16** |
 
 对象那一栏 +3 读 +3 写正好是 `path` / `fillColor` / `strokeColor`。
+
+## shadowPath（2026-11-21）
+
+`CALayer.shadowPath`：阴影照这条路径的形状画。设了阴影又不给它时，系统每一帧从图层的不透明像素算阴影的形状，列表里一屏几十张带阴影的卡片滚起来就是这一处在花时间。
+
+写法照 `CAShapeLayer.path`：原生存的是 `CGPath`，读回来现包一个新的 `UIBezierPath`，所以 JS 那一侧用所有权镜像记着写进去的那个对象，优先还它（`nativeSetOwned` / `ownedValue`）。`CGPath` 不可变，存进去的是副本，写进去之后再改那条路径阴影不变。
+
+`path` 在核心的 `NacrePropsLayer.mm` 里，`shadowPath` 不在：它是登记进来的一个域（`NacreShadowPath.mm`），按「接一组类只加新文件」做的。
+
+两处 check-api 要的写法：原生的对象属性要写成 `if (name == "shadowPath")`（它按 `name == "…"` 抽名字，`name != "…"` 认不出来）。
+
+动画的 keyPath 名单里还没有 `shadowPath`，记在 [api-gaps](api-gaps.md)。

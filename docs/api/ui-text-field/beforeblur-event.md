@@ -27,7 +27,7 @@ field.addEventListener('beforeblur', (event) => { })
 - 同一个事件有多个监听器时，只要有一个调了 `preventDefault()`，系统就不做。
 - 监听器里抛出异常时，同一事件的其他监听器照常执行。异常在 [`application`](../application.md#没处理的异常不会让-app-退出) 上派发 `error`。抛异常不等于 `preventDefault()`。
 - 最后一个监听器移除之后，系统不再派发这个事件。
-- 只在 `UITextField` 上有。在别的控件上监听不报错，但系统不会派发。
+- 在 `UITextField` 和 [`UITextView`](../ui-text-view/beforeblur-event.md) 上有。在别的控件上监听不报错，但系统不会派发。
 
 > **注意**：监听器执行期间系统在等。在监听器里只做判断，不做耗时的事。
 

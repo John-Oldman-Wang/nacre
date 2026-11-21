@@ -131,10 +131,19 @@ status: partial
 | [`viewForFirstBaselineLayout`](ui-view/viewforfirstbaselinelayout.md) <small>只读</small> | 第一条基线取自哪个视图 |
 | [`viewForLastBaselineLayout`](ui-view/viewforlastbaselinelayout.md) <small>只读</small> | 最后一条基线取自哪个视图 |
 
-辅助功能和状态恢复：
+辅助功能和状态恢复。读屏（VoiceOver，系统设置里叫「旁白」）是 iOS 自带的屏幕阅读器，怎么让它念对界面见指南[让读屏念对你的界面](../guides/accessibility.md)：
 
 | 属性 | 说明 |
 | --- | --- |
+| [`isAccessibilityElement`](ui-view/isaccessibilityelement.md) | 读屏是否把它当成一个元素停下来念 |
+| [`accessibilityLabel`](ui-view/accessibilitylabel.md) | 读屏念的名字：它是什么 |
+| [`accessibilityHint`](ui-view/accessibilityhint.md) | 读屏念完名字后的提示：操作它会怎样 |
+| [`accessibilityValue`](ui-view/accessibilityvalue.md) | 读屏念的当前值 |
+| [`accessibilityTraits`](ui-view/accessibilitytraits.md) | 它是什么样的东西、处在什么状态：按钮、标题、已选中…… |
+| [`accessibilityIdentifier`](ui-view/accessibilityidentifier.md) | 给界面自动化测试找元素用的标识，读屏不念 |
+| [`accessibilityElementsHidden`](ui-view/accessibilityelementshidden.md) | 读屏是否跳过它里面的全部元素 |
+| [`accessibilityViewIsModal`](ui-view/accessibilityviewismodal.md) | 读屏是否只在它里面转，跳过兄弟视图。弹层用 |
+| [`shouldGroupAccessibilityChildren`](ui-view/shouldgroupaccessibilitychildren.md) | 读屏是否把它里面的元素当成一组连续念完 |
 | [`accessibilityIgnoresInvertColors`](ui-view/accessibilityignoresinvertcolors.md) | 智能反转颜色时是否保持原样 |
 | [`showsLargeContentViewer`](ui-view/showslargecontentviewer.md) | 长按时是否显示放大的版本 |
 | [`largeContentTitle`](ui-view/largecontenttitle.md) | 放大显示时的文字 |
@@ -500,6 +509,7 @@ application.addEventListener('sceneconnect', (e) => {
 | `view.userInteractionEnabled = NO` | `view.isUserInteractionEnabled = false` |
 | `view.contentMode = UIViewContentModeScaleAspectFit` | `view.contentMode = 'scaleAspectFit'` |
 | `[view setContentHuggingPriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisHorizontal]` | `view.setContentHuggingPriority('defaultLow', { forAxis: 'horizontal' })` |
+| `view.accessibilityTraits = UIAccessibilityTraitButton \| UIAccessibilityTraitSelected` | `view.accessibilityTraits = ['button', 'selected']` |
 
 规则有三条：
 
@@ -522,4 +532,5 @@ application.addEventListener('sceneconnect', (e) => {
 - [外观特征](ui-trait-collection.md)：`traitCollection`、`overrideUserInterfaceStyle` 和 `traitchange` 事件
 - [`UIControl`](ui-control.md) 和 [`UIButton`](ui-button.md)：自带点按事件的视图
 - [`UIWindowScene`](ui-window-scene.md)：场景被销毁后界面怎样被回收
+- [让读屏念对你的界面](../guides/accessibility.md)：标签、提示、值、特征和弹层
 - [原生类](native-classes.md)：为什么不能继承，以及几种「没有原生对象」的报错

@@ -45,7 +45,7 @@ The content after the change is `field.text.slice(0, range.location) + replaceme
 - When an event has several listeners, the system does not proceed if any one of them calls `preventDefault()`.
 - If a listener throws, the other listeners for the same event still run. The exception fires `error` on [`application`](../application.md#unhandled-exceptions-dont-terminate-the-app). Throwing is not the same as calling `preventDefault()`.
 - After the last listener is removed, the system no longer fires this event.
-- Exists only on `UITextField`. Listening for it on other controls does not throw, but the system never fires it there.
+- Exists on `UITextField` and [`UITextView`](../ui-text-view/beforeinput-event.md). Listening for it on other controls does not throw, but the system never fires it there.
 
 > **Note:** The system waits while listeners run. In a listener, only make the decision; do not do slow work.
 
