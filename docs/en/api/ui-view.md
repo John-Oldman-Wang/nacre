@@ -131,10 +131,19 @@ Constraints (Auto Layout). Anchors are used to build constraints; see [`NSLayout
 | [`viewForFirstBaselineLayout`](ui-view/viewforfirstbaselinelayout.md) <small>read-only</small> | Which view the first baseline comes from |
 | [`viewForLastBaselineLayout`](ui-view/viewforlastbaselinelayout.md) <small>read-only</small> | Which view the last baseline comes from |
 
-Accessibility and state restoration:
+Accessibility and state restoration. VoiceOver is the screen reader built into iOS; for how to make it read your interface correctly, see the guide [Making VoiceOver read your interface correctly](../guides/accessibility.md):
 
 | Property | Description |
 | --- | --- |
+| [`isAccessibilityElement`](ui-view/isaccessibilityelement.md) | Whether VoiceOver treats it as one element to stop on and read |
+| [`accessibilityLabel`](ui-view/accessibilitylabel.md) | The name VoiceOver reads: what it is |
+| [`accessibilityHint`](ui-view/accessibilityhint.md) | The hint VoiceOver reads after the name: what operating it does |
+| [`accessibilityValue`](ui-view/accessibilityvalue.md) | The current value VoiceOver reads |
+| [`accessibilityTraits`](ui-view/accessibilitytraits.md) | What kind of thing it is and what state it is in: button, heading, selected, and so on |
+| [`accessibilityIdentifier`](ui-view/accessibilityidentifier.md) | An identifier automated UI tests use to find elements; VoiceOver doesn't read it |
+| [`accessibilityElementsHidden`](ui-view/accessibilityelementshidden.md) | Whether VoiceOver skips all the elements inside it |
+| [`accessibilityViewIsModal`](ui-view/accessibilityviewismodal.md) | Whether VoiceOver stays inside it and skips its siblings. Used for overlays |
+| [`shouldGroupAccessibilityChildren`](ui-view/shouldgroupaccessibilitychildren.md) | Whether VoiceOver reads the elements inside it as one group, in a row |
 | [`accessibilityIgnoresInvertColors`](ui-view/accessibilityignoresinvertcolors.md) | Whether the view stays as-is under Smart Invert |
 | [`showsLargeContentViewer`](ui-view/showslargecontentviewer.md) | Whether an enlarged version is shown on long press |
 | [`largeContentTitle`](ui-view/largecontenttitle.md) | Text shown in the large content viewer |
@@ -500,6 +509,7 @@ If you are reading Apple's documentation or iOS sample code, use this table to c
 | `view.userInteractionEnabled = NO` | `view.isUserInteractionEnabled = false` |
 | `view.contentMode = UIViewContentModeScaleAspectFit` | `view.contentMode = 'scaleAspectFit'` |
 | `[view setContentHuggingPriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisHorizontal]` | `view.setContentHuggingPriority('defaultLow', { forAxis: 'horizontal' })` |
+| `view.accessibilityTraits = UIAccessibilityTraitButton \| UIAccessibilityTraitSelected` | `view.accessibilityTraits = ['button', 'selected']` |
 
 There are three rules:
 
@@ -522,4 +532,5 @@ There are three rules:
 - [Traits](ui-trait-collection.md): `traitCollection`, `overrideUserInterfaceStyle`, and the `traitchange` event
 - [`UIControl`](ui-control.md) and [`UIButton`](ui-button.md): views with built-in tap events
 - [`UIWindowScene`](ui-window-scene.md): how the interface is released after a scene is destroyed
+- [Making VoiceOver read your interface correctly](../guides/accessibility.md): labels, hints, values, traits, and overlays
 - [Native classes](native-classes.md): why subclassing isn't allowed, and the various "no native object" errors

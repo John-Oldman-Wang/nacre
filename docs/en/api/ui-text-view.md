@@ -21,13 +21,14 @@ Compared with a text field:
 | Pressing Return | Fires `return` | Inserts a line break; no event |
 | Placeholder text | `placeholder` property | None; overlay a label yourself |
 | Border | `borderStyle` has four styles | No usable border style; use a background color and corner radius |
-| Intercepting before a change | Cancelable events such as `beforeinput` | None |
+| Intercepting before a change | Cancelable events such as `beforeinput` | Cancelable events such as `beforeinput` |
+| Tapping a link in attributed text | None | `linkclick` event |
 | Cursor and selected range | `selectedRange` | `selectedRange` |
 | Cursor or selection moved | `selectionchange` event | `selectionchange` event |
 
 The nine keyboard settings (`keyboardType`, `textContentType`, and so on) are the same on both.
 
-Behavior marked "measured" in this set of pages was measured with a small program without UI in the simulator (iPhone Air, iOS 27.2). What appears on screen and the behavior of a real keyboard are marked "**not verified in the simulator**".
+Behavior marked "measured" in this set of pages was measured with a small program without UI in the simulator (iPhone Air, iOS 27.2). What appears on screen and the behavior of a real keyboard are marked "**not verified in the simulator**". On the four event pages `beforefocus`, `beforeinput`, `beforeblur`, and `linkclick`, "measured" means measured on a device (iPhone 14, iOS 27.2), and what wasn't measured is marked "**not verified on a device**".
 
 **Inheritance**: `EventTarget` → `NSObject` → `UIResponder` → [`UIView`](ui-view.md) → [`UIScrollView`](ui-scroll-view.md) → `UITextView`
 
@@ -114,7 +115,9 @@ Also inherits methods from [`UIScrollView`](ui-scroll-view.md) and [`UIView`](ui
 
 ## Events
 
-Listen with `addEventListener()`. A text view has four events of its own:
+Listen with `addEventListener()`. A text view has eight events of its own, in two groups.
+
+Notifications after the content, focus, or selection changed:
 
 | Event | When it fires |
 | --- | --- |
@@ -122,18 +125,39 @@ Listen with `addEventListener()`. A text view has four events of its own:
 | [`input`](ui-text-view/input-event.md) | User input changed the content, or code called `insertText()` or `deleteBackward()` |
 | [`selectionchange`](ui-text-view/selectionchange-event.md) | The selection or cursor position changed |
 | [`blur`](ui-text-view/blur-event.md) | It is no longer first responder and input ends |
+
+Events where the system asks on the spot whether to proceed; calling `preventDefault()` in a listener means no:
+
+| Event | When it fires |
+| --- | --- |
+| [`beforefocus`](ui-text-view/beforefocus-event.md) | Input is about to begin. Canceling keeps it from entering editing |
+| [`beforeinput`](ui-text-view/beforeinput-event.md) | User input is about to change the content. Canceling stops the change |
+| [`beforeblur`](ui-text-view/beforeblur-event.md) | Input is about to end. Canceling keeps the focus |
+| [`linkclick`](ui-text-view/linkclick-event.md) | The user tapped a link in the attributed text. Canceling keeps it from opening |
+
+Inherited events:
+
+| Event | When it fires |
+| --- | --- |
 | [`scroll`](ui-scroll-view/scroll-event.md) and others | The eight scroll view events, inherited from [`UIScrollView`](ui-scroll-view.md#events) |
 | `traitchange` | The [traits](ui-trait-collection.md) changed; inherited from `UIView` |
 
-Rules shared by the four events:
+Rules shared by the four notifications `focus`, `input`, `selectionchange`, and `blur`:
 
 - The event object's `type` is the event name and its `target` is the text view. The event object carries neither the content nor what changed. Read the content from `text` and the cursor from `selectedRange`.
-- They can't be canceled; `preventDefault()` has no effect. So they can't be used to block a character from being entered.
+- They can't be canceled; `preventDefault()` has no effect. To block a character from being entered, use [`beforeinput`](ui-text-view/beforeinput-event.md).
 - Callbacks don't run synchronously at the moment the event happens; they run a little later. See [when callbacks run](ui-control.md#when-callbacks-run). On the line after calling `insertText()`, the callback hasn't run yet.
 - An exception thrown in a callback doesn't affect the text view, and other callbacks for the same event still run. The exception fires `error` on [`application`](application.md#unhandled-exceptions-dont-terminate-the-app); if no listener cancels it, the console logs a message starting with `Uncaught`.
 - There is no cost when there are no listeners.
-- Scroll view events can be listened to alongside these four without interfering with each other (measured).
+- Scroll view events can be listened to alongside these eight without interfering with each other (measured).
 - Listening to any other name doesn't throw: it is treated as a custom event and fires only when you dispatch it yourself with `dispatchEvent()`.
+
+Rules shared by the four cancelable events `beforefocus`, `beforeinput`, `beforeblur`, and `linkclick`:
+
+- Listeners run on the spot. After firing the event, the system waits for all listeners to finish before deciding whether to proceed. In a listener, only make the decision; do not do slow work.
+- If any one listener calls `preventDefault()`, the system does not proceed.
+- A listener throwing is not the same as calling `preventDefault()`.
+- With no listeners, the system handles it the default way.
 
 ## Content changed by code vs. by the user
 
@@ -246,8 +270,10 @@ How `UITextViewDelegate` methods and notifications map to JS:
 | `textViewDidChange:`, `UITextViewTextDidChangeNotification` | `input` event |
 | `textViewDidEndEditing:`, `UITextViewTextDidEndEditingNotification` | `blur` event |
 | `textViewDidChangeSelection:` | `selectionchange` event |
-| `textView:shouldChangeTextInRange:replacementText:` | No equivalent |
-| `textViewShouldBeginEditing:`, `textViewShouldEndEditing:` | No equivalent |
+| `textView:shouldChangeTextInRange:replacementText:` | `beforeinput` event |
+| `textViewShouldBeginEditing:` | `beforefocus` event |
+| `textViewShouldEndEditing:` | `beforeblur` event |
+| `textView:primaryActionForTextItem:defaultAction:`, when a link was tapped | `linkclick` event |
 
 ### Compared with the browser `<textarea>`
 
@@ -262,7 +288,7 @@ This table is only for looking up correspondences, for people familiar with HTML
 | `setRangeText()` | `insertText()` | Can only replace the current selection |
 | `readonly` | `isEditable = false` | — |
 | `placeholder` | None | Overlay a label |
-| `maxlength` | None | Truncate in the `input` callback |
+| `maxlength` | None | Block over-long changes in `beforeinput` |
 | `rows` | None | Height comes from constraints, or turn off scrolling so it follows the content |
 | `selectionchange` event | `selectionchange` event | Fires on the text view, not on `document`. The event object doesn't carry the selection; read `input.selectedRange` |
 

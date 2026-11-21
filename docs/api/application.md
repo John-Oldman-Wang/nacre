@@ -13,7 +13,7 @@ status: partial
 - **App 的信息**：包名、版本、配置文件的内容。
 - **App 的状态**：在前台还是后台，当前有哪些场景。
 - **App 级的事件**：可以建界面了、进入后台、内存不足、被一条链接打开、有没处理的异常。
-- **App 级的能力**：本地存储、文件和网络状态的入口，以及让系统打开一个 URL（往外打开；别的 App 打开本 App 是上一条里的事件）。装了 `@nacrejs/keychain` 之后，Keychain 的入口也在这里。
+- **App 级的能力**：本地存储、文件和网络状态的入口，以及让系统打开一个 URL（往外打开；别的 App 打开本 App 是上一条里的事件）、切到后台时向系统多要一段时间。装了 `@nacrejs/keychain` 之后，Keychain 的入口也在这里。
 - **原生模块的入口**：App 自己的原生代码和第三方原生 SDK 提供的方法，从 `application.nativeModules` 调。
 
 界面不在 `application` 上。界面属于场景（[`UIWindowScene`](ui-window-scene.md)）：场景表示 App 界面的一个实例，由系统创建，窗口要建在场景上才能显示。`application` 负责在场景可用时派发 [`sceneconnect`](application/sceneconnect-event.md)，并记录当前有哪些场景。
@@ -47,6 +47,7 @@ App 的状态：
 | [`scenes`](application/scenes.md) <small>只读</small> | 当前已接入的场景 |
 | [`supportsMultipleScenes`](application/supportsmultiplescenes.md) <small>只读</small> | 能不能同时有多个场景 |
 | [`protectedDataAvailable`](application/protecteddataavailable.md) <small>只读</small> | 加密保护的文件现在能不能读 |
+| [`backgroundTimeRemaining`](application/backgroundtimeremaining.md) <small>只读</small> | 在后台还能运行多少秒。在前台是 `Infinity` |
 
 设备的环境设置：
 
@@ -75,6 +76,7 @@ App 的状态：
 | 方法 | 说明 |
 | --- | --- |
 | [`openURL()`](application/openurl.md) | 把一个 URL 交给系统打开 |
+| [`runBackgroundTask()`](application/runbackgroundtask.md) | 运行一个函数，期间切到后台也向系统多要一段时间把它做完 |
 
 ## 事件
 
@@ -167,6 +169,8 @@ iOS 的 App 不是一直在运行。用户回到主屏幕或切到别的 App 时
 
 场景也有同名的四个事件。`application` 上的是所有场景合在一起的状态，场景上的是那一个场景的状态。两者读到的值在同一时刻可能不同，见 [`UIWindowScene`](ui-window-scene.md#场景的状态和-app-的状态)。
 
+进入后台之后，系统会在一小段时间之后暂停 App。一件已经开始、还要几秒钟才能做完的事（上传、写文件），用 [`runBackgroundTask()`](application/runbackgroundtask.md) 包起来，系统会多给一段时间让它做完；还剩多少秒从 [`backgroundTimeRemaining`](application/backgroundtimeremaining.md) 读。
+
 ## 系统事件不能取消
 
 `application` 上的事件分两类，区别在于能不能 `preventDefault()`：
@@ -241,6 +245,8 @@ application.addEventListener('sceneconnect', (e) => {
 | `UIApplication.sharedApplication.protectedDataAvailable` | `application.protectedDataAvailable` |
 | `UIApplication.sharedApplication.idleTimerDisabled = YES` | `application.idleTimerDisabled = true` |
 | `[UIApplication.sharedApplication openURL:url options:@{} completionHandler:…]` | `application.openURL(url)` |
+| `beginBackgroundTaskWithName:expirationHandler:`、`endBackgroundTask:` | `application.runBackgroundTask(work, { name })` |
+| `UIApplication.sharedApplication.backgroundTimeRemaining` | `application.backgroundTimeRemaining` |
 | `NSUserDefaults.standardUserDefaults` | `application.storage` |
 | `UISceneWillConnectNotification` | `application.addEventListener('sceneconnect', …)` |
 | `UISceneDidDisconnectNotification` | `application.addEventListener('scenedisconnect', …)` |

@@ -55,3 +55,7 @@
 /// <reference path="./ios/marked-text.d.ts" />
 /// <reference path="./ios/drag-target.d.ts" />
 /// <reference path="./ios/network.d.ts" />
+/// <reference path="./ios/accessibility.d.ts" />
+/// <reference path="./ios/shadow-path.d.ts" />
+/// <reference path="./ios/background-task.d.ts" />
+/// <reference path="./ios/text-view-should.d.ts" />

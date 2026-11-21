@@ -282,3 +282,33 @@ JS 那一侧没有 `reloadInputViews`。两条路：把它也暴露出来，让�
 - 变化通知不另做：组字的每一步 UIKit 都会让输入框报一次内容变了，我们照常派发 `input`（延后一轮），监听器里读它。实测组字中的文字算在 `text` 里。
 - 验收用示例模块的 `simulateMarkedText` 调 `setMarkedText:selectedRange:` / `unmarkText`，就是输入法做的那两步。第一版用例连着同步设了三次，等 `input` 延后一轮到的时候组字已经结束，读到的是 `null`——那是用例写错了，真打字时每个键是单独的一轮。改成每一步等它的 `input` 到了再走下一步。
 - 真的输入法、真的键盘没验。
+
+## 多行输入框的拦截事件（2026-11-21）
+
+`UITextView` 上的 `beforefocus`、`beforeblur`、`beforeinput`、`linkclick`。前三个照单行输入框的同名事件做（`NacreTextFieldDelegate.mm`），`linkclick` 是新的。文件：`NacreTextViewShould.mm`、`55-text-view-should.js`、`packages/types/ios/text-view-should.d.ts`、`acceptance/src/steps/text-view-should.js`。
+
+### 委托的槽位
+
+`UITextView` 的 `delegate` 和 `UIScrollView` 的是同一个，核心的滚动事件和 `selectionchange` 已经往里放了东西。所以这里和 `selectionchange` 一样用 `NacreAddDelegatePart` 加一方：四个名字里有一个有监听器时这一方在，一个都没有时拿走，系统根本不会来问。验收里有一条看「订着 `beforeinput` 时 `scroll` 照样来」。
+
+两个域都认 `UITextView`、继承层数一样，按名字排：`text-view` 在 `text-view-should` 前面。前者只认自己那四个名字、别的说不认领，所以订阅能落到这里。
+
+### 事件名：linkclick
+
+点了富文本里的链接。Web 上点 `<a>` 派发的是 `click`，但在多行输入框上 `click` 的意思是「点了这个输入框」，含义不同不借。照搜索框的 `bookmarkclick`、`resultslistclick` 叫 `linkclick`。
+
+接的是 iOS 17 起的 `textView:primaryActionForTextItem:defaultAction:`：取消时返回 `nil`（系统什么都不做），不取消返回系统给的默认动作（打开链接）。旧的 `textView:shouldInteractWithURL:inRange:interaction:` 在 iOS 17 废弃了，实现它编译会警告。只管链接：附件、自定义标记两种照系统默认。
+
+### beforeinput 的多段版本
+
+iOS 26 多了 `textView:shouldChangeTextInRanges:replacementText:`。槽位里没有一方实现它时，系统调单段的版本、传几段的并集（头文件这么写的），所以只实现单段的，和单行输入框一样。
+
+### 测试替身：造一个链接的 UITextItem
+
+`beforeinput` 和 `linkclick` 要真实的键盘和手指，由示例模块的 `simulateTextViewAsk` 照系统的做法直接问委托。`UITextItem` 没有公开的构造，替身照它的实例变量填一个：iOS 27.2 上它有 `_context`、`_contentType`、`_link`、`_textAttachment`、`_tagIdentifier`。范围不存在它自己身上，`range` 是问 `_context` 要的；`_context` 遵循私有协议 `_UITextItemContext`，要求四个方法（`range`、`boundingRect`、`rects`、`_linkHandlerForLink:atInteractionPoint:`）。替身给了一个只回答这四个问题的小对象。这些是量出来的私有细节，换了系统可能对不上；对不上时替身返回 `null`，那一组报未验证，不会误判。
+
+`contentType`、`link` 在 Swift 里被改写成了 `content` 枚举，替身用 KVC 按 ObjC 的名字读回来核对。
+
+### 验到的和没验到的
+
+`beforefocus`、`beforeblur` 走真实路径（`becomeFirstResponder` / `resignFirstResponder` 会去问委托），验过。`beforeinput`、`linkclick` 是替身问的，真实的键盘输入和手指点链接没验，记在 `project.md`「欠的验证」。

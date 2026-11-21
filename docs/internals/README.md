@@ -26,7 +26,7 @@
 | [桥的通道](bridge.md) | 通道是怎么一条条长出来的、JSON 编码、错误出口 |
 | [枚举和位掩码](enums.md) | 名字 ↔ 数值的映射为什么只能在原生层 |
 | [颜色](ui-color.md) | 相等性实测、动态色、上层写法的推导 |
-| [图层](ca-layer.md) | CGColor 的代价、和 UIView 重叠的属性、路径身份靠镜像 |
+| [图层](ca-layer.md) | CGColor 的代价、和 UIView 重叠的属性、路径身份靠镜像、shadowPath |
 | [动画](ca-animation.md) | keyPath 定类型、拷贝语义、Infinity 过不了 JSON |
 | [Auto Layout](auto-layout.md) | 约束的所有权、NSException 的接法 |
 | [滚动](scrolling.md) | delegate trampoline、scroll 事件的合并、实测 |
@@ -38,7 +38,7 @@
 | [文件读写](filesystem.md) | 为什么有上层对象、名字为什么不叫 files、错误的两层分工 |
 | [页面的覆写点](page-overrides.md) | 方向和状态栏为什么用原生预置子类、替换基类为什么对状态栏不行、转屏时哪个时机在动画里、`ios.orientations` |
 | [App 包](bundle.md) | `fileSystem.assets` 为什么指向 `assets/` 而不是整个包、`NSBundle` 接了哪些、字体的名字为什么放在这里、实测 |
-| [输入框](text-input.md) | 为什么不卡 M1b、撤掉了哪个属性、三个坑 |
+| [输入框](text-input.md) | 为什么不卡 M1b、撤掉了哪个属性、三个坑；多行输入框的拦截事件和 linkclick |
 | [多行输入](text-view.md) | 事件为什么走通知不占委托、`NSRange` 怎么在登记的域里定义、量到的默认值和连带行为；验收还没在 App 里跑 |
 | [列表](collection-view.md) | 数据为什么用快照不用下标、单元格是怎么从 JS 带回系统的、委托的槽位怎么和滚动事件共用、单元格的持有边；点选没有验证 |
 | [富文本](attributed-string.md) | 属性字典（对象和标量混着）怎么摊平了过桥、读为什么要过两次、段落样式和阴影为什么存副本、下划线为什么不能当位掩码解；验收还没跑 |
@@ -62,6 +62,8 @@
 | [随机数](crypto.md) | 随机源归宿主、填的是视图不是 buffer、为什么照搬 65536 的上限 |
 | [Web 标准的五个全局](web-globals.md) | `TextEncoder` / `TextDecoder` / `atob` / `btoa` / `structuredClone`：为什么写在引擎的 C++ 里、解码为什么没用 V8 的、原生对象为什么不能克隆、在开发机上和 Node 对过什么；还没在 App 里跑 |
 | [网络](network.md) | fetch 的线程分工、边下边读和背压、URL 和 WHATWG 的差异 |
+| [无障碍](accessibility.md) | 为什么只挂在 UIView 上、特征的私有位、系统控件的默认值是读屏开着时现算的 |
+| [后台任务](background-task.md) | 为什么是传一个函数、过期时当场进 JS、走类方法的通道 |
 | [WebView](web-view.md) | 为什么照 Electron、为什么套一层壳、`backgroundThrottling` 为什么做了又拿掉、进程数和存储分区的实测 |
 | [能力包](capabilities.md) | 一个能力拆成单独的 framework 之后怎么接进核心、核心给它的面有多大、怎么往核心对象上挂属性 |
 | [拍照](camera.md) | 能力包第一次用域登记、给能力包的头里缺的三样；JS 里为什么不继承导航控制器；订阅为什么全部认领；照片怎么带到事件上；模拟器上来源可用却没有摄像头；呈现和真机都没有验证 |

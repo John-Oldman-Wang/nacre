@@ -9,7 +9,7 @@ native: NSRange
 
 The unit is the same as JS string indices. So `text.slice(location, location + length)` extracts exactly that range, and `text.length` is the largest `location`. Most characters take one code unit; emoji and some CJK characters take two. A `length` of 0 is a position with no content; in a text field it is the cursor.
 
-It is used by: the `selectedRange` of [`UITextField`](ui-text-field.md) and [`UITextView`](ui-text-view.md), `UITextView.scrollRangeToVisible()`, the `beforeinput` event of `UITextField`, and every method that takes a range on [attributed strings](ns-attributed-string.md).
+It is used by: the `selectedRange` of [`UITextField`](ui-text-field.md) and [`UITextView`](ui-text-view.md), `UITextView.scrollRangeToVisible()`, the `beforeinput` event of `UITextField` and `UITextView`, the `linkclick` event of `UITextView`, and every method that takes a range on [attributed strings](ns-attributed-string.md).
 
 `NSRange` is a [struct](structs.md): a value, not a reference to an object. The rules are the same as for `CGRect` and its group:
 

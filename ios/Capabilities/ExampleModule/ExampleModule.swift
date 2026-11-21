@@ -178,6 +178,52 @@ private func makeExampleModule() -> NacreModule {
     return ["shouldBegin": shouldBegin, "simultaneous": simultaneous]
   }
 
+  // 照 UIKit 的做法问多行输入框（UITextView）的委托。参数：输入框的 tag、问什么，
+  // 后面是那一问的参数：
+  //   "change", location, length, text  → 让不让这样改（textView:shouldChangeTextInRange:
+  //                                        replacementText:），答 true / false
+  //   "link", url, location, length     → 点了这一段链接做什么（textView:primaryActionForTextItem:
+  //                                        defaultAction:），答 "default"（照系统默认打开）、
+  //                                        "none"（什么都不做）；造不出链接的 UITextItem 时是 null
+  // 找不到这个 tag 的多行输入框时是 null。真的键盘和手指要人，自动跑的验收靠它。
+  // 真的模块里不会有这种方法
+  module.addMethod("simulateTextViewAsk") { args in
+    guard args.count == 5, let tag = number(args[0]), let kind = args[1] as? String else {
+      return NacreModule.error(name: "TypeError", message: "simulateTextViewAsk needs tag, kind and three arguments")
+    }
+    let window = UIApplication.shared.connectedScenes
+      .compactMap { $0 as? UIWindowScene }
+      .flatMap { $0.windows }
+      .first { $0.isKeyWindow }
+    guard let view = window?.viewWithTag(Int(tag)) as? UITextView else { return nil }
+    switch kind {
+    case "change":
+      guard let location = number(args[2]), let length = number(args[3]),
+            let text = args[4] as? String else {
+        return NacreModule.error(name: "TypeError", message: "change needs location, length, text")
+      }
+      let range = NSRange(location: Int(location), length: Int(length))
+      return view.delegate?.textView?(view, shouldChangeTextIn: range, replacementText: text) ?? true
+    case "link":
+      guard let string = args[2] as? String, let url = URL(string: string),
+            let location = number(args[3]), let length = number(args[4]) else {
+        return NacreModule.error(name: "TypeError", message: "link needs url, location, length")
+      }
+      guard let item = makeLinkItem(url, NSRange(location: Int(location), length: Int(length))) else {
+        return nil
+      }
+      let fallback = UIAction(title: "open") { _ in }
+      let selector = #selector(UITextViewDelegate.textView(_:primaryActionFor:defaultAction:))
+      // 委托没实现这一问：系统照默认的做
+      guard let delegate = view.delegate, delegate.responds(to: selector) else { return "default" }
+      let action = delegate.textView?(view, primaryActionFor: item, defaultAction: fallback)
+      if action === fallback { return "default" }
+      return action == nil ? "none" : "other"
+    default:
+      return NacreModule.error(name: "TypeError", message: "unknown kind \(kind)")
+    }
+  }
+
   // 照 UIKit「手指离开滚动视图」的做法调委托的 scrollViewWillEndDragging:
   // withVelocity:targetContentOffset:。参数：滚动视图的 tag、速度 x / y（pt/ms）、
   // 系统算出来的停点 x / y。兑现成委托改完之后的停点 { x, y }；找不到这个 tag
@@ -299,4 +345,35 @@ private func makeExampleModule() -> NacreModule {
   }
 
   return module
+}
+
+// UITextItem 没有公开的构造：系统点到链接时才造一个交给委托。测试替身照它的
+// 实例变量填一个出来（iOS 27.2 上量到的：_contentType、_link，范围不存在它自己
+// 身上，是问 _context 要的，_context 遵循私有协议 _UITextItemContext）。这台
+// 系统上对不上时返回 nil，那一组断言报未验证
+private final class LinkItemContext: NSObject {
+  let itemRange: NSRange
+  init(_ range: NSRange) { itemRange = range }
+  @objc func range() -> NSRange { itemRange }
+  @objc func boundingRect() -> CGRect { .zero }
+  @objc func rects() -> [NSValue] { [] }
+  @objc(_linkHandlerForLink:atInteractionPoint:)
+  func linkHandler(_ link: Any?, at point: CGPoint) -> Any? { nil }
+}
+
+private func makeLinkItem(_ url: URL, _ range: NSRange) -> UITextItem? {
+  guard let cls = NSClassFromString("UITextItem") as? NSObject.Type else { return nil }
+  for name in ["_context", "_link", "_contentType"] where class_getInstanceVariable(cls, name) == nil {
+    return nil
+  }
+  let object = cls.init()
+  object.setValue(url, forKey: "_link")
+  object.setValue(LinkItemContext(range), forKey: "_context")
+  // UITextItemContentTypeLink 是 0。contentType 和 link 在 Swift 里被改写成了
+  // content 枚举，这里按 ObjC 的名字读回来核对
+  object.setValue(0, forKey: "_contentType")
+  guard let item = object as? UITextItem, item.range == range,
+        (object.value(forKey: "contentType") as? Int) == 0,
+        (object.value(forKey: "link") as? URL) == url else { return nil }
+  return item
 }

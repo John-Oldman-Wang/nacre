@@ -87,6 +87,10 @@ import { stepDragTarget } from './steps/drag-target.js';
 import { stepGestureDelegate } from './steps/gesture-delegate.js';
 import { stepNetwork } from './steps/network.js';
 import { stepUpperLayer } from './steps/upper-layer.js';
+import { stepAccessibility } from './steps/accessibility.js';
+import { stepShadowPath } from './steps/shadow-path.js';
+import { stepBackgroundTask } from './steps/background-task.js';
+import { stepTextViewShould } from './steps/text-view-should.js';
 import { stepGestures } from './steps/gestures.js';
 import { stepAlerts } from './steps/alerts.js';
 import { stepEffects } from './steps/effects.js';
@@ -292,6 +296,11 @@ application.addEventListener('sceneconnect', (e) => {
     ['stepGestureDelegate', () => Promise.resolve(ctx.webViewDone).then(() => stepGestureDelegate(ctx))],
     ['stepNetwork', () => stepNetwork(ctx)],
     ['stepUpperLayer', () => stepUpperLayer(ctx)],
+    ['stepAccessibility', () => stepAccessibility(ctx)],
+    ['stepShadowPath', () => stepShadowPath(ctx)],
+    ['stepBackgroundTask', () => stepBackgroundTask(ctx)],
+    // 会全屏弹出自己的页面，和上面那三步一样等网页那一步跑完
+    ['stepTextViewShould', () => Promise.resolve(ctx.webViewDone).then(() => stepTextViewShould(ctx))],
   ];
   // 收尾的几步排在最后，先后和原来一样。结尾三张和网页的比对各有几万条，要在
   // 主线程上跑十几秒：它们等生命周期那一步的 GC 检查结束、并且主线程闲下来
