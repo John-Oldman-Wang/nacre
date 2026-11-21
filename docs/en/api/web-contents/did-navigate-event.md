@@ -20,7 +20,7 @@ contents.addEventListener('did-navigate', (event) => {})
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `url` | string | The new URL |
-| `httpResponseCode` | number | The HTTP status code. `-1` for `data:`, `about:`, local files, and others that don't go through HTTP. Also `-1` when going back or forward to a previously loaded page: the server isn't requested again then |
+| `httpResponseCode` | number | The HTTP status code. `-1` for `data:`, `about:`, local files, custom protocols registered with [`serveDirectory()`](../protocol/servedirectory.md), and others that don't go through HTTP. Also `-1` when going back or forward to a previously loaded page: the server isn't requested again then |
 
 Not cancelable.
 

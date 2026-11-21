@@ -52,7 +52,7 @@ loadFile(filePath, { query, search, hash })
 
 加载出来的网页，地址是 `file://` 开头的。网页能用相对路径引用同一个目录和它的子目录下的样式表、普通脚本和图片。
 
-本地网页里 `<script type="module">` 不执行，`fetch` 也读不了本地文件。全部限制见[本地网页的限制](../web-contents.md#本地网页的限制)。
+本地网页里 `<script type="module">` 不执行，`fetch` 也读不了本地文件。全部限制见[本地网页的限制](../web-contents.md#本地网页的限制)。用到这两样的网页，用 [`session.protocol`](../session/protocol.md) 登记一个自定义协议，从 `app://local/` 这样的地址加载，见[用自定义协议加载本地网页](../../guides/web-pages.md#用自定义协议加载本地网页)。
 
 ## 示例
 
@@ -94,5 +94,6 @@ await contents.loadFile(dir + '/notice.html');
 ## 参见
 
 - [`loadURL()`](loadurl.md)
+- [`Protocol`](../protocol.md)：用自定义协议加载本地网页，模块脚本和 `fetch` 都能用
 - [加载打进 App 包里的网页](../../guides/web-pages.md#加载打进-app-包里的网页)
 - [文件读写](../filesystem.md)：把网页文件写到 App 的目录里

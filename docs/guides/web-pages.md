@@ -11,6 +11,7 @@
 - **用 `will-navigate` 限制网页能去的地址。** 配了预加载脚本的 `WebView` 尤其需要：网页一旦跳到别的站点，那个站点的脚本同样拿得到消息通道。
 - **不用的网页调 `close()`。** 一张简单的网页在模拟器上实测占 60 MB 左右。理由见[内存和引用](../api/web-view.md#内存和引用)。
 - **用 `https://`。** 明文的 `http://` 地址会被系统拦截，只有 `http://localhost` 例外。
+- **本地网页用到模块脚本或者 `fetch` 时，用自定义协议加载。** 见[用自定义协议加载本地网页](#用自定义协议加载本地网页)。
 
 ## 第一张网页
 
@@ -253,7 +254,85 @@ await contents.loadFile('JS/web/help.html', { query: { topic: 'fees' }, hash: 'r
 - 第二次加载时，网页里 `location.search` 是 `?topic=fees`，`location.hash` 是 `#refund`。
 - 文件不存在时 Promise 以 `NetworkError` 拒绝，`code` 是 `-1100`。
 
-> **注意**：本地网页里 `<script type="module">` 不执行，`fetch` 也读不了本地文件。用到这两样的网页（比如 Vite 默认的打包结果）不能这样加载，见[本地网页的限制](../api/web-contents.md#本地网页的限制)。
+> **注意**：`loadFile()` 加载的网页里 `<script type="module">` 不执行，`fetch` 也读不了本地文件。用到这两样的网页（比如 Vite 默认的打包结果）用[自定义协议](#用自定义协议加载本地网页)加载。
+
+## 用自定义协议加载本地网页
+
+`loadFile()` 加载的网页地址是 `file://` 开头的：模块脚本不执行，`fetch` 读不了本地文件，所有本地网页共用一个来源（`file://`）。网页用到这些时，改用自定义协议：用 [`Protocol`](../api/protocol.md) 把一个目录登记成一个协议，比如 `app`，网页从 `app://local/index.html` 这样的地址加载，文件从这个目录里取。
+
+| 网页 | 用哪个 |
+| --- | --- |
+| 静态页面、只有普通 `<script>` 的页面 | `loadFile()` 就够用 |
+| 用 `<script type="module">` 的页面（比如 Vite 默认的打包结果） | 自定义协议 |
+| 要用 `fetch` 读同一个目录里的 JSON 等文件 | 自定义协议 |
+| 要一个独立的来源：`localStorage` 不和别的本地网页混在一起 | 自定义协议 |
+
+把网页的打包结果放进项目的 `assets/web/`。这个目录在 App 包里是 `JS/assets/web`。
+
+```js
+// 1. 先登记：app://任意主机/路径 从 JS/assets/web 里取文件
+session.defaultSession.protocol.serveDirectory('app', 'JS/assets/web');
+
+// 2. 再建网页。登记之前建好的网页不认这个协议
+const site = new WebView();
+site.frame = page.view.bounds;
+page.view.addSubview(site);
+await site.webContents.loadURL('app://local/index.html');
+console.log(await site.webContents.executeJavaScript('location.origin'));
+```
+
+**效果**
+
+- 屏幕上显示 `assets/web/index.html`。不联网也能显示。
+- 网页里的 `<script type="module">` 执行，能 `import` 同目录下的其他模块。样式表照常加载。
+- 控制台输出 `app://local`。
+- 网页里 `fetch('/data.json')` 取到 `assets/web/data.json`。以 `/` 开头的路径从这个目录的根算。
+- `localStorage` 能用。`file://` 的网页看不见它写的数据。
+- 网页里 `isSecureContext` 是 `true`。
+
+这一节新建了 `site`，没有用第一个例子里的 `web`：`web` 在登记之前就建好了，加载 `app://` 的地址时 `loadURL()` 拒绝。
+
+### 先登记，再建网页
+
+一张网页认哪些协议，在 `new WebView()` 那一刻就定了。所以登记要放在建网页之前，推荐在 App 启动时登记一次。
+
+- 登记之前建好的网页加载这个协议的地址，`loadURL()` 拒绝。
+- 之后再调一次 `serveDirectory()` 换目录，之前建好的网页照旧用原来的目录，只有之后建的网页用新的。
+- [`unhandle()`](../api/protocol/unhandle.md) 也一样：只对之后建的网页起作用。
+
+### 主机名统一写 `local`
+
+主机名不参与找文件：`app://local/a.html` 和 `app://other/a.html` 取的是同一个文件。主机名决定网页的来源：前者是 `app://local`，后者是 `app://other`，两个来源的 `localStorage` 不互通（**未在真机验证**）。整个 App 都写 `app://local/`，网页之间的数据就在同一个来源下。
+
+### 分区各管各的
+
+登记的协议属于一个分区。网页用了 `partition` 时，在那个分区的 `protocol` 上登记。
+
+```js
+session.fromPartition('persist:shop').protocol.serveDirectory('app', 'JS/assets/shop');
+const shop = new WebView({ webPreferences: { partition: 'persist:shop' } });
+await shop.webContents.loadURL('app://local/index.html');
+```
+
+**效果**
+
+- `shop` 显示 `assets/shop/index.html`。
+- 默认分区的网页加载 `app://local/index.html`，`loadURL()` 拒绝：默认分区没有登记 `app`。
+
+### 判断页面找没找到
+
+主页面的状态码从 [`did-navigate`](../api/web-contents/did-navigate-event.md) 读不到：自定义协议的主页面，`httpResponseCode` 是 `-1`。主页面的文件不存在时，`loadURL()` 照样兑现，网页上显示 `Not Found`。
+
+网页里的 `fetch` 拿得到真实的状态码：文件不存在是 404。
+
+```js
+const status = await site.webContents.executeJavaScript("fetch('/nope.json').then((r) => r.status)");
+console.log(status);
+```
+
+**效果**：`assets/web/` 里没有 `nope.json` 时，控制台输出 `404`。
+
+服务的规则（`index.html`、`Content-Type`、不支持的请求方法）见 [`serveDirectory()`](../api/protocol/servedirectory.md#说明)。其中一条：分段请求一律给整个文件，网页里的 `<video>` 拖动进度条可能拖不动（**未在真机验证**）。
 
 ## 显示一段 HTML
 
@@ -444,4 +523,5 @@ NSLayoutConstraint.activateConstraints([
 - [`NavigationHistory`](../api/navigation-history.md)：后退和前进。
 - [让网页和 App 互发消息](web-page-messaging.md)
 - [`session`](../api/session.md)：读写网页的 cookie、清数据。
+- [`Protocol`](../api/protocol.md)：用自定义协议加载本地网页。
 - [Auto Layout](../api/auto-layout.md)：让网页占满安全区用的约束。

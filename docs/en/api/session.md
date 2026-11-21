@@ -6,14 +6,15 @@ status: partial
 
 # `Session`
 
-**`Session`** represents a storage partition: cookies, `localStorage`, IndexedDB, caches, and other data left by web pages in a [`WebView`](web-view.md) are all stored in some partition. Through `Session`, the app can read and write the partition's cookies, and clear the data in it.
+**`Session`** represents a storage partition: cookies, `localStorage`, IndexedDB, caches, and other data left by web pages in a [`WebView`](web-view.md) are all stored in some partition. Through `Session`, the app can read and write the partition's cookies, clear the data in it, and register custom protocols for the partition's web pages.
 
 Each partition is a separate set of data. Web pages in the same partition share data: sign in on one page, and another page in the same partition is signed in too. Different partitions can't see each other's data. Which partition a page uses is set with `webPreferences.partition` when the `WebView` is created, and can't be changed afterward. For how to write partition names, see [Partitions](#partitions).
 
-This group has two more types:
+This group has three more types:
 
 - [`Cookies`](cookies.md): a partition's cookies, obtained from the [`cookies`](session/cookies.md) property.
 - [`Cookie`](cookie.md): each record you get when reading cookies.
+- [`Protocol`](protocol.md): a partition's custom protocols, obtained from the [`protocol`](session/protocol.md) property.
 
 **Inheritance**: `Session` does not inherit from any class.
 
@@ -49,6 +50,7 @@ Gets a partition by name. Partition names are written the same way as `webPrefer
 | Property | Description |
 | --- | --- |
 | [`cookies`](session/cookies.md) <small>read-only</small> | This partition's cookies |
+| [`protocol`](session/protocol.md) <small>read-only</small> | This partition's custom protocols: registers a directory as a protocol such as `app://` |
 
 ## Instance methods
 
@@ -130,6 +132,7 @@ await session.defaultSession.clearStorageData();
 | `ses.cookies` | Same | See [`Cookies`](cookies.md#differences-from-electron) |
 | `ses.clearStorageData({ origin, storages })` | Same | `origin` is matched by domain only, regardless of scheme and port |
 | `ses.isPersistent()` | Same | |
+| `ses.protocol` | Same | See [`Protocol`](protocol.md#differences-from-electron) |
 
 ## Corresponding iOS API
 
@@ -142,6 +145,7 @@ await session.defaultSession.clearStorageData();
 | `dataStore.isPersistent` | `ses.isPersistent()` |
 | `[dataStore removeDataOfTypes:modifiedSince:completionHandler:]` | `ses.clearStorageData({ storages })` |
 | `[dataStore fetchDataRecordsOfTypes:…]` plus `removeDataOfTypes:forDataRecords:…` | `ses.clearStorageData({ origin })` |
+| `[configuration setURLSchemeHandler:forURLScheme:]` | `ses.protocol.serveDirectory(scheme, directory)` |
 
 ## See also
 
@@ -150,3 +154,4 @@ await session.defaultSession.clearStorageData();
 - [`Cookie`](cookie.md): the fields each cookie you read has
 - [`WebView`](web-view.md): use `partition` when creating a page to choose its partition; `webContents.session` gets the corresponding `Session`
 - [`fetch`](fetch.md): its cookies are a separate set, not connected to these
+- [`Protocol`](protocol.md): registers a custom protocol such as `app://` for this partition's web pages

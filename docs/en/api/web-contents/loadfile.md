@@ -52,7 +52,7 @@ Doesn't throw directly. All errors reject the returned Promise.
 
 The loaded page has a URL starting with `file://`. The page can reference stylesheets, classic scripts, and images in the same directory and its subdirectories by relative path.
 
-In a local web page, `<script type="module">` doesn't run, and `fetch` can't read local files. For all the limits, see [Limits of local web pages](../web-contents.md#limits-of-local-web-pages).
+In a local web page, `<script type="module">` doesn't run, and `fetch` can't read local files. For all the limits, see [Limits of local web pages](../web-contents.md#limits-of-local-web-pages). For pages that use these, register a custom protocol with [`session.protocol`](../session/protocol.md) and load from an address like `app://local/`; see [Loading local web pages through a custom protocol](../../guides/web-pages.md#loading-local-web-pages-through-a-custom-protocol).
 
 ## Examples
 
@@ -94,5 +94,6 @@ The native iOS equivalent is `[webView loadFileURL:allowingReadAccessToURL:]`. T
 ## See also
 
 - [`loadURL()`](loadurl.md)
+- [`Protocol`](../protocol.md): loading local web pages through a custom protocol, where module scripts and `fetch` work
 - [Loading a page bundled into the app](../../guides/web-pages.md#loading-web-pages-bundled-in-the-app)
 - [File system](../filesystem.md): writing web page files into the app's directories

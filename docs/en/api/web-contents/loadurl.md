@@ -18,7 +18,7 @@ loadURL(url, { baseURLForDataURL })
 
 **`url`**
 
-The URL to load, a string, which must include the scheme. `https:`, `file:`, `data:`, and `about:` are supported (`about:blank` is a blank page). A `file:` URL has the same effect as [`loadFile()`](loadfile.md).
+The URL to load, a string, which must include the scheme. `https:`, `file:`, `data:`, and `about:` are supported (`about:blank` is a blank page). A `file:` URL has the same effect as [`loadFile()`](loadfile.md). Custom protocols registered with [`serveDirectory()`](../protocol/servedirectory.md) (such as `app://local/index.html`) are supported too; register before the page is created.
 
 To display an HTML string, write it as a `data:` URL: `'data:text/html;charset=utf-8,' + encodeURIComponent(html)`.
 

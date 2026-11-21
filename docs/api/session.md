@@ -6,14 +6,15 @@ status: partial
 
 # `Session`
 
-**`Session`** 表示一个存储分区：[`WebView`](web-view.md) 里的网页留下的 cookie、`localStorage`、IndexedDB、缓存等数据都存在某一个分区里。通过 `Session`，App 可以读写这个分区的 cookie，也可以把分区里的数据清掉。
+**`Session`** 表示一个存储分区：[`WebView`](web-view.md) 里的网页留下的 cookie、`localStorage`、IndexedDB、缓存等数据都存在某一个分区里。通过 `Session`，App 可以读写这个分区的 cookie，把分区里的数据清掉，也可以给这个分区的网页登记自定义协议。
 
 每个分区是独立的一份数据。同一个分区里的网页共享数据：在一张网页里登录，同分区的另一张网页也是登录状态。不同分区之间互相看不到数据。网页用哪个分区，在建 `WebView` 时用 `webPreferences.partition` 指定，之后不能改。分区的写法见[分区](#分区)。
 
-这一组还有两样东西：
+这一组还有三样东西：
 
 - [`Cookies`](cookies.md)：一个分区的 cookie，从 [`cookies`](session/cookies.md) 属性拿到。
 - [`Cookie`](cookie.md)：读 cookie 时得到的每一条记录。
+- [`Protocol`](protocol.md)：一个分区的自定义协议，从 [`protocol`](session/protocol.md) 属性拿到。
 
 **继承关系**：`Session` 不继承任何类。
 
@@ -49,6 +50,7 @@ status: partial
 | 属性 | 说明 |
 | --- | --- |
 | [`cookies`](session/cookies.md) <small>只读</small> | 这个分区的 cookie |
+| [`protocol`](session/protocol.md) <small>只读</small> | 这个分区的自定义协议：把一个目录登记成 `app://` 这样的协议 |
 
 ## 实例方法
 
@@ -130,6 +132,7 @@ await session.defaultSession.clearStorageData();
 | `ses.cookies` | 相同 | 见 [`Cookies`](cookies.md#和-electron-的差别) |
 | `ses.clearStorageData({ origin, storages })` | 相同 | `origin` 只按域名算，不分协议和端口 |
 | `ses.isPersistent()` | 相同 | |
+| `ses.protocol` | 相同 | 见 [`Protocol`](protocol.md#和-electron-的差别) |
 
 ## 对应的 iOS API
 
@@ -142,6 +145,7 @@ await session.defaultSession.clearStorageData();
 | `dataStore.isPersistent` | `ses.isPersistent()` |
 | `[dataStore removeDataOfTypes:modifiedSince:completionHandler:]` | `ses.clearStorageData({ storages })` |
 | `[dataStore fetchDataRecordsOfTypes:…]` 加 `removeDataOfTypes:forDataRecords:…` | `ses.clearStorageData({ origin })` |
+| `[configuration setURLSchemeHandler:forURLScheme:]` | `ses.protocol.serveDirectory(scheme, directory)` |
 
 ## 参见
 
@@ -150,3 +154,4 @@ await session.defaultSession.clearStorageData();
 - [`Cookie`](cookie.md)：读到的每一条 cookie 带哪些字段
 - [`WebView`](web-view.md)：建网页时用 `partition` 指定分区，`webContents.session` 拿到对应的 `Session`
 - [`fetch`](fetch.md)：它的 cookie 是另一份，和这里的不通
+- [`Protocol`](protocol.md)：给这个分区的网页登记 `app://` 这样的自定义协议

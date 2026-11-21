@@ -18,7 +18,7 @@ loadURL(url, { baseURLForDataURL })
 
 **`url`**
 
-要加载的地址，字符串，必须带协议。支持 `https:`、`file:`、`data:` 和 `about:`（`about:blank` 是一张空白页）。`file:` 的地址和 [`loadFile()`](loadfile.md) 效果相同。
+要加载的地址，字符串，必须带协议。支持 `https:`、`file:`、`data:` 和 `about:`（`about:blank` 是一张空白页）。`file:` 的地址和 [`loadFile()`](loadfile.md) 效果相同。用 [`serveDirectory()`](../protocol/servedirectory.md) 登记过的自定义协议（比如 `app://local/index.html`）也支持，网页建好之前要先登记。
 
 要显示一段 HTML 字符串，把它写成 `data:` 地址：`'data:text/html;charset=utf-8,' + encodeURIComponent(html)`。
 
