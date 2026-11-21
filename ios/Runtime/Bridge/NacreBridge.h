@@ -107,6 +107,9 @@ NSDictionary* DirectionalInsetsToJSON(NSDirectionalEdgeInsets i);
 NSDirectionalEdgeInsets JSONToDirectionalInsets(id v);
 NSDictionary* TransformToJSON(CGAffineTransform t);
 CGAffineTransform JSONToTransform(id v);
+// 图层的 3D 变换：16 个字段 m11…m44
+NSDictionary* Transform3DToJSON(CATransform3D t);
+CATransform3D JSONToTransform3D(id v);
 
 // ---- 取参 ----
 // RequireNumber / RequireInteger / RequireBool 和 NACRE_NUM / NACRE_INT /
@@ -347,6 +350,7 @@ typedef NS_ENUM(NSInteger, NacreAnimValueKind) {
   NacreAnimValueColor,
   NacreAnimValuePath,
   NacreAnimValueImage,
+  NacreAnimValueTransform3D,
 };
 BOOL AnimValueKindForKeyPath(NSString* keyPath, NacreAnimValueKind* out);
 NSString* NamesForAnimationKeyPath(void);

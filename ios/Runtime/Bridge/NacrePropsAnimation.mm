@@ -27,6 +27,22 @@ static NSDictionary<NSString*, NSNumber*>* AnimKeyPathTable(void) {
       @"shadowRadius": @(NacreAnimValueNumber),
       @"zPosition": @(NacreAnimValueNumber),
       @"position": @(NacreAnimValuePoint),
+      // 3D 变换。整个矩阵，或者其中的一个分量（CA 的「变换的字段路径」：
+      // 旋转、缩放是弧度和倍数，平移是点，translation 整个是 CGSize）
+      @"transform": @(NacreAnimValueTransform3D),
+      @"sublayerTransform": @(NacreAnimValueTransform3D),
+      @"transform.rotation": @(NacreAnimValueNumber),
+      @"transform.rotation.x": @(NacreAnimValueNumber),
+      @"transform.rotation.y": @(NacreAnimValueNumber),
+      @"transform.rotation.z": @(NacreAnimValueNumber),
+      @"transform.scale": @(NacreAnimValueNumber),
+      @"transform.scale.x": @(NacreAnimValueNumber),
+      @"transform.scale.y": @(NacreAnimValueNumber),
+      @"transform.scale.z": @(NacreAnimValueNumber),
+      @"transform.translation": @(NacreAnimValueSize),
+      @"transform.translation.x": @(NacreAnimValueNumber),
+      @"transform.translation.y": @(NacreAnimValueNumber),
+      @"transform.translation.z": @(NacreAnimValueNumber),
       @"bounds": @(NacreAnimValueRect),
       @"shadowOffset": @(NacreAnimValueSize),
       @"backgroundColor": @(NacreAnimValueColor),
@@ -100,6 +116,9 @@ static id AnimValueFromJSON(CAPropertyAnimation* anim, NSString* what, id value,
     case NacreAnimValueRect:
       if (![value isKindOfClass:NSDictionary.class]) break;
       return [NSValue valueWithCGRect:JSONToRect(value)];
+    case NacreAnimValueTransform3D:
+      if (![value isKindOfClass:NSDictionary.class]) break;
+      return [NSValue valueWithCATransform3D:JSONToTransform3D(value)];
     case NacreAnimValueColor:
       *error = [NSString stringWithFormat:@"%@ for keyPath \"%@\" needs a color",
                                           what, anim.keyPath].UTF8String;
@@ -129,6 +148,7 @@ static id AnimValueToJSON(id value) {
     if (strcmp(type, @encode(CGPoint)) == 0) return PointToJSON(v.CGPointValue);
     if (strcmp(type, @encode(CGSize)) == 0) return SizeToJSON(v.CGSizeValue);
     if (strcmp(type, @encode(CGRect)) == 0) return RectToJSON(v.CGRectValue);
+    if (strcmp(type, @encode(CATransform3D)) == 0) return Transform3DToJSON(v.CATransform3DValue);
   }
   return nil;
 }

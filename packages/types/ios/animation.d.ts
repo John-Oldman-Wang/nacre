@@ -124,10 +124,10 @@ declare class CABasicAnimation extends CAPropertyAnimation {
 }
 
 /** 读出来的动画值。颜色读出来是字符串，和图层上的颜色属性一致。 */
-type CAAnimationValue = number | CGPoint | CGSize | CGRect | string | UIBezierPath | UIImage;
+type CAAnimationValue = number | CGPoint | CGSize | CGRect | CATransform3D | string | UIBezierPath | UIImage;
 /** 写进去的动画值。具体要哪一种由 `keyPath` 决定，给错了当场抛。 */
 type CAAnimationValueInput =
-  | number | CGPointLike | CGSizeLike | CGRectLike | ColorValue | UIBezierPath | UIImage;
+  | number | CGPointLike | CGSizeLike | CGRectLike | CATransform3DLike | ColorValue | UIBezierPath | UIImage;
 
 /**
  * 事务。它管的是**隐式动画**：在 UIKit 的动画块外面改独立子图层的属性，

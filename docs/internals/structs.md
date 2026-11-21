@@ -61,6 +61,15 @@ frame.width = bounds.width × (|a| + |c|)
 
 这条写进 [API 文档](../api/ui-view.md)了，因为不知道就会踩。
 
+## `CATransform3D`（2026-11-20）
+
+图层的 3D 变换，和 `CGAffineTransform` 同一个做法：Core Animation 造它的那组 C 函数（`CATransform3DMakeRotation`、`CATransform3DConcat`……）全是纯算术，在 JS 里算，过桥的只有 16 个数（`m11`…`m44`）。
+
+- **行向量**，和 CA 一样：点乘在矩阵左边，平移在第四行，`concat(a, b)` 是先 a 后 b；`translate` / `scale` / `rotate` 这三个实例方法是「先做这一步再做自己」，照 `CATransform3DTranslate` 那一组的定义（`t' = translate * t`）。
+- 旋转用罗德里格斯公式的转置（行向量）。轴是零向量时 Apple 说结果未定义，这里抛 `RangeError`。`invert()` 不可逆时给 `null`（`CATransform3DInvert` 给原样，那是静默出错）。
+- **和原生交叉核对过**：给视图设 2D 的缩放、旋转，UIKit 把它换成图层的 3D 变换，读出来和 JS 算的一致（验收的 `stepLayerTransform`）。JS 的旋转公式就是靠这一条和系统对上的。
+- 透视（`m34`）没有专门的工厂：结构体字段只读，写透视用构造函数或者 `{ ...CATransform3D.identity, m34: -1 / 500 }`，写进图层时普通对象也认。
+- 动画那边放开了 `transform`、`sublayerTransform`（值是 `CATransform3D`）和 `transform.rotation` / `.scale` / `.translation` 一组分量路径（值是数，`transform.translation` 是 `CGSize`）。
 
 ---
 

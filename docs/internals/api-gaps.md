@@ -97,7 +97,6 @@
 | 视图大小变化时自动调整子图层 | 覆写 `layoutSubviews` | 未实现。原生里靠继承来做，而[原生类不能继承](../api/native-classes.md) |
 | 得知视图的大小变了 | 没有现成的通知，原生 App 同样靠覆写 `layoutSubviews` | 未实现 |
 | 让一个视图直接用渐变图层或形状图层作为自己的图层 | 覆写 `+layerClass` | 未实现，原因同上 |
-| 用一个形状裁剪图层的内容 | `mask` | 未实现 |
 | 指定阴影的轮廓 | `shadowPath` | 未实现 |
 | 旋转、缩放图层，改变旋转的中心 | `transform`、`anchorPoint` | 未实现。视图可以用 `view.transform`，见 [`UIView`](../api/ui-view.md) |
 | 指定图片在图层里怎么摆放：保持比例、居中、只显示一部分 | `contentsGravity`、`contentsRect` | 未实现。需要这些时用 [`UIImageView`](../api/ui-image-view.md) 的 `contentMode` |
@@ -126,7 +125,6 @@
 
 | 想做的事 | 对应的原生能力 |
 | --- | --- |
-| 三维变换（透视、绕 x 或 y 轴翻转） | `CATransform3D`、`CALayer.transform` |
 
 ## `CGRect`
 
@@ -569,7 +567,6 @@
 
 | 想做的事 | 对应的原生能力 |
 | --- | --- |
-| 三维变换（透视、绕 x 或 y 轴翻转） | `CATransform3D`、`CALayer.transform` |
 | 用向量、范围、偏移这几种结构体 | `CGVector`、`NSRange`、`UIOffset` |
 | 矩形的几何运算（求交集、判断包含、向内缩进） | `CGRectIntersection`、`CGRectContainsPoint`、`CGRectInset` 等 C 函数。可以在 JS 里按字段自己计算 |
 | 用预定义的零值常量 | `CGPointZero`、`CGRectZero`、`UIEdgeInsetsZero`。用 `new CGPoint()`、`new CGRect()` 代替，没给的参数是 0 |
@@ -1209,7 +1206,7 @@
 | 直接接收触摸 | `touchesBegan:withEvent:` 等 | 未实现，原因同上。响应触摸用[手势识别器](../api/ui-gesture-recognizer.md)或 [`UIControl`](../api/ui-control.md) |
 | 关键帧动画、两个视图之间的转场动画 | `+[UIView animateKeyframesWithDuration:…]`、`+[UIView transitionWithView:…]` | 未实现。关键帧动画可以用 [Core Animation](../api/ca-animation.md) |
 | 中途暂停、倒放、拖动进度的动画 | `UIViewPropertyAnimator` | 未实现 |
-| 三维变换 | `transform3D`、`CATransform3D` | 未实现 |
+| 视图的三维变换 | `UIView.transform3D`（图层的 `transform` 和 `CATransform3D` 已经有了） | 未实现 |
 | 内边距变化时收到通知 | 覆写 `layoutMarginsDidChange` | 未实现，原因同上 |
 | 去掉页面根视图的最小内边距 | `UIViewController` 的 `viewRespectsSystemMinimumLayoutMargins`、`systemMinimumLayoutMargins` | 未实现 |
 | 用户长按时显示放大的版本 | `UILargeContentViewerInteraction` | 未实现。[`showsLargeContentViewer`](../api/ui-view/showslargecontentviewer.md) 这一组属性能读写，但这个交互还没有接入；只设属性时长按会不会显示放大的版本，**未在模拟器验证** |
