@@ -14,7 +14,7 @@ cd acceptance && npm run verify                 # Debug
 cd acceptance && npm run verify -- --release    # Release
 ```
 
-`scripts/verify.mjs` 调 `ios/scripts/run-sim.sh`，把输出存到 `acceptance/build/verify-<配置>.log`，等 App 打出结束标记，然后判结果。结果另存一份 JSON（`verify-<配置>.json`）。退出码 0 是通过，1 是没通过，2 是命令行写错了。
+`scripts/verify.mjs` 调 `ios/scripts/run-sim.sh`（真机是 `run-device.sh`，见[真机](#真机)），把输出存到 `acceptance/build/verify-<配置>.log`，等 App 打出结束标记，然后判结果。结果另存一份 JSON（`verify-<配置>.json`）。退出码 0 是通过，1 是没通过，2 是命令行写错了。
 
 没通过有五种情况，原因打在输出的最后：
 
@@ -120,7 +120,36 @@ cd acceptance && npm run verify -- --update-baseline
 
 这是个折中。对「可以缺」的名字，runner 分不清「那组检查这一遍没轮到」和「那条断言被删了」。要分清，得让每一处未验证说明它没验的是哪几条，见[这一步没有做的](#这一步没有做的)。
 
-基线是在 iPhone Air 模拟器上记的。换了设备或者系统版本，名单会有出入（有的断言只在某个系统上跑），用 `--no-baseline` 只看断言不比名单。真机上现在就是这样。
+基线是在 iPhone Air 模拟器上记的。换了设备或者系统版本，名单会有出入（有的断言只在某个系统上跑），用 `--no-baseline` 只看断言不比名单。真机上（`--device`）不比基线。
+
+## 真机
+
+2026-11-21 起验收直接跑在真机上：
+
+```bash
+cd acceptance && npm run verify -- --device
+```
+
+`--device` 让 `verify.mjs` 调 `ios/scripts/run-device.sh`，其余照旧：存日志、等结束标记、判结果。日志和结果的文件名前面多一个 `device-`。
+
+`run-device.sh` 前面几步和 `run-sim.sh` 一样（生成 `ios/`、打包 JS），后面是：
+
+1. **挑设备**：第一台用线连着的 iPhone（`devicectl list devices`），`NACRE_DEVICE` 可以指定。放在编译之前，没连手机不白编几分钟
+2. **编译时不签名**（`CODE_SIGNING_ALLOWED=NO`）：工程里不写团队和描述文件，换一台 Mac 也能跑
+3. **拷一份出来自己签**（`ios/scripts/device.mjs sign`）：改包名、嵌描述文件、写 entitlements、先签里面的 framework 再签 App。拷出来签，是为了让编译产物保持没签名，下次增量编译不受影响
+4. `devicectl device install app`，再用 `devicectl device process launch --console --terminate-existing` 启动。`--console` 把 App 的 stdout 接到终端，和模拟器的 `--console-pty` 一样，所以 runner 认的那几行（`[JS]` 开头、结束标记）不用改
+
+**包名是 `com.test.test`**，不带任何组织或项目的标识（`NACRE_DEVICE_BUNDLE_ID` 可以换）。只改 App 的 `CFBundleIdentifier`，里面的 framework 不动。
+
+**签名不用在 Apple 的网站上登记包名。** `device.mjs` 在本机找一份描述文件：包含这台设备、没过期、`application-identifier` 是 `<团队>.*`（通配）或者正好是 `<团队>.<包名>`；再找一个装在钥匙串里、在这份描述文件证书名单上的签名身份。Xcode 自动管理签名时生成的那份通配描述文件就满足。entitlements 从描述文件里那份出发，把通配的 `application-identifier` 和 `keychain-access-groups` 换成具体的包名。通配的描述文件签不了要显式包名的能力（推送、关联域名），验收用不到。
+
+描述文件里的日期和证书是 plist 的 `<date>`、`<data>`，`plutil` 整份转不成 JSON，所以按字段取（`plutil -extract <键> raw`：日期给 ISO 字符串，二进制给 base64，数组给元素个数）。证书的 SHA-1 和 `security find-identity` 列出的对上，就是那个身份。
+
+**真机上不比基线**，只看有没有失败、有没有中途抛错。真机上有一批检查走另一条分支：剪贴板不自动读写（免得冲掉手机上的内容）、相机这种来源可用、权限还没问过的不自动弹框，所以出现的断言和模拟器不一样。
+
+**本机的测试服务真机上连不到**：App 里的 `127.0.0.1` 是手机自己。流式响应那一步照旧报未验证、整步跳过。
+
+**这个包名第一次装到国行 iPhone 上**，第一次联网时系统会问要不要允许它使用无线数据。没点允许之前，App 的网络请求一律报「The Internet connection appears to be offline」，验收里访问外网的那几组会失败。点一次就记住了，以后不再问。
 
 ## 只跑指定的步骤
 

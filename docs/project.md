@@ -140,7 +140,7 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 
 | 方面 | 选型 |
 | --- | --- |
-| 系统与设备 | iOS 26+，只支持 iPhone，只支持 arm64（真机和 Apple Silicon 模拟器），Xcode 26+。**用到 iOS 27 才有的符号时，`#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 270000` 和 `@available` 两层都要写**——前者管编译用的 SDK 认不认识，后者管跑的机器有没有。只写后者在 Xcode 26 上编译不过。漏写后者时编译器只给警告（`-Wunguarded-availability-new`），`run-sim.sh` 会把这类警告单独列在构建输出的最后 |
+| 系统与设备 | iOS 26+，只支持 iPhone，只支持 arm64（真机和 Apple Silicon 模拟器），Xcode 26+。**用到 iOS 27 才有的符号时，`#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 270000` 和 `@available` 两层都要写**——前者管编译用的 SDK 认不认识，后者管跑的机器有没有。只写后者在 Xcode 26 上编译不过。漏写后者时编译器只给警告（`-Wunguarded-availability-new`），`run-sim.sh` 和 `run-device.sh` 会把这类警告单独列在构建输出的最后 |
 | JS 引擎 | V8 14.9.207.39，使用 [NativeScript/v8-buildscripts](https://github.com/NativeScript/v8-buildscripts) 发布的预编译静态库；lite mode 构建，即 jitless。**不要传 `--jitless`**（只读标志，设置会崩溃） |
 | V8 获取方式 | `ios/scripts/fetch-v8.sh` 下载并校验 SHA256，放到 `ios/Vendor/v8`，不提交 |
 | 线程模型 | **JS 运行在主线程**，和 UIKit 同线程，所以同步读布局和同步回调天然成立。主线程栈用链接器参数 `-Wl,-stack_size,0x800000` 设为 8MB（真机默认 1MB，不够 V8 用）。V8 的空闲任务在 run loop 即将等待时执行，做增量 GC。理由和代价见[运行时](internals/runtime.md#js-为什么跑在主线程) |
@@ -513,25 +513,29 @@ types/
    ```
 
    没有实际运行过的内容，要明确标注"未验证"。
-6. **验证**：在 Mac 上跑验收（用户执行，或在 Claude Code 中由 AI 执行），**通过不通过看退出码**（2026-11-16 起；以前是人读日志判的）。**凡是动了原生代码，Debug 和 Release 各跑一遍**：
+6. **验证**：在连着的真机上跑验收（2026-11-21 起；用户执行，或在 Claude Code 中由 AI 执行），**通过不通过看退出码**。**凡是动了原生代码，Debug 和 Release 各跑一遍**：
 
    ```bash
-   cd acceptance && npm run verify                 # Debug
+   cd acceptance && npm run verify -- --device                 # Debug
    ```
 
    ```bash
-   cd acceptance && npm run verify -- --release    # Release —— 交付出去的就是这个配置
+   cd acceptance && npm run verify -- --device --release       # Release —— 交付出去的就是这个配置
    ```
 
-   退出码 0 是通过。没通过时原因打在输出的最后：有断言失败、步骤中途抛了、App 提前退出、期限内没跑完、断言名单和基线对不上。新加或者删了断言，用 `--update-baseline` 更新基线，基线的改动跟着这一步一起提交。怎么判的见[验收怎么判通过](internals/acceptance.md)。
+   手机用线连着、保持解锁。App 的包名是 `com.test.test`，用本机的开发证书和描述文件签，不用在 Apple 的网站上登记，见[验收怎么判通过](internals/acceptance.md#真机)。
+
+   退出码 0 是通过。没通过时原因打在输出的最后：有断言失败、步骤中途抛了、App 提前退出、期限内没跑完。真机上不比对基线。
+
+   基线（每一遍该出现哪些断言）是在 iPhone Air 模拟器上记的：不带 `--device` 就跑模拟器，会比对它。新加或者删了断言，在模拟器上用 `--update-baseline` 更新，基线的改动跟着这一步一起提交。
 
    只改了某一个步骤、想先快点看结果时，只跑那几步（半分钟左右）。它不比对基线，**不能代替完整的一遍**：
 
    ```bash
-   cd acceptance && npm run verify -- --steps=coreLocation,localAuthentication
+   cd acceptance && npm run verify -- --device --steps=coreLocation,localAuthentication
    ```
 
-   只想看着日志跑、不要判定时，还是原来的 `bash ios/scripts/run-sim.sh`（加 `--release` 是 Release）。
+   只想看着日志跑、不要判定时，用 `bash ios/scripts/run-device.sh`（模拟器是 `run-sim.sh`；加 `--release` 是 Release）。
 
    有一类问题只在开了优化之后出现（ARC 更早释放临时对象），而交付的 `Nacre.xcframework` 是 Release。只跑 Debug 等于没验交付物，见[包装](internals/wrapper.md#交接的那一段没人持有只在-release-下崩的悬空指针)。
 7. **提交**：验收通过后由用户提交，一步一个 commit。
