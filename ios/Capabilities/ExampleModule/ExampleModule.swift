@@ -154,6 +154,76 @@ private func makeExampleModule() -> NacreModule {
     background.asyncAfter(deadline: .now() + delay) { resolve(value) }
   }
 
+  // 照 UIKit 的做法问手势识别器的委托：要不要开始（gestureRecognizerShouldBegin:），
+  // 给了第二个 tag 再问能不能和那边的识别器同时识别。识别器取那个视图上的第一个；
+  // 视图是滚动视图时取它内置的拖动手势。没有委托时照 UIKit 的默认：要开始、不同时。
+  // 兑现成 { shouldBegin, simultaneous }（没给第二个 tag 时 simultaneous 是 null）；
+  // 找不到视图或识别器是 null。真的触摸要手指。真的模块里不会有这种方法
+  module.addMethod("simulateGestureAsk") { args in
+    let window = UIApplication.shared.connectedScenes
+      .compactMap { $0 as? UIWindowScene }
+      .flatMap { $0.windows }
+      .first { $0.isKeyWindow }
+    func recognizer(_ value: Any?) -> UIGestureRecognizer? {
+      guard let tag = number(value), let view = window?.viewWithTag(Int(tag)) else { return nil }
+      if let scroll = view as? UIScrollView { return scroll.panGestureRecognizer }
+      return view.gestureRecognizers?.first
+    }
+    guard let a = recognizer(args.first) else { return nil }
+    let shouldBegin = a.delegate?.gestureRecognizerShouldBegin?(a) ?? true
+    var simultaneous: Any = NSNull()
+    if args.count > 1, let b = recognizer(args[1]) {
+      simultaneous = a.delegate?.gestureRecognizer?(a, shouldRecognizeSimultaneouslyWith: b) ?? false
+    }
+    return ["shouldBegin": shouldBegin, "simultaneous": simultaneous]
+  }
+
+  // 照 UIKit「手指离开滚动视图」的做法调委托的 scrollViewWillEndDragging:
+  // withVelocity:targetContentOffset:。参数：滚动视图的 tag、速度 x / y（pt/ms）、
+  // 系统算出来的停点 x / y。兑现成委托改完之后的停点 { x, y }；找不到这个 tag
+  // 的滚动视图时是 null。真的拖动要手指，自动跑的验收靠它。真的模块里不会有这种方法
+  module.addMethod("simulateDragEnd") { args in
+    guard args.count == 5, let tag = number(args[0]), let vx = number(args[1]),
+          let vy = number(args[2]), let tx = number(args[3]), let ty = number(args[4]) else {
+      return NacreModule.error(name: "TypeError", message: "simulateDragEnd needs tag, vx, vy, x, y")
+    }
+    let window = UIApplication.shared.connectedScenes
+      .compactMap { $0 as? UIWindowScene }
+      .flatMap { $0.windows }
+      .first { $0.isKeyWindow }
+    guard let scroll = window?.viewWithTag(Int(tag)) as? UIScrollView else { return nil }
+    var target = CGPoint(x: tx, y: ty)
+    scroll.delegate?.scrollViewWillEndDragging?(scroll, withVelocity: CGPoint(x: vx, y: vy),
+                                                targetContentOffset: &target)
+    return ["x": target.x, "y": target.y]
+  }
+
+  // 照输入法的做法给当前正在编辑的输入框设一段组字：给字符串是
+  // setMarkedText:selectedRange:（光标在这段的末尾），给 null 是 unmarkText
+  // （选完字，组字结束、文字留下）。真的输入法要真实键盘，自动跑的验收靠它。
+  // 没有正在编辑的输入框时报错。真的模块里不会有这种方法
+  module.addMethod("simulateMarkedText") { args in
+    let window = UIApplication.shared.connectedScenes
+      .compactMap { $0 as? UIWindowScene }
+      .flatMap { $0.windows }
+      .first { $0.isKeyWindow }
+    func editing(in view: UIView?) -> (UIResponder & UITextInput)? {
+      guard let view = view else { return nil }
+      if view.isFirstResponder, let input = view as? (UIResponder & UITextInput) { return input }
+      for sub in view.subviews { if let found = editing(in: sub) { return found } }
+      return nil
+    }
+    guard let input = editing(in: window) else {
+      return NacreModule.error(name: "Error", message: "no text input is being edited")
+    }
+    if let text = args.first as? String {
+      input.setMarkedText(text, selectedRange: NSRange(location: (text as NSString).length, length: 0))
+    } else {
+      input.unmarkText()
+    }
+    return nil
+  }
+
   // 照 UIKit「用户把卡片往下拖走」的顺序走一遍：先调卡片的呈现委托
   // presentationControllerWillDismiss:，关掉（不带动画），关完再调
   // presentationControllerDidDismiss:。真的拖拽要手指，自动跑的验收靠它。

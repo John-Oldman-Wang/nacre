@@ -75,6 +75,35 @@ using namespace nacre_bridge;
 - (void)scrollViewWillBeginDragging:(UIScrollView*)scrollView {
   [self emit:@"dragbegin" from:scrollView];
 }
+// 手指离开的那一刻系统当场问「停在哪」，带着松手时的速度（pt/ms）和它算出来的
+// 停点。当场派发 beforedragend，事件上的 targetContentOffset 可写，监听器改成
+// 什么就停在哪。没人听、监听器没改或者改成了不是点的东西，照系统的
+- (void)scrollViewWillEndDragging:(UIScrollView*)scrollView
+                     withVelocity:(CGPoint)velocity
+              targetContentOffset:(inout CGPoint*)targetContentOffset {
+  if (![self.types containsObject:@"beforedragend"]) return;
+  NSDictionary* payload = @{
+    @"velocity": @{@"x": @(velocity.x), @"y": @(velocity.y)},
+    @"targetContentOffset": @{@"x": @(targetContentOffset->x), @"y": @(targetContentOffset->y)},
+  };
+  NSData* data = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
+  NSString* json = data != nil ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : nil;
+  NSString* answer = nacre_bridge::NacreEmitEventForAnswer(scrollView, "UIScrollView",
+                                                           @"beforedragend", json,
+                                                           @"targetContentOffset");
+  if (answer == nil) return;
+  id point = [NSJSONSerialization JSONObjectWithData:[answer dataUsingEncoding:NSUTF8StringEncoding]
+                                             options:0 error:nil];
+  if (![point isKindOfClass:NSDictionary.class]) return;
+  id x = point[@"x"];
+  id y = point[@"y"];
+  if (![x isKindOfClass:NSNumber.class] || ![y isKindOfClass:NSNumber.class]) return;
+  const double px = [x doubleValue];
+  const double py = [y doubleValue];
+  if (!isfinite(px) || !isfinite(py)) return;
+  *targetContentOffset = CGPointMake(px, py);
+}
+
 // willDecelerate 这个参数不往事件上放：延后一轮之后 JS 读 isDecelerating
 // 拿到的是事实，而参数只是预测
 - (void)scrollViewDidEndDragging:(UIScrollView*)scrollView

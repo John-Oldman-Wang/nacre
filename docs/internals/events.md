@@ -767,3 +767,29 @@ iOS 的触摸不是一套机制，是**四套并行**的（hit-testing、respond
 
 模拟器连着电脑键盘时软键盘不弹，只收得到收起那一组（时长 0）；关掉硬件键盘后，模拟器上「监听器里挪的视图挂上了 `position` 动画」也验过了。
 
+## 系统当场要一个值：可写的事件字段（2026-11-20）
+
+滚动视图松手时，系统问的不是「要不要」，而是「停在哪」（`scrollViewWillEndDragging:withVelocity:targetContentOffset:`，停点是一个 inout 参数）。原来的当场派发只能带回一个布尔值（`preventDefault()` 了没有），表达不了。
+
+做法：当场派发一个**不可取消**的事件，事件对象上那一个字段是**可写的**数据属性，别的字段照旧只读；监听器都跑完，把这个字段的值编成 JSON 带回原生。
+
+- 原生：`NacreEmitEventForAnswer(object, className, type, json, field)`（`NacreExtension.h`），返回那个字段的 JSON 文本，没有答案时是 nil。引擎是 `EmitObjectEventForAnswer`，调 JS 的对象事件入口时多给第六个参数（字段名）。
+- JS：对象事件入口看到第六个参数，就把同名字段建成可写的，派发完返回 `event[field]`，不再返回「取消了没有」。
+- **形状由原生核。** 监听器可能写进任何东西。滚动这一处只认带有限数 `x`、`y` 的对象，别的一律照系统原来的值；监听器抛了、没改，也照系统的。
+- 和规矩的关系：它属于「系统当场来问」，但答案是一个值，所以不用 `preventDefault`；事件不可取消。写进了 project.md 「事件能不能取消」那一行。
+- 第一处：`UIScrollView` 的 `beforedragend`，带 `velocity`（pt/ms）和可写的 `targetContentOffset`。名字照 `dragbegin` / `dragend` 一组，系统来问的用 `before…`；原来方案里叫 `beforedecelerate`，但松手时速度为 0、不会减速时系统也问，那个名字会误导。
+- 验收：示例模块的 `simulateDragEnd` 照 UIKit 松手时的做法调委托，断言改成 80 的倍数、写普通对象、写了不是点的值、监听器抛了、摘掉监听器几种。真的手指没验。
+
+## 手势识别器的委托：beforebegin 和同时识别（2026-11-20）
+
+UIKit 用委托问识别器两件事，都是当场要答案：
+
+| 系统问的 | 我们怎么答 |
+| --- | --- |
+| 要不要开始（`gestureRecognizerShouldBegin:`） | 当场派发可取消的 `beforebegin`，`preventDefault()` 就不开始。和输入框的 `before…` 一个做法 |
+| 能不能和另一个同时识别（`…shouldRecognizeSimultaneouslyWithGestureRecognizer:`） | 不进 JS：查识别器上的 `recognizesSimultaneouslyWith` 这张表。系统默认「不能」，要 JS 答「能」，方向和 `preventDefault` 相反，所以用预先声明的状态，和方向、状态栏一样 |
+
+- 委托只装在**委托是空的**识别器上，也就是 JS 自己 `new` 的那些。UIKit 自带的识别器（滚动视图内置的拖动）委托必须是它自己，换掉会抛异常，所以在那上面用这两样抛 `TypeError`。表里可以填系统的识别器：UIKit 两边的委托都会问，有一边答能就同时识别。
+- 表用弱引用（`NSHashTable weakObjectsHashTable`）：识别器由各自的视图持有，这张表不该延长它们的命；JS 一侧因此也不记所有权边。
+- 两样都不要了就把委托摘掉，识别器回到 UIKit 的默认行为。
+- 验收：示例模块的 `simulateGestureAsk` 照 UIKit 的做法去问委托。真的触摸没验。

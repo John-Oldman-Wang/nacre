@@ -89,7 +89,7 @@ static NSArray<NSString*>* ScrollEventNamesList(void) {
   static NSArray<NSString*>* names;
   static dispatch_once_t once;
   dispatch_once(&once, ^{
-    names = @[ @"scroll", @"dragbegin", @"dragend", @"deceleratebegin",
+    names = @[ @"scroll", @"dragbegin", @"beforedragend", @"dragend", @"deceleratebegin",
                @"decelerateend", @"scrollanimationend", @"scrolltotop",
                @"adjustedcontentinsetchange" ];
   });

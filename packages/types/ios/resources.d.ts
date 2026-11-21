@@ -64,6 +64,12 @@ declare class UIColor extends NSObject {
   static readonly systemMintColor: UIColor;
   static readonly systemCyanColor: UIColor;
   static readonly systemGrayColor: UIColor;
+  // 五档灰，从 2 到 6 越来越接近底色：浅色模式下越来越浅，深色模式下越来越深（Apple 的定义）
+  static readonly systemGray2Color: UIColor;
+  static readonly systemGray3Color: UIColor;
+  static readonly systemGray4Color: UIColor;
+  static readonly systemGray5Color: UIColor;
+  static readonly systemGray6Color: UIColor;
 
   // UIInterface.h：语义色。按用途命名，绘制时按当时的外观解析
   static readonly labelColor: UIColor;
@@ -77,6 +83,15 @@ declare class UIColor extends NSObject {
   static readonly systemBackgroundColor: UIColor;
   static readonly secondarySystemBackgroundColor: UIColor;
   static readonly tertiarySystemBackgroundColor: UIColor;
+  // 分组列表样式的底色：页面是浅灰，上面的分组是白
+  static readonly systemGroupedBackgroundColor: UIColor;
+  static readonly secondarySystemGroupedBackgroundColor: UIColor;
+  static readonly tertiarySystemGroupedBackgroundColor: UIColor;
+  // 填充色：半透明，给小块的底（输入框、开关的轨道）用
+  static readonly systemFillColor: UIColor;
+  static readonly secondarySystemFillColor: UIColor;
+  static readonly tertiarySystemFillColor: UIColor;
+  static readonly quaternarySystemFillColor: UIColor;
 }
 
 // ---------------------------------------------------------------------------

@@ -374,6 +374,14 @@ BOOL NacreEmitEventSync(id object, const char* className, NSString* type,
 void NacreEmitEventNow(id object, const char* className, NSString* type,
                        NSString* _Nullable json);
 
+// 「当场要一个值」：系统不是问要不要，而是要一个值（滚动视图松手时问停在哪）。
+// 当场派发一个**不可取消**的事件，事件对象上 field 这个字段可写，初值是 json
+// 里同名的那一项；监听器执行完，把它的值编成 JSON 文本交回来。监听器没改、
+// 改成了 JSON 表示不了的东西、抛了、引擎不在了、不在主线程，都返回 nil：调用方
+// 照系统原来的值做，同时要自己核一遍交回来的值的形状。只能在主线程调
+NSString* _Nullable NacreEmitEventForAnswer(id object, const char* className, NSString* type,
+                                            NSString* json, NSString* field);
+
 // 「当场执行的一段代码」类（UIKit 收一个 block、在调用里面就执行它）：
 // JS 侧把那段代码登记成一个号（内置脚本的 callWithBlock / registerBlock），
 // 连同别的参数一起传过来，原生在 block 里调这个。argsJSON 是参数数组的

@@ -77,6 +77,8 @@ targets:
       - sdk: ImageIO.framework
       - sdk: WebKit.framework
       - sdk: Security.framework
+      # 网络状态（application.network）：nw_path_monitor
+      - sdk: Network.framework
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: nacre.runtime

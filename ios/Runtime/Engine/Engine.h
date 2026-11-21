@@ -268,6 +268,13 @@ class Engine {
   bool EmitObjectEventWithJSON(const NativeObjectRef& target, const std::string& type,
                                const std::string& json, bool cancelable = false);
 
+  // 当场派发一个不可取消的事件，事件对象上 answer_field 这个字段**可写**；派发完
+  // 把它的值编成 JSON 文本交回来。系统当场要一个值（不是「要不要」）时用，第一处
+  // 是滚动视图松手时问停在哪。监听器没改、改成了 JSON 表示不了的东西、抛了、
+  // 引擎出了岔子，都返回空串，调用方照系统原来的值做。
+  std::string EmitObjectEventForAnswer(const NativeObjectRef& target, const std::string& type,
+                                       const std::string& json, const std::string& answer_field);
+
   // ---- 同步回调：系统问、JS 当场答 ----
   //
   // 上面那些 Emit… 本身都是同步执行的，「延后一轮」是宿主排的队。同步回调

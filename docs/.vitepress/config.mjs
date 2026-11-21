@@ -339,6 +339,7 @@ function sidebar(lang) {
             api('UIEdgeInsets', 'ui-edge-insets'),
             api('NSDirectionalEdgeInsets', 'ns-directional-edge-insets'),
             api('CGAffineTransform', 'cg-affine-transform'),
+            api('CATransform3D', 'ca-transform-3d'),
             api('CAFrameRateRange', 'ca-frame-rate-range'),
             api('NSRange', 'ns-range'),
           ],
@@ -441,6 +442,7 @@ function sidebar(lang) {
             api('URL', 'url'),
             api('URLSearchParams', 'url-search-params'),
             api('WebSocket', 'websocket'),
+            api('application.network', 'network'),
           ],
         },
         {

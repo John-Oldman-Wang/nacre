@@ -12,7 +12,7 @@ type UIGestureRecognizerState =
   | 'possible' | 'began' | 'changed' | 'ended' | 'cancelled' | 'failed';
 
 /** 手势事件的名字。就是会通知出来的那四个状态。 */
-type UIGestureRecognizerEventType = 'began' | 'changed' | 'ended' | 'cancelled';
+type UIGestureRecognizerEventType = 'beforebegin' | 'began' | 'changed' | 'ended' | 'cancelled';
 
 /** 轻扫的方向。`UISwipeGestureRecognizer.direction` 是它的数组。 */
 type UISwipeGestureRecognizerDirection = 'right' | 'left' | 'up' | 'down';
@@ -146,6 +146,14 @@ declare class UIGestureRecognizer extends NSObject {
    * 关系建了之后不能撤销。两个识别器互不保管对方，各自要加在视图上。
    */
   requireGestureRecognizerToFail(otherGestureRecognizer: UIGestureRecognizer): void;
+
+  /**
+   * 能和哪些识别器同时识别。默认空数组：一个识别器认出手势之后，别的就不认了。
+   * 可以填 UIKit 自带的识别器，比如 `scroll.panGestureRecognizer`。只能写在自己
+   * `new` 的识别器上，UIKit 自带的识别器上写了抛 `TypeError`。
+   */
+  get recognizesSimultaneouslyWith(): UIGestureRecognizer[];
+  set recognizesSimultaneouslyWith(value: readonly UIGestureRecognizer[]);
 }
 
 /** 点按。离散手势：认出来时派发一次 `ended`。 */

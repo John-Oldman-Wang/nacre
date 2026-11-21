@@ -49,6 +49,7 @@ status: partial
 | [`delaysTouchesBegan`](ui-gesture-recognizer/delaystouchesbegan.md) | 确定认不出之前，视图是否收得到触摸的开始 |
 | [`delaysTouchesEnded`](ui-gesture-recognizer/delaystouchesended.md) | 确定认不出之前，视图是否收得到触摸的结束 |
 | [`numberOfTouches`](ui-gesture-recognizer/numberoftouches.md) <small>只读</small> | 这一刻参与手势的手指个数 |
+| [`recognizesSimultaneouslyWith`](ui-gesture-recognizer/recognizessimultaneouslywith.md) | 可以和这个识别器同时认出手势的其他识别器。只能写在自己创建的识别器上 |
 
 ## 实例方法
 
@@ -60,10 +61,11 @@ status: partial
 
 ## 事件
 
-事件名是手势所处的阶段，一共四个。事件不能取消，只派发给识别器自己。
+四个事件的名字是手势所处的阶段，它们不能取消。另有一个 `beforebegin` 在手势开始之前派发，可以取消。事件只派发给识别器自己。
 
 | 事件 | 点按、轻扫 | 长按 | 拖动、捏合、旋转、屏幕边缘拖动 |
 | --- | --- | --- | --- |
+| [`beforebegin`](ui-gesture-recognizer/beforebegin-event.md) | 即将认出时，问要不要开始 | 即将认出时，问要不要开始 | 即将认出时，问要不要开始 |
 | [`began`](ui-gesture-recognizer/began-event.md) | 不派发 | 按够时间时 | 手势被认出时 |
 | [`changed`](ui-gesture-recognizer/changed-event.md) | 不派发 | 被认出之后手指移动时 | 被认出之后手指移动时 |
 | [`ended`](ui-gesture-recognizer/ended-event.md) | 被认出时 | 手指抬起时 | 手指抬起时 |
@@ -72,6 +74,8 @@ status: partial
 手势没有被认出时不派发任何事件。比如长按没按够时间就抬起，或者按够之前手指移动超过了 10 pt。
 
 事件对象带手指的位置 `location` 和手指个数 `numberOfTouches`。拖动的事件另外带位移 `translation` 和速度 `velocity`，捏合的带倍数 `scale` 和速度 `velocity`，旋转的带角度 `rotation` 和速度 `velocity`，见各事件页。
+
+`beforebegin` 是当场派发的：系统等监听器执行完，监听器里调 `preventDefault()`，这一次手势就不开始。它只能用在 App 用 `new` 创建的识别器上，UIKit 自带的识别器（比如滚动视图的 `panGestureRecognizer`）上监听抛 `TypeError`，见[事件页](ui-gesture-recognizer/beforebegin-event.md)。
 
 没有 `'tap'`、`'longpress'`、`'swipe'` 这样的事件名。监听别的名字不会报错：它被当成自定义事件，只有自己用 `dispatchEvent()` 派发时才会触发。
 
@@ -115,6 +119,8 @@ status: partial
 一个识别器同一时刻只能在一个视图上。把它加到另一个视图时，它会自动从原来的视图上移除。
 
 [`requireGestureRecognizerToFail()`](ui-gesture-recognizer/requiregesturerecognizertofail.md) 建立的关系不保管识别器。两个识别器仍然各自由它所在的视图保管。其中一个没有加到视图上、App 的代码也没有保存它时，它会被回收，这个关系随之失效。
+
+[`recognizesSimultaneouslyWith`](ui-gesture-recognizer/recognizessimultaneouslywith.md) 的列表同样不保管里面的识别器。列表里的识别器被回收之后，从列表里消失。
 
 ## 示例
 
@@ -174,12 +180,15 @@ application.addEventListener('sceneconnect', (e) => {
 | `[view removeGestureRecognizer:recognizer]` | `view.removeGestureRecognizer(recognizer)` |
 | `recognizer.enabled = NO` | `recognizer.isEnabled = false` |
 | `[single requireGestureRecognizerToFail:dbl]` | `single.requireGestureRecognizerToFail(dbl)` |
+| 委托的 `gestureRecognizerShouldBegin:` 返回 `NO` | 监听 `'beforebegin'`，调 `event.preventDefault()` |
+| 委托的 `gestureRecognizer:shouldRecognizeSimultaneouslyWithGestureRecognizer:` 返回 `YES` | 把对方写进 `recognizesSimultaneouslyWith` |
+| `recognizer.delegate = self` | 不用设。上面两项直接写在识别器上 |
 
 ObjC 里一个 action 方法收到手势的所有阶段，再用 `state` 区分。JS 里每个阶段是一个事件名。各子类的属性对照见各自的类页。
 
 ## 参见
 
-- [响应手势](../guides/gestures.md)：各种手势的写法、和按钮同时存在时谁生效、一个视图上加多个识别器
+- [响应手势](../guides/gestures.md)：各种手势的写法、和按钮同时存在时谁生效、一个视图上加多个识别器、让两个手势同时生效
 - [`UIView`](ui-view.md)：识别器加在视图上；`hitTest()`、`convertPoint()`、`isUserInteractionEnabled`
 - [`UIControl`](ui-control.md)：按钮这类控件有自己的一套事件，不需要识别器
 - [结构体](structs.md)：`CGPoint`（位置、位移、速度）和 `CGAffineTransform`（把缩放和旋转应用到视图上）

@@ -115,6 +115,11 @@ NSDictionary<NSString*, UIColor*>* NamedColors() {
       @"systemMintColor": UIColor.systemMintColor,
       @"systemCyanColor": UIColor.systemCyanColor,
       @"systemGrayColor": UIColor.systemGrayColor,
+      @"systemGray2Color": UIColor.systemGray2Color,
+      @"systemGray3Color": UIColor.systemGray3Color,
+      @"systemGray4Color": UIColor.systemGray4Color,
+      @"systemGray5Color": UIColor.systemGray5Color,
+      @"systemGray6Color": UIColor.systemGray6Color,
       // UIInterface.h：语义色，按绘制时的外观动态解析
       @"labelColor": UIColor.labelColor,
       @"secondaryLabelColor": UIColor.secondaryLabelColor,
@@ -127,6 +132,13 @@ NSDictionary<NSString*, UIColor*>* NamedColors() {
       @"systemBackgroundColor": UIColor.systemBackgroundColor,
       @"secondarySystemBackgroundColor": UIColor.secondarySystemBackgroundColor,
       @"tertiarySystemBackgroundColor": UIColor.tertiarySystemBackgroundColor,
+      @"systemGroupedBackgroundColor": UIColor.systemGroupedBackgroundColor,
+      @"secondarySystemGroupedBackgroundColor": UIColor.secondarySystemGroupedBackgroundColor,
+      @"tertiarySystemGroupedBackgroundColor": UIColor.tertiarySystemGroupedBackgroundColor,
+      @"systemFillColor": UIColor.systemFillColor,
+      @"secondarySystemFillColor": UIColor.secondarySystemFillColor,
+      @"tertiarySystemFillColor": UIColor.tertiarySystemFillColor,
+      @"quaternarySystemFillColor": UIColor.quaternarySystemFillColor,
     };
   });
   return colors;

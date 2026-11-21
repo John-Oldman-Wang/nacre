@@ -13,6 +13,19 @@
 // 关联对象的 key：识别器 → NacreGestureTarget。
 // 识别器的 addTarget:action: 不持有 target，所以靠这个关联让它活着
 static const void* kNacreGestureTargetKey = &kNacreGestureTargetKey;
+// 识别器 → NacreGestureDelegate。委托属性是 weak，靠这个关联让它活着
+static const void* kNacreGestureDelegateKey = &kNacreGestureDelegateKey;
+
+// 手势识别器的委托：系统当场问的两件事。
+//   要不要开始   → 当场派发可取消的 beforebegin，preventDefault 就不开始
+//   能不能同时   → 查 recognizesSimultaneouslyWith 这张表，不进 JS
+// 只装在委托是空的识别器上（JS 自己 new 的那些）。UIKit 自带的识别器（滚动视图
+// 内置的拖动）委托必须是它自己，换掉会崩，所以在那上面用报错
+@interface NacreGestureDelegate : NSObject <UIGestureRecognizerDelegate>
+@property(nonatomic) BOOL asksBegin;
+// 弱引用：识别器由它所在的视图持有，这张表不额外持有
+@property(nonatomic, strong) NSHashTable<UIGestureRecognizer*>* simultaneous;
+@end
 
 // 手势的 trampoline：运行时自己当 target，只记订阅了哪几个事件名。
 // 识别器通过关联对象持有它，它对识别器没有引用，不成环
@@ -153,6 +166,27 @@ static NSString* GestureNumberJSON(CGFloat n) {
 
 @end
 
+@implementation NacreGestureDelegate
+
+// 要不要开始：当场派发可取消的 beforebegin，带着这一刻的触点（和别的手势事件一样）
+- (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer*)recognizer {
+  if (!self.asksBegin) return YES;
+  NSString* json = [NSString
+      stringWithFormat:@"{\"location\":%@,\"numberOfTouches\":%lu}",
+                       nacre_bridge::GesturePointJSON([recognizer locationInView:recognizer.view]),
+                       (unsigned long)recognizer.numberOfTouches];
+  return !nacre_bridge::NacreEmitEventSync(recognizer, nacre_bridge::GestureClassName(recognizer),
+                                           @"beforebegin", json);
+}
+
+// 能不能和另一个同时识别：在表里就能。UIKit 两边的委托都会问，有一边答能就同时
+- (BOOL)gestureRecognizer:(UIGestureRecognizer*)recognizer
+    shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer*)other {
+  return [self.simultaneous containsObject:other];
+}
+
+@end
+
 namespace nacre_bridge {
 
 // ---- 构造 ----
@@ -180,6 +214,37 @@ static bool GestureConstruct(const std::string& className, const NacreArgs& args
   return true;
 }
 
+// ---- 委托 ----
+// 拿到这个识别器上我们装的委托，没有就装一个。委托不是空的、也不是我们的（UIKit
+// 自带的识别器）时填 error、返回 nil
+static NacreGestureDelegate* GestureDelegateFor(UIGestureRecognizer* recognizer, NSString* what,
+                                                std::string* error) {
+  NacreGestureDelegate* mine = objc_getAssociatedObject(recognizer, kNacreGestureDelegateKey);
+  if (mine != nil && recognizer.delegate == mine) return mine;
+  if (recognizer.delegate != nil) {
+    *error = [NSString stringWithFormat:
+        @"%@ is only available on gesture recognizers you create: this one belongs to UIKit "
+        @"(for example a scroll view's built-in pan) and its delegate cannot be replaced", what]
+                 .UTF8String;
+    return nil;
+  }
+  mine = [NacreGestureDelegate new];
+  mine.simultaneous = [NSHashTable weakObjectsHashTable];
+  objc_setAssociatedObject(recognizer, kNacreGestureDelegateKey, mine,
+                           OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  recognizer.delegate = mine;
+  return mine;
+}
+
+// 两件事都不要了就把委托摘掉，识别器回到 UIKit 的默认行为
+static void GestureDelegateTrim(UIGestureRecognizer* recognizer) {
+  NacreGestureDelegate* mine = objc_getAssociatedObject(recognizer, kNacreGestureDelegateKey);
+  if (mine == nil || mine.asksBegin || mine.simultaneous.count > 0) return;
+  if (recognizer.delegate == mine) recognizer.delegate = nil;
+  objc_setAssociatedObject(recognizer, kNacreGestureDelegateKey, nil,
+                           OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
 // ---- 订阅 ----
 // 惰性：第一个事件名有监听器时才 addTarget，最后一个移走时 removeTarget。
 // 没有监听器的识别器照样在识别（也照样会按 cancelsTouchesInView 取消
@@ -187,6 +252,17 @@ static bool GestureConstruct(const std::string& className, const NacreArgs& args
 static NacreSubscribed GestureSetSubscription(id object, NSString* type, BOOL on, std::string* error) {
   if (![object isKindOfClass:UIGestureRecognizer.class]) return false;
   UIGestureRecognizer* recognizer = (UIGestureRecognizer*)object;
+  if ([type isEqualToString:@"beforebegin"]) {
+    if (on) {
+      NacreGestureDelegate* mine = GestureDelegateFor(recognizer, @"beforebegin", error);
+      if (mine != nil) mine.asksBegin = YES;
+    } else {
+      NacreGestureDelegate* mine = objc_getAssociatedObject(recognizer, kNacreGestureDelegateKey);
+      mine.asksBegin = NO;
+      GestureDelegateTrim(recognizer);
+    }
+    return true;
+  }
   if (![@[@"began", @"changed", @"ended", @"cancelled"] containsObject:type]) {
     return NacreSubscribed::UnknownEvent;
   }
@@ -439,11 +515,43 @@ static nacre::NativeObjectRef ReadGestureObjectProperty(id object, const std::st
 
 static void ReadGestureObjectArray(id object, const std::string& name,
                                    std::vector<nacre::NativeObjectRef>& refs) {
+  if ([object isKindOfClass:UIGestureRecognizer.class] && name == "recognizesSimultaneouslyWith") {
+    NacreGestureDelegate* mine = objc_getAssociatedObject(object, kNacreGestureDelegateKey);
+    for (UIGestureRecognizer* r in mine.simultaneous.allObjects) {
+      refs.push_back({NacreKeep(r), GestureClassName(r)});
+    }
+    return;
+  }
   if ([object isKindOfClass:UIView.class] && name == "gestureRecognizers") {
     for (UIGestureRecognizer* r in ((UIView*)object).gestureRecognizers) {
       refs.push_back({NacreKeep(r), GestureClassName(r)});
     }
   }
+}
+
+// 写 recognizesSimultaneouslyWith。每一项都要是识别器；空数组把这件事摘掉
+static bool WriteGestureObjectArray(id object, const std::string& name,
+                                    const std::vector<void*>& values, std::string* error) {
+  if (![object isKindOfClass:UIGestureRecognizer.class] || name != "recognizesSimultaneouslyWith") {
+    return false;
+  }
+  UIGestureRecognizer* recognizer = (UIGestureRecognizer*)object;
+  for (void* p : values) {
+    if (![(__bridge id)p isKindOfClass:UIGestureRecognizer.class]) {
+      *error = "recognizesSimultaneouslyWith needs an array of UIGestureRecognizer";
+      return true;
+    }
+  }
+  NacreGestureDelegate* mine = objc_getAssociatedObject(recognizer, kNacreGestureDelegateKey);
+  if (values.empty() && mine == nil) return true;
+  if (mine == nil || recognizer.delegate != mine) {
+    mine = GestureDelegateFor(recognizer, @"recognizesSimultaneouslyWith", error);
+    if (mine == nil) return true;
+  }
+  [mine.simultaneous removeAllObjects];
+  for (void* p : values) [mine.simultaneous addObject:(__bridge UIGestureRecognizer*)p];
+  GestureDelegateTrim(recognizer);
+  return true;
 }
 
 // ---- 方法 ----
@@ -573,6 +681,7 @@ static bool GestureCallMethod(id object, NSString* sel, const NacreArgs& args,
   d.write = nacre_bridge::WriteGestureProperty;
   d.readObject = nacre_bridge::ReadGestureObjectProperty;
   d.readObjectArray = nacre_bridge::ReadGestureObjectArray;
+  d.writeObjectArray = nacre_bridge::WriteGestureObjectArray;
   d.call = nacre_bridge::GestureCallMethod;
   d.construct = nacre_bridge::GestureConstruct;
   d.subscribe = nacre_bridge::GestureSetSubscription;

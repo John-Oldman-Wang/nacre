@@ -81,6 +81,11 @@ import { stepScreen } from './steps/screen.js';
 import { stepKeyboard } from './steps/keyboard.js';
 import { stepPageOverrides } from './steps/page-overrides.js';
 import { stepMemoryPressure } from './steps/memory-pressure.js';
+import { stepLayerTransform } from './steps/layer-transform.js';
+import { stepMarkedText } from './steps/marked-text.js';
+import { stepDragTarget } from './steps/drag-target.js';
+import { stepGestureDelegate } from './steps/gesture-delegate.js';
+import { stepNetwork } from './steps/network.js';
 import { stepGestures } from './steps/gestures.js';
 import { stepAlerts } from './steps/alerts.js';
 import { stepEffects } from './steps/effects.js';
@@ -278,6 +283,13 @@ application.addEventListener('sceneconnect', (e) => {
     ['stepKeyboard', () => stepKeyboard(ctx)],
     ['stepPageOverrides', () => stepPageOverrides(ctx)],
     ['stepMemoryPressure', () => stepMemoryPressure(ctx)],
+    ['stepLayerTransform', () => stepLayerTransform(ctx)],
+    // 这三步会全屏弹出自己的页面，把网页盖住；被盖住的网页不再更新，所以和
+    // 「出现和消失」那一步一样，等网页那一步的异步断言跑完再开始
+    ['stepMarkedText', () => Promise.resolve(ctx.webViewDone).then(() => stepMarkedText(ctx))],
+    ['stepDragTarget', () => Promise.resolve(ctx.webViewDone).then(() => stepDragTarget(ctx))],
+    ['stepGestureDelegate', () => Promise.resolve(ctx.webViewDone).then(() => stepGestureDelegate(ctx))],
+    ['stepNetwork', () => stepNetwork(ctx)],
   ];
   // 收尾的几步排在最后，先后和原来一样。结尾三张和网页的比对各有几万条，要在
   // 主线程上跑十几秒：它们等生命周期那一步的 GC 检查结束、并且主线程闲下来

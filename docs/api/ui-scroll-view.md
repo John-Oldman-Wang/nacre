@@ -120,6 +120,7 @@ status: partial
 | --- | --- |
 | [`scroll`](ui-scroll-view/scroll-event.md) | 位置变了。用户滚动、惯性滑动、代码写入都会派发 |
 | [`dragbegin`](ui-scroll-view/dragbegin-event.md) | 用户开始拖动 |
+| [`beforedragend`](ui-scroll-view/beforedragend-event.md) | 用户拖动之后松手的那一刻。监听器可以改内容停下的位置 |
 | [`dragend`](ui-scroll-view/dragend-event.md) | 用户松手 |
 | [`deceleratebegin`](ui-scroll-view/deceleratebegin-event.md) | 松手后内容开始继续滑 |
 | [`decelerateend`](ui-scroll-view/decelerateend-event.md) | 内容完全停下 |
@@ -128,7 +129,7 @@ status: partial
 | [`adjustedcontentinsetchange`](ui-scroll-view/adjustedcontentinsetchange-event.md) | `adjustedContentInset` 变了 |
 | `traitchange` | [外观特征](ui-trait-collection.md)变化，继承自 `UIView` |
 
-八个滚动事件共同的规则：
+除 `beforedragend` 以外的八个滚动事件共同的规则：
 
 - **事件不带数据。** 事件对象只有 `type` 和 `target`。位置读 `contentOffset`，状态读 `isDragging`、`isDecelerating`。回调执行时读到的是那一刻最新的值。
 - **都不能取消。** 滚动由系统驱动，不等 JS 的回答：手指拖动时内容先移动，之后系统才通知 JS。JS 不能拦住或取消一次滚动。
@@ -138,6 +139,8 @@ status: partial
 - **不认识的事件名不报错。** 它被当成自定义事件，只有自己用 `dispatchEvent()` 派发时才会触发。所以事件名拼错（比如 `scrol`）时没有提示，监听器只是不被调用。
 
 用户拖一下再松手，派发顺序是 `dragbegin` → `dragend` → `deceleratebegin` → `decelerateend`，期间不断派发 `scroll`（实测）。松手时内容已经停住的话，没有后两个事件（**未在模拟器验证**）。
+
+[`beforedragend`](ui-scroll-view/beforedragend-event.md) 不同：它在松手的那一刻当场派发，比 `dragend` 早，带着松手时的速度和系统算出的停下的位置，监听器写进去的位置就是内容停下的位置。它不能取消。
 
 ## 三个基本概念
 
@@ -280,6 +283,7 @@ application.addEventListener('sceneconnect', (e) => {
 | `[sv setZoomScale:2 animated:YES]` | `sv.setZoomScale(2, { animated: true })` |
 | `- scrollViewDidScroll:` | `scroll` 事件 |
 | `- scrollViewWillBeginDragging:` | `dragbegin` 事件 |
+| `- scrollViewWillEndDragging:withVelocity:targetContentOffset:` | `beforedragend` 事件。停下的位置写进事件对象的 `targetContentOffset` |
 | `- scrollViewDidEndDragging:willDecelerate:` | `dragend` 事件。`willDecelerate` 改读 `isDecelerating` |
 | `- scrollViewWillBeginDecelerating:` | `deceleratebegin` 事件 |
 | `- scrollViewDidEndDecelerating:` | `decelerateend` 事件 |
@@ -302,12 +306,12 @@ application.addEventListener('sceneconnect', (e) => {
 | `scrollIntoView()` | `scrollRectToVisible(rect)` | 传的是矩形，不是元素 |
 | `scroll` 事件 | `scroll` 事件 | 都不带位置，都不能取消 |
 | `scrollend` 事件 | `decelerateend`、`scrollanimationend`，以及 `dragend` 时 `isDecelerating` 为 `false` | 没有统一的一个事件 |
-| `scroll-snap-type` | `isPagingEnabled` | 只能按可视区的整数倍停 |
+| `scroll-snap-type` | `isPagingEnabled`，或在 `beforedragend` 里改停下的位置 | `isPagingEnabled` 只能按可视区的整数倍停 |
 | `overscroll-behavior: none` | `bounces = false` | |
 
 ## 参见
 
-- [做一个能滚动的页面](../guides/scrolling.md)：页面骨架、滚不动时查什么、横向滚动、轮播、加载更多、键盘
+- [做一个能滚动的页面](../guides/scrolling.md)：页面骨架、滚不动时查什么、横向滚动、轮播、停在整行的位置、加载更多、键盘
 - [`UIStackView`](ui-stack-view.md)：例子里放内容的容器
 - [`UIView`](ui-view.md)：继承来的成员，`bounds`、`convertRect()`、底色、圆角都在那里
 - [`UICollectionView`](ui-collection-view.md)：数据量很大的列表，只创建屏幕上看得见的行

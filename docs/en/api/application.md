@@ -13,7 +13,7 @@ status: partial
 - **App information**: bundle ID, version, and the contents of the configuration file.
 - **App state**: whether the app is in the foreground or background, and which scenes currently exist.
 - **App-level events**: the UI can be built, the app entered the background, memory is low, the app was opened by a link, there is an unhandled exception.
-- **App-level capabilities**: entry points to local storage and files, and asking the system to open a URL (opening outward; another app opening this app is the event in the previous item). With `@nacrejs/keychain` installed, the keychain entry point is here too.
+- **App-level capabilities**: entry points to local storage, files, and network status, and asking the system to open a URL (opening outward; another app opening this app is the event in the previous item). With `@nacrejs/keychain` installed, the keychain entry point is here too.
 - **Native module entry point**: methods provided by the app's own native code and third-party native SDKs are called from `application.nativeModules`.
 
 The UI is not on `application`. The UI belongs to scenes ([`UIWindowScene`](ui-window-scene.md)): a scene represents one instance of the app's UI, the system creates it, and a window must be created on a scene to be displayed. `application` fires [`sceneconnect`](application/sceneconnect-event.md) when a scene becomes available and keeps track of the current scenes.
@@ -64,6 +64,7 @@ Capability entry points. Each read returns the same object:
 | --- | --- |
 | [`storage`](application/storage.md) <small>read-only</small> | Key-value storage |
 | [`fileSystem`](application/filesystem.md) <small>read-only</small> | File reading and writing |
+| [`network`](application/network.md) <small>read-only</small> | Network status: whether connected, which kind of network, whether metered |
 | [`keychain`](application/keychain.md) <small>read-only</small> | Encrypted storage for tokens and passwords. **Only present in projects that install `@nacrejs/keychain`** |
 | [`nativeModules`](application/nativemodules.md) <small>read-only</small> | Native modules registered in this app |
 

@@ -8,6 +8,7 @@
   const {
     POINT_FIELDS,
     RECT_FIELDS,
+    TRANSFORM3D_FIELDS,
     SIZE_FIELDS,
     constructNative,
     defineNativeClass,
@@ -34,6 +35,7 @@
     toNumbersOrNull,
     toPoint,
     toRect,
+    toTransform3D,
     toSize,
   } = ctx;
 
@@ -404,6 +406,7 @@
   // 标量通道读回来的：数字原样，结构体按字段认是哪一种
   function animScalarOut(value) {
     if (value === null || typeof value === 'number') return value;
+    if ('m11' in value) return toTransform3D(value);
     if ('width' in value) return 'x' in value ? toRect(value) : toSize(value);
     return toPoint(value);
   }
@@ -419,6 +422,7 @@
   function animScalarIn(value, what) {
     if (typeof value === 'number') return value;
     if (value != null && typeof value === 'object') {
+      if ('m11' in value) return structArg(value, TRANSFORM3D_FIELDS, what);
       if ('width' in value) {
         return 'x' in value ? structArg(value, RECT_FIELDS, what)
                             : structArg(value, SIZE_FIELDS, what);
@@ -426,7 +430,7 @@
       if ('x' in value) return structArg(value, POINT_FIELDS, what);
     }
     throw new TypeError(
-      what + ' needs a number, a CGPoint / CGSize / CGRect, a color, a UIBezierPath, or a UIImage');
+      what + ' needs a number, a CGPoint / CGSize / CGRect / CATransform3D, a color, a UIBezierPath, or a UIImage');
   }
 
   // run loop。只给 mainRunLoop 一个：JS 跑在主线程，currentRunLoop 永远

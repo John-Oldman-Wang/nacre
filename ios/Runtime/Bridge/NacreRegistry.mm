@@ -176,6 +176,11 @@ NacreSyncAsk __strong& SyncAsk() {
   return ask;
 }
 
+NacreAnswerAsk __strong& AnswerAsk() {
+  static NacreAnswerAsk ask = nil;
+  return ask;
+}
+
 NacreBlockCall __strong& BlockCall() {
   static NacreBlockCall call = nil;
   return call;
@@ -332,6 +337,19 @@ BOOL NacreEmitEventSync(id object, const char* className, NSString* type, NSStri
     return NO;
   }
   return ask(object, className, type, json, YES);
+}
+
+void NacreSetAnswerSink(NacreAnswerAsk ask) { AnswerAsk() = [ask copy]; }
+
+NSString* NacreEmitEventForAnswer(id object, const char* className, NSString* type,
+                                  NSString* json, NSString* field) {
+  NacreAnswerAsk ask = AnswerAsk();
+  if (ask == nil || !NSThread.isMainThread) {
+    if (ask != nil) WriteRuntimeLog([NSString stringWithFormat:
+        @"event \"%@\" dropped: not on the main thread", type]);
+    return nil;
+  }
+  return ask(object, className, type, json, field);
 }
 
 void NacreEmitEventNow(id object, const char* className, NSString* type, NSString* json) {
