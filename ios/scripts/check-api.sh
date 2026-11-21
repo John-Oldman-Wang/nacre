@@ -21,7 +21,10 @@ import re, sys, glob
 # 内置脚本拆成了 Builtin/parts/ 下的若干个 part（每个是一个函数表达式），
 # 这里按文件名顺序拼起来当一份读——下面所有正则靠的是缩进，而 part 里的
 # 缩进和拆之前一模一样（正文一行都没动）。
-_part_files = sorted(glob.glob('ios/Runtime/Builtin/parts/*.js'))
+# 两端共用的那批（Web 标准）在仓库根的 core/builtin/parts/，运行时把两处合在
+# 一起按文件名执行，这里也照文件名合在一起读
+_part_files = sorted(glob.glob('ios/Runtime/Builtin/parts/*.js') + glob.glob('core/builtin/parts/*.js'),
+                     key=lambda f: f.rsplit('/', 1)[-1])
 if not _part_files:
     print('API 三边核对：ios/Runtime/Builtin/parts/ 下一个 part 都没有，check-api.sh 要更新')
     sys.exit(1)
@@ -830,7 +833,7 @@ elif not _all_provided or not _total_eager:
     complain('脚本', 'part 之间靠 ctx 传的名字没抽出来（放的 %d 个，取的 %d 处），'
                      'check-api.sh 要更新' % (len(_all_provided), _total_eager))
 else:
-    _short = lambda f: f.replace('ios/Runtime/Builtin/', '').replace('ios/Capabilities/', '').replace('/Builtin/parts/', '/')
+    _short = lambda f: f.replace('ios/Runtime/Builtin/', '').replace('core/builtin/', '').replace('ios/Capabilities/', '').replace('/Builtin/parts/', '/')
     for name, files in sorted(_all_provided.items()):
         if len(files) > 1:
             complain('ctx', f'{name} 被放了 {len(files)} 次：'
