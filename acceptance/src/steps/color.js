@@ -17,6 +17,8 @@ export function stepColor(ctx) {
     'rgb(255, 0, 0)', 'rgb(255 0 0)', 'rgba(255,0,0,.5)', 'rgb(255 0 0 / 50%)',
     'light-dark(#fff, #000)', 'light-dark(systemBackground, #000)',
     'systemBackground', 'label', 'black', 'systemBlue',
+    // CSS 的关键字，全透明。和 CSS 一样不分大小写，原样读回
+    'transparent', 'Transparent',
   ];
   for (const text of forms) {
     box.backgroundColor = text;
@@ -76,6 +78,18 @@ export function stepColor(ctx) {
   // ---- 置空 ----
   box.backgroundColor = null;
   assert('置 null 读回 null', box.backgroundColor, null);
+
+  // ---- transparent 真的是透明，不是保留了原来的黑 ----
+  // 形状图层的填充色默认是黑色。图层的颜色读回来要经过原生那边，原生那边要是
+  // 还是黑色，这里读到的就不是 transparent。同一个颜色值的不同拼法共用一条声明、
+  // 最后写的赢（见下面「取舍」那一段），上面最后写的是 Transparent，所以只比字母
+  const shape = new CAShapeLayer();
+  assert('形状图层的填充色默认是黑色', shape.fillColor, '#000000');
+  shape.fillColor = 'transparent';
+  assert('形状图层的填充色写 transparent，读回 transparent', String(shape.fillColor).toLowerCase(), 'transparent');
+  const plain = new CALayer();
+  plain.backgroundColor = 'transparent';
+  assert('图层的背景色写 transparent，读回 transparent', String(plain.backgroundColor).toLowerCase(), 'transparent');
 
   // ---- 不合法：不抛、保留旧值、打警告 ----
   box.backgroundColor = '#0a7b55';   // 挑一个别处没写过的值
