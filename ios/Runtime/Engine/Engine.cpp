@@ -1665,6 +1665,50 @@ bool Engine::EmitObjectEventWithJSON(const NativeObjectRef& target,
   return prevented;
 }
 
+std::string Engine::EmitObjectEventForAnswer(const NativeObjectRef& target,
+                                             const std::string& type, const std::string& json,
+                                             const std::string& answer_field) {
+  v8::Isolate* isolate = impl_->isolate;
+  v8::Isolate::Scope isolate_scope(isolate);
+  v8::HandleScope handle_scope(isolate);
+  if (impl_->object_event_sink.IsEmpty()) return "";
+  std::string answer;
+
+  v8::Local<v8::Context> ctx = impl_->context.Get(isolate);
+  v8::Context::Scope context_scope(ctx);
+  const bool rebuilt = !impl_->HasWrapper(target.ptr);
+  v8::Local<v8::Object> wrapper = impl_->WrapNative(ctx, target);
+  if (wrapper.IsEmpty()) return "";
+  {
+    v8::TryCatch try_catch(isolate);
+    v8::Local<v8::Value> extra;
+    if (!v8::JSON::Parse(ctx, Utf8(isolate, json)).ToLocal(&extra)) {
+      try_catch.Reset();
+      extra = v8::Undefined(isolate);
+    }
+    // 第六个参数：要交回来的那个字段的名字。sink 看到它就把这个字段建成可写的，
+    // 派发完返回它的值（JSON 表示得了的纯数据），不再返回「取消了没有」
+    v8::Local<v8::Value> argv[] = {wrapper, Utf8(isolate, type), extra,
+                                   v8::Boolean::New(isolate, rebuilt),
+                                   v8::Boolean::New(isolate, false),
+                                   Utf8(isolate, answer_field)};
+    v8::Local<v8::Value> result;
+    if (impl_->object_event_sink.Get(isolate)->Call(ctx, ctx->Global(), 6, argv).ToLocal(&result)) {
+      v8::Local<v8::String> text;
+      if (!result->IsUndefined() && !result->IsNull() &&
+          v8::JSON::Stringify(ctx, result).ToLocal(&text)) {
+        v8::String::Utf8Value utf8(isolate, text);
+        if (*utf8 != nullptr) answer.assign(*utf8, utf8.length());
+      }
+      try_catch.Reset();
+    } else {
+      impl_->ReportException(ctx, try_catch);
+    }
+  }
+  impl_->ScheduleRejectionFlush();
+  return answer;
+}
+
 void Engine::SettleBool(int call_id, bool value) {
   v8::Isolate* isolate = impl_->isolate;
   v8::Isolate::Scope isolate_scope(isolate);

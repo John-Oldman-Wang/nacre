@@ -1005,7 +1005,6 @@
 | 想做的事 | 对应的原生能力 |
 | --- | --- |
 | 双指捏合缩放内容 | `viewForZoomingInScrollView:`。缩放比例这一组属性和 `setZoomScale()`、`zoomToRect()` 已经有了；系统要当场问「缩放的是哪个子视图」，这一问还没接 |
-| 松手时改变最终停下的位置（自定义吸附） | `scrollViewWillEndDragging:withVelocity:targetContentOffset:` |
 | 下拉刷新 | `refreshControl` |
 | 滚动边缘的模糊效果（iOS 26） | `UIScrollEdgeEffect` |
 

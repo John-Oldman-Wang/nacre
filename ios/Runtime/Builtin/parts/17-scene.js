@@ -725,7 +725,7 @@
   ctx.internalEventHandlers = internalEventHandlers;
   // cancelable：原生说这一次派发它在**当场等答复**（同步回调，见
   // NacreEmitEventSync），所以建成可取消的事件，preventDefault() 真的拦得住
-  native.setObjectEventSink(function (wrapper, type, payload, rebuilt, cancelable) {
+  native.setObjectEventSink(function (wrapper, type, payload, rebuilt, cancelable, answerField) {
     // 运行时自己订的两个内部事件：系统自己动了持有关系，镜像要跟上。
     // 不派发给监听器
     if (type === '@stack') {
@@ -839,10 +839,23 @@
         const isPoint = value !== null && typeof value === 'object' &&
                         Object.keys(value).length === 2 &&
                         typeof value.x === 'number' && typeof value.y === 'number';
-        defineField(event, key, isPoint ? toPoint(value) : value);
+        if (key === answerField) {
+          // 「当场要一个值」的那个字段：监听器可以改它，派发完交回原生
+          Object.defineProperty(event, key, {
+            value: isPoint ? toPoint(value) : value, enumerable: true, writable: true,
+          });
+        } else {
+          defineField(event, key, isPoint ? toPoint(value) : value);
+        }
       }
     }
     wrapper.dispatchEvent(event);
+    if (typeof answerField === 'string') {
+      // 交回原生的是纯数据：结构体按它的字段编（CGPoint 的 x、y 是自己的可枚举
+      // 属性），别的原样。形状对不对由原生核
+      const answer = event[answerField];
+      return answer === undefined ? null : answer;
+    }
     // WebSocket 关掉了：系统不再拿着它，这边也放开。放在派发之后，监听器
     // 里还要用它。连接失败走的也是这里——原生在 error 之后总会补一个 close
     if (wrapper instanceof WebSocketClass && type === 'close') {

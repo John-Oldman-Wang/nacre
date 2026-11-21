@@ -46,3 +46,4 @@ scroller.addEventListener('dragend', () => {
 ## 参见
 
 - [`decelerateend`](decelerateend-event.md)
+- [`beforedragend`](beforedragend-event.md)：松手的那一刻、`dragend` 之前派发，可以改内容停下的位置

@@ -120,6 +120,7 @@ Listen with `addEventListener()`.
 | --- | --- |
 | [`scroll`](ui-scroll-view/scroll-event.md) | The position changed. Fires for user scrolling, momentum scrolling, and writes from code |
 | [`dragbegin`](ui-scroll-view/dragbegin-event.md) | The user started dragging |
+| [`beforedragend`](ui-scroll-view/beforedragend-event.md) | The moment the user lifts their finger after dragging. A listener can change where the content stops |
 | [`dragend`](ui-scroll-view/dragend-event.md) | The user lifted their finger |
 | [`deceleratebegin`](ui-scroll-view/deceleratebegin-event.md) | The content kept sliding after release |
 | [`decelerateend`](ui-scroll-view/decelerateend-event.md) | The content came to a complete stop |
@@ -128,7 +129,7 @@ Listen with `addEventListener()`.
 | [`adjustedcontentinsetchange`](ui-scroll-view/adjustedcontentinsetchange-event.md) | `adjustedContentInset` changed |
 | `traitchange` | The [traits](ui-trait-collection.md) changed; inherited from `UIView` |
 
-Rules shared by the eight scroll events:
+Rules shared by the eight scroll events other than `beforedragend`:
 
 - **Events carry no data.** The event object has only `type` and `target`. Read the position from `contentOffset` and the state from `isDragging` and `isDecelerating`. When the callback runs, these read the latest values at that moment.
 - **None can be canceled.** Scrolling is driven by the system, which does not wait for an answer from JS: while a finger drags, the content moves first, and only afterward does the system notify JS. JS cannot stop or cancel a scroll.
@@ -138,6 +139,8 @@ Rules shared by the eight scroll events:
 - **Unrecognized event names do not throw.** They are treated as custom events and fire only when you dispatch them yourself with `dispatchEvent()`. So a misspelled event name (such as `scrol`) gives no warning; the listener is simply never called.
 
 When the user drags and releases, the order is `dragbegin` → `dragend` → `deceleratebegin` → `decelerateend`, with `scroll` firing repeatedly throughout (verified by testing). If the content has already stopped when the finger lifts, the last two events do not fire (**not verified in the simulator**).
+
+[`beforedragend`](ui-scroll-view/beforedragend-event.md) is different: it fires on the spot the moment the finger lifts, before `dragend`, carrying the velocity at release and the stopping position the system computed, and the position a listener writes is where the content stops. It cannot be canceled.
 
 ## Three basic concepts
 
@@ -280,6 +283,7 @@ This code has not been run as a whole in the simulator. The same structure has b
 | `[sv setZoomScale:2 animated:YES]` | `sv.setZoomScale(2, { animated: true })` |
 | `- scrollViewDidScroll:` | The `scroll` event |
 | `- scrollViewWillBeginDragging:` | The `dragbegin` event |
+| `- scrollViewWillEndDragging:withVelocity:targetContentOffset:` | The `beforedragend` event. Write the stopping position to the event object's `targetContentOffset` |
 | `- scrollViewDidEndDragging:willDecelerate:` | The `dragend` event. Read `isDecelerating` instead of `willDecelerate` |
 | `- scrollViewWillBeginDecelerating:` | The `deceleratebegin` event |
 | `- scrollViewDidEndDecelerating:` | The `decelerateend` event |
@@ -302,12 +306,12 @@ This table is only for people familiar with the web to look up correspondences; 
 | `scrollIntoView()` | `scrollRectToVisible(rect)` | Takes a rectangle, not an element |
 | The `scroll` event | The `scroll` event | Neither carries the position; neither can be canceled |
 | The `scrollend` event | `decelerateend`, `scrollanimationend`, and `dragend` with `isDecelerating` `false` | There is no single unified event |
-| `scroll-snap-type` | `isPagingEnabled` | Can stop only at whole multiples of the visible area |
+| `scroll-snap-type` | `isPagingEnabled`, or changing the stopping position in `beforedragend` | `isPagingEnabled` can stop only at whole multiples of the visible area |
 | `overscroll-behavior: none` | `bounces = false` | |
 
 ## See also
 
-- [Building a scrolling view](../guides/scrolling.md): page skeleton, what to check when it will not scroll, horizontal scrolling, carousels, loading more, the keyboard
+- [Building a scrolling view](../guides/scrolling.md): page skeleton, what to check when it will not scroll, horizontal scrolling, carousels, stopping on whole rows, loading more, the keyboard
 - [`UIStackView`](ui-stack-view.md): the container holding the content in the example
 - [`UIView`](ui-view.md): inherited members; `bounds`, `convertRect()`, background color, and rounded corners are there
 - [`UICollectionView`](ui-collection-view.md): lists with large amounts of data, creating only the rows visible on screen

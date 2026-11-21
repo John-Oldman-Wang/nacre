@@ -678,6 +678,11 @@ typedef BOOL (^NacreSyncAsk)(id object, const char* className, NSString* type,
                              NSString* json, BOOL cancelable);
 typedef void (^NacreBlockCall)(NSInteger blockId, NSString* argsJSON, BOOL later);
 void NacreSetSyncSinks(NacreSyncAsk ask, NacreBlockCall call);
+/// 「当场要一个值」的那一头：当场派发，派发完把事件上 field 的值编成 JSON 文本
+/// 交回来；没有答案时是 nil。见 NacreExtension.h 的 NacreEmitEventForAnswer
+typedef NSString* _Nullable (^NacreAnswerAsk)(id object, const char* className, NSString* type,
+                                              NSString* json, NSString* field);
+void NacreSetAnswerSink(NacreAnswerAsk ask);
 
 // ---- 被链接打开 ----
 /// 给场景委托的类补上收链接的那三个方法，转成 application 的 openurl 事件。

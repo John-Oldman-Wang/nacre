@@ -1,6 +1,6 @@
 # 做一个能滚动的页面
 
-这一篇讲怎么用 [`UIScrollView`](../api/ui-scroll-view.md) 做一个能滚动的页面：搭骨架、查滚不动的原因、读滚动位置、用代码滚动、横向滚动、轮播、键盘。每个属性、方法和事件的细节在 [`UIScrollView`](../api/ui-scroll-view.md) 的参考页，内容区、可视区、偏移这三个概念见[三个基本概念](../api/ui-scroll-view.md#三个基本概念)。
+这一篇讲怎么用 [`UIScrollView`](../api/ui-scroll-view.md) 做一个能滚动的页面：搭骨架、查滚不动的原因、读滚动位置、用代码滚动、横向滚动、轮播、停在整行的位置、键盘。每个属性、方法和事件的细节在 [`UIScrollView`](../api/ui-scroll-view.md) 的参考页，内容区、可视区、偏移这三个概念见[三个基本概念](../api/ui-scroll-view.md#三个基本概念)。
 
 ## 推荐的做法
 
@@ -241,6 +241,25 @@ scroller.addEventListener('dragend', () => {
 ```
 
 **这个轮播的例子未在模拟器验证。**
+
+## 让滚动停在整行的位置
+
+列表每一行一样高时，可以让每次松手后内容正好停在某一行的开头，不停在两行中间。[`beforedragend`](../api/ui-scroll-view/beforedragend-event.md) 在松手的那一刻派发，事件对象的 `targetContentOffset` 是系统算出的停下的位置，把它改成行高的整数倍：
+
+```js
+const rowHeight = 80;
+scroller.addEventListener('beforedragend', (event) => {
+  const e = /** @type {UIScrollViewDragEndEvent} */ (event);
+  const y = Math.round(e.targetContentOffset.y / rowHeight) * rowHeight;
+  e.targetContentOffset = new CGPoint(0, y);
+});
+```
+
+**效果**：每次拖动松手后，内容停在 `contentOffset.y` 是 80 的整数倍的位置。系统算出停在 123 时，内容停在 160。交回给系统的位置在验收用例里验证过；内容滑过去的样子**未用真实的手指验证**。
+
+- 按系统算出的位置取整，不按当前的 `contentOffset` 取整。系统算出的位置已经算上了松手时的速度：甩得越快，停得越远。
+- 每一页正好是可视区那么大时，用上一节的 `isPagingEnabled`，不用写监听器。
+- 监听器执行期间系统在等，只在里面算位置。
 
 ## 知道滚动什么时候开始和结束
 

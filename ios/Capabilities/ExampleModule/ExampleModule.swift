@@ -154,6 +154,26 @@ private func makeExampleModule() -> NacreModule {
     background.asyncAfter(deadline: .now() + delay) { resolve(value) }
   }
 
+  // 照 UIKit「手指离开滚动视图」的做法调委托的 scrollViewWillEndDragging:
+  // withVelocity:targetContentOffset:。参数：滚动视图的 tag、速度 x / y（pt/ms）、
+  // 系统算出来的停点 x / y。兑现成委托改完之后的停点 { x, y }；找不到这个 tag
+  // 的滚动视图时是 null。真的拖动要手指，自动跑的验收靠它。真的模块里不会有这种方法
+  module.addMethod("simulateDragEnd") { args in
+    guard args.count == 5, let tag = number(args[0]), let vx = number(args[1]),
+          let vy = number(args[2]), let tx = number(args[3]), let ty = number(args[4]) else {
+      return NacreModule.error(name: "TypeError", message: "simulateDragEnd needs tag, vx, vy, x, y")
+    }
+    let window = UIApplication.shared.connectedScenes
+      .compactMap { $0 as? UIWindowScene }
+      .flatMap { $0.windows }
+      .first { $0.isKeyWindow }
+    guard let scroll = window?.viewWithTag(Int(tag)) as? UIScrollView else { return nil }
+    var target = CGPoint(x: tx, y: ty)
+    scroll.delegate?.scrollViewWillEndDragging?(scroll, withVelocity: CGPoint(x: vx, y: vy),
+                                                targetContentOffset: &target)
+    return ["x": target.x, "y": target.y]
+  }
+
   // 照输入法的做法给当前正在编辑的输入框设一段组字：给字符串是
   // setMarkedText:selectedRange:（光标在这段的末尾），给 null 是 unmarkText
   // （选完字，组字结束、文字留下）。真的输入法要真实键盘，自动跑的验收靠它。

@@ -264,6 +264,7 @@ type UIScrollViewDecelerationRate = number | 'normal' | 'fast';
 type UIScrollViewEventType =
   | 'scroll'
   | 'dragbegin'
+  | 'beforedragend'
   | 'dragend'
   | 'deceleratebegin'
   | 'decelerateend'

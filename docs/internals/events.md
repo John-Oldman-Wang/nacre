@@ -767,3 +767,16 @@ iOS 的触摸不是一套机制，是**四套并行**的（hit-testing、respond
 
 模拟器连着电脑键盘时软键盘不弹，只收得到收起那一组（时长 0）；关掉硬件键盘后，模拟器上「监听器里挪的视图挂上了 `position` 动画」也验过了。
 
+## 系统当场要一个值：可写的事件字段（2026-11-20）
+
+滚动视图松手时，系统问的不是「要不要」，而是「停在哪」（`scrollViewWillEndDragging:withVelocity:targetContentOffset:`，停点是一个 inout 参数）。原来的当场派发只能带回一个布尔值（`preventDefault()` 了没有），表达不了。
+
+做法：当场派发一个**不可取消**的事件，事件对象上那一个字段是**可写的**数据属性，别的字段照旧只读；监听器都跑完，把这个字段的值编成 JSON 带回原生。
+
+- 原生：`NacreEmitEventForAnswer(object, className, type, json, field)`（`NacreExtension.h`），返回那个字段的 JSON 文本，没有答案时是 nil。引擎是 `EmitObjectEventForAnswer`，调 JS 的对象事件入口时多给第六个参数（字段名）。
+- JS：对象事件入口看到第六个参数，就把同名字段建成可写的，派发完返回 `event[field]`，不再返回「取消了没有」。
+- **形状由原生核。** 监听器可能写进任何东西。滚动这一处只认带有限数 `x`、`y` 的对象，别的一律照系统原来的值；监听器抛了、没改，也照系统的。
+- 和规矩的关系：它属于「系统当场来问」，但答案是一个值，所以不用 `preventDefault`；事件不可取消。写进了 project.md 「事件能不能取消」那一行。
+- 第一处：`UIScrollView` 的 `beforedragend`，带 `velocity`（pt/ms）和可写的 `targetContentOffset`。名字照 `dragbegin` / `dragend` 一组，系统来问的用 `before…`；原来方案里叫 `beforedecelerate`，但松手时速度为 0、不会减速时系统也问，那个名字会误导。
+- 验收：示例模块的 `simulateDragEnd` 照 UIKit 松手时的做法调委托，断言改成 80 的倍数、写普通对象、写了不是点的值、监听器抛了、摘掉监听器几种。真的手指没验。
+

@@ -399,6 +399,20 @@ nacre::NativeObjectRef CreateBlob(
           (*engine)->CallBlock(block, args);
           if (!nested) (*engine)->PumpMessageLoop();
         });
+    // 「当场要一个值」：和上面的 ask 一样当场进 JS，只是交回来的是事件上一个字段的值
+    NacreSetAnswerSink(^NSString*(id object, const char* className, NSString* type,
+                                  NSString* json, NSString* field) {
+      NacreRuntime* strongSelf = weakSelf;
+      if (strongSelf == nil) return nil;
+      auto engine = strongSelf->_engine;
+      if (!*engine) return nil;
+      const bool nested = (*engine)->IsInJS();
+      const std::string answer = (*engine)->EmitObjectEventForAnswer(
+          {NacreKeep(object), className}, type.UTF8String,
+          json != nil ? json.UTF8String : "null", field.UTF8String);
+      if (!nested) (*engine)->PumpMessageLoop();
+      return answer.empty() ? nil : @(answer.c_str());
+    });
     // WebSocket 的事件出口。那个文件不认识 NacreRuntime，所以在这里塞进去
     WebSocketSetEmitter(^(id task, NSString* type, NSString* json, NacreBlob* blob) {
       NacreRuntime* strongSelf = weakSelf;
