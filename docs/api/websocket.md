@@ -13,7 +13,7 @@ status: partial
 
 地址的协议是 `wss:`（加密）或 `ws:`（不加密）。
 
-**继承关系**：`EventTarget` → `NSObject` → `WebSocket`
+**继承关系**：[`EventTarget`](event-target.md) → `WebSocket`
 
 `WebSocket` 不能被继承，见[原生类](native-classes.md)。怎么保持一条长期使用的连接、收发各种消息，见指南[用 WebSocket 收发消息](../guides/websocket.md)。
 

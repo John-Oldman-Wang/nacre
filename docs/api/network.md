@@ -12,7 +12,7 @@ type: reference
 
 在模拟器上，网络状态跟着运行模拟器的 Mac 走。
 
-**继承关系**：[`EventTarget`](event-target.md) → `NSObject` → `Network`
+**继承关系**：[`EventTarget`](event-target.md) → `Network`
 
 ## 构造函数
 

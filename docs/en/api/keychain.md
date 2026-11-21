@@ -16,7 +16,7 @@ Settings and app data don't belong here: settings go in [`application.storage`](
 
 > **Note:** The keychain isn't in the core; it is available only after installing the `@nacrejs/keychain` package. Without it, the `application.keychain` property doesn't exist (`'keychain' in application` is `false`), and type checking reports that it doesn't exist. For how to install it, see [Installation](#installation) below.
 
-**Inheritance**: `EventTarget` → `NSObject` → `Keychain`
+**Inheritance**: `Keychain` does not inherit from any class.
 
 ## Installation
 

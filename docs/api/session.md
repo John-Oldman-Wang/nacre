@@ -15,7 +15,7 @@ status: partial
 - [`Cookies`](cookies.md)：一个分区的 cookie，从 [`cookies`](session/cookies.md) 属性拿到。
 - [`Cookie`](cookie.md)：读 cookie 时得到的每一条记录。
 
-**继承关系**：`NSObject` → `Session`
+**继承关系**：`Session` 不继承任何类。
 
 怎么在打开网页之前写好登录状态、退出登录时清数据、多个账号分开存，见指南[管理网页的登录状态](../guides/web-login.md)。
 

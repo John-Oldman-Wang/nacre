@@ -15,7 +15,7 @@ This group has two more types:
 - [`Cookies`](cookies.md): a partition's cookies, obtained from the [`cookies`](session/cookies.md) property.
 - [`Cookie`](cookie.md): each record you get when reading cookies.
 
-**Inheritance**: `NSObject` → `Session`
+**Inheritance**: `Session` does not inherit from any class.
 
 For how to set up sign-in state before opening a page, clear data on sign-out, and keep multiple accounts separate, see the guide [Managing web page sign-in state](../guides/web-login.md).
 
