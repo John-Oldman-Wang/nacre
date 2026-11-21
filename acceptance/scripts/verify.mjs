@@ -9,7 +9,9 @@
 //                              带不带 step 前缀都行：coreLocation、stepCoreLocation。不比对基线
 //   --update-baseline          把这一遍出现的断言名单记成基线（要先全部通过）
 //   --mark-missing-optional    配合上一条：基线里有、这一遍没出现的，记成「可以缺」而不是删掉
-//   --no-baseline              不比对基线（真机、别的模拟器）
+//   --device                   跑在连着的真机上（ios/scripts/run-device.sh）。不比对基线：
+//                              基线是模拟器上记的，真机上有些检查走不同的分支
+//   --no-baseline              不比对基线（别的模拟器）
 //   --timeout=<分钟>           等结束标记的期限，默认 25
 //   --from-log=<文件>          不启动模拟器，只判一份已有的日志
 //
@@ -18,7 +20,7 @@
 // 没通过的情况：编译或安装失败；有断言失败（步骤中途抛了也是一条失败）；
 // 期限内没等到结束标记；App 提前退出；断言名单和基线对不上。
 //
-// 它做的事只有三件：调 ios/scripts/run-sim.sh、把输出存下来、等结束标记。
+// 它做的事只有三件：调 ios/scripts/run-sim.sh（真机是 run-device.sh）、把输出存下来、等结束标记。
 // 怎么判在 lib/report.mjs，那边是纯函数，有用例。
 //
 // 模拟器由 run-sim.sh 选；要指定就设 NACRE_SIM=<UDID>。基线是 iPhone Air 上记的，
@@ -39,6 +41,7 @@ const baselinePath = join(project, 'baseline', 'simulator.txt');
 
 const options = {
   release: false,
+  device: false,
   runtime: 'source',
   updateBaseline: false,
   markMissingOptional: false,
@@ -49,6 +52,7 @@ const options = {
 };
 for (const arg of process.argv.slice(2)) {
   if (arg === '--release') options.release = true;
+  else if (arg === '--device') options.device = true;
   else if (arg.startsWith('--runtime=')) options.runtime = arg.slice('--runtime='.length);
   else if (arg === '--update-baseline') options.updateBaseline = true;
   else if (arg === '--mark-missing-optional') options.markMissingOptional = true;
@@ -64,6 +68,10 @@ if (!['source', 'framework'].includes(options.runtime)) {
 }
 if (!Number.isFinite(options.timeoutMinutes) || options.timeoutMinutes <= 0) {
   console.error('--timeout 要一个大于 0 的分钟数');
+  process.exit(2);
+}
+if (options.device && options.updateBaseline) {
+  console.error('--device 和 --update-baseline 不能一起用：基线是模拟器上记的');
   process.exit(2);
 }
 if (options.markMissingOptional && !options.updateBaseline) {
@@ -91,7 +99,7 @@ if (options.steps !== null) {
   steps = resolved.steps;
 }
 
-const label = (options.release ? 'release' : 'debug') +
+const label = (options.device ? 'device-' : '') + (options.release ? 'release' : 'debug') +
               (options.runtime === 'framework' ? '-framework' : '') +
               // 只跑几步的那一遍另存，不盖掉完整那一遍的日志和结果
               (steps !== null ? '-steps' : '');
@@ -106,7 +114,8 @@ const resultPath = join(outDir, 'verify-' + label + '.json');
  */
 function run() {
   return new Promise((done) => {
-    const args = ['ios/scripts/run-sim.sh', 'acceptance', '--runtime=' + options.runtime];
+    const script = options.device ? 'ios/scripts/run-device.sh' : 'ios/scripts/run-sim.sh';
+    const args = [script, 'acceptance', '--runtime=' + options.runtime];
     if (options.release) args.push('--release');
     writeFileSync(logPath, '');
     // detached：它自己一个进程组，结束时连同里面的 xcodebuild、simctl 一起停掉
@@ -131,6 +140,8 @@ function run() {
       clearTimeout(deadline);
       clearInterval(progress);
       try { process.kill(-(/** @type {number} */ (child.pid)), 'SIGTERM'); } catch { /* 已经退出了 */ }
+      // 真机上的 App 不用另外停：下一遍启动时 --terminate-existing 会先停掉它
+      if (options.device) { done(exit); return; }
       // App 自己还在模拟器里跑着，停掉它：下一遍从干净的状态开始
       const bundleId = JSON.parse(readFileSync(join(project, 'nacre.config.json'), 'utf8')).bundleId;
       spawnSync('xcrun', ['simctl', 'terminate', process.env.NACRE_SIM || 'booted', bundleId],
@@ -174,7 +185,8 @@ function run() {
   });
 }
 
-console.log('验收：' + (options.release ? 'Release' : 'Debug') + '，运行时 ' + options.runtime +
+console.log('验收：' + (options.device ? '真机，' : '') + (options.release ? 'Release' : 'Debug') +
+            '，运行时 ' + options.runtime +
             (options.fromLog ? '（只判已有的日志）' : ''));
 if (steps !== null) {
   console.log('只跑这几步：' + steps.join('、') + '（外加建窗口那一步和入口顶层的几段；不比对基线）');
@@ -201,7 +213,7 @@ if (options.fromLog) {
 
 const parsed = parseLog(readFileSync(logPath, 'utf8'));
 const hasBaseline = existsSync(baselinePath);
-const useBaseline = !options.noBaseline && !options.updateBaseline && hasBaseline && steps === null;
+const useBaseline = !options.noBaseline && !options.device && !options.updateBaseline && hasBaseline && steps === null;
 const baseline = hasBaseline ? parseBaseline(readFileSync(baselinePath, 'utf8')) : null;
 const verdict = judge({ parsed, baseline: useBaseline ? baseline : null, exit, steps });
 
@@ -209,7 +221,7 @@ console.log('');
 console.log('通过 ' + parsed.passed + ' 条，失败 ' + parsed.failed + ' 条，未验证 ' +
             parsed.unverified.length + ' 处');
 for (const line of parsed.unverified) console.log('  ! ' + line.slice(0, 150));
-if (!options.noBaseline && !options.updateBaseline && !hasBaseline && steps === null) {
+if (!options.noBaseline && !options.device && !options.updateBaseline && !hasBaseline && steps === null) {
   console.log('还没有基线（' + baselinePath + '），这一遍没有比对断言名单');
 }
 
@@ -241,6 +253,7 @@ writeFileSync(resultPath, JSON.stringify({
   ok: verdict.ok,
   exit,
   configuration: options.release ? 'Release' : 'Debug',
+  device: options.device,
   runtime: options.runtime,
   steps,
   passed: parsed.passed,
