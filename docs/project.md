@@ -553,16 +553,7 @@ Commit message 格式：
 
 ### 要建设的能力
 
-**先做：**
-
-| 域 | 什么 |
-| --- | --- |
-| 滚动 | 拖动结束时改滚动停下的位置（`scrollViewWillEndDragging:withVelocity:targetContentOffset:`，系统当场来问的那一类） |
-| 输入 | 两种输入框的 `markedTextRange`（输入法组字的范围：拼音还没选字时输入框里已经有字母） |
-| 手势 | 识别器的委托那一组（同时识别、是否开始），照输入框的 `before…` 事件做 |
-| 绘图和动画 | 图层的 `transform`：旋转、缩放动画（`transform.rotation.z`、`transform.scale` 这类 keyPath，白名单没放）和 `CATransform3D`（翻面要 `m34` 的透视），两件一起做（[分析](internals/pending.md#layertransformcatransform3d还没暴露)）；`mask` |
-| 外观 | 颜色常量缺的 `systemGray2`–`systemGray6`、`systemFill` 一组、`systemGroupedBackground` 一组 |
-| 网络和数据 | 网络状态（连没连上、换了网络） |
+**先做：** 现在没有。
 
 **留着，按需要做：**
 
