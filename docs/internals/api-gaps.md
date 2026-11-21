@@ -20,8 +20,6 @@
 
 | 想做的事 | 对应的原生能力 |
 | --- | --- |
-| 进后台后申请一段时间把工作做完 | `beginBackgroundTaskWithName:expirationHandler:` |
-| 知道进后台后还能执行多久 | `backgroundTimeRemaining` |
 | 打开 URL 时带选项，比如只允许通用链接 | `openURL:options:` 的 `options` |
 | 打开之前先问系统能不能打开某个 URL | `canOpenURL:`。不提供：直接调 `openURL()`，按兑现的值判断 |
 | 知道用户点了哪一条推送通知 | `UNUserNotificationCenterDelegate` |
@@ -97,7 +95,7 @@
 | 视图大小变化时自动调整子图层 | 覆写 `layoutSubviews` | 未实现。原生里靠继承来做，而[原生类不能继承](../api/native-classes.md) |
 | 得知视图的大小变了 | 没有现成的通知，原生 App 同样靠覆写 `layoutSubviews` | 未实现 |
 | 让一个视图直接用渐变图层或形状图层作为自己的图层 | 覆写 `+layerClass` | 未实现，原因同上 |
-| 指定阴影的轮廓 | `shadowPath` | 未实现 |
+| 给阴影的形状做动画（卡片变大时阴影跟着变） | `CABasicAnimation` 的 keyPath `shadowPath` | 未实现。动画的 keyPath 名单里还没有它 |
 | 旋转、缩放图层，改变旋转的中心 | `transform`、`anchorPoint` | 未实现。视图可以用 `view.transform`，见 [`UIView`](../api/ui-view.md) |
 | 指定图片在图层里怎么摆放：保持比例、居中、只显示一部分 | `contentsGravity`、`contentsRect` | 未实现。需要这些时用 [`UIImageView`](../api/ui-image-view.md) 的 `contentMode` |
 | 读动画进行中图层正显示的值 | `presentationLayer` | 未实现 |
@@ -388,7 +386,6 @@
 | 想做的事 | 对应的原生能力 | 状态 |
 | --- | --- | --- |
 | 自己控制文字怎么排、读每一行的位置 | TextKit：`NSLayoutManager`、`NSTextLayoutManager`、`NSTextStorage` | 未实现 |
-| 点文本视图里的链接时得到通知、决定要不要打开 | `UITextViewDelegate` 的链接相关方法 | 未实现 |
 | 设置输入框里接下来打的字用什么样式；改链接的样式 | `typingAttributes`、`defaultTextAttributes`、`linkTextAttributes` | 未实现 |
 | 读一个属性连续生效的范围 | `attributesAtIndex:effectiveRange:` 的出参 | 用 `enumerateAttributesInRange()` 代替 |
 | 遍历时中途停下、从后往前遍历、只遍历某一个属性 | `enumerateAttributesInRange:` 的 `stop` 和 `options`、`enumerateAttribute:inRange:…` | 未实现 |
@@ -595,7 +592,6 @@
 | 想做的事 | 状态 |
 | --- | --- |
 | 每帧回调一次（`requestAnimationFrame`） | 没有这个函数。用 [`CADisplayLink`](../api/ca-animation.md) |
-| 让定时器在 App 进入后台后继续执行 | 未实现。对应 iOS 的后台任务（`beginBackgroundTask`） |
 | 给回调分优先级 | 未实现 |
 | `setImmediate` | 没有。用 `setTimeout(fn, 0)` |
 
@@ -1128,9 +1124,10 @@
 
 | 想做的事 | 对应的原生能力 |
 | --- | --- |
-| 在字符显示之前拦截：限制长度、过滤字符 | `textView:shouldChangeTextInRange:replacementText:`。单行输入框上对应的是 [`beforeinput`](../api/ui-text-field/beforeinput-event.md)，多行的还没有接。现在只能[事后改回去](../guides/multiline-text.md#限制输入的长度) |
-| 阻止开始输入、结束输入 | `textViewShouldBeginEditing:`、`textViewShouldEndEditing:` |
 | 设置之后输入的文字的样式；链接的样式 | `typingAttributes`、`linkTextAttributes` |
+| 长按链接时弹出的菜单换成自己的 | `textView:menuConfigurationForTextItem:defaultMenu:` |
+| 点附件、自定义标记时得到通知 | `textView:primaryActionForTextItem:defaultAction:` 里 `contentType` 不是链接的那两种。`linkclick` 只管链接 |
+| 一次修改涉及好几段时拿到每一段 | `textView:shouldChangeTextInRanges:replacementText:`（iOS 26）。`beforeinput` 给的是几段的并集 |
 | 占位文字 | 无。`UITextView` 本身没有这项能力，叠一个标签，见[显示占位文字](../guides/multiline-text.md#显示占位文字) |
 | 同时选中不相连的几段 | `selectedRanges` |
 | 系统样式的边框 | `borderStyle`。iOS 上它只有 `none` 一个取值。用底色、圆角，或者[图层](../api/ca-layer.md)的 `borderWidth` 和 `borderColor` |
@@ -1199,6 +1196,11 @@
 | 视图的位置或大小变化时收到通知 | 覆写 `layoutSubviews` | 未实现。原生里靠继承来做，而[原生类不能继承](../api/native-classes.md)。用约束定位的视图不需要这个通知 |
 | 安全区变化时收到通知 | 覆写 `safeAreaInsetsDidChange` | 未实现，原因同上。对齐 `safeAreaLayoutGuide` 的约束会自动重算 |
 | 视图被加入、移除时收到通知 | `didAddSubview:`、`willMoveToWindow:` 等 | 未实现，原因同上 |
+| 给读屏加自定义的操作（上下滑动选「删除」「标为已读」） | `accessibilityCustomActions`、`UIAccessibilityCustomAction` | 未实现 |
+| 可调节的元素（特征是 `adjustable`）响应读屏的上下滑动 | 覆写 `accessibilityIncrement`、`accessibilityDecrement`；激活时的 `accessibilityActivate` | 未实现，原因同上 |
+| 知道读屏（旁白）开没开、开关时收到通知 | `UIAccessibilityIsVoiceOverRunning()`、`UIAccessibilityVoiceOverStatusDidChangeNotification` | 未实现 |
+| 让读屏马上念一句话、界面变了让读屏重新找焦点 | `UIAccessibilityPostNotification`（`announcement`、`screenChanged`、`layoutChanged`） | 未实现 |
+| 读屏框住的范围、念的语言、带样式的标签、语音控制用的别名 | `accessibilityFrame`、`accessibilityPath`、`accessibilityLanguage`、`accessibilityAttributedLabel` 一组、`accessibilityUserInputLabels` | 未实现 |
 | 自己绘制视图的内容 | `drawRect:` | 未实现，原因同上。画线和形状可以用 [`CAShapeLayer`](../api/ca-layer.md) |
 | 直接接收触摸 | `touchesBegan:withEvent:` 等 | 未实现，原因同上。响应触摸用[手势识别器](../api/ui-gesture-recognizer.md)或 [`UIControl`](../api/ui-control.md) |
 | 关键帧动画、两个视图之间的转场动画 | `+[UIView animateKeyframesWithDuration:…]`、`+[UIView transitionWithView:…]` | 未实现。关键帧动画可以用 [Core Animation](../api/ca-animation.md) |
