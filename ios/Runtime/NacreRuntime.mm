@@ -10,7 +10,7 @@
 #include <mutex>
 #include <string>
 
-#include "Engine/Engine.h"
+#include "Engine.h"   // core/engine/
 
 #include "Bridge/NacreBridge.h"
 
@@ -732,11 +732,21 @@ nacre::NativeObjectRef CreateBlob(
       NSBundle* bundle = group[1];
       // **顺序由文件名决定**（00-、01-…），所以必须排序：
       // URLsForResourcesWithExtension: 不保证顺序。
+      //
+      // 核心的脚本分在两处：iOS 自己的在 Builtin/parts/，两端共用的（仓库的
+      // core/builtin/parts/，Web 标准那批）打进包里是根上的 parts/。两处合在
+      // 一起排序，所以拆开之后执行顺序和脚本名都没变
+      NSMutableArray<NSURL*>* found = [NSMutableArray array];
+      [found addObjectsFromArray:
+          [bundle URLsForResourcesWithExtension:@"js" subdirectory:@"Builtin/parts"] ?: @[]];
+      if (groups.firstObject == group) {
+        [found addObjectsFromArray:
+            [bundle URLsForResourcesWithExtension:@"js" subdirectory:@"parts"] ?: @[]];
+      }
       NSArray<NSURL*>* parts =
-          [[bundle URLsForResourcesWithExtension:@"js" subdirectory:@"Builtin/parts"]
-              sortedArrayUsingComparator:^NSComparisonResult(NSURL* a, NSURL* b) {
-                return [a.lastPathComponent compare:b.lastPathComponent];
-              }];
+          [found sortedArrayUsingComparator:^NSComparisonResult(NSURL* a, NSURL* b) {
+            return [a.lastPathComponent compare:b.lastPathComponent];
+          }];
       // 一个 part 都没有同样是致命的：核心缺了就什么 API 都没有；能力包登记了
       // 却没带脚本，是打包出了错，装一半比不装更难查
       if (parts.count == 0) {

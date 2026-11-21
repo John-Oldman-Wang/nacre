@@ -1,20 +1,15 @@
-// crypto，以及把公开的名字挂上 globalThis
+// crypto（随机数、UUID）。
+//
+// 把 Event、EventTarget、application 这些挂上 globalThis 的那几行原来也在这个
+// 文件里，拆 core/ 时挪到了 iOS 的 25-globals.js：它们是平台定义的。文件名排在
+// 这个后面，执行顺序没变
 //
 // 这是内置脚本的一个 part：整个文件就是一个函数表达式，运行时按文件名
 // 顺序编译执行，拿到函数之后用共享的 ctx 调一次。
 (function (ctx) {
   'use strict';
 
-  const {
-    Application,
-    ErrorEvent,
-    Event,
-    EventTarget,
-    PromiseRejectionEvent,
-    application,
-    define,
-    native,
-  } = ctx;
+  const { define, native } = ctx;
 
   const INTEGER_ARRAYS = [
     Int8Array, Uint8Array, Uint8ClampedArray, Int16Array, Uint16Array,
@@ -72,14 +67,4 @@
   allowCrypto = false;
   define(globalThis, 'Crypto', Crypto);
   define(globalThis, 'crypto', crypto);
-
-  define(globalThis, 'Event', Event);
-  define(globalThis, 'ErrorEvent', ErrorEvent);
-  define(globalThis, 'PromiseRejectionEvent', PromiseRejectionEvent);
-  define(globalThis, 'EventTarget', EventTarget);
-  define(globalThis, 'Application', Application);
-  define(globalThis, 'application', application);
-
-  delete globalThis.__nacre_native;
-
 })

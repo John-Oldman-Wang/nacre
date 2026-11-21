@@ -339,6 +339,15 @@
   // 不让每个类各自发明一套回调。
 
   // 这个 part 对外提供的东西
+  // structuredClone（core 的 28-web-globals）认这些名字：它们是纯 JS 的类，没有
+  // 句柄，要按名字认出来、拒绝克隆。第一次克隆时才去收，所以后面的 part 和能力包
+  // 定义的（NSIndexPath、CLLocation 一类）也在里面
+  ctx.platformCloneClasses = [
+    'CGPoint', 'CGSize', 'CGRect', 'UIEdgeInsets', 'NSDirectionalEdgeInsets',
+    'CGAffineTransform', 'CAFrameRateRange', 'NSRange', 'NSIndexPath',
+    'CLLocationCoordinate2D', 'CLLocation',
+  ];
+
   Object.assign(ctx, {
     DIRECTIONAL_INSETS_FIELDS,
     FRAME_RATE_FIELDS,

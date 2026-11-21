@@ -74,12 +74,12 @@ Hermes 在 iOS 上走的是 `NSNumberFormatter` 那条，它的 `Intl` 因此有
 - `ios/project.yml` 加了 `SWIFT_VERSION`。Swift 的运行库在系统里，不跟着包走；framework 的二进制多链了 6 个系统的 Swift 库。
 - **公开头没变，还是 `Nacre.h` 和 `NacreRuntime.h`。** 第一次打 xcframework 时发现 `Headers/` 里多了一个自动生成的 `Nacre-Swift.h`——383 行样板，一个声明都没有（没有公开的 Swift 类型）。加了 `SWIFT_INSTALL_OBJC_HEADER: NO` 不装它。`Modules/` 里另有一份 `Nacre.swiftmodule`，是打分发用的 framework 时编译器一定会出的，里面同样没有声明。
 - **预编译的 xcframework 嵌进普通工程照常能用**，验过：重新打包之后，用它生成一个工程（不引运行时源码），`Intl` 的几种调用结果都对。
-- 引擎层（`Engine/`）仍然是纯 C++，不知道 Swift 的存在。
+- 引擎层（`core/engine/`）仍然是纯 C++，不知道 Swift 的存在。
 
 ## 分工：标准的事在 JS，格式化在原生
 
 ```
-Builtin/parts/26-intl.js      选项怎么读、默认值、报什么错、resolvedOptions、地区标签解析
+core/builtin/parts/26-intl.js 选项怎么读、默认值、报什么错、resolvedOptions、地区标签解析
         │  nativeClassCallValue('NacreIntl', …)
 Bridge/NacreIntl.mm           类级的几个调用，转给 Swift
 Bridge/NacreIntlNumber.swift  按解析好的选项格式化一个值；系统有哪些地区和数字系统
@@ -192,7 +192,7 @@ Foundation 里每一步都有对应的公开接口，而且**全是 ObjC 的**�
 | `udat_format` | `NSDateFormatter` 设 `dateFormat`，`stringFromDate:` |
 | `udtitvfmt_open(骨架串)` | `NSDateIntervalFormatter` 的 `dateTemplate` |
 
-格式串的改写、骨架串的拼法、`resolvedOptions` 的反推都是字符串处理，在 `Builtin/parts/27-intl-date.js` 里。原生这边（`Bridge/NacreIntlDate.mm`）只做上表右边那几件事。
+格式串的改写、骨架串的拼法、`resolvedOptions` 的反推都是字符串处理，在 `core/builtin/parts/27-intl-date.js` 里。原生这边（`Bridge/NacreIntlDate.mm`）只做上表右边那几件事。
 
 第一遍探针就对上了 96.6%。剩下的是下面这一件。
 
