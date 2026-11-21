@@ -74,6 +74,7 @@ status: partial
 | [`isEditable`](ui-text-view/iseditable.md) | 用户能不能修改内容 |
 | [`isSelectable`](ui-text-view/isselectable.md) | 用户能不能选中文字 |
 | [`selectedRange`](ui-text-view/selectedrange.md) | 选中的范围，或者光标的位置 |
+| [`markedTextRange`](ui-text-view/markedtextrange.md) <small>只读</small> | 输入法正在组字的那一段，没在组字时是 `null` |
 | [`isFindInteractionEnabled`](ui-text-view/isfindinteractionenabled.md) | 是否打开系统的查找和替换 |
 | [`isWritingToolsActive`](ui-text-view/iswritingtoolsactive.md) <small>只读</small> | 写作工具是否正在工作 |
 | [`writingToolsBehavior`](ui-text-view/writingtoolsbehavior.md) | 写作工具能做到哪一步 |

@@ -1119,7 +1119,6 @@
 
 | 想做的事 | 对应的原生能力 |
 | --- | --- |
-| 得知输入法正在组字的那一段（拼音还没选字时） | `markedTextRange` |
 | 按屏幕上的位置找到文字的位置，或者反过来 | `closestPositionToPoint:`、`caretRectForPosition:` 等 `UITextInput` 的成员 |
 | 改文字到边框的内边距 | 覆写 `textRectForBounds:`。现在的做法见[自己画边框和底色](../guides/text-fields.md#自己画边框和底色) |
 | 得知键盘弹出、收起的时刻和键盘的高度 | `UIKeyboardWillShowNotification` 等通知。避开键盘用 `keyboardLayoutGuide`，不需要这些 |

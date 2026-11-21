@@ -52,3 +52,4 @@
 /// <reference path="./ios/screen.d.ts" />
 /// <reference path="./ios/page-overrides.d.ts" />
 /// <reference path="./ios/layer-transform.d.ts" />
+/// <reference path="./ios/marked-text.d.ts" />

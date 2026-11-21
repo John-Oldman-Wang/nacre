@@ -49,6 +49,7 @@ status: partial
 | 属性 | 说明 |
 | --- | --- |
 | [`selectedRange`](ui-text-field/selectedrange.md) | 选中的范围，或者光标的位置 |
+| [`markedTextRange`](ui-text-field/markedtextrange.md) <small>只读</small> | 输入法正在组字的那一段，没在组字时是 `null` |
 
 键盘：
 
@@ -200,7 +201,7 @@ status: partial
 - 回调不是在事件发生的那一刻同步执行，而是稍后执行，见[回调的执行时机](ui-control.md#回调的执行时机)。回调里读到的 `field.text` 是执行时的内容；用户打字很快时，一次回调里读到的内容可能已经包含了后面几次按键。**未在模拟器验证。**
 - 用代码改 `text` 不派发 `input`，这个事件只在用户的输入改变内容时派发。**未在模拟器验证。**
 - 「用户输入完了」用 `blur`。没有「内容确认修改」这样单独的事件。
-- 使用中文拼音这类输入法时，用户还没选字的拼音字母是否算进 `text`、这期间是否派发 `input`，**未在模拟器验证**。
+- 使用中文拼音这类输入法时，用户还没选字的拼音字母算在 `text` 里，拼音每变一次都派发 `input`。回调里读 [`markedTextRange`](ui-text-field/markedtextrange.md)：不是 `null` 就是用户还没选字。这两条是用代码模拟输入法组字验证的，**未用真实的输入法验证**。
 - 回调里抛出异常不影响输入框，同一事件的其他回调照常执行。异常在 [`application`](application.md#没处理的异常不会让-app-退出) 上派发 `error`；没有监听器取消时，控制台输出以 `Uncaught` 开头的日志。
 
 ## 选区和光标

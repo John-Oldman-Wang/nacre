@@ -274,3 +274,11 @@ JS 那一侧没有 `reloadInputViews`。两条路：把它也暴露出来，让�
 ---
 
 ← 返回[实现原理](README.md) ・ [事件模型](events.md) ・ [API 文档](../api/ui-text-field.md)
+
+## 输入法组字的范围：markedTextRange（2026-11-20）
+
+两种输入框都接了只读的 `markedTextRange`：UIKit 给的是 `UITextRange`，换算成从开头数的 UTF-16 偏移，和 `selectedRange` 一样是 `NSRange`；没在组字时是 `null`。
+
+- 变化通知不另做：组字的每一步 UIKit 都会让输入框报一次内容变了，我们照常派发 `input`（延后一轮），监听器里读它。实测组字中的文字算在 `text` 里。
+- 验收用示例模块的 `simulateMarkedText` 调 `setMarkedText:selectedRange:` / `unmarkText`，就是输入法做的那两步。第一版用例连着同步设了三次，等 `input` 延后一轮到的时候组字已经结束，读到的是 `null`——那是用例写错了，真打字时每个键是单独的一轮。改成每一步等它的 `input` 到了再走下一步。
+- 真的输入法、真的键盘没验。

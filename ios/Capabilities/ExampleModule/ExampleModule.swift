@@ -154,6 +154,32 @@ private func makeExampleModule() -> NacreModule {
     background.asyncAfter(deadline: .now() + delay) { resolve(value) }
   }
 
+  // 照输入法的做法给当前正在编辑的输入框设一段组字：给字符串是
+  // setMarkedText:selectedRange:（光标在这段的末尾），给 null 是 unmarkText
+  // （选完字，组字结束、文字留下）。真的输入法要真实键盘，自动跑的验收靠它。
+  // 没有正在编辑的输入框时报错。真的模块里不会有这种方法
+  module.addMethod("simulateMarkedText") { args in
+    let window = UIApplication.shared.connectedScenes
+      .compactMap { $0 as? UIWindowScene }
+      .flatMap { $0.windows }
+      .first { $0.isKeyWindow }
+    func editing(in view: UIView?) -> (UIResponder & UITextInput)? {
+      guard let view = view else { return nil }
+      if view.isFirstResponder, let input = view as? (UIResponder & UITextInput) { return input }
+      for sub in view.subviews { if let found = editing(in: sub) { return found } }
+      return nil
+    }
+    guard let input = editing(in: window) else {
+      return NacreModule.error(name: "Error", message: "no text input is being edited")
+    }
+    if let text = args.first as? String {
+      input.setMarkedText(text, selectedRange: NSRange(location: (text as NSString).length, length: 0))
+    } else {
+      input.unmarkText()
+    }
+    return nil
+  }
+
   // 照 UIKit「用户把卡片往下拖走」的顺序走一遍：先调卡片的呈现委托
   // presentationControllerWillDismiss:，关掉（不带动画），关完再调
   // presentationControllerDidDismiss:。真的拖拽要手指，自动跑的验收靠它。
