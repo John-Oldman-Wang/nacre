@@ -1291,7 +1291,7 @@
 
 | 想做的事 | 对应的原生能力 |
 | --- | --- |
-| 让 App 能收到远程推送：向苹果注册、拿到设备令牌 | `registerForRemoteNotifications`，以及推送的 entitlement |
+| 推送触发的通知在 JS 里认出来是远程的 | 通知的 `trigger` 是 `UNPushNotificationTrigger`。注册和静默推送在 `@nacrejs/push` |
 
 ## `UNTimeIntervalNotificationTrigger`
 
@@ -1309,8 +1309,6 @@
 
 | 想做的事 | 对应的原生能力 |
 | --- | --- |
-| 让 App 能收到远程推送：向苹果注册、拿到设备令牌 | `registerForRemoteNotifications`、`application:didRegisterForRemoteNotificationsWithDeviceToken:`，以及推送的 entitlement |
-| 收到远程推送时在后台执行一段代码（静默推送） | `application:didReceiveRemoteNotification:fetchCompletionHandler:` |
 | 通知上的自定义按钮、在通知上直接回复 | `UNNotificationCategory`、`UNNotificationAction`、`UNTextInputNotificationAction`、`setNotificationCategories:`、内容的 `categoryIdentifier` |
 | 用户划掉通知时得到通知 | `UNNotificationCategoryOptionCustomDismissAction`（要先能登记分类） |
 | 到了某个地方时送达 | `UNLocationNotificationTrigger` |
@@ -1418,8 +1416,6 @@
 | `api/ui-image-picker-controller.md` | 录视频、扫码、自己画取景界面 |
 | `api/filesystem.md` | 文件被修改时的通知；分段读写（能处理的文件大小受可用内存限制） |
 | `guides/fetch.md` | 表单格式（`multipart/form-data`）的上传；上传期间的进度 |
-| `guides/local-notifications.md` | 远程推送的注册（向苹果注册、拿设备令牌） |
-| `guides/multiline-text.md` | 在字符显示之前拦住它 |
 | `guides/native-modules.md` | 把 JS 的函数传给原生，现在用事件代替 |
 | `guides/project-config.md` | 屏幕方向固定竖屏；深色模式下启动屏用同一张图 |
 | `guides/your-own-app.md` | 一条命令编译并启动；要先装 XcodeGen；改了 JS 不用重新编译；Android |
