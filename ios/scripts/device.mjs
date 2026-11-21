@@ -9,7 +9,7 @@
 //
 // 签名用本机已有的开发证书和描述文件，不需要在 Apple 的网站上另外登记包名：
 // 挑一份「包含这台设备、没过期、application-identifier 是 <团队>.* 或者正好是
-// <团队>.<包名>」的描述文件，再挑一个装在钥匙串里、在这份描述文件的证书名单上的
+// <团队>.<包名>」的描述文件（正好是这个包名的优先），再挑一个装在钥匙串里、在这份描述文件的证书名单上的
 // 签名身份。要指定就设 NACRE_PROFILE=<.mobileprovision 的路径>、
 // NACRE_SIGN_IDENTITY=<证书的 SHA-1 或名字>。
 //
@@ -41,9 +41,14 @@ function connectedDevices() {
     run('xcrun', ['devicectl', 'list', 'devices', '--quiet', '--json-output', out]);
     const devices = JSON.parse(readFileSync(out, 'utf8')).result.devices;
     return devices
+      // 通道（tunnel）开着，或者线插着（transportType 有值）。通道没开不要紧：
+      // devicectl 安装时自己会打开它。只认通道开着的话，手机闲了一阵、通道关了，
+      // 线插着也会被当成没连（实测）
       .filter((d) => d.hardwareProperties?.reality === 'physical' &&
                      d.hardwareProperties?.platform === 'iOS' &&
-                     d.connectionProperties?.tunnelState === 'connected')
+                     d.connectionProperties?.pairingState === 'paired' &&
+                     (d.connectionProperties?.tunnelState === 'connected' ||
+                      Boolean(d.connectionProperties?.transportType)))
       .map((d) => ({ udid: d.hardwareProperties.udid, name: d.deviceProperties?.name ?? '' }));
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -122,6 +127,8 @@ function chooseSigning(udid, bundleId) {
   const files = process.env.NACRE_PROFILE ? [process.env.NACRE_PROFILE] : profileFiles();
   /** @type {string[]} */
   const rejected = [];
+  /** @type {{ profile: ReturnType<typeof readProfile>, identity: { sha1: string, name: string } } | null} */
+  let wildcard = null;
   for (const file of files) {
     const p = readProfile(file);
     const why = [];
@@ -130,9 +137,16 @@ function chooseSigning(udid, bundleId) {
     if (p.appId !== p.team + '.*' && p.appId !== p.team + '.' + bundleId) why.push('包名对不上（' + p.appId + '）');
     const identity = usable.find((i) => p.certs.includes(i.sha1));
     if (!identity) why.push('钥匙串里没有它名单上的证书');
-    if (why.length === 0 && identity) return { profile: p, identity };
+    // 正好是这个包名的优先：它带着通配的签不了的能力（推送这类）。通配的先记下，
+    // 都看完了没有正好的才用它
+    if (why.length === 0 && identity) {
+      if (p.appId === p.team + '.' + bundleId) return { profile: p, identity };
+      if (wildcard === null) wildcard = { profile: p, identity };
+      continue;
+    }
     rejected.push('  ' + (p.name ?? file) + '：' + why.join('，'));
   }
+  if (wildcard !== null) return wildcard;
   fail('没有能用的描述文件。' + (files.length === 0 ? '本机一份都没有' : '看过的：\n' + rejected.join('\n')) +
        '\n可以用 NACRE_PROFILE=<路径> 指定');
   throw new Error('unreachable');

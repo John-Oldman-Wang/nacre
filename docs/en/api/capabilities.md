@@ -19,12 +19,13 @@ The reason for the split lies with the app's users: for capabilities such as loc
 | `@nacrejs/local-authentication` | `LAContext`: Face ID and Touch ID authentication | `NSFaceIDUsageDescription` | [`LAContext`](la-context.md) |
 | `@nacrejs/core-location` | `CLLocationManager`, `CLLocation`: location while the app is in use | `NSLocationWhenInUseUsageDescription` | [Location](cl-location-manager.md) |
 | `@nacrejs/user-notifications` | `UNUserNotificationCenter`: sending local notifications, learning when a notification arrives or is tapped | Nothing | [Notifications](un-user-notification-center.md) |
+| `@nacrejs/push` | `application.remoteNotifications`: registering for remote notifications, getting the device token, receiving silent pushes | `aps-environment` in `ios.entitlements` | [Remote notifications](remote-notifications.md) |
 | `@nacrejs/camera` | `UIImagePickerController`: taking photos with the system interface | `NSCameraUsageDescription` | [Taking photos](ui-image-picker-controller.md) |
 | `@nacrejs/photos` | `PHPickerViewController` for picking images, `PHPhotoLibrary` for saving images to the photo library | `NSPhotoLibraryAddUsageDescription` | [Photo library](photos.md) |
 | `@nacrejs/contacts` | `CNContactPickerViewController`, `CNContact`: letting the user pick a contact | Nothing | [Contact picker](contacts.md) |
 | `@nacrejs/app-tracking-transparency` | `ATTrackingManager`, `ASIdentifierManager`: tracking authorization and the advertising identifier | `NSUserTrackingUsageDescription` | [Tracking authorization and advertising identifier](app-tracking-transparency.md) |
 
-The names in the third column are key names defined by iOS; the value is a sentence shown to the app's users. You write this sentence; for how, see [Configuring the app: name, languages, usage descriptions](../guides/project-config.md).
+The names in the third column are key names defined by iOS; the value is a sentence shown to the app's users. You write this sentence; for how, see [Configuring the app: name, languages, usage descriptions](../guides/project-config.md). `aps-environment` is not a sentence but an entitlement, whose value is `development` or `production`; see [Remote notifications](../guides/push-notifications.md).
 
 Every API not listed in this table is in the core.
 

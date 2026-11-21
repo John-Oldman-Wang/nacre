@@ -1,0 +1,20 @@
+{
+  "//": "一个能力包的清单。CLI 在项目的直接依赖里找带这个文件的包——找到了，就把它的 framework 加进生成的工程；没装这个包的项目，产物里就没有它。",
+
+  "capability": "push",
+
+  "requires": {
+    "runtimeVersion": "0.1.0",
+
+    "//infoPlist": "不要权限文案：注册推送不弹提示框。要用静默推送的话，项目自己在 infoPlist 里写 UIBackgroundModes 的 remote-notification，这个包不强制。",
+    "infoPlist": [],
+    "//entitlements": "aps-environment：development（开发时）或 production（上架）。签名用的描述文件里要有推送能力，这条才签得进去",
+    "entitlements": ["aps-environment"]
+  },
+
+  "//target": "引运行时源码时用：运行时工程里的 target 名",
+  "target": "NacrePush",
+
+  "//xcframework": "引预编译产物时用：这个包目录下的文件名（构建产物，不提交）",
+  "xcframework": "NacrePush.xcframework"
+}

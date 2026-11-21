@@ -63,6 +63,7 @@
 | [随机数](crypto.md) | 随机源归宿主、填的是视图不是 buffer、为什么照搬 65536 的上限 |
 | [Web 标准的五个全局](web-globals.md) | `TextEncoder` / `TextDecoder` / `atob` / `btoa` / `structuredClone`：为什么写在引擎的 C++ 里、解码为什么没用 V8 的、原生对象为什么不能克隆、在开发机上和 Node 对过什么；还没在 App 里跑 |
 | [网络](network.md) | fetch 的线程分工、边下边读和背压、URL 和 WHATWG 的差异 |
+| [远程推送](push.md) | 为什么单独成包、怎么给 App 的委托补方法、同时等着的只注册一次、`push` 事件和 `waitUntil`、两种签名下怎么验 |
 | [无障碍](accessibility.md) | 为什么只挂在 UIView 上、特征的私有位、系统控件的默认值是读屏开着时现算的 |
 | [后台任务](background-task.md) | 为什么是传一个函数、过期时当场进 JS、走类方法的通道 |
 | [WebView](web-view.md) | 为什么照 Electron、为什么套一层壳、`backgroundThrottling` 为什么做了又拿掉、进程数和存储分区的实测 |

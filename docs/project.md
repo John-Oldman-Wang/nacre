@@ -273,7 +273,7 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 | 按地区格式化 | `Intl.NumberFormat`、`Intl.DateTimeFormat`，以及数字和日期的 `toLocale*String`（排序还没做）；`NSLocale`：用户的首选语言和地区 |
 | 小而无代价的 | `crypto`（随机数、UUID）、`UIDevice`、剪贴板、触感反馈 |
 
-**单独的包**（钥匙串是第一个，也是「能力包长什么样」的样板；后六个是 2026-11-16 并行做的）：
+**单独的包**（钥匙串是第一个，也是「能力包长什么样」的样板；中间六个是 2026-11-16 并行做的）：
 
 | 包 | 里面有什么 | 拆它省下什么 | 状态 |
 | --- | --- | --- | --- |
@@ -284,7 +284,8 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 | `@nacrejs/camera` | `UIImagePickerController`，只做拍照 | 用户要写 `NSCameraUsageDescription` | 已做 |
 | `@nacrejs/core-location` | `CLLocationManager`、`CLLocation`：使用期间的定位 | 用户要写 `NSLocationWhenInUseUsageDescription` | 已做 |
 | `@nacrejs/contacts` | `CNContactPickerViewController`、`CNContact`：让用户选联系人 | 不要权限文案（只用系统的选择器）。做成包是因为它带进来两个系统框架，而且万一上传时被要求补文案，改的是包的清单 | 已做 |
-| `@nacrejs/user-notifications` | `UNUserNotificationCenter` 一组：本地通知、授权、通知到了和被点了两个事件、角标 | 不要权限文案也不要 entitlement。做成包是因为它一加载就把自己装成通知中心的委托，不发通知的 App 不该带着。远程推送的注册（拿设备令牌）要推送的签名，留给以后的 `@nacrejs/push` | 已做 |
+| `@nacrejs/user-notifications` | `UNUserNotificationCenter` 一组：本地通知、授权、通知到了和被点了两个事件、角标 | 不要权限文案也不要 entitlement。做成包是因为它一加载就把自己装成通知中心的委托，不发通知的 App 不该带着。远程推送的注册在 `@nacrejs/push` | 已做 |
+| `@nacrejs/push` | `application.remoteNotifications`：注册远程推送、设备令牌、静默推送（`push` 事件） | 用户的工程要带 `aps-environment`，签名要用开着推送能力的描述文件 | 已做 |
 
 WebView 留在核心：它不需要用户声明任何东西，拆了的净收益约等于零，见[能力包](internals/capabilities.md#拆不拆量过的代价)。
 
@@ -579,7 +580,7 @@ Commit message 格式：
 | 网络和数据 | `crypto.subtle`；排最后的：`Blob.slice`、剪贴板的图片和网址和多条内容、`rejectionhandled` 事件 |
 | 网页 | 让本地网页用上模块脚本和 `fetch` 的自定义协议 |
 | 无障碍 | 读屏的自定义操作、「读屏开没开」的状态和变化、让读屏念一句话 |
-| 系统能力（做成包） | 推送的注册（`@nacrejs/push`）、通用链接、Apple 登录：都能写，卡在验证上，要显式包名的描述文件，通用链接还要真实域名；扫码（相机的实时取景）；应用内购买（先不做） |
+| 系统能力（做成包） | 通用链接、Apple 登录：都能写，卡在验证上，要显式包名的描述文件，通用链接还要真实域名；扫码（相机的实时取景）；应用内购买（先不做） |
 
 ### 发布之后接着做的
 
@@ -597,7 +598,7 @@ Commit message 格式：
 
 | 什么 | 欠在哪 |
 | --- | --- |
-| 真机上没验到的 | 富文本双线和虚线的样子；流式响应和 `Request` 的 `signal` 取消（手机连不到 Mac 上的测试服务）；通用链接；原生模块随包带第三方 framework；模拟的远程推送；面容 ID 被锁定、设备不支持、没设密码几种情况；定位里海拔有效的那一支；相机的大部分行为 |
+| 真机上没验到的 | 富文本双线和虚线的样子；流式响应和 `Request` 的 `signal` 取消（手机连不到 Mac 上的测试服务）；通用链接；原生模块随包带第三方 framework；真的从服务器发到手机上的远程推送（2026-11-21 试过：真令牌拿到了，推送 Apple 收下了，但送达记录一直是「设备不在线」，换热点、重启手机都一样，手机没连上测试环境的推送服务器；能看见的和静默的都没送到过），静默推送在后台唤醒 App；面容 ID 被锁定、设备不支持、没设密码几种情况；定位里海拔有效的那一支；相机的大部分行为 |
 | 要在屏幕上点的 | 多行输入框里点链接（`linkclick`）；定位、通知、跟踪授权的申请；发通知、收到、点击；选图、存图、拍照、选联系人；弹窗的按钮和分享完成；搜索框的四个按钮事件；列表的选中；左滑返回中途取消、把卡片拖走 |
 | 要真实键盘的 | 两种输入框的 `beforeinput`，单行的 `beforeclear`、`beforereturn`；输入时的 `selectionchange`；输入法组字期间的选区 |
 | 要人看的 | `shadowPath` 画出来的阴影；开着旁白时各属性念出来的样子；富文本的五行；动图是不是在动；标签栏、毛玻璃、手势几组在屏幕上的样子 |

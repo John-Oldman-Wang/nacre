@@ -21,6 +21,7 @@
     "@nacrejs/keychain": "file:../packages/keychain",
     "@nacrejs/local-authentication": "file:../packages/local-authentication",
     "@nacrejs/photos": "file:../packages/photos",
+    "@nacrejs/push": "file:../packages/push",
     "@nacrejs/types": "file:../packages/types",
     "@nacrejs/user-notifications": "file:../packages/user-notifications",
     "esbuild": "0.28.2",

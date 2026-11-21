@@ -12,7 +12,11 @@
       "NSLocationWhenInUseUsageDescription": "The acceptance suite reads your location to verify CLLocationManager",
       "NSAppTransportSecurity": {
         "NSAllowsLocalNetworking": true
-      }
+      },
+      "UIBackgroundModes": ["remote-notification"]
+    },
+    "entitlements": {
+      "aps-environment": "development"
     }
   }
 }

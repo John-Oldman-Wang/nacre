@@ -143,7 +143,7 @@ cd acceptance && npm run verify -- --device
 
 **包名是 `com.test.test`**，不带任何组织或项目的标识（`NACRE_DEVICE_BUNDLE_ID` 可以换）。只改 App 的 `CFBundleIdentifier`，里面的 framework 不动。
 
-**签名不用在 Apple 的网站上登记包名。** `device.mjs` 在本机找一份描述文件：包含这台设备、没过期、`application-identifier` 是 `<团队>.*`（通配）或者正好是 `<团队>.<包名>`；再找一个装在钥匙串里、在这份描述文件证书名单上的签名身份。Xcode 自动管理签名时生成的那份通配描述文件就满足。entitlements 从描述文件里那份出发，把通配的 `application-identifier` 和 `keychain-access-groups` 换成具体的包名。通配的描述文件签不了要显式包名的能力（推送、关联域名），验收用不到。
+**签名不用在 Apple 的网站上登记包名。** `device.mjs` 在本机找一份描述文件：包含这台设备、没过期、`application-identifier` 是 `<团队>.*`（通配）或者正好是 `<团队>.<包名>`；再找一个装在钥匙串里、在这份描述文件证书名单上的签名身份。Xcode 自动管理签名时生成的那份通配描述文件就满足。两份都能用时，正好是这个包名的优先：推送这类能力只有显式包名的描述文件签得进去（2026-11-21 做推送时加的）。要用它就把包名和描述文件交给环境变量 `NACRE_DEVICE_BUNDLE_ID`、`NACRE_PROFILE`，仓库里不写任何账号相关的东西。entitlements 从描述文件里那份出发，把通配的 `application-identifier` 和 `keychain-access-groups` 换成具体的包名。通配的描述文件签不了要显式包名的能力（推送、关联域名），验收用不到。
 
 描述文件里的日期和证书是 plist 的 `<date>`、`<data>`，`plutil` 整份转不成 JSON，所以按字段取（`plutil -extract <键> raw`：日期给 ISO 字符串，二进制给 base64，数组给元素个数）。证书的 SHA-1 和 `security find-identity` 列出的对上，就是那个身份。
 
@@ -152,6 +152,8 @@ cd acceptance && npm run verify -- --device
 **本机的测试服务真机上连不到**：App 里的 `127.0.0.1` 是手机自己。流式响应那一步照旧报未验证、整步跳过。
 
 **这个包名第一次装到国行 iPhone 上**，第一次联网时系统会问要不要允许它使用无线数据。没点允许之前，App 的网络请求一律报「The Internet connection appears to be offline」，验收里访问外网的那几组会失败。点一次就记住了，以后不再问。
+
+**也有不弹框、却一直断网的时候。** 2026-11-21 做推送那天，Debug 的包连着几遍联不上网（系统报 `type = none`），手机上没有弹框，同一时间的 Release 是好的；把手机上的 App 全删掉重装，第一次启动弹了框，点允许之后就好了。为什么那几次不弹没查清。遇到「这一遍所有联网的断言都失败、网络状态是 none」先这样处理：删掉 App 重装，盯着手机点允许。
 
 ## 只跑指定的步骤
 
