@@ -12,9 +12,9 @@
 
 | 层 | 文件 | 管什么 |
 | --- | --- | --- |
-| 内置脚本 | `Builtin/parts/28-web-globals.js` | 把参数按 Web IDL 转好、两个类的形状、带名字的 `Error`、哪些对象不能克隆 |
-| 引擎，绑 V8 的那一半 | `Engine/WebGlobals.cpp` | 从 JS 值里取出字节和字符串、调 V8 的 UTF-8 写出和序列化、把结果建成 JS 值 |
-| 引擎，纯算法的那一半 | `Engine/TextCodec.cpp` | UTF-8 解码的状态机、Base64 的编码和解码。**连 V8 都不依赖** |
+| 内置脚本 | `core/builtin/parts/28-web-globals.js` | 把参数按 Web IDL 转好、两个类的形状、带名字的 `Error`、哪些对象不能克隆 |
+| 引擎，绑 V8 的那一半 | `core/engine/WebGlobals.cpp` | 从 JS 值里取出字节和字符串、调 V8 的 UTF-8 写出和序列化、把结果建成 JS 值 |
+| 引擎，纯算法的那一半 | `core/engine/TextCodec.cpp` | UTF-8 解码的状态机、Base64 的编码和解码。**连 V8 都不依赖** |
 | 宿主（ObjC） | 没有 | 一行都没加 |
 
 和 `crypto`、定时器是同一个分法：桥上只放最小的几个函数（这次是六个），API 的形状全在 JS 里定。不一样的是这五个不需要宿主提供任何东西，所以 `EngineHost` 没有新成员，`NacreRuntime.mm` 没动，将来 Android 直接用同一份。

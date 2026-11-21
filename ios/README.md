@@ -61,8 +61,8 @@ ios/
 │  ├─ NacreRuntime.h/.mm    运行时入口：启动 V8、接线、事件转发
 │  ├─ NacreExtension.h      给能力包用的接口（private 头）
 │  ├─ Bridge/               能力暴露，一个能力域一个 .mm（内部）
-│  ├─ Engine/               纯 C++，只依赖 V8（内部）
-│  └─ Builtin/parts/        内置脚本，一个能力域一个 part，打进 framework 自己的包
+│  └─ Builtin/parts/        iOS 自己的内置脚本，一个能力域一个 part，打进 framework 自己的包
+│                           （引擎和 Web 标准那批内置脚本在仓库根的 core/，两端共用，也打进这个 framework）
 ├─ Capabilities/            从核心里拆出来的能力，各是一个单独的 framework
 │  └─ Keychain/             NacreKeychain.framework 的源：.mm 和它自己的 Builtin/parts/
 ├─ Vendor/v8/               由 fetch-v8.sh 下载，不提交

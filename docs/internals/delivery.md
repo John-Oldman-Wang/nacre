@@ -113,7 +113,7 @@ CLI 只有一个命令：`generate <项目目录> [--runtime=framework|source]`�
 
 拆出来之后定下的几条：
 
-- **公开面就是 `Runtime/Nacre.h` 这个 umbrella header**。今天它只 `#import` 了 `NacreRuntime.h`；`Bridge/` 和 `Engine/` 的头都是 project 可见性（它们带 C++，Swift 也读不了）。加一个公开接口 = 在 umbrella 里写一行 + 在 `project.yml` 里把那个头标成 public，**两处都做了才算暴露出去**。
+- **公开面就是 `Runtime/Nacre.h` 这个 umbrella header**。今天它只 `#import` 了 `NacreRuntime.h`；`Bridge/` 和引擎（`core/engine/`）的头都是 project 可见性（它们带 C++，Swift 也读不了）。加一个公开接口 = 在 umbrella 里写一行 + 在 `project.yml` 里把那个头标成 public，**两处都做了才算暴露出去**。
 - **系统框架必须在 framework 上显式声明**：UIKit、QuartzCore、CoreGraphics、ImageIO、WebKit、Security。以前不用写——App target 里的 Swift 文件 `import UIKit` 顺带把它们链进来了；运行时里一个 Swift 文件都没有，而 ObjC++ 的 `#import` 不触发自动链接，第一次编 framework 直接撞了一屏 `Undefined symbols`。这张表是交付清单的一部分，用户的工程不用再写。
 - **`-Wl,-stack_size,0x800000` 留在 App target 上**，framework 替不了：它写进的是 `LC_MAIN`，而 `LC_MAIN` 只有主可执行文件有。真机上验过，二进制里 `stacksize 8388608`。`ENABLE_DEBUG_DYLIB: NO` 同理。**这两条是宿主必须照做的配置**，要写进交付文档。
 - **App 的 `PRODUCT_MODULE_NAME` 必须和 framework 的模块名区分开**。产物还叫 `Nacre.app`，但模块名设成了 `NacreApp`——不然 App 里的 `import Nacre` 变成导入它自己，Swift 报 `cannot find 'NacreRuntime' in scope`。
@@ -129,7 +129,7 @@ CLI 只有一个命令：`generate <项目目录> [--runtime=framework|source]`�
 | `project.yml` | XcodeGen 工程描述（两个 target） | 提交 |
 | `.gitignore` | 平台相关的忽略规则（根目录的 `.gitignore` 里不能出现平台目录名，所以放这里） | 提交 |
 | `Runtime/Nacre.h` | framework 的 umbrella header，**公开面** | 提交 |
-| `Runtime/` | `Nacre` target：`NacreRuntime`（ObjC++ 启动壳与接线）、`Bridge/`（能力暴露，按能力域分文件）、`Engine/`（纯 C++）、`Builtin/parts/`（内置脚本，按能力域分 part） | 提交 |
+| `Runtime/` | `Nacre` target：`NacreRuntime`（ObjC++ 启动壳与接线）、`Bridge/`（能力暴露，按能力域分文件）、`Builtin/parts/`（iOS 自己的内置脚本，按能力域分 part）。引擎和 Web 标准那批内置脚本在仓库根的 `core/`，也编进这个 target | 提交 |
 | `Capabilities/` | 从核心里拆出来的能力，一个能力一个目录、一个 framework target（现在只有 `Keychain/`）。各带自己的 `.mm` 和 `Builtin/parts/` | 提交 |
 | `scripts/` | `fetch-v8.sh`、`build-js.sh`、`build-xcframework.sh`、`check-api.sh`、`run-sim.sh` | 提交 |
 | `Nacre.xcodeproj/` | 由 `project.yml` 生成 | 不提交 |

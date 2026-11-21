@@ -154,7 +154,7 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 | 任务调度 | 定时器用「一个最小堆 +（到期时间, 注册序号）排序 + 一个唤醒源」，参考 Chromium 的 MessagePump。一次唤醒最多占用主线程 8ms，超了让出去给渲染。详见 [定时器文档](api/timers.md) |
 | 类型定义 | `packages/types/` 下的 `@nacrejs/types`，手写，靠 `ios/scripts/check-api.sh` 核对三边一致。类型检查和打包都是 `acceptance/` 的 devDependency，版本钉在它的 `package.json` 里 |
 | 工程管理 | XcodeGen：`ios/project.yml` 描述工程，`Nacre.xcodeproj` 由它生成，不提交 |
-| 代码分层 | Swift：启动壳，外加运行时里的两个 Swift 文件（`Bridge/NacreIntlNumber.swift` 和 `NacreIntlDate.swift`，按地区格式化；系统对得上网页结果的那套接口只有 Swift 能调，见[实现原理](internals/intl.md#运行时里第一次有-swift)）；ObjC++：运行时入口和 iOS 桥接；C++：引擎封装（`Runtime/Engine/` 只依赖 V8，不依赖 iOS） |
+| 代码分层 | Swift：启动壳，外加运行时里的两个 Swift 文件（`Bridge/NacreIntlNumber.swift` 和 `NacreIntlDate.swift`，按地区格式化；系统对得上网页结果的那套接口只有 Swift 能调，见[实现原理](internals/intl.md#运行时里第一次有-swift)）；ObjC++：运行时入口和 iOS 桥接；C++：引擎封装（仓库根的 `core/engine/`，只依赖 V8，两端共用） |
 | 生命周期 | 只使用 Scene 生命周期 |
 | 场景数量 | 运行时**不写死**，配置是什么就读到什么。两个事实都提供给 JS：**声明值**在 `application.info.UIApplicationSceneManifest.UIApplicationSupportsMultipleScenes`，**实际能力**在 `application.supportsMultipleScenes`（＝声明 AND 环境允许；iPhone 上多场景主要靠外接显示器，iPad 是常态）。原生层只提供事实，由 JS 自行判断。当前项目声明为 `false` |
 | JS 执行模式 | **严格模式**。运行时给每个脚本（内置脚本和用户脚本）前置一行 `'use strict'`，行号用 `ScriptOrigin` 的 `line_offset = -1` 抵回来。理由见[运行时](internals/runtime.md#js-为什么强制严格模式) |
@@ -301,20 +301,30 @@ WebView 留在核心：它不需要用户声明任何东西，拆了的净收益
 能力包怎么搭、怎么登记、给能力包用的头，见[能力包](internals/capabilities.md)；照着接一组类见[接入一组类](internals/adding-classes.md)。
 
 
-## 4. Android 扩展计划（未开始，仅记录方向）
+## 4. Android（2026-11-21 定的方向，还没开始写）
 
-iOS 的功能清单完成后再开始 Android。以下是目前的方向，开始前需要按 SOP 重新讨论确认：
+**做的是 App 的 JS 运行时，不是 iOS 和 Android 的统一框架。** 两端共用的只有引擎和 Web 标准那批（`core/`）；原生类、`application` 这一层、能力包、包名都按 Android 自己的事实定，不和 iOS 对齐。
 
-| 方面 | 计划 |
+| 方面 | 选型 |
 | --- | --- |
-| 目录 | 仓库根目录新建 `android/`，与 `ios/` 平级，同样是运行时源码 |
-| JS 引擎 | 同一版本的 V8：v8-buildscripts 同时发布了 Android 的预编译库（arm64-v8a 等） |
-| 引擎复用 | `ios/Runtime/Engine/` 是纯 C++，只依赖 V8。开始做 Android 时把它抽到公共目录（如 `core/`），两端共用 |
-| 能力暴露 | Java/Kotlin 有反射机制，和 ObjC 运行时一样可以动态调用，思路可以对应 |
-| 排版 | 同样按 Android 原生方式（View 体系、ConstraintLayout），不做跨平台布局抽象 |
-| JS 命名空间 | iOS 按 ObjC 类名裸暴露在全局，Android 按 Java 包路径（`android.*`、`java.*`）暴露。两套命名体系天然不冲突，都不需要平台前缀 |
-| 双端统一 | 由 JS 层（或社区库）自己处理，运行时不强制统一 |
-| JS 代码 | 同一份业务 JS，按平台分支调用各自的原生能力 |
+| UI 框架 | Android View 体系；不用 Jetpack Compose，需要时用 `ComposeView` 嵌入（对应 iOS 不用 SwiftUI） |
+| 控件 | 平台 View、AndroidX 的基础库（RecyclerView、ConstraintLayout、ViewPager2）、Material Components |
+| 页面 | 单 Activity 做启动壳，向 JS 暴露生命周期、窗口、窗口边衬、返回回调；页面栈由 JS 用 View 做；不用 Fragment；配置变化不重建 Activity，改成给 JS 发事件 |
+| 继承 | 不照搬 iOS 的「原生类一律 final」：抽象类由原生的中转子类承接，可重写的方法交给 JS 提供（新机制，开工时单独讨论） |
+| 最低版本 | Android 11（API 30）。新的窗口边衬体系从这一版齐全；31 起才有的模糊、系统启动屏、屏幕圆角，在 30 上如实告诉 JS 没有 |
+| 架构 | 只支持 arm64-v8a |
+| 线程 | JS 跑在主线程（主 Looper），空闲任务挂 `MessageQueue.IdleHandler` |
+| 引擎 | 同一版本的 V8，`core/engine/` 两端共用。用不用 JIT 没定 |
+| 桥 | C++ 经 JNI 的分发表；bindgen 改读 `android.jar` |
+| 语言 | Kotlin 写启动壳，C++ 写引擎和 JNI，Java 或 Kotlin 写中转类 |
+| 单位 | 像素，照 Android 的 API 原样 |
+| 能力包 | 另起包，按 Android 的 API 起名，一律带前缀（`@nacrejs/android-*`）；iOS 已发布的包不改名 |
+| 类型 | Android 的类型走单独的入口 `@nacrejs/types/android`，不进现在的默认入口 |
+| 验收 | 单独一个项目 `acceptance-android/`；Web 标准那批步骤先两边各放一份 |
+
+**要新定规矩的五件事**（和版本无关，开工后最先讨论）：重载的方法怎么映射成 JS；整数常量怎么变成字符串枚举；抽象类的中转子类长什么样；只能靠样式在构造时给的外观怎么传；Java 对象和 JS 包装之间的所有权（JNI 的全局引用和 V8 的垃圾回收怎么配合）。
+
+**顺序**：最小壳（Gradle 工程、下载 V8、引擎启动、执行一个 JS、`console.log` 到 logcat）→ 接上 `core/builtin/` 那批 Web 标准 → 手写一条竖切（JS 建一个布局、放一个文字、响应一次点击）定包装、所有权、事件 → bindgen 的提取部分做统计、定上面五条规矩 → bindgen 的生成部分、按组接类。CLI 生成 `android/`、`@nacrejs/android`、能力包排在最后。每一步照 SOP 单独讨论。
 
 ## 5. 目录约定
 
@@ -323,6 +333,7 @@ nacre/
 ├─ .claude/           AI 协作规则（CLAUDE.md）
 ├─ README.md
 ├─ docs/              项目说明、API 文档、实现原理
+├─ core/              两端共用：engine/（引擎，纯 C++）和 builtin/parts/（Web 标准那批内置脚本）
 ├─ ios/               iOS 运行时源码（= Nacre.xcframework 的源）
 ├─ packages/          发到 npm 的交付物
 │  ├─ types/          TypeScript 类型定义（@nacrejs/types）
@@ -333,7 +344,7 @@ nacre/
 ├─ acceptance/        验收套件（一个 Nacre 项目）
 ├─ examples/hello/    最小示例（一个 Nacre 项目）
 ├─ scripts/           发布 npm 包用的脚本：改版本、核对、打包、发布，和发布前的演练
-└─ android/           以后再加
+└─ android/           以后再加（还有 acceptance-android/、packages/android/）
 ```
 
 `acceptance/` 和 `examples/hello/` 都是**一个 Nacre 项目**，形状一样，它们的 `ios/` 都由 CLI 生成、不进版本库：
@@ -353,10 +364,11 @@ nacre/
 
 | | 交付 | 说明 |
 | --- | --- | --- |
-| `ios/`、`packages/` | **是** | 运行时、类型、模板和清单 |
+| `core/`、`ios/`、`packages/` | **是** | 运行时（`core/` 编进每个平台的运行时）、类型、模板和清单 |
 | `acceptance/`、`docs/internals/`、`docs/project.md` | 否 | 我们自己的 |
 
 - **`ios/`、`android/` 永远表示运行时源码，必须提交。** `ios/` 里**只有运行时**——验收 App 的壳和资源在 `acceptance/ios/`。
+- **`core/` 是两端共用的运行时源码，必须提交。** 里面的代码不认识任何平台：不引平台的头，内置脚本里不出现平台的类名，平台相关的东西从平台那一侧交进来。它要的原生入口列在 `core/builtin/README.md`。改它两个平台都要跑完整的验收（2026-11-21 拆出来，见[拆出 core](internals/core.md)）。
 - **`packages/` 下的是对外交付物，不是源码树的一部分**：使用者是拿 Nacre 写 App 的人，不是改运行时的人。必须提交。
 - 以后工具生成的原生工程等产物，放在 `build/` 或 `.nacre/` 下，**不能命名为 `ios/`**，避免和源码混淆。一个例外是 `acceptance/ios/` 和 `examples/*/ios/`：它们是「一个 Nacre 项目里由 CLI 生成的原生工程」，按 CLI 约定的项目结构就叫这个名字，不提交。
 - `.gitignore` 只忽略生成的和下载的内容，**不能忽略任何源码目录**。根目录的 `.gitignore` 里不能出现平台目录名。
@@ -413,8 +425,8 @@ ios/Runtime/
 ├─ NacreRuntimeInternal.h 运行时自己几个 .mm 之间共用的声明
 ├─ NacreEventTrampolines.mm 事件的中转对象：系统的回调先到它们，再转给运行时派发
 ├─ NacreFetchService.h / .mm 网络请求在原生这一侧的全部状态和逻辑
-├─ Builtin/parts/         内置脚本，一个能力域一个 part（00-core … 27-intl-date），
-│                         按文件名顺序编译执行，每个是一个函数表达式
+├─ Builtin/parts/         iOS 自己的内置脚本，一个能力域一个 part。和 core/builtin/parts/
+│                         合在一起按文件名顺序编译执行，每个是一个函数表达式
 ├─ NacreExtension.h       给能力包用的接口（private 头），从内部头里划出来的最小一组
 ├─ Bridge/                能力暴露，一个能力域一个 .mm
 │  ├─ NacreBridge.h       内部头：声明、枚举表的两个宏、方法参数包
@@ -442,7 +454,7 @@ ios/Runtime/
 │  ├─ NacreFileSystem.mm  文件读写
 │  ├─ NacreKeychain.mm    Keychain
 │  └─ NacreURL.mm         URL 解析
-└─ Engine/                纯 C++，只依赖 V8
+（引擎在仓库根的 core/engine/，纯 C++，只依赖 V8，两端共用）
 
 types/
 ├─ index.d.ts             入口
