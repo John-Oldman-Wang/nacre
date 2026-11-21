@@ -128,7 +128,7 @@ A page loaded with [`loadFile()`](web-contents/loadfile.md) has a URL starting w
 
 Requests from a local web page to `https://` APIs are unaffected; only reading local files is restricted.
 
-`loadFile()` suits static pages and pages bundled the traditional way (a single classic `<script>`). Single-page apps that use module scripts (such as Vite's default build output) can't be loaded locally yet.
+`loadFile()` suits static pages and pages bundled the traditional way (a single classic `<script>`). For pages that use module scripts or `fetch` (such as Vite's default build output), register a custom protocol with [`session.protocol`](session/protocol.md) and load from an address like `app://local/`: the page has its own origin, module scripts run, and same-origin `fetch` can read files. See [Loading local web pages through a custom protocol](../guides/web-pages.md#loading-local-web-pages-through-a-custom-protocol).
 
 ## Examples
 

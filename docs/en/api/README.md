@@ -224,6 +224,7 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 | [Session](session.md) | **`Session`** represents a storage partition: cookies, `localStorage`, IndexedDB, caches, and other data left by web pages in a `WebView` are all stored in some partition. |
 | [Cookies](cookies.md) | **`Cookies`** represents all the cookies in one storage partition. |
 | [Cookie](cookie.md) | **`Cookie`** represents a record of a cookie at one moment. |
+| [Protocol](protocol.md) | **`Protocol`** represents the custom protocols of a storage partition. |
 
 ### Runtime globals
 

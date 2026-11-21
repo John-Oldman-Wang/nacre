@@ -11,6 +11,7 @@ For a web page calling into the app and the app notifying the page, see the sepa
 - **Use `will-navigate` to restrict where the page can go.** This matters especially for a `WebView` with a preload script: once the page navigates to another site, that site's scripts get the message channel too.
 - **Call `close()` on pages you no longer use.** A simple web page measured about 60 MB in the simulator. For the reasons, see [Memory and references](../api/web-view.md#memory-and-references).
 - **Use `https://`.** Plain-text `http://` addresses are blocked by the system; `http://localhost` is the only exception.
+- **When a local web page uses module scripts or `fetch`, load it through a custom protocol.** See [Loading local web pages through a custom protocol](#loading-local-web-pages-through-a-custom-protocol).
 
 ## Your first web page
 
@@ -253,7 +254,85 @@ await contents.loadFile('JS/web/help.html', { query: { topic: 'fees' }, hash: 'r
 - On the second load, `location.search` in the page is `?topic=fees` and `location.hash` is `#refund`.
 - When the file doesn't exist, the Promise is rejected with `NetworkError`, and `code` is `-1100`.
 
-> **Note:** In local web pages, `<script type="module">` doesn't run, and `fetch` can't read local files. Pages that use these (such as Vite's default build output) can't be loaded this way; see [Limitations of local web pages](../api/web-contents.md#limits-of-local-web-pages).
+> **Note:** In a page loaded with `loadFile()`, `<script type="module">` doesn't run, and `fetch` can't read local files. Load pages that use these (such as Vite's default build output) through a [custom protocol](#loading-local-web-pages-through-a-custom-protocol).
+
+## Loading local web pages through a custom protocol
+
+A page loaded with `loadFile()` has an address starting with `file://`: module scripts don't run, `fetch` can't read local files, and all local web pages share one origin (`file://`). When a page needs these, use a custom protocol instead: use [`Protocol`](../api/protocol.md) to register a directory as a protocol, such as `app`; the page loads from an address like `app://local/index.html`, and files come from that directory.
+
+| Page | Which to use |
+| --- | --- |
+| Static pages, pages with only classic `<script>` | `loadFile()` is enough |
+| Pages that use `<script type="module">` (such as Vite's default build output) | A custom protocol |
+| Pages that use `fetch` to read JSON and other files in the same directory | A custom protocol |
+| Pages that need their own origin, so `localStorage` isn't mixed with other local pages | A custom protocol |
+
+Put the page's build output in the project's `assets/web/`. In the app bundle this directory is `JS/assets/web`.
+
+```js
+// 1. Register first: app://any-host/path gets files from JS/assets/web
+session.defaultSession.protocol.serveDirectory('app', 'JS/assets/web');
+
+// 2. Then create the page. Pages created before the registration don't recognize this protocol
+const site = new WebView();
+site.frame = page.view.bounds;
+page.view.addSubview(site);
+await site.webContents.loadURL('app://local/index.html');
+console.log(await site.webContents.executeJavaScript('location.origin'));
+```
+
+**Effect**
+
+- The screen shows `assets/web/index.html`. It displays without a network connection.
+- `<script type="module">` in the page runs and can `import` other modules in the same directory. Stylesheets load normally.
+- The console prints `app://local`.
+- `fetch('/data.json')` in the page gets `assets/web/data.json`. Paths starting with `/` are resolved from the root of this directory.
+- `localStorage` works. `file://` pages can't see the data it writes.
+- `isSecureContext` in the page is `true`.
+
+This section creates a new `site` instead of using `web` from the first example: `web` was created before the registration, so `loadURL()` rejects when it loads an `app://` address.
+
+### Register first, then create pages
+
+Which protocols a page recognizes is fixed at the moment of `new WebView()`. So register before creating pages; registering once when the app starts is recommended.
+
+- A page created before the registration that loads an address of this protocol: `loadURL()` rejects.
+- Calling `serveDirectory()` again later to change the directory: pages created earlier keep using the original directory; only pages created afterward use the new one.
+- [`unhandle()`](../api/protocol/unhandle.md) is the same: it applies only to pages created afterward.
+
+### Always use the host `local`
+
+The host doesn't take part in finding files: `app://local/a.html` and `app://other/a.html` get the same file. The host decides the page's origin: the first is `app://local`, the second `app://other`, and `localStorage` isn't shared between the two origins (**not verified on a device**). Use `app://local/` throughout the app, and the pages' data stays under one origin.
+
+### Each partition has its own registrations
+
+A registered protocol belongs to one partition. When a page uses `partition`, register on that partition's `protocol`.
+
+```js
+session.fromPartition('persist:shop').protocol.serveDirectory('app', 'JS/assets/shop');
+const shop = new WebView({ webPreferences: { partition: 'persist:shop' } });
+await shop.webContents.loadURL('app://local/index.html');
+```
+
+**Effect**
+
+- `shop` shows `assets/shop/index.html`.
+- A page in the default partition that loads `app://local/index.html`: `loadURL()` rejects, because the default partition hasn't registered `app`.
+
+### Telling whether a page was found
+
+The main page's status code can't be read from [`did-navigate`](../api/web-contents/did-navigate-event.md): for a custom protocol's main page, `httpResponseCode` is `-1`. When the main page's file doesn't exist, `loadURL()` still fulfills, and the page shows `Not Found`.
+
+`fetch` in the page gets the real status code: 404 when the file doesn't exist.
+
+```js
+const status = await site.webContents.executeJavaScript("fetch('/nope.json').then((r) => r.status)");
+console.log(status);
+```
+
+**Effect**: When `assets/web/` has no `nope.json`, the console prints `404`.
+
+For the serving rules (`index.html`, `Content-Type`, unsupported request methods), see [`serveDirectory()`](../api/protocol/servedirectory.md#description). One of them: range requests always get the whole file, so dragging the progress bar of a `<video>` in the page may not work (**not verified on a device**).
 
 ## Displaying a piece of HTML
 
@@ -444,4 +523,5 @@ For how the page perceives other changes on the view side (size, light and dark 
 - [`NavigationHistory`](../api/navigation-history.md): going back and forward.
 - [Messaging between a web page and the app](web-page-messaging.md)
 - [`session`](../api/session.md): reading and writing the page's cookies, clearing data.
+- [`Protocol`](../api/protocol.md): loading local web pages through a custom protocol.
 - [Auto Layout](../api/auto-layout.md): the constraints used to make the page fill the safe area.

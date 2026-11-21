@@ -224,6 +224,7 @@ API 分两类：
 | [`Session`](session.md) | **`Session`** 表示一个存储分区：`WebView` 里的网页留下的 cookie、`localStorage`、IndexedDB、缓存等数据都存在某一个分区里。 |
 | [`Cookies`](cookies.md) | **`Cookies`** 表示一个存储分区里的全部 cookie。 |
 | [`Cookie`](cookie.md) | **`Cookie`** 表示一条 cookie 在某一刻的记录。 |
+| [`Protocol`](protocol.md) | **`Protocol`** 表示一个存储分区的自定义协议。 |
 
 ### 运行时的全局
 

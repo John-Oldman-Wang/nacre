@@ -128,7 +128,7 @@ status: partial
 
 本地网页请求 `https://` 的接口不受影响，受限的只是读本地文件。
 
-静态页面和用传统方式（一个普通的 `<script>`）打包的网页适合用 `loadFile()`。用到模块脚本的单页应用（比如 Vite 默认的打包结果）现在还不能从本地加载。
+静态页面和用传统方式（一个普通的 `<script>`）打包的网页适合用 `loadFile()`。用到模块脚本或 `fetch` 的网页（比如 Vite 默认的打包结果），用 [`session.protocol`](session/protocol.md) 登记一个自定义协议，从 `app://local/` 这样的地址加载：网页有自己的来源，模块脚本执行，同源的 `fetch` 读得到文件。见[用自定义协议加载本地网页](../guides/web-pages.md#用自定义协议加载本地网页)。
 
 ## 示例
 

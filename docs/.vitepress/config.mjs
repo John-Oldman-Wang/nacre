@@ -457,6 +457,7 @@ function sidebar(lang) {
             api('Session', 'session'),
             api('Cookies', 'cookies'),
             api('Cookie', 'cookie'),
+            api('Protocol', 'protocol'),
           ],
         },
         {

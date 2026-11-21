@@ -20,7 +20,7 @@ contents.addEventListener('did-navigate', (event) => {})
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
 | `url` | 字符串 | 新的地址 |
-| `httpResponseCode` | 数 | HTTP 状态码。`data:`、`about:`、本地文件这类不经过 HTTP 的是 `-1`。后退或前进回到一张之前加载过的网页时也是 `-1`：那时没有重新请求服务器 |
+| `httpResponseCode` | 数 | HTTP 状态码。`data:`、`about:`、本地文件、用 [`serveDirectory()`](../protocol/servedirectory.md) 登记的自定义协议这类不经过 HTTP 的是 `-1`。后退或前进回到一张之前加载过的网页时也是 `-1`：那时没有重新请求服务器 |
 
 不可取消。
 
