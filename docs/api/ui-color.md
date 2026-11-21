@@ -77,6 +77,7 @@ TypeError: Illegal constructor: UIColor is created by the runtime, not by new
 | `rgb()` 空格写法 | `rgb(r g b)`、`rgb(r g b / a)` | `'rgb(255 0 0)'`、`'rgb(255 0 0 / 50%)'` | 同上 |
 | 跟随深浅色 | `light-dark(浅色, 深色)` | `'light-dark(#fff, #000)'` | 浅色模式显示第一个，深色模式显示第二个。两个参数可以是本表的任何写法 |
 | 颜色名 | 表里的名字 | `'systemBackground'` | 见[能用的颜色名](#能用的颜色名) |
+| 全透明 | `transparent` | `'transparent'` | 和 CSS 一样，不区分大小写。效果和颜色名 `clear` 相同 |
 | Asset Catalog | `asset(名字)` | `'asset(BrandBlue)'` | Asset Catalog 里这个名字的 Color Set |
 | 代号 | `native(n)` | `'native(7)'` | 只会从读取得到，见[读出来的字符串](#读出来的字符串) |
 
@@ -208,7 +209,7 @@ console.log(view.backgroundColor);
 
 - 颜色名的大小写不对：`'Red'`、`'darkgray'`。
 - 颜色名带 `Color` 后缀：`'systemPinkColor'`。字符串里只能用表里的短名字。
-- 这里不支持的 CSS 写法：`'hsl(0 100% 50%)'`、`'transparent'`。
+- 这里不支持的 CSS 写法：`'hsl(0 100% 50%)'`。
 - [`CAGradientLayer`](ca-gradient-layer.md) 的 [`colors`](ca-gradient-layer/colors.md) 是颜色数组。其中任何一项不合法，整个数组都不写入。
 
 ### `asset()` 的名字不存在时会抛
@@ -375,7 +376,7 @@ Swift 里的名字没有 `Color` 后缀（`UIColor.systemBackground`），和这
 | `light-dark()` | 要先声明 `color-scheme` 才生效 | 写了就生效 |
 | 颜色名 | 一百多个，不区分大小写 | 51 个，区分大小写 |
 | 系统颜色 | `Canvas`、`CanvasText` 等 | `systemBackground`、`label` 等语义色 |
-| 全透明 | `transparent` | `'clear'` 或 `null` |
+| 全透明 | `transparent` | `'transparent'`、`'clear'` 或 `null` |
 
 #### 不支持的 CSS 写法
 
@@ -386,7 +387,6 @@ Swift 里的名字没有 `Color` 后缀（`UIColor.systemBackground`），和这
 | `hsl()`、`hsla()`、`hwb()` | 换算成 `rgb()` |
 | `lab()`、`lch()`、`oklab()`、`oklch()`、`color(display-p3 …)` | 没有替代，不能写广色域颜色 |
 | `color-mix()`、相对颜色语法（`rgb(from …)`） | 自己算出结果再写 |
-| `transparent` | `'clear'` 或 `null` |
 | `currentColor` | 没有替代 |
 | 表以外的 CSS 颜色名：`pink`、`navy`、`rebeccapurple` 等 | 写十六进制 |
 | 大小写不同的名字：`Red`、`darkgray` | 按表里的大小写写：`red`、`darkGray` |

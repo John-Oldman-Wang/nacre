@@ -154,6 +154,10 @@
     const t = String(text).trim();
     if (t === '') return null;
 
+    // CSS 的关键字：全透明，和 CSS 一样不分大小写。效果和颜色名 clear 一样，
+    // 走 rgba 那条路，所以读回来是写进去的原文
+    if (t.toLowerCase() === 'transparent') return { kind: 'rgba', r: 0, g: 0, b: 0, a: 0 };
+
     if (t[0] === '#') {
       const hex = t.slice(1);
       if (!/^[0-9a-fA-F]+$/.test(hex)) return null;

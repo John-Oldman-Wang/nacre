@@ -143,7 +143,7 @@ box2.backgroundColor = 'rgb(255 0 0 / 50%)';
 
 **Effect**: the same as above. **Not verified in the simulator.**
 
-For full transparency, use the color name `clear` or assign `null`; see [Removing a color](#removing-a-color).
+For full transparency, write `'transparent'` (as in CSS), use the color name `clear`, or assign `null`; see [Removing a color](#removing-a-color).
 
 A color's opacity affects only that color. To make a whole view transparent together with its subviews, use the view's `alpha`; see [`UIView`](../api/ui-view.md).
 

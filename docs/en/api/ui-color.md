@@ -77,6 +77,7 @@ There are 51, all read-only, all of type `UIColor`. Each property name is a [col
 | `rgb()`, space syntax | `rgb(r g b)`, `rgb(r g b / a)` | `'rgb(255 0 0)'`, `'rgb(255 0 0 / 50%)'` | Same as above |
 | Follows light/dark | `light-dark(light, dark)` | `'light-dark(#fff, #000)'` | Light Mode shows the first, Dark Mode shows the second. Each argument can be any form in this table |
 | Color name | A name from the table | `'systemBackground'` | See [Color names you can use](#color-names-you-can-use) |
+| Fully transparent | `transparent` | `'transparent'` | Case-insensitive, as in CSS. Same effect as the color name `clear` |
 | Asset Catalog | `asset(name)` | `'asset(BrandBlue)'` | The Color Set with this name in the Asset Catalog |
 | Handle | `native(n)` | `'native(7)'` | Only ever obtained by reading; see [Strings you read back](#strings-you-read-back) |
 
@@ -208,7 +209,7 @@ When the string starts with a letter and contains only letters and digits, the r
 
 - Color names with the wrong case: `'Red'`, `'darkgray'`.
 - Color names with the `Color` suffix: `'systemPinkColor'`. Strings can only use the short names from the table.
-- CSS forms not supported here: `'hsl(0 100% 50%)'`, `'transparent'`.
+- CSS forms not supported here: `'hsl(0 100% 50%)'`.
 - [`CAGradientLayer`](ca-gradient-layer.md)'s [`colors`](ca-gradient-layer/colors.md) is an array of colors. If any item is invalid, the whole array is not written.
 
 ### `asset()` throws when the name doesn't exist
@@ -375,7 +376,7 @@ This section maps things for people familiar with CSS colors.
 | `light-dark()` | Takes effect only after `color-scheme` is declared | Takes effect as soon as you write it |
 | Color names | Over a hundred, case-insensitive | 51, case-sensitive |
 | System colors | `Canvas`, `CanvasText`, etc. | Semantic colors such as `systemBackground` and `label` |
-| Fully transparent | `transparent` | `'clear'` or `null` |
+| Fully transparent | `transparent` | `'transparent'`, `'clear'`, or `null` |
 
 #### Unsupported CSS forms
 
@@ -386,7 +387,6 @@ The following are valid in CSS but treated as invalid here (a warning is printed
 | `hsl()`, `hsla()`, `hwb()` | Convert to `rgb()` |
 | `lab()`, `lch()`, `oklab()`, `oklch()`, `color(display-p3 …)` | No alternative; wide-gamut colors can't be written |
 | `color-mix()`, relative color syntax (`rgb(from …)`) | Compute the result yourself and write that |
-| `transparent` | `'clear'` or `null` |
 | `currentColor` | No alternative |
 | CSS color names not in the table: `pink`, `navy`, `rebeccapurple`, etc. | Write hexadecimal |
 | Names with different case: `Red`, `darkgray` | Use the case from the table: `red`, `darkGray` |
