@@ -46,3 +46,4 @@ scroller.addEventListener('dragend', () => {
 ## See also
 
 - [`decelerateend`](decelerateend-event.md)
+- [`beforedragend`](beforedragend-event.md): fires the moment the finger lifts, before `dragend`, and can change where the content stops

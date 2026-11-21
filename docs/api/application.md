@@ -13,7 +13,7 @@ status: partial
 - **App 的信息**：包名、版本、配置文件的内容。
 - **App 的状态**：在前台还是后台，当前有哪些场景。
 - **App 级的事件**：可以建界面了、进入后台、内存不足、被一条链接打开、有没处理的异常。
-- **App 级的能力**：本地存储和文件的入口，以及让系统打开一个 URL（往外打开；别的 App 打开本 App 是上一条里的事件）。装了 `@nacrejs/keychain` 之后，Keychain 的入口也在这里。
+- **App 级的能力**：本地存储、文件和网络状态的入口，以及让系统打开一个 URL（往外打开；别的 App 打开本 App 是上一条里的事件）。装了 `@nacrejs/keychain` 之后，Keychain 的入口也在这里。
 - **原生模块的入口**：App 自己的原生代码和第三方原生 SDK 提供的方法，从 `application.nativeModules` 调。
 
 界面不在 `application` 上。界面属于场景（[`UIWindowScene`](ui-window-scene.md)）：场景表示 App 界面的一个实例，由系统创建，窗口要建在场景上才能显示。`application` 负责在场景可用时派发 [`sceneconnect`](application/sceneconnect-event.md)，并记录当前有哪些场景。
@@ -64,6 +64,7 @@ App 的状态：
 | --- | --- |
 | [`storage`](application/storage.md) <small>只读</small> | 键值存储 |
 | [`fileSystem`](application/filesystem.md) <small>只读</small> | 文件读写 |
+| [`network`](application/network.md) <small>只读</small> | 网络状态：连没连上、哪种网络、是否按流量计费 |
 | [`keychain`](application/keychain.md) <small>只读</small> | 令牌和密码的加密存储。**只在装了 `@nacrejs/keychain` 的项目里有** |
 | [`nativeModules`](application/nativemodules.md) <small>只读</small> | 登记进这个 App 的原生模块 |
 

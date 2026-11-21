@@ -47,6 +47,32 @@ export function stepColor(ctx) {
   box.backgroundColor = UIColor.systemGreenColor;
   assert('写对象，读回语义色的名字', box.backgroundColor, 'systemGreen');
 
+  // ---- 补上的 12 个系统颜色（2026-11-20）：名字和常量两种写法 ----
+  /** @type {[string, UIColor][]} */
+  const added = [
+    ['systemGray2', UIColor.systemGray2Color],
+    ['systemGray3', UIColor.systemGray3Color],
+    ['systemGray4', UIColor.systemGray4Color],
+    ['systemGray5', UIColor.systemGray5Color],
+    ['systemGray6', UIColor.systemGray6Color],
+    ['systemFill', UIColor.systemFillColor],
+    ['secondarySystemFill', UIColor.secondarySystemFillColor],
+    ['tertiarySystemFill', UIColor.tertiarySystemFillColor],
+    ['quaternarySystemFill', UIColor.quaternarySystemFillColor],
+    ['systemGroupedBackground', UIColor.systemGroupedBackgroundColor],
+    ['secondarySystemGroupedBackground', UIColor.secondarySystemGroupedBackgroundColor],
+    ['tertiarySystemGroupedBackground', UIColor.tertiarySystemGroupedBackgroundColor],
+  ];
+  for (const [name, constant] of added) {
+    box.backgroundColor = '#123456';
+    box.backgroundColor = name;
+    assert('补上的颜色名原样读回：' + name, box.backgroundColor, name);
+    assert('补上的常量是 UIColor：' + name, constant instanceof UIColor, true);
+    box.backgroundColor = '#123456';
+    box.backgroundColor = constant;
+    assert('补上的常量写进去读回名字：' + name, box.backgroundColor, name);
+  }
+
   // ---- 置空 ----
   box.backgroundColor = null;
   assert('置 null 读回 null', box.backgroundColor, null);

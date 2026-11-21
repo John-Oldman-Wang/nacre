@@ -106,6 +106,7 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 | [`UIEdgeInsets`](ui-edge-insets.md) | **`UIEdgeInsets`** represents how far each of the four edges is inset: `top`, `left`, `bottom`, `right`, in pt. |
 | [`NSDirectionalEdgeInsets`](ns-directional-edge-insets.md) | **`NSDirectionalEdgeInsets`** represents how far each of the four edges is inset, with left and right distinguished by text direction: `top`, `leading`, `bottom`, `trailing`, in pt. |
 | [`CGAffineTransform`](cg-affine-transform.md) | **`CGAffineTransform`** represents a two-dimensional affine transform: scaling, rotation, translation, and combinations of them. |
+| [`CATransform3D`](ca-transform-3d.md) | **`CATransform3D`** represents a three-dimensional transform: scaling, rotation, and translation along the x, y, and z directions, perspective, and combinations of them. |
 | [`CAFrameRateRange`](ca-frame-rate-range.md) | **`CAFrameRateRange`** represents a frame rate range: `minimum`, `maximum`, and `preferred` (the rate you'd most like), all in frames per second. |
 | [`NSRange`](ns-range.md) | **`NSRange`** represents a range of text: `length` UTF-16 code units starting at `location`. |
 
@@ -208,6 +209,7 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 | [`URL`](url.md) | **`URL`** represents a parsed address. |
 | [`URLSearchParams`](url-search-params.md) | **`URLSearchParams`** represents the query parameters after the `?` in a URL. |
 | [WebSocket](websocket.md) | **`WebSocket`** represents a persistent connection between the app and a server. |
+| [`application.network`](network.md) | **`application.network`** represents the device's network status at this moment: whether it is connected to a network, which kind of network it uses, and whether that network is metered. |
 
 ### Web content
 

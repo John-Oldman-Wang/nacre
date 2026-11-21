@@ -77,7 +77,9 @@ export function stepModal(ctx) {
         page.modalPresentationStyle = 'pageSheet';
         await vc.presentViewController(page, { animated: false });
         const closed = await example.callAsync('simulateSheetSwipeDown');
-        return { closed, log: log.join(','), presented: vc.presentedViewController };
+        // 只看被拖走的这一张还挂不挂着：别的步骤这时可能正好弹了自己的页面
+        const presented = vc.presentedViewController === page ? page : null;
+        return { closed, log: log.join(','), presented };
       };
 
       const plain = await swipeDown(new UIViewController());

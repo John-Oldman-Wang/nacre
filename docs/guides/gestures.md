@@ -417,7 +417,7 @@ console.log(tap.view);
 
 同一个视图上既有单击识别器又有双击识别器时，双击的第一下会先触发单击。**未在模拟器验证。** 要让单击等系统确定这不是双击之后再触发，用 `requireGestureRecognizerToFail()`，见[让单击等双击失败](#让单击等双击失败)。
 
-同一个视图上的两个识别器默认不会同时认出手势：一次触摸里，先认出的那个生效。所以在同一个视图上加捏合和旋转，一次只有其中一个派发事件。这一条的依据是 Apple 的文档，**未在模拟器验证**。
+同一个视图上的两个识别器默认不会同时认出手势：一次触摸里，先认出的那个生效。所以在同一个视图上加捏合和旋转，一次只有其中一个派发事件。这一条的依据是 Apple 的文档，**未在模拟器验证**。要让它们一起认，见[让两个手势同时生效](#让两个手势同时生效)。
 
 一个识别器同一时刻只能在一个视图上。把它加到另一个视图时，它自动从原来的视图上移除。
 
@@ -427,7 +427,60 @@ console.log(tap.view);
 
 长按识别器在滚动视图里的表现**未在模拟器验证**。
 
-滚动视图自己就是用一个拖动识别器来滚动的。在滚动视图里的视图上再加一个拖动识别器，用户拖这个视图时是它生效还是滚动视图滚动，**未在模拟器验证**。
+滚动视图自己就是用一个拖动识别器来滚动的。在滚动视图里的视图上再加一个拖动识别器，用户拖这个视图时是它生效还是滚动视图滚动，**未在模拟器验证**。要让两个都生效，见下一节。
+
+## 让两个手势同时生效
+
+默认情况下，一次触摸里先认出手势的识别器生效，别的识别器不再认。要让两个识别器一起认，把其中一个写进另一个的 [`recognizesSimultaneouslyWith`](../api/ui-gesture-recognizer/recognizessimultaneouslywith.md)。
+
+同一个视图上的捏合和旋转一起认，用户就能边缩放边旋转：
+
+```js
+const pinch = new UIPinchGestureRecognizer();
+const rotate = new UIRotationGestureRecognizer();
+pinch.recognizesSimultaneouslyWith = [rotate];
+card.addGestureRecognizer(pinch);
+card.addGestureRecognizer(rotate);
+```
+
+**效果**：两根手指在 `card` 上同时张开和转动时，`pinch` 和 `rotate` 都派发事件。**未用真实的手指验证。**
+
+只写在一边就够了：两个识别器里只要有一个把对方列了进去，两个就能同时认（来自 iOS 的定义）。
+
+滚动视图里的视图要跟着手指拖、同时滚动视图照常滚动时，把滚动视图自带的拖动识别器 [`panGestureRecognizer`](../api/ui-scroll-view/pangesturerecognizer.md) 列进去。UIKit 自带的识别器上不能写这个属性，所以写在自己创建的那一个上：
+
+```js
+const scroller = new UIScrollView();
+page.view.addSubview(scroller);
+scroller.addSubview(card);
+
+const pan = new UIPanGestureRecognizer();
+const scrollPan = scroller.panGestureRecognizer;
+if (scrollPan !== null) {
+  pan.recognizesSimultaneouslyWith = [scrollPan];
+}
+card.addGestureRecognizer(pan);
+```
+
+**效果**：在 `card` 上拖动时，滚动视图照常滚动，`pan` 也派发 `began`、`changed`、`ended`。**未用真实的手指验证。** 写入后系统问「能不能同时认」时得到的回答，在验收用例里验证过。
+
+## 只在某些位置开始手势
+
+要让一个识别器在某些情况下不开始，监听它的 [`beforebegin`](../api/ui-gesture-recognizer/beforebegin-event.md)，在监听器里调 `preventDefault()`。系统在识别器即将认出手势时当场派发这个事件，等监听器执行完再决定开不开始。
+
+```js
+const handlePan = new UIPanGestureRecognizer();
+handlePan.addEventListener('beforebegin', (event) => {
+  const { location } = /** @type {UIGestureRecognizerEvent} */ (event);
+  if (location === null || location.x > 40) event.preventDefault();
+});
+card.addGestureRecognizer(handlePan);
+```
+
+**效果**：只有手指在 `card` 左边 40 pt 以内时拖动才开始；在别处拖，`handlePan` 不派发事件。**未用真实的手指验证。** 调了 `preventDefault()` 之后识别器不开始，这一点在验收用例里验证过。
+
+- 监听器执行期间系统在等，只在里面做判断。
+- `beforebegin` 和 `recognizesSimultaneouslyWith` 一样，只能用在自己创建的识别器上。在滚动视图的 `panGestureRecognizer` 这类 UIKit 自带的识别器上监听，抛 `TypeError`。
 
 ## 参见
 

@@ -1,6 +1,6 @@
 # Building a scrolling view
 
-This guide covers how to use [`UIScrollView`](../api/ui-scroll-view.md) to build a view that scrolls: setting up the structure, finding out why it won't scroll, reading the scroll position, scrolling from code, horizontal scrolling, carousels, and the keyboard. Details of each property, method, and event are on the [`UIScrollView`](../api/ui-scroll-view.md) reference page; for the three concepts of content area, visible area, and offset, see [Three basic concepts](../api/ui-scroll-view.md#three-basic-concepts).
+This guide covers how to use [`UIScrollView`](../api/ui-scroll-view.md) to build a view that scrolls: setting up the structure, finding out why it won't scroll, reading the scroll position, scrolling from code, horizontal scrolling, carousels, stopping on whole rows, and the keyboard. Details of each property, method, and event are on the [`UIScrollView`](../api/ui-scroll-view.md) reference page; for the three concepts of content area, visible area, and offset, see [Three basic concepts](../api/ui-scroll-view.md#three-basic-concepts).
 
 ## Recommended approach
 
@@ -241,6 +241,25 @@ scroller.addEventListener('dragend', () => {
 ```
 
 **This carousel example is not verified in the simulator.**
+
+## Stopping on whole rows
+
+When every row of a list has the same height, you can make the content stop exactly at the start of a row after each release, never between two rows. [`beforedragend`](../api/ui-scroll-view/beforedragend-event.md) fires the moment the finger lifts, and the event object's `targetContentOffset` is the stopping position the system computed. Change it to a multiple of the row height:
+
+```js
+const rowHeight = 80;
+scroller.addEventListener('beforedragend', (event) => {
+  const e = /** @type {UIScrollViewDragEndEvent} */ (event);
+  const y = Math.round(e.targetContentOffset.y / rowHeight) * rowHeight;
+  e.targetContentOffset = new CGPoint(0, y);
+});
+```
+
+**Effect**: after every drag and release, the content stops at a position where `contentOffset.y` is a multiple of 80. When the system computes a stop at 123, the content stops at 160. The position handed back to the system is verified in the acceptance suite; how the content slides there is **not verified with a real finger**.
+
+- Round the position the system computed, not the current `contentOffset`. The computed position already accounts for the velocity at release: the harder the flick, the farther it stops.
+- When each page is exactly the size of the visible area, use `isPagingEnabled` from the previous section; no listener is needed.
+- The system waits while the listener runs, so only compute the position there.
 
 ## Knowing when scrolling starts and ends
 

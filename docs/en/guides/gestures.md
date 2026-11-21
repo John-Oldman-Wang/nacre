@@ -417,7 +417,7 @@ A view can have several recognizers. A tap and a long press on the same view is 
 
 When the same view has both a single-tap recognizer and a double-tap recognizer, the first tap of a double tap triggers the single tap first. **Not verified in the simulator.** To make the single tap trigger only after the system is sure it isn't a double tap, use `requireGestureRecognizerToFail()`; see [Making the single tap wait for the double tap to fail](#making-the-single-tap-wait-for-the-double-tap-to-fail).
 
-By default, two recognizers on the same view don't recognize gestures at the same time: in a single touch, the one that recognizes first takes effect. So with a pinch and a rotation on the same view, only one of them fires events at a time. This is based on Apple's documentation and is **not verified in the simulator**.
+By default, two recognizers on the same view don't recognize gestures at the same time: in a single touch, the one that recognizes first takes effect. So with a pinch and a rotation on the same view, only one of them fires events at a time. This is based on Apple's documentation and is **not verified in the simulator**. To have them recognize together, see [Making two gestures work together](#making-two-gestures-work-together).
 
 A recognizer can be on only one view at a time. When you add it to another view, it is automatically removed from the original view.
 
@@ -427,7 +427,60 @@ The view a recognizer is on can be inside a [scroll view](../api/ui-scroll-view.
 
 How a long-press recognizer behaves inside a scroll view is **not verified in the simulator**.
 
-A scroll view itself scrolls using a pan recognizer. If you add another pan recognizer to a view inside the scroll view, whether dragging that view triggers it or scrolls the scroll view is **not verified in the simulator**.
+A scroll view itself scrolls using a pan recognizer. If you add another pan recognizer to a view inside the scroll view, whether dragging that view triggers it or scrolls the scroll view is **not verified in the simulator**. To have both take effect, see the next section.
+
+## Making two gestures work together
+
+By default, in a single touch the recognizer that recognizes first takes effect, and the other recognizers stop recognizing. To have two recognizers recognize together, put one of them in the other's [`recognizesSimultaneouslyWith`](../api/ui-gesture-recognizer/recognizessimultaneouslywith.md).
+
+With a pinch and a rotation on the same view recognizing together, the user can scale and rotate at the same time:
+
+```js
+const pinch = new UIPinchGestureRecognizer();
+const rotate = new UIRotationGestureRecognizer();
+pinch.recognizesSimultaneouslyWith = [rotate];
+card.addGestureRecognizer(pinch);
+card.addGestureRecognizer(rotate);
+```
+
+**Effect**: when two fingers on `card` spread and turn at the same time, both `pinch` and `rotate` fire events. **Not verified with a real finger.**
+
+Writing it on one side is enough: if either of the two recognizers lists the other, the two can recognize together (from the iOS definition).
+
+When a view inside a scroll view should follow a dragging finger while the scroll view still scrolls as usual, list the scroll view's built-in pan recognizer, [`panGestureRecognizer`](../api/ui-scroll-view/pangesturerecognizer.md). This property cannot be written on UIKit's own recognizers, so write it on the one you created:
+
+```js
+const scroller = new UIScrollView();
+page.view.addSubview(scroller);
+scroller.addSubview(card);
+
+const pan = new UIPanGestureRecognizer();
+const scrollPan = scroller.panGestureRecognizer;
+if (scrollPan !== null) {
+  pan.recognizesSimultaneouslyWith = [scrollPan];
+}
+card.addGestureRecognizer(pan);
+```
+
+**Effect**: dragging on `card` scrolls the scroll view as usual, and `pan` also fires `began`, `changed`, and `ended`. **Not verified with a real finger.** The answer the system gets after the write, when it asks whether the two may recognize together, is verified in the acceptance suite.
+
+## Beginning a gesture only in certain places
+
+To keep a recognizer from beginning in some situations, listen for its [`beforebegin`](../api/ui-gesture-recognizer/beforebegin-event.md) and call `preventDefault()` in the listener. The system fires this event on the spot when the recognizer is about to recognize the gesture, and decides whether to begin after the listeners finish.
+
+```js
+const handlePan = new UIPanGestureRecognizer();
+handlePan.addEventListener('beforebegin', (event) => {
+  const { location } = /** @type {UIGestureRecognizerEvent} */ (event);
+  if (location === null || location.x > 40) event.preventDefault();
+});
+card.addGestureRecognizer(handlePan);
+```
+
+**Effect**: the drag begins only when the finger is within the left 40 pt of `card`; dragging elsewhere makes `handlePan` fire no events. **Not verified with a real finger.** That the recognizer does not begin after `preventDefault()` is called is verified in the acceptance suite.
+
+- The system waits while the listener runs, so only make the decision there.
+- Like `recognizesSimultaneouslyWith`, `beforebegin` works only on recognizers you create. Listening for it on one of UIKit's own recognizers, such as a scroll view's `panGestureRecognizer`, throws `TypeError`.
 
 ## See also
 

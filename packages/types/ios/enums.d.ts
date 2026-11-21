@@ -151,7 +151,12 @@ type CAAnimationKeyPath =
   | 'cornerRadius' | 'endPoint' | 'fillColor' | 'lineDashPhase' | 'lineWidth' | 'miterLimit'
   | 'opacity' | 'path' | 'position' | 'shadowColor' | 'shadowOffset'
   | 'shadowOpacity' | 'shadowRadius' | 'startPoint' | 'strokeColor'
-  | 'strokeEnd' | 'strokeStart' | 'zPosition';
+  | 'strokeEnd' | 'strokeStart' | 'zPosition'
+  | 'transform' | 'sublayerTransform'
+  | 'transform.rotation' | 'transform.rotation.x' | 'transform.rotation.y' | 'transform.rotation.z'
+  | 'transform.scale' | 'transform.scale.x' | 'transform.scale.y' | 'transform.scale.z'
+  | 'transform.translation' | 'transform.translation.x' | 'transform.translation.y'
+  | 'transform.translation.z';
 
 type NSLayoutRelation = 'lessThanOrEqual' | 'equal' | 'greaterThanOrEqual';
 
@@ -259,6 +264,7 @@ type UIScrollViewDecelerationRate = number | 'normal' | 'fast';
 type UIScrollViewEventType =
   | 'scroll'
   | 'dragbegin'
+  | 'beforedragend'
   | 'dragend'
   | 'deceleratebegin'
   | 'decelerateend'

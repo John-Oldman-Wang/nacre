@@ -471,6 +471,7 @@
 + adjustedContentInset 这里等于 contentInset
 + advertisingIdentifier 只读，写了抛 TypeError
 + advertisingIdentifier 是字符串
++ affineTransform
 + alert 是 dark 的别名，读回来是 dark
 + alignment 写错：不抛、值不变
 + alignment 读写
@@ -612,6 +613,12 @@
 + baseWritingDirection 读写
 + baselineOffset
 + becomeFirstResponder 之后搜索框是 first responder
++ beforebegin：preventDefault 就不开始
++ beforebegin：不调 preventDefault 就开始
++ beforebegin：可以取消
++ beforebegin：带着触点个数
++ beforebegin：当场派发，target 是识别器
++ beforebegin：摘掉监听器之后照常开始
 + beforedisplay 不能取消
 + beforedisplay 带 indexPath，是 NSIndexPath
 + below 把它挪到 a 前面
@@ -906,6 +913,7 @@
 + complete：没有完成
 + complete：没有选任何动作
 + complete：没有错误
++ concat：先平移再缩放
 + configuration 是只读的：Cannot set property configuration of #<PHPickerViewController> which has only a getter
 + containsAttachmentsInRange：有
 + containsAttachmentsInRange：没有
@@ -1226,6 +1234,7 @@
 + frame 变成了变换后的包围盒
 + frame 的宽按 |a|+|c| 算
 + frame 的高写得进去
++ fromAffineTransform 的六个数
 + fromPartition('') 就是默认的那一份
 + fromPartition('persist:') 也是
 + fromValue 收图片，读出来是 UIImage
@@ -1282,8 +1291,12 @@
 + identifier
 + identifier 能写能读
 + identifierForVendor 是 UUID
++ identity 其余是 #
 + identity 是单位矩阵
 + identity 的 a
++ identity 的对角线是 #
++ identity.isAffine
++ identity.isIdentity
 + ignoreBOM 为真：开头的 BOM 留着
 + ignoreBOM 按布尔转换：# 是 false
 + image
@@ -1373,6 +1386,7 @@
 + intrinsicContentSize 等于图片尺寸
 + invalidate 之后的 display link 被回收
 + invalidate() 没有返回值
++ invert 之后乘回去是单位矩阵
 + ipc-message 带着参数
 + ipc-message 带着频道名
 + ipc-message 的 target 是 webContents
@@ -1392,6 +1406,8 @@
 + isCrashed() 是 false
 + isDescendantOfView(不是视图)
 + isDestroyed() 是 false
++ isDoubleSided 写进去
++ isDoubleSided 默认 true
 + isEditable
 + isEditable 为假时 insertText 照样改得动
 + isEditable 写得进去
@@ -1452,6 +1468,16 @@
 + kern
 + kern 给 "#"：按数转
 + kern 给转不成数的字符串
++ keyPath 认得：transform.rotation
++ keyPath 认得：transform.rotation.x
++ keyPath 认得：transform.rotation.y
++ keyPath 认得：transform.scale
++ keyPath 认得：transform.scale.x
++ keyPath 认得：transform.scale.y
++ keyPath 认得：transform.scale.z
++ keyPath 认得：transform.translation.x
++ keyPath 认得：transform.translation.y
++ keyPath 认得：transform.translation.z
 + keyPath 读得回来
 + keyTimes 往返
 + keyTimes 按每帧时长排
@@ -1555,6 +1581,10 @@
 + loopCount 直接赋给 repeatCount
 + mainBundle 是 NSBundle
 + mainBundle 读两次是同一个对象
++ mask 写 null 清掉
++ mask 写不是图层的抛
++ mask 写进去读回同一个对象
++ mask 默认 null
 + maskView 写 null
 + maskView 写进去读回来是同一个对象
 + maskedCorners 默认四个角全圆
@@ -1892,6 +1922,7 @@
 + return：event.type
 + return：不可取消
 + role 默认 normal
++ rotate 方法等于 rotation
 + rotation 可以是负的，也不按一圈折回去
 + rotation 可写
 + rotation 给 NaN 被拒
@@ -1907,9 +1938,12 @@
 + router 的栈深和原生一致
 + row 和 item 是同一个数
 + sameSite 写错：列出能用的
++ scale 三轴
 + scale 不动平移
++ scale 只给一个：x、y 相同，z 是 #
 + scale 可写
 + scale 和外观特征的 displayScale 一样
++ scale 方法：先缩放再应用自己
 + scale 是正数
 + scale 给 Infinity 被拒
 + scale 给数字字符串：按数用
@@ -2175,6 +2209,8 @@
 + strokeWidth
 + structuredClone 不给参数：抛 TypeError
 + structuredClone 是个函数
++ sublayerTransform 也能动画
++ sublayerTransform 写进去读回来
 + subtitleCellConfiguration
 + subviews 里还有三个
 + suggestedName 是字符串或 null
@@ -2292,6 +2328,16 @@
 + traitchange 是继承来的，照常订得上
 + transfer 没成，那个 ArrayBuffer 还能用
 + transfer 的报错里写明了是 transfer 还不支持
++ transform 写进去读回来
++ transform 可以写普通对象（透视）
++ transform 的值是 CATransform#D
++ transform 缺字段抛
++ transform 默认是单位矩阵
++ transform.rotation.z 的值是数
++ transform.translation 的值是 CGSize
++ translate：先平移再应用自己
++ translation
++ translation 不给 z 是 #
 + translation 只动 tx/ty
 + translation 的对角线还是 #
 + translationInView 给的不是视图被拒
@@ -2437,6 +2483,7 @@
 + 不可空字符串：# 是 '#'
 + 不可空字符串：null 是空串，不是 'null'
 + 不可逆时返回 null
++ 不可逆的给 null
 + 不合法**不抛**
 + 不合法保留旧值
 + 不合法的颜色不抛
@@ -2500,6 +2547,7 @@
 + 不给 url：抛 TypeError
 + 不给分段：numberOfSegments
 + 不给参数是 (#, #)
++ 不给参数是全 #
 + 不给参数被拒
 + 不给参数：空的富文本
 + 不给效果：effect 是 null
@@ -2527,6 +2575,7 @@
 + 不认识的 searchBarStyle：不抛、值不变
 + 不认识的 sliderStyle：不抛、值不变
 + 不认识的 systemItem 被拒: systemItem has no value "explode"; expected …
++ 不认识的 transform 子路径抛
 + 不认识的严重程度：不抛、值不变
 + 不认识的事件名当自定义事件
 + 不认识的事件名：当自定义事件
@@ -2704,6 +2753,16 @@
 + 停下之后仍然显示
 + 停下之后自己隐藏
 + 停在后一次的那一页
++ 停点：velocity 是松手时的速度
++ 停点：不能取消
++ 停点：写了不是点的值，照系统的
++ 停点：写普通对象也认
++ 停点：当场派发，事件的 target 是这个滚动视图
++ 停点：摘掉监听器之后照系统的
++ 停点：没人监听时照系统的
++ 停点：监听器不改就照系统的
++ 停点：监听器抛了，照系统的
++ 停点：监听器改成 # 的倍数
 + 停用后 isActive 变 false
 + 像数的字符串按数转
 + 像素
@@ -3060,6 +3119,7 @@
 + 单行内容：这时文字已经是改过的
 + 单行内容：默认 hasText 为假
 + 单行输入框：alert 是 dark 的别名，写得进去，读回来是 dark
++ 单行输入框：input 监听器里读到组字中的范围
 + 单行输入框：inputAccessoryView 也收普通的视图
 + 单行输入框：inputAccessoryView 写 null：去掉
 + 单行输入框：inputAccessoryView 写 undefined 也是去掉
@@ -3070,15 +3130,22 @@
 + 单行输入框：inputAccessoryView 被拒之后原值没动
 + 单行输入框：keyboardAppearance
 + 单行输入框：去掉其中一个的，另一个的还在
++ 单行输入框：只读，写了抛
 + 单行输入框：同一个视图可以给两个输入框
 + 单行输入框：已经有父视图的视图也写得进去
++ 单行输入框：拼音变长，范围跟着变
 + 单行输入框：搜索框里的输入框读到的是搜索框的那一个
 + 单行输入框：旧的事件名 editingChanged 当自定义事件
 + 单行输入框：旧的事件名 editingDidBegin 当自定义事件
 + 单行输入框：旧的事件名 editingDidEnd 当自定义事件
 + 单行输入框：旧的事件名 editingDidEndOnExit 当自定义事件
 + 单行输入框：旧的事件名 shouldchange 当自定义事件
++ 单行输入框：没在编辑时是 null
++ 单行输入框：组字中，文字里已经有拼音
++ 单行输入框：组字中，范围是那一段拼音
++ 单行输入框：组字派发 input
 + 单行输入框：这时它还在原来的父视图里（还没有键盘）
++ 单行输入框：选完字（结束组字）之后是 null
 + 单行输入框：默认没有 inputAccessoryView
 + 单行选区：(#, #) 正好盖住那个表情
 + 单行选区：event.target 是这个输入框
@@ -3353,6 +3420,7 @@
 + 参数不够也保留旧值
 + 参数不是偏好对象：抛 TypeError
 + 参数不是字符串时转成字符串
++ 参数不是数抛
 + 参数不是视图被拒: feedbackGeneratorForView needs a UIView
 + 参数不是识别器被拒: addGestureRecognizer needs a UIGestureRecognizer
 + 反转不改形状
@@ -3435,6 +3503,12 @@
 + 同时也收得到 input
 + 同时到期按注册顺序
 + 同时收到一次 did-fail-load
++ 同时识别：不在列表里的，答不能
++ 同时识别：写进去读回来
++ 同时识别：列表里的那个，答能
++ 同时识别：可以填系统的识别器（滚动视图内置的拖动）
++ 同时识别：填的不是识别器抛
++ 同时识别：清空之后答不能
 + 同样的组合再建一次 isEqual
 + 同步 → 微任务 → 宏任务
 + 同步的 beforefocus 排在延后的 focus 前面
@@ -3600,9 +3674,17 @@
 + 外观 sidebar 建得出来
 + 外观 sidebarPlain 建得出来
 + 外观写错值
++ 多行输入框：input 监听器里读到组字中的范围
++ 多行输入框：只读，写了抛
++ 多行输入框：拼音变长，范围跟着变
 + 多行输入框：旧的事件名 editingbegin 当自定义事件
 + 多行输入框：旧的事件名 editingend 当自定义事件
 + 多行输入框：旧的事件名 textchange 当自定义事件
++ 多行输入框：没在编辑时是 null
++ 多行输入框：组字中，文字里已经有拼音
++ 多行输入框：组字中，范围是那一段拼音
++ 多行输入框：组字派发 input
++ 多行输入框：选完字（结束组字）之后是 null
 + 多行输入：inputAccessoryView 写 null：去掉
 + 多行输入：inputAccessoryView 写得进去，读回原来的包装
 + 多行输入：inputAccessoryView 给别的原生对象被拒
@@ -3641,6 +3723,7 @@
 + 字号大的量出来更宽更高
 + 字段写入即抛
 + 字段只读
++ 字段只读，写了抛
 + 字段只读：写 length 抛
 + 字段只读：写 location 抛
 + 字段按整数转（向零取整）
@@ -3891,6 +3974,9 @@
 + 所以新建的转圈是隐藏的
 + 所有本地网页是同一个来源：另一个文件里的计数是接着的
 + 手写的 keyboardType 照常
++ 手势委托：recognizesSimultaneouslyWith 默认是空数组
++ 手势委托：没设过，不同时识别
++ 手势委托：没设过，要开始
 + 手势识别器：GC 后包装还是原来那个
 + 手势识别器：不认识的事件名当自定义事件
 + 手指数给小数：向零取整
@@ -3954,6 +4040,7 @@
 + 挂上之后查得到 key
 + 挂上去之后 superlayer 是卡片的图层
 + 挂到另一个视图：view 换过去
++ 挂到图层上
 + 挂在单元格上的数据读得回来（同一个包装）
 + 挂在它下面的子图层：也按它的外观解析
 + 指定分区
@@ -4440,6 +4527,7 @@
 + 有宽有高
 + 有选区时 deleteBackward 删掉选中的
 + 有选区时 insertText 换掉选中的
++ 有透视就不是 affine
 + 服务器写的，App 这边读得到
 + 未声明的赋值被拒: ReferenceError
 + 未完成部分的图片可以清掉
@@ -4943,6 +5031,9 @@
 + 系统当场来问：resignFirstResponder 返回之前监听器已经跑过
 + 系统的拖动识别器上读得到拖动的属性
 + 系统的拖动识别器：最少 # 根手指，最多 # 根
++ 系统的识别器：写 recognizesSimultaneouslyWith 抛
++ 系统的识别器：它自己的委托照旧（滚动视图要开始）
++ 系统的识别器：监听 beforebegin 抛
 + 系统的页面上设 prefersStatusBarHidden：抛 TypeError
 + 系统的页面上读得到系统的值
 + 系统自动建的 tabBarItem 用的是页面的 title
@@ -4963,6 +5054,8 @@
 + 经度在 -# 到 # 之间
 + 结构体字段只读: true
 + 结果列表按钮默认没选中
++ 绕 x 轴转 #°：y 轴转到 z 轴（右手）
++ 绕 z 轴转等于 #D 的旋转
 + 给 null 和不给一样
 + 给了 domain：补上开头的点，hostOnly 是 false
 + 给了 scale 之后 size 减半
@@ -5009,6 +5102,15 @@
 + 缺字段被拒: transform is missing c, or it is not a finite nu…
 + 网络图已上屏，全程 # ms（字节没进过 V# 堆）
 + 网络图解出来了
++ 网络：application.network 是 Network
++ 网络：isConnected 是布尔
++ 网络：isExpensive 是布尔
++ 网络：type 是五个名字之一
++ 网络：不能 new
++ 网络：模拟器连着网
++ 网络：每次读到同一个对象
++ 网络：监听 change 不抛
++ 网络：连着时 type 不是 none，断着时是 none
 + 网页和运行时拿到的是同一张表
 + 网页开着的时候写的：不用刷新就看得到
 + 网页的 baseURI 是给的地址
@@ -5084,6 +5186,30 @@
 + 虚线往返
 + 虚线能设回实线
 + 行数给 undefined 被拒
++ 补上的常量写进去读回名字：quaternarySystemFill
++ 补上的常量写进去读回名字：secondarySystemFill
++ 补上的常量写进去读回名字：secondarySystemGroupedBackground
++ 补上的常量写进去读回名字：systemFill
++ 补上的常量写进去读回名字：systemGray#
++ 补上的常量写进去读回名字：systemGroupedBackground
++ 补上的常量写进去读回名字：tertiarySystemFill
++ 补上的常量写进去读回名字：tertiarySystemGroupedBackground
++ 补上的常量是 UIColor：quaternarySystemFill
++ 补上的常量是 UIColor：secondarySystemFill
++ 补上的常量是 UIColor：secondarySystemGroupedBackground
++ 补上的常量是 UIColor：systemFill
++ 补上的常量是 UIColor：systemGray#
++ 补上的常量是 UIColor：systemGroupedBackground
++ 补上的常量是 UIColor：tertiarySystemFill
++ 补上的常量是 UIColor：tertiarySystemGroupedBackground
++ 补上的颜色名原样读回：quaternarySystemFill
++ 补上的颜色名原样读回：secondarySystemFill
++ 补上的颜色名原样读回：secondarySystemGroupedBackground
++ 补上的颜色名原样读回：systemFill
++ 补上的颜色名原样读回：systemGray#
++ 补上的颜色名原样读回：systemGroupedBackground
++ 补上的颜色名原样读回：tertiarySystemFill
++ 补上的颜色名原样读回：tertiarySystemGroupedBackground
 + 补的属性在 UIScrollView 的原型上
 + 补的属性在原型上，不在实例上
 + 表情占两个码元
@@ -5138,6 +5264,8 @@
 + 视图上有它
 + 视图上没有页面的出现事件，当自定义事件
 + 视图有 traitCollection
++ 视图的 #D 旋转等于 JS 算的绕 z 轴旋转
++ 视图的 #D 缩放变成图层的 #D 变换
 + 解好的图尺寸不变
 + 解码过的动图放进图片视图照样播
 + 订了之后自己派发的收得到
@@ -5229,6 +5357,7 @@
 + 转回竖屏了
 + 转场写得进去
 + 转成字符串
++ 转轴是零向量抛 RangeError
 + 轻扫是 UIGestureRecognizer
 + 轻扫的 numberOfTouchesRequired 可写
 + 轻扫：四个事件名都能订、能退

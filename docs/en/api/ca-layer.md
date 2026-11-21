@@ -77,6 +77,15 @@ Shadow:
 | [`shadowRadius`](ca-layer/shadowradius.md) | How far the shadow's edge is blurred |
 | [`shadowOffset`](ca-layer/shadowoffset.md) | The shadow's offset from the layer |
 
+Three-dimensional transform and mask:
+
+| Property | Description |
+| --- | --- |
+| [`transform`](ca-layer/transform.md) | Three-dimensional transform: scaling, rotation, translation, and perspective |
+| [`sublayerTransform`](ca-layer/sublayertransform.md) | Three-dimensional transform applied to all sublayers |
+| [`isDoubleSided`](ca-layer/isdoublesided.md) | Whether the layer is still drawn when its back side faces the viewer |
+| [`mask`](ca-layer/mask.md) | Mask: another layer whose opaque parts decide where this layer is shown |
+
 ## Instance methods
 
 Also inherits the methods of `NSObject`.
@@ -330,12 +339,15 @@ For more patterns, see the guide [Drawing rounded corners, shadows, gradients, a
 | `layer.shadowOffset = CGSizeMake(0, 4)` | `layer.shadowOffset = new CGSize(0, 4)` |
 | `layer.contentsScale = view.traitCollection.displayScale` | `layer.contentsScale = view.traitCollection.displayScale` |
 | `layer.contents = (id)image.CGImage` | `layer.contents = image` |
+| `layer.transform = CATransform3DMakeRotation(a, 0, 1, 0)` | `layer.transform = CATransform3D.rotation(a, 0, 1, 0)` |
+| `layer.mask = shape` | `layer.mask = shape` |
 
 ## See also
 
 - [Drawing rounded corners, shadows, gradients, and shapes with layers](../guides/layers.md)
 - [`CAGradientLayer`](ca-gradient-layer.md), [`CAShapeLayer`](ca-shape-layer.md): the two subclasses
 - [`UIBezierPath`](ui-bezier-path.md): how to draw paths
+- [`CATransform3D`](ca-transform-3d.md): the type of `transform` and `sublayerTransform`
 - [`CAAnimation`](ca-animation.md): animating layer properties
 - [`CATransaction`](ca-transaction.md): turning off implicit animations
 - [`UIView`](ui-view.md): where `view.layer` comes from, and the view properties that overlap with the layer

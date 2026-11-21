@@ -49,6 +49,7 @@ Selection:
 | Property | Description |
 | --- | --- |
 | [`selectedRange`](ui-text-field/selectedrange.md) | The selected range, or the cursor position |
+| [`markedTextRange`](ui-text-field/markedtextrange.md) <small>read-only</small> | The stretch an input method is still composing, or `null` when not composing |
 
 Keyboard:
 
@@ -200,7 +201,7 @@ Rules for control events:
 - Callbacks do not run synchronously at the moment the event occurs; they run a little later, see [When callbacks run](ui-control.md#when-callbacks-run). The `field.text` read in a callback is the content at the time the callback runs; when the user types fast, the content read in one callback may already include the next few keystrokes. **Not verified in the simulator.**
 - Changing `text` from code does not fire `input`; the event fires only when the user's input changes the content. **Not verified in the simulator.**
 - For "the user finished typing", use `blur`. There is no separate "content committed" event.
-- With input methods such as Chinese Pinyin, whether the Pinyin letters the user has not yet converted count toward `text`, and whether `input` fires during that time, is **not verified in the simulator**.
+- With input methods such as Chinese Pinyin, the Pinyin letters the user has not yet converted count toward `text`, and `input` fires each time the Pinyin changes. Read [`markedTextRange`](ui-text-field/markedtextrange.md) in the callback: if it is not `null`, the user has not picked the characters yet. These two points were verified by simulating input-method composition in code and are **not verified with a real input method**.
 - An exception thrown in a callback does not affect the text field, and the other callbacks for the same event still run. The exception fires `error` on [`application`](application.md#unhandled-exceptions-dont-terminate-the-app); if no listener cancels it, the console prints a log line starting with `Uncaught`.
 
 ## Selection and cursor

@@ -49,6 +49,7 @@ All subclasses have these properties.
 | [`delaysTouchesBegan`](ui-gesture-recognizer/delaystouchesbegan.md) | Whether the view receives the start of a touch before it is certain the gesture will not be recognized |
 | [`delaysTouchesEnded`](ui-gesture-recognizer/delaystouchesended.md) | Whether the view receives the end of a touch before it is certain the gesture will not be recognized |
 | [`numberOfTouches`](ui-gesture-recognizer/numberoftouches.md) <small>read-only</small> | The number of fingers taking part in the gesture at this moment |
+| [`recognizesSimultaneouslyWith`](ui-gesture-recognizer/recognizessimultaneouslywith.md) | The other recognizers that may recognize gestures at the same time as this one. Can be written only on recognizers you create |
 
 ## Instance methods
 
@@ -60,10 +61,11 @@ All subclasses have these properties.
 
 ## Events
 
-Event names are the phases a gesture goes through; there are four in all. The events cannot be canceled and fire only on the recognizer itself.
+Four of the event names are the phases a gesture goes through, and they cannot be canceled. One more, `beforebegin`, fires before the gesture begins and can be canceled. Events fire only on the recognizer itself.
 
 | Event | Tap, swipe | Long press | Pan, pinch, rotation, screen-edge pan |
 | --- | --- | --- | --- |
+| [`beforebegin`](ui-gesture-recognizer/beforebegin-event.md) | When about to be recognized, asking whether to begin | When about to be recognized, asking whether to begin | When about to be recognized, asking whether to begin |
 | [`began`](ui-gesture-recognizer/began-event.md) | Does not fire | When held long enough | When the gesture is recognized |
 | [`changed`](ui-gesture-recognizer/changed-event.md) | Does not fire | When the finger moves after recognition | When the fingers move after recognition |
 | [`ended`](ui-gesture-recognizer/ended-event.md) | When recognized | When the finger lifts | When the fingers lift |
@@ -72,6 +74,8 @@ Event names are the phases a gesture goes through; there are four in all. The ev
 When a gesture is not recognized, no event fires. For example, a long press lifted before the time is up, or a finger that moves more than 10 pt before the time is up.
 
 The event object carries the finger position `location` and the finger count `numberOfTouches`. Pan events also carry the displacement `translation` and the velocity `velocity`; pinch events carry the factor `scale` and the velocity `velocity`; rotation events carry the angle `rotation` and the velocity `velocity`. See each event page.
+
+`beforebegin` fires on the spot: the system waits for the listeners to finish, and if a listener calls `preventDefault()`, the gesture does not begin this time. It works only on recognizers the app creates with `new`; listening for it on one of UIKit's own recognizers (such as a scroll view's `panGestureRecognizer`) throws `TypeError`. See the [event page](ui-gesture-recognizer/beforebegin-event.md).
 
 There are no event names such as `'tap'`, `'longpress'`, or `'swipe'`. Listening for any other name does not throw: it is treated as a custom event and fires only when you dispatch it yourself with `dispatchEvent()`.
 
@@ -115,6 +119,8 @@ A view keeps the recognizers attached to it. Once a recognizer is attached to a 
 A recognizer can be on only one view at a time. Attaching it to another view automatically removes it from the original view.
 
 The relationship set up by [`requireGestureRecognizerToFail()`](ui-gesture-recognizer/requiregesturerecognizertofail.md) does not keep the recognizers alive. Each of the two recognizers is still kept by the view it is attached to. If one of them is not attached to a view and the app's code does not hold on to it either, it is garbage-collected and the relationship stops working.
+
+The list in [`recognizesSimultaneouslyWith`](ui-gesture-recognizer/recognizessimultaneouslywith.md) likewise does not keep the recognizers in it alive. Once a recognizer in the list is garbage-collected, it disappears from the list.
 
 ## Examples
 
@@ -174,12 +180,15 @@ For more patterns, see the guide [Responding to gestures](../guides/gestures.md)
 | `[view removeGestureRecognizer:recognizer]` | `view.removeGestureRecognizer(recognizer)` |
 | `recognizer.enabled = NO` | `recognizer.isEnabled = false` |
 | `[single requireGestureRecognizerToFail:dbl]` | `single.requireGestureRecognizerToFail(dbl)` |
+| The delegate's `gestureRecognizerShouldBegin:` returning `NO` | Listening for `'beforebegin'` and calling `event.preventDefault()` |
+| The delegate's `gestureRecognizer:shouldRecognizeSimultaneouslyWithGestureRecognizer:` returning `YES` | Putting the other recognizer in `recognizesSimultaneouslyWith` |
+| `recognizer.delegate = self` | Not needed. The two items above are written directly on the recognizer |
 
 In ObjC, one action method receives every phase of the gesture and tells them apart with `state`. In JS, each phase is an event name. For the properties of each subclass, see its class page.
 
 ## See also
 
-- [Responding to gestures](../guides/gestures.md): how to write each gesture, which one wins when a button is also present, and attaching several recognizers to one view
+- [Responding to gestures](../guides/gestures.md): how to write each gesture, which one wins when a button is also present, attaching several recognizers to one view, and making two gestures work together
 - [`UIView`](ui-view.md): recognizers are attached to views; `hitTest()`, `convertPoint()`, `isUserInteractionEnabled`
 - [`UIControl`](ui-control.md): controls such as buttons have their own set of events and do not need recognizers
 - [Structs](structs.md): `CGPoint` (position, displacement, velocity) and `CGAffineTransform` (applying scale and rotation to a view)

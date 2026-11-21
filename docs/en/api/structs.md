@@ -16,6 +16,7 @@ Each kind of struct is a global class, constructed with `new`. A struct holds on
 | [`UIEdgeInsets`](ui-edge-insets.md) | `top` `left` `bottom` `right` | How far each of the four edges is inset | pt |
 | [`NSDirectionalEdgeInsets`](ns-directional-edge-insets.md) | `top` `leading` `bottom` `trailing` | Same as above, with left and right replaced by the two sides distinguished by text direction | pt |
 | [`CGAffineTransform`](cg-affine-transform.md) | `a` `b` `c` `d` `tx` `ty` | A 2D affine transform matrix | `tx` `ty` are pt; the rest are ratios |
+| [`CATransform3D`](ca-transform-3d.md) | `m11` … `m44`, 16 in all | A 3D transform matrix; see `transform` on [`CALayer`](ca-layer.md) | The translation `m41` `m42` `m43` is in pt; for the rest see the class page |
 | [`CAFrameRateRange`](ca-frame-rate-range.md) | `minimum` `maximum` `preferred` | A frame-rate range; see [`CADisplayLink`](ca-animation.md) | Frames per second |
 
 For each class's constructor and fields, see its own page. This page covers the rules shared by all structs.
@@ -258,6 +259,6 @@ For each struct's own mapping, see its page.
 ## See also
 
 - [Units](units.md): what pt is, and radians versus degrees.
-- The class page of each struct: [`CGPoint`](cg-point.md), [`CGSize`](cg-size.md), [`CGRect`](cg-rect.md), [`UIEdgeInsets`](ui-edge-insets.md), [`NSDirectionalEdgeInsets`](ns-directional-edge-insets.md), [`CGAffineTransform`](cg-affine-transform.md), [`CAFrameRateRange`](ca-frame-rate-range.md).
+- The class page of each struct: [`CGPoint`](cg-point.md), [`CGSize`](cg-size.md), [`CGRect`](cg-rect.md), [`UIEdgeInsets`](ui-edge-insets.md), [`NSDirectionalEdgeInsets`](ns-directional-edge-insets.md), [`CGAffineTransform`](cg-affine-transform.md), [`CATransform3D`](ca-transform-3d.md), [`CAFrameRateRange`](ca-frame-rate-range.md).
 - [`UIView`](ui-view.md): what `frame`, `bounds`, `center`, and `transform` mean, and how a transform affects `frame`.
 - [Native classes](native-classes.md): the conversion rules for number, string, and object parameters, and how to turn on type checking.

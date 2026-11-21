@@ -506,3 +506,12 @@ _fetchQueue（串行）            追加进这个请求的缓冲区 ← 唯一�
 第一轮那次还暴露了验收用例自己的毛病：ping 和 close 那一组**挂在二进制那步的后面**，二进制一超时它们就不跑了。改成超时也往下走，一个不相干的服务端行为才不会连坐掉四条断言。
 
 **还没实测的**：子协议协商、首部真的到了服务端、`maximumMessageSize` 的效果——公开的 echo 服务都不回显这些。
+
+## 网络状态：application.network（2026-11-20）
+
+iOS 的网络状态是 Network 框架的 C 函数（`nw_path_monitor`），不是 ObjC 的类，没有底层可以裸暴露，所以这是我们定的上层 API：`Network` 类（不能 `new`），`application.network` 拿到它，三个只读属性 `isConnected`、`type`（`'wifi' | 'cellular' | 'wired' | 'other' | 'none'`）、`isExpensive`，变了派发 `change`（原生的通知，延后一轮）。形状照 Web 的 `navigator.onLine` 和 `navigator.connection`。
+
+- 监视器在自己的串行队列上跑，第一次报告是异步的。`main.js` 一启动就同步执行，可能赶在第一次报告之前读：那时在后台队列之外等，最多 100 ms 拿到初值。等的不是主线程，不会死锁。
+- 运行时的 framework 要链接 `Network.framework`（`project.yml`），ObjC++ 的 `#import` 不触发自动链接，第一次编就撞了。
+- `type` 按 Wi-Fi、蜂窝、有线的顺序问 `nw_path_uses_interface_type`，都不是就给 `'other'`。
+- 模拟器上读到的是已连接、`wifi`、不按流量计费。断网、换网络时 `change` 来不来没验：模拟器跟着 Mac 的网络，自动跑的验收改不了。

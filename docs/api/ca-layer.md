@@ -77,6 +77,15 @@ status: partial
 | [`shadowRadius`](ca-layer/shadowradius.md) | 阴影边缘模糊的范围 |
 | [`shadowOffset`](ca-layer/shadowoffset.md) | 阴影相对图层的偏移 |
 
+三维变换和遮罩：
+
+| 属性 | 说明 |
+| --- | --- |
+| [`transform`](ca-layer/transform.md) | 三维变换：缩放、旋转、平移和透视 |
+| [`sublayerTransform`](ca-layer/sublayertransform.md) | 作用在全部子图层上的三维变换 |
+| [`isDoubleSided`](ca-layer/isdoublesided.md) | 转到背面时还画不画 |
+| [`mask`](ca-layer/mask.md) | 遮罩：另一个图层，它不透明的部分决定这个图层哪里显示 |
+
 ## 实例方法
 
 还继承 `NSObject` 的方法。
@@ -330,12 +339,15 @@ application.addEventListener('sceneconnect', (e) => {
 | `layer.shadowOffset = CGSizeMake(0, 4)` | `layer.shadowOffset = new CGSize(0, 4)` |
 | `layer.contentsScale = view.traitCollection.displayScale` | `layer.contentsScale = view.traitCollection.displayScale` |
 | `layer.contents = (id)image.CGImage` | `layer.contents = image` |
+| `layer.transform = CATransform3DMakeRotation(a, 0, 1, 0)` | `layer.transform = CATransform3D.rotation(a, 0, 1, 0)` |
+| `layer.mask = shape` | `layer.mask = shape` |
 
 ## 参见
 
 - [用图层画圆角、阴影、渐变和形状](../guides/layers.md)
 - [`CAGradientLayer`](ca-gradient-layer.md)、[`CAShapeLayer`](ca-shape-layer.md)：两个子类
 - [`UIBezierPath`](ui-bezier-path.md)：路径怎么画
+- [`CATransform3D`](ca-transform-3d.md)：`transform` 和 `sublayerTransform` 的类型
 - [`CAAnimation`](ca-animation.md)：给图层的属性做动画
 - [`CATransaction`](ca-transaction.md)：关闭隐式动画
 - [`UIView`](ui-view.md)：`view.layer` 的来源，视图上和图层重叠的那几个属性

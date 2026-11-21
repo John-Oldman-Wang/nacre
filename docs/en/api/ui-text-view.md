@@ -74,6 +74,7 @@ Behavior:
 | [`isEditable`](ui-text-view/iseditable.md) | Whether the user can change the content |
 | [`isSelectable`](ui-text-view/isselectable.md) | Whether the user can select text |
 | [`selectedRange`](ui-text-view/selectedrange.md) | The selected range, or the cursor position |
+| [`markedTextRange`](ui-text-view/markedtextrange.md) <small>read-only</small> | The stretch an input method is still composing, or `null` when not composing |
 | [`isFindInteractionEnabled`](ui-text-view/isfindinteractionenabled.md) | Whether system find and replace is turned on |
 | [`isWritingToolsActive`](ui-text-view/iswritingtoolsactive.md) <small>read-only</small> | Whether Writing Tools is currently working |
 | [`writingToolsBehavior`](ui-text-view/writingtoolsbehavior.md) | How much Writing Tools can do |

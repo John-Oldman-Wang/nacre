@@ -16,6 +16,7 @@ type: reference
 | [`UIEdgeInsets`](ui-edge-insets.md) | `top` `left` `bottom` `right` | 四条边各自向内缩进多少 | pt |
 | [`NSDirectionalEdgeInsets`](ns-directional-edge-insets.md) | `top` `leading` `bottom` `trailing` | 同上，左右换成按文字方向区分的两侧 | pt |
 | [`CGAffineTransform`](cg-affine-transform.md) | `a` `b` `c` `d` `tx` `ty` | 二维仿射变换矩阵 | `tx` `ty` 是 pt，其余是比例 |
+| [`CATransform3D`](ca-transform-3d.md) | `m11` … `m44`，共 16 个 | 三维变换矩阵，见 [`CALayer`](ca-layer.md) 的 `transform` | 平移量 `m41` `m42` `m43` 是 pt，其余见类页 |
 | [`CAFrameRateRange`](ca-frame-rate-range.md) | `minimum` `maximum` `preferred` | 帧率区间，见 [`CADisplayLink`](ca-animation.md) | 帧每秒 |
 
 每个类的构造函数和字段见各自的页面。这一页讲所有结构体共同的规则。
@@ -258,6 +259,6 @@ console.log(String(new UIEdgeInsets(8, 16, 8, 16)));
 ## 参见
 
 - [单位](units.md)：pt 是什么、弧度和角度。
-- 各结构体的类页：[`CGPoint`](cg-point.md)、[`CGSize`](cg-size.md)、[`CGRect`](cg-rect.md)、[`UIEdgeInsets`](ui-edge-insets.md)、[`NSDirectionalEdgeInsets`](ns-directional-edge-insets.md)、[`CGAffineTransform`](cg-affine-transform.md)、[`CAFrameRateRange`](ca-frame-rate-range.md)。
+- 各结构体的类页：[`CGPoint`](cg-point.md)、[`CGSize`](cg-size.md)、[`CGRect`](cg-rect.md)、[`UIEdgeInsets`](ui-edge-insets.md)、[`NSDirectionalEdgeInsets`](ns-directional-edge-insets.md)、[`CGAffineTransform`](cg-affine-transform.md)、[`CATransform3D`](ca-transform-3d.md)、[`CAFrameRateRange`](ca-frame-rate-range.md)。
 - [`UIView`](ui-view.md)：`frame`、`bounds`、`center`、`transform` 的含义，以及变换对 `frame` 的影响。
 - [原生类](native-classes.md)：数、字符串、对象这几类参数的转换规则，以及怎么开启类型检查。

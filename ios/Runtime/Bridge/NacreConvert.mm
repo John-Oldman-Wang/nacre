@@ -459,6 +459,25 @@ CGAffineTransform JSONToTransform(id v) {
                                SafeNumber(d[@"c"]), SafeNumber(d[@"d"]),
                                SafeNumber(d[@"tx"]), SafeNumber(d[@"ty"]));
 }
+NSDictionary* Transform3DToJSON(CATransform3D t) {
+  return @{@"m11": @(t.m11), @"m12": @(t.m12), @"m13": @(t.m13), @"m14": @(t.m14),
+           @"m21": @(t.m21), @"m22": @(t.m22), @"m23": @(t.m23), @"m24": @(t.m24),
+           @"m31": @(t.m31), @"m32": @(t.m32), @"m33": @(t.m33), @"m34": @(t.m34),
+           @"m41": @(t.m41), @"m42": @(t.m42), @"m43": @(t.m43), @"m44": @(t.m44)};
+}
+CATransform3D JSONToTransform3D(id v) {
+  NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
+  CATransform3D t;
+  t.m11 = SafeNumber(d[@"m11"]); t.m12 = SafeNumber(d[@"m12"]);
+  t.m13 = SafeNumber(d[@"m13"]); t.m14 = SafeNumber(d[@"m14"]);
+  t.m21 = SafeNumber(d[@"m21"]); t.m22 = SafeNumber(d[@"m22"]);
+  t.m23 = SafeNumber(d[@"m23"]); t.m24 = SafeNumber(d[@"m24"]);
+  t.m31 = SafeNumber(d[@"m31"]); t.m32 = SafeNumber(d[@"m32"]);
+  t.m33 = SafeNumber(d[@"m33"]); t.m34 = SafeNumber(d[@"m34"]);
+  t.m41 = SafeNumber(d[@"m41"]); t.m42 = SafeNumber(d[@"m42"]);
+  t.m43 = SafeNumber(d[@"m43"]); t.m44 = SafeNumber(d[@"m44"]);
+  return t;
+}
 NSDirectionalEdgeInsets JSONToDirectionalInsets(id v) {
   NSDictionary* d = [v isKindOfClass:NSDictionary.class] ? v : @{};
   return NSDirectionalEdgeInsetsMake(SafeNumber(d[@"top"]), SafeNumber(d[@"leading"]),

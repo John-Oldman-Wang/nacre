@@ -106,6 +106,7 @@ API 分两类：
 | [`UIEdgeInsets`](ui-edge-insets.md) | **`UIEdgeInsets`** 表示四条边各自向内缩进多少：`top`、`left`、`bottom`、`right`，单位 pt。 |
 | [`NSDirectionalEdgeInsets`](ns-directional-edge-insets.md) | **`NSDirectionalEdgeInsets`** 表示四条边各自向内缩进多少，左右按文字方向区分：`top`、`leading`、`bottom`、`trailing`，单位 pt。 |
 | [`CGAffineTransform`](cg-affine-transform.md) | **`CGAffineTransform`** 表示一个二维仿射变换：缩放、旋转、平移，以及它们的组合。 |
+| [`CATransform3D`](ca-transform-3d.md) | **`CATransform3D`** 表示一个三维变换：沿 x、y、z 三个方向的缩放、旋转、平移，透视，以及它们的组合。 |
 | [`CAFrameRateRange`](ca-frame-rate-range.md) | **`CAFrameRateRange`** 表示一个帧率区间：`minimum`（最低）、`maximum`（最高）、`preferred`（最希望的），单位都是帧每秒。 |
 | [`NSRange`](ns-range.md) | **`NSRange`** 表示一段文字的范围：从 `location` 开始的 `length` 个 UTF-16 码元。 |
 
@@ -208,6 +209,7 @@ API 分两类：
 | [`URL`](url.md) | **`URL`** 表示一个解析好的地址。 |
 | [`URLSearchParams`](url-search-params.md) | **`URLSearchParams`** 表示地址里 `?` 后面的那一串查询参数。 |
 | [`WebSocket`](websocket.md) | **`WebSocket`** 表示 App 和服务器之间的一条长连接。 |
+| [`application.network`](network.md) | **`application.network`** 表示设备此刻的网络状态：有没有连上网络、走的是哪种网络、这个网络是不是按流量计费。 |
 
 ### 网页
 
