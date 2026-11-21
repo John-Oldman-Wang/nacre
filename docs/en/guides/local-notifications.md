@@ -319,3 +319,4 @@ center.addEventListener('notificationclick', (event) => {
 - [`UNTimeIntervalNotificationTrigger`](../api/un-time-interval-notification-trigger.md), [`UNCalendarNotificationTrigger`](../api/un-calendar-notification-trigger.md): the two triggers
 - [`UNNotificationRequest`](../api/un-notification-request.md): requests and identifiers
 - [`UNNotificationSettings`](../api/un-notification-settings.md): notification settings
+- [Remote notifications](push-notifications.md): having a server send pushes to the app

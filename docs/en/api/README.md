@@ -282,6 +282,8 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 | [`UNNotification`](un-notification.md) | **`UNNotification`** represents a notification that has been delivered. |
 | [`UNNotificationResponse`](un-notification-response.md) | **`UNNotificationResponse`** represents an action the user took on a notification, such as tapping it. |
 | [`UNNotificationSettings`](un-notification-settings.md) | **`UNNotificationSettings`** represents this app's notification settings at a given moment: whether the user allows notifications, and whether each setting — sound, badge, lock screen, Notification Center, and so on — is on. |
+| [`RemoteNotifications`](remote-notifications.md) | **`RemoteNotifications`** represents this app's remote notifications: registering with Apple's push service, getting this device's token, and receiving silent pushes. |
+| [`PushEvent`](push-event.md) | **`PushEvent`** represents a silent push that has arrived. |
 | [`UIImagePickerController`](ui-image-picker-controller.md) | **`UIImagePickerController`** represents the system's camera interface. |
 | [`PHPickerViewController`](photos.md) | **`PHPickerViewController`** represents the system's photo picker. |
 | [`PHPickerConfiguration`](ph-picker-configuration.md) | **`PHPickerConfiguration`** represents the configuration of the photo picker: how many items can be selected at most, which types are shown, how selection works, and what the picker looks like. |

@@ -319,3 +319,4 @@ center.addEventListener('notificationclick', (event) => {
 - [`UNTimeIntervalNotificationTrigger`](../api/un-time-interval-notification-trigger.md)、[`UNCalendarNotificationTrigger`](../api/un-calendar-notification-trigger.md)：两种触发方式
 - [`UNNotificationRequest`](../api/un-notification-request.md)：请求和标识
 - [`UNNotificationSettings`](../api/un-notification-settings.md)：通知设置
+- [远程推送](push-notifications.md)：让服务器给 App 发推送

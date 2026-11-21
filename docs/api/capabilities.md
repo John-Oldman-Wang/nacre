@@ -19,12 +19,13 @@ Nacre 的 API 分成两部分：**核心**和**能力包**。
 | `@nacrejs/local-authentication` | `LAContext`：面容 ID、触控 ID 认证 | `NSFaceIDUsageDescription` | [`LAContext`](la-context.md) |
 | `@nacrejs/core-location` | `CLLocationManager`、`CLLocation`：App 使用期间的定位 | `NSLocationWhenInUseUsageDescription` | [定位](cl-location-manager.md) |
 | `@nacrejs/user-notifications` | `UNUserNotificationCenter`：发本地通知，得知通知到了、被点了 | 不用写 | [通知](un-user-notification-center.md) |
+| `@nacrejs/push` | `application.remoteNotifications`：注册远程推送、拿设备令牌、收到静默推送 | `ios.entitlements` 里的 `aps-environment` | [远程推送](remote-notifications.md) |
 | `@nacrejs/camera` | `UIImagePickerController`：用系统的界面拍照 | `NSCameraUsageDescription` | [拍照](ui-image-picker-controller.md) |
 | `@nacrejs/photos` | `PHPickerViewController` 选图，`PHPhotoLibrary` 把图存进相册 | `NSPhotoLibraryAddUsageDescription` | [相册](photos.md) |
 | `@nacrejs/contacts` | `CNContactPickerViewController`、`CNContact`：让用户选联系人 | 不用写 | [通讯录选择器](contacts.md) |
 | `@nacrejs/app-tracking-transparency` | `ATTrackingManager`、`ASIdentifierManager`：跟踪授权和广告标识 | `NSUserTrackingUsageDescription` | [跟踪授权和广告标识](app-tracking-transparency.md) |
 
-第三列里的名字是 iOS 规定的键名，值是一句给 App 的用户看的话。这句话由你来写，写法见[配置 App](../guides/project-config.md)。
+第三列里的名字是 iOS 规定的键名，值是一句给 App 的用户看的话。这句话由你来写，写法见[配置 App](../guides/project-config.md)。`aps-environment` 不是一句话，是一条 entitlement，值是 `development` 或 `production`，见[远程推送](../guides/push-notifications.md)。
 
 没有列在这张表里的 API 都在核心里。
 
