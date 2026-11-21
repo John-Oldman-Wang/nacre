@@ -123,7 +123,7 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 | 枚举 | 一律字符串：ObjC 常量去掉类型前缀、首字母小写；位掩码用字符串数组；名字和数值的映射只放在原生层；一个数值两个名字时写入都认、读出给主名；系统的哨兵常量也用字符串（`spacing = 'system'`）。**写错时按位置分**：属性位打一条警告、值保持不变（位掩码数组里有一个不认识的名字，整次赋值不生效）；方法参数、options、构造参数里抛 `TypeError`。两种的话都列出全部可选值。类型定义不放宽 | [枚举](internals/enums.md) |
 | 颜色 | 读写都是字符串，合法写入的原样读回；写错是警告加保持原值 | [颜色](internals/ui-color.md) |
 | 原生类 | 一律 final，不做继承。`class X extends UIView {}` 在 `new X()` 时抛 | [包装](internals/wrapper.md) |
-| 上层的类 | 我们定义的上层 API（Web 标准的 `WebSocket`，照 Electron 的 `WebContents` / `Session`，`application` 上的 `fileSystem`、`network` 这些对象）不继承 `NSObject`：会发事件的直接继承 `EventTarget`，不发事件的不继承任何类，和 Web 的 `Storage`、`Crypto` 一样。`NSObject` 只在底层，照实映射 iOS 的类层级。2026-11-21 定 | [包装](internals/wrapper.md#上层的类不继承-nsobject) |
+| 上层的类 | 我们定义的上层 API（Web 标准的 `WebSocket`、`Blob`，照 Electron 的 `WebContents` / `Session`，`application` 上的 `fileSystem`、`network` 这些对象）不继承 `NSObject`：会发事件的直接继承 `EventTarget`，不发事件的不继承任何类，和 Web 的 `Storage`、`Crypto` 一样。`NSObject` 只在底层，照实映射 iOS 的类层级。2026-11-21 定 | [包装](internals/wrapper.md#上层的类不继承-nsobject) |
 | 属性名拼错 | 运行时不报错，不禁止往包装上挂自己的数据；拼错由类型检查挡 | [原生类](api/native-classes.md) |
 | 事件名 | 按用户做了什么来命名，全小写；Web 上有含义相同的事件就用它的名字，含义不同的不借；改名不留旧名。网页那一组照 Electron。不认识的事件名不拒绝，当自定义事件 | [事件](internals/events.md#事件名按用户做了什么来命名) |
 | 事件能不能取消 | 原生的通知延后一轮派发，不可取消；系统当场来问、要立刻给答案的，当场派发，可取消；系统这一刻正在做一件 JS 要跟着做的事（键盘、转屏的动画），当场派发，不可取消；系统当场要一个值（滚动松手时停在哪），当场派发，不可取消，事件上那个字段可写，监听器写什么原生用什么 | [事件](internals/events.md) |

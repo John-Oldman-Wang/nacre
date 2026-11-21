@@ -605,6 +605,8 @@ static inline void* NacreKeep(id _Nullable object) {
 
 验收的 `stepUpperLayer` 断言发事件的 3 个父类是 `EventTarget`、不发事件的 4 个不继承任何类、没有 `addEventListener`，7 个的实例都不是 `NSObject`，继承 `WebSocket` 照样在 `new` 时抛，底层的 `UIView`、`NSUserDefaults` 照旧是 `NSObject`。
 
+**`Blob` 那一次漏了**（同一天补上）。它是 Web 标准的类，原生那边有字节，所以也走包装，一直继承 `NSObject`，而 `NSObject` 又继承 `EventTarget`：`Blob` 的实例上挂着用不上的 `addEventListener`。类型定义和文档本来就写着它「不继承其他类」，只有运行时不对。改成不继承任何类，和 `FileSystem` 一样；它能 `new`，构造里自己调 `finalCheck`，继承它照旧抛。用例加进同一步：不发事件的变成 5 个。查过一遍，继承 `NSObject` 的类里只剩真的 iOS 原生类。
+
 ---
 
 ← 返回[实现原理](README.md) ・ [项目说明](../project.md)
