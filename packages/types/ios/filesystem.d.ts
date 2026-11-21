@@ -28,7 +28,7 @@ interface FileSystemError extends Error {
   domain: string;
 }
 
-declare class FileSystem extends NSObject {
+declare class FileSystem {
   /** 只能由运行时给出，用 `application.fileSystem`。 */
   private constructor();
 

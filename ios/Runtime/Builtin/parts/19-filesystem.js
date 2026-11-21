@@ -5,7 +5,9 @@
 (function (ctx) {
   'use strict';
 
-  const { defineNativeClass, nativeCallAsync, nativeGet, nativeOnly } = ctx;
+  const {
+    defineNativeClass, nativeCallAsync, nativeGet, nativeOnly,
+  } = ctx;
 
   // ---------- 文件读写 ----------
   //
@@ -23,7 +25,7 @@
     return value;
   }
 
-  defineNativeClass('FileSystem', class FileSystem extends NSObject {
+  defineNativeClass('FileSystem', class FileSystem {
     constructor() { nativeOnly(new.target); }
 
     // 四个目录常量，绝对路径。拼接由 JS 自己做——那是纯字符串运算

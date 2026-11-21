@@ -4,7 +4,7 @@
  * 网络状态。不能 `new`，从 `application.network` 拿，每次是同一个对象。
  * 三个属性有一个变了就派发 `change`（延后一轮派发，不能取消）。
  */
-declare class Network extends NSObject {
+declare class Network extends EventTarget {
   private constructor();
   /** 连没连上：系统有一条能用的网络路径。 */
   readonly isConnected: boolean;

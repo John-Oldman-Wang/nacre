@@ -216,7 +216,7 @@ interface NavigationHistory {
  * console.log(contents.getTitle());
  * ```
  */
-declare class WebContents extends NSObject {
+declare class WebContents extends EventTarget {
   private constructor();
 
   addEventListener<K extends WebContentsEventType>(
@@ -439,7 +439,7 @@ interface Cookies extends EventTarget {
  * 从全局的 `session` 或者 `webContents.session` 拿，不能自己建。同一个分区
  * 永远是同一个对象。
  */
-declare class Session extends NSObject {
+declare class Session {
   private constructor();
   /** 这个分区的 cookie。每次读是同一个对象。 */
   readonly cookies: Cookies;

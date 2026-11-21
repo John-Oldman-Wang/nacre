@@ -6,6 +6,7 @@
   'use strict';
 
   const {
+    EventTarget,
     defineNativeClass,
     kSubscribe,
     nativeClassObject,
@@ -16,7 +17,7 @@
     subscribeNative,
   } = ctx;
 
-  defineNativeClass('Network', class Network extends NSObject {
+  defineNativeClass('Network', class Network extends EventTarget {
     constructor() { nativeOnly(new.target); }
     /** 连没连上：系统说有一条能用的网络路径 */
     get isConnected() { requireNative(this, 'isConnected'); return nativeGet(this, 'isConnected'); }
