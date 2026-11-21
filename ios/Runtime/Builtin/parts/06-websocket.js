@@ -6,8 +6,10 @@
   'use strict';
 
   const {
+    EventTarget,
     constructNative,
     defineNativeClass,
+    finalCheck,
     kSubscribe,
     nativeCall,
     nativeCallAsync,
@@ -20,8 +22,10 @@
     toTextOrNull,
   } = ctx;
 
-  const WebSocketClass = defineNativeClass('WebSocket', class WebSocket extends NSObject {
+  const WebSocketClass = defineNativeClass('WebSocket', class WebSocket extends EventTarget {
     constructor(url, options) {
+      // 上层的类不继承 NSObject，所以「原生类不许继承」要自己拦
+      finalCheck(new.target);
       super();
       constructNative(this, new.target, 'WebSocket', [String(url), options || {}]);
       // 连接没关之前，系统的网络会话一直拿着它、给它发消息。它没有父对象，

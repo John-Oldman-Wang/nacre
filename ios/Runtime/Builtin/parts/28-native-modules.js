@@ -359,7 +359,7 @@
   // ---------- NativeModules ----------
   // application.nativeModules。它包着原生那边唯一的那个对象
 
-  defineNativeClass('NativeModules', class NativeModules extends NSObject {
+  defineNativeClass('NativeModules', class NativeModules {
     constructor() { nativeOnly(new.target); }
 
     /** 登记了哪些模块，排好序。每次读都问原生：模块可以晚登记 */

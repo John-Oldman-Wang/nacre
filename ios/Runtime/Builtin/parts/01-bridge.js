@@ -257,8 +257,18 @@
   // 不拦的话它会走「普通值」那条路，句柄填 0，原生收到 nil 然后**静默
   // 什么都不做**——实测 parent.addSubview(子类实例) 就是这个下场。
   // 和只读属性静默失败是同一类错，所以一样要抛。
+  //
+  // 认的是「原型链上有运行时登记过的原生类」，不是 instanceof NSObject：上层的
+  // 类（WebSocket、Network……）直接继承 EventTarget，不经过 NSObject
+  function isNativeClassInstance(value) {
+    if (value === null || typeof value !== 'object') return false;
+    for (let p = Object.getPrototypeOf(value); p !== null; p = Object.getPrototypeOf(p)) {
+      if (nativeClassNames.has(p.constructor)) return true;
+    }
+    return false;
+  }
   function rejectUnbacked(value, where) {
-    if (value instanceof NSObject) {
+    if (isNativeClassInstance(value)) {
       const name = (value.constructor && value.constructor.name) || 'object';
       throw new TypeError(
         where + ': ' + name + ' has no native object yet, so it cannot be passed as an argument');

@@ -18,7 +18,7 @@ status: partial
 | Load a URL, go back and forward | `WebContents` | `web.webContents.loadURL(…)` |
 | Observe the loading process | `WebContents` | `web.webContents.addEventListener(…)` |
 
-**Inheritance**: `EventTarget` → `NSObject` → `WebContents`
+**Inheritance**: [`EventTarget`](event-target.md) → `WebContents`
 
 For how to display web pages, handle load failures, and restrict navigation, see the guide [Displaying web pages](../guides/web-pages.md); for exchanging messages with the page, see [Messaging between a web page and the app](../guides/web-page-messaging.md).
 

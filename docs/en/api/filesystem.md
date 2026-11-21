@@ -13,7 +13,7 @@ All read and write functions return a Promise. Reading and writing happen in the
 
 User settings belong in [`application.storage`](storage.md), and tokens and passwords belong in [`application.keychain`](keychain.md). For how to choose a directory and how to read and write, see the guide [Reading and writing files](../guides/files.md).
 
-**Inheritance**: `NSObject` → `FileSystem`
+**Inheritance**: `FileSystem` does not inherit from any class.
 
 ## Constructor
 
