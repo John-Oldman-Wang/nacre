@@ -76,6 +76,7 @@ status: partial
 | [`shadowOpacity`](ca-layer/shadowopacity.md) | 阴影的不透明度。默认 0，阴影不显示 |
 | [`shadowRadius`](ca-layer/shadowradius.md) | 阴影边缘模糊的范围 |
 | [`shadowOffset`](ca-layer/shadowoffset.md) | 阴影相对图层的偏移 |
+| [`shadowPath`](ca-layer/shadowpath.md) | 阴影的形状。不设时按图层的内容生成 |
 
 三维变换和遮罩：
 
@@ -141,7 +142,7 @@ status: partial
 - 视图的位置和大小由 Auto Layout 管。直接改 `view.layer.frame`，下一次布局时会被约束算出的结果覆盖。**这一条未在模拟器验证。**
 - `view.backgroundColor` 写入 `'label'` 这类随深浅色模式变化的颜色时，系统切换模式后底色自动跟着变。`layer.backgroundColor` 不会，见[图层上的颜色](#图层上的颜色)。
 
-视图没有对应属性的那些，直接写 `view.layer`：圆角（`cornerRadius`、`cornerCurve`、`maskedCorners`）、边框（`borderWidth`、`borderColor`）、阴影（`shadowColor` 等四个）。
+视图没有对应属性的那些，直接写 `view.layer`：圆角（`cornerRadius`、`cornerCurve`、`maskedCorners`）、边框（`borderWidth`、`borderColor`）、阴影（`shadowColor` 等五个）。
 
 用 `new` 创建的图层没有对应的视图，全部用图层自己的属性。
 
@@ -337,6 +338,7 @@ application.addEventListener('sceneconnect', (e) => {
 | `layer.borderColor = UIColor.systemBlueColor.CGColor` | `layer.borderColor = 'systemBlue'` |
 | `[UIColor colorWithCGColor:layer.borderColor]` | `layer.borderColor`（读到的是字符串） |
 | `layer.shadowOffset = CGSizeMake(0, 4)` | `layer.shadowOffset = new CGSize(0, 4)` |
+| `layer.shadowPath = path.CGPath` | `layer.shadowPath = path` |
 | `layer.contentsScale = view.traitCollection.displayScale` | `layer.contentsScale = view.traitCollection.displayScale` |
 | `layer.contents = (id)image.CGImage` | `layer.contents = image` |
 | `layer.transform = CATransform3DMakeRotation(a, 0, 1, 0)` | `layer.transform = CATransform3D.rotation(a, 0, 1, 0)` |

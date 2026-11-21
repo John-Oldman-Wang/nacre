@@ -21,13 +21,14 @@ status: partial
 | 按回车 | 派发 `return` | 换行，不派发事件 |
 | 占位文字 | `placeholder` 属性 | 没有，要自己叠一个标签 |
 | 边框 | `borderStyle` 有四种样式 | 没有可用的边框样式，用底色和圆角 |
-| 在修改之前拦下 | `beforeinput` 等可取消的事件 | 没有 |
+| 在修改之前拦下 | `beforeinput` 等可取消的事件 | `beforeinput` 等可取消的事件 |
+| 点了富文本里的链接 | 没有 | `linkclick` 事件 |
 | 光标和选中的范围 | `selectedRange` | `selectedRange` |
 | 光标或选区动了 | `selectionchange` 事件 | `selectionchange` 事件 |
 
 九个键盘设置（`keyboardType`、`textContentType` 等）两边相同。
 
-这一组页面里标「实测」的行为，是用不带界面的小程序在模拟器（iPhone Air，iOS 27.2）上量的。屏幕上的样子和真实键盘的行为标了「**未在模拟器验证**」。
+这一组页面里标「实测」的行为，是用不带界面的小程序在模拟器（iPhone Air，iOS 27.2）上量的。屏幕上的样子和真实键盘的行为标了「**未在模拟器验证**」。`beforefocus`、`beforeinput`、`beforeblur`、`linkclick` 四个事件页里的「实测」是在真机（iPhone 14，iOS 27.2）上量的，没量到的标了「**未在真机验证**」。
 
 **继承关系**：`EventTarget` → `NSObject` → `UIResponder` → [`UIView`](ui-view.md) → [`UIScrollView`](ui-scroll-view.md) → `UITextView`
 
@@ -114,7 +115,9 @@ status: partial
 
 ## 事件
 
-用 `addEventListener()` 监听。多行输入自己的事件有四个：
+用 `addEventListener()` 监听。多行输入自己的事件有八个，分成两组。
+
+内容、焦点和选区变了之后的通知：
 
 | 事件 | 什么时候派发 |
 | --- | --- |
@@ -122,18 +125,39 @@ status: partial
 | [`input`](ui-text-view/input-event.md) | 用户的输入改了内容，或者代码调了 `insertText()`、`deleteBackward()` |
 | [`selectionchange`](ui-text-view/selectionchange-event.md) | 选区或者光标的位置变了 |
 | [`blur`](ui-text-view/blur-event.md) | 它不再是 first responder，结束输入 |
+
+系统当场来问「要不要做」的事件，监听器里调 `preventDefault()` 就是不要：
+
+| 事件 | 什么时候派发 |
+| --- | --- |
+| [`beforefocus`](ui-text-view/beforefocus-event.md) | 即将开始输入。取消就不进入编辑 |
+| [`beforeinput`](ui-text-view/beforeinput-event.md) | 用户的输入即将改变内容。取消就不改 |
+| [`beforeblur`](ui-text-view/beforeblur-event.md) | 即将结束输入。取消就留住焦点 |
+| [`linkclick`](ui-text-view/linkclick-event.md) | 用户点了富文本里的链接。取消就不打开 |
+
+继承来的事件：
+
+| 事件 | 什么时候派发 |
+| --- | --- |
 | [`scroll`](ui-scroll-view/scroll-event.md) 等 | 滚动视图的八个事件，继承自 [`UIScrollView`](ui-scroll-view.md#事件) |
 | `traitchange` | [外观特征](ui-trait-collection.md)变化，继承自 `UIView` |
 
-四个事件共同的规则：
+`focus`、`input`、`selectionchange`、`blur` 四个通知共同的规则：
 
 - 事件对象的 `type` 是事件名，`target` 是这块多行输入。事件对象不带内容，也不带改了哪里。内容读 `text`，光标读 `selectedRange`。
-- 不能取消，`preventDefault()` 不起作用。所以不能用它阻止某个字符进入。
+- 不能取消，`preventDefault()` 不起作用。要阻止某个字符进入，用 [`beforeinput`](ui-text-view/beforeinput-event.md)。
 - 回调不是在事件发生的那一刻同步执行，而是稍后执行，见[回调的执行时机](ui-control.md#回调的执行时机)。调完 `insertText()` 的下一行，回调还没有执行。
 - 回调里抛出异常不影响多行输入，同一事件的其他回调照常执行。异常在 [`application`](application.md#没处理的异常不会让-app-退出) 上派发 `error`；没有监听器取消时，控制台输出以 `Uncaught` 开头的日志。
 - 没有监听器时没有开销。
-- 滚动视图的事件可以和这四个同时监听，互不影响（实测）。
+- 滚动视图的事件可以和这八个同时监听，互不影响（实测）。
 - 监听别的名字不会报错：它被当成自定义事件，只有自己用 `dispatchEvent()` 派发时才会触发。
+
+`beforefocus`、`beforeinput`、`beforeblur`、`linkclick` 四个可取消的事件共同的规则：
+
+- 监听器是当场执行的。系统派发事件之后等监听器全部执行完，再决定做不做。监听器里只做判断，不做耗时的事。
+- 只要有一个监听器调了 `preventDefault()`，系统就不做。
+- 监听器抛出异常不等于 `preventDefault()`。
+- 没有监听器时系统照默认的做法处理。
 
 ## 代码改内容和用户改内容
 
@@ -246,8 +270,10 @@ application.addEventListener('sceneconnect', (e) => {
 | `textViewDidChange:`、`UITextViewTextDidChangeNotification` | `input` 事件 |
 | `textViewDidEndEditing:`、`UITextViewTextDidEndEditingNotification` | `blur` 事件 |
 | `textViewDidChangeSelection:` | `selectionchange` 事件 |
-| `textView:shouldChangeTextInRange:replacementText:` | 没有对应 |
-| `textViewShouldBeginEditing:`、`textViewShouldEndEditing:` | 没有对应 |
+| `textView:shouldChangeTextInRange:replacementText:` | `beforeinput` 事件 |
+| `textViewShouldBeginEditing:` | `beforefocus` 事件 |
+| `textViewShouldEndEditing:` | `beforeblur` 事件 |
+| `textView:primaryActionForTextItem:defaultAction:`，点的是链接 | `linkclick` 事件 |
 
 ### 与浏览器 `<textarea>` 的对照
 
@@ -262,7 +288,7 @@ application.addEventListener('sceneconnect', (e) => {
 | `setRangeText()` | `insertText()` | 只能换掉当前选中的部分 |
 | `readonly` | `isEditable = false` | — |
 | `placeholder` | 没有 | 叠一个标签 |
-| `maxlength` | 没有 | 在 `input` 的回调里截断 |
+| `maxlength` | 没有 | 在 `beforeinput` 里拦下超长的修改 |
 | `rows` | 没有 | 高度由约束决定，或者关掉滚动让它跟着内容走 |
 | `selectionchange` 事件 | `selectionchange` 事件 | 派发在这块多行输入上，不在 `document` 上。事件对象不带选区，要读 `input.selectedRange` |
 

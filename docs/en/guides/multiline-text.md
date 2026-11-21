@@ -110,18 +110,28 @@ After writing `text`, the cursor is at the end of the content (verified by testi
 
 ## Limiting the input length
 
+A text view has no maximum-length property. Listen for [`beforeinput`](../api/ui-text-view/beforeinput-event.md) and decide, before the change happens, whether to let it happen.
+
 ```js
 const LIMIT = 200;
-input.addEventListener('input', () => {
-  if (input.text.length > LIMIT) {
-    input.text = input.text.slice(0, LIMIT);
+input.addEventListener('beforeinput', (event) => {
+  const { range, replacementString } = event;
+  // What the content would be if this change happened
+  const next = input.text.slice(0, range.location) + replacementString +
+    input.text.slice(range.location + range.length);
+  if (next.length > LIMIT) {
+    event.preventDefault();
   }
 });
 ```
 
-**Effect**: when the content exceeds 200 UTF-16 code units, the excess is removed. Writing `text` does not fire `input`, so the callback does not run again because of it. After truncation, the cursor is at the end.
+**Effect**: once the content holds 200 UTF-16 code units, further typing and pressing Return do nothing, and the characters don't appear. Pasting text that would make the total longer than 200 inserts none of it. Deleting works as usual. **Not verified on a device**: this event is triggered only by real keyboard input, and the acceptance tests verify it by asking the way the system does.
 
-The user first sees the extra characters, which then disappear; this is **not verified in the simulator**.
+- `range` is the section to be replaced and `replacementString` is the text to replace it with; see [The data `beforeinput` carries](../api/ui-text-view/beforeinput-event.md#event-object).
+- The system decides whether to make the change only after the listener has run. So a blocked character never shows up first.
+- Writing `input.text` in code, and calling `insertText()` and `deleteBackward()`, don't fire `beforeinput`, so they aren't subject to this limit. **Not verified on a device.**
+
+> **Note:** With input methods such as Pinyin, the Pinyin letters not yet converted to characters are also individual changes. How `beforeinput` fires in that case is **not verified on a device**, and blocking it may interrupt input.
 
 ## Showing placeholder text
 

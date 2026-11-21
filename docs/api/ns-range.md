@@ -9,7 +9,7 @@ native: NSRange
 
 单位和 JS 字符串的下标相同。所以 `text.slice(location, location + length)` 取出来的就是这一段，`text.length` 就是最大的 `location`。大多数字符占一个码元，表情和一部分汉字占两个。`length` 是 0 表示一个位置，没有内容，在输入框里就是光标。
 
-用到它的地方：[`UITextField`](ui-text-field.md) 和 [`UITextView`](ui-text-view.md) 的 `selectedRange`、`UITextView.scrollRangeToVisible()`、`UITextField` 的 `beforeinput` 事件，以及[富文本](ns-attributed-string.md)里所有带范围的方法。
+用到它的地方：[`UITextField`](ui-text-field.md) 和 [`UITextView`](ui-text-view.md) 的 `selectedRange`、`UITextView.scrollRangeToVisible()`、`UITextField` 和 `UITextView` 的 `beforeinput` 事件、`UITextView` 的 `linkclick` 事件，以及[富文本](ns-attributed-string.md)里所有带范围的方法。
 
 `NSRange` 是[结构体](structs.md)：一个值，不是一个对象的引用。规矩和 `CGRect` 那一组相同：
 

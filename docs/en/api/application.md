@@ -13,7 +13,7 @@ status: partial
 - **App information**: bundle ID, version, and the contents of the configuration file.
 - **App state**: whether the app is in the foreground or background, and which scenes currently exist.
 - **App-level events**: the UI can be built, the app entered the background, memory is low, the app was opened by a link, there is an unhandled exception.
-- **App-level capabilities**: entry points to local storage, files, and network status, and asking the system to open a URL (opening outward; another app opening this app is the event in the previous item). With `@nacrejs/keychain` installed, the keychain entry point is here too.
+- **App-level capabilities**: entry points to local storage, files, and network status, asking the system to open a URL (opening outward; another app opening this app is the event in the previous item), and asking the system for extra time when moving to the background. With `@nacrejs/keychain` installed, the keychain entry point is here too.
 - **Native module entry point**: methods provided by the app's own native code and third-party native SDKs are called from `application.nativeModules`.
 
 The UI is not on `application`. The UI belongs to scenes ([`UIWindowScene`](ui-window-scene.md)): a scene represents one instance of the app's UI, the system creates it, and a window must be created on a scene to be displayed. `application` fires [`sceneconnect`](application/sceneconnect-event.md) when a scene becomes available and keeps track of the current scenes.
@@ -47,6 +47,7 @@ App state:
 | [`scenes`](application/scenes.md) <small>read-only</small> | The currently connected scenes |
 | [`supportsMultipleScenes`](application/supportsmultiplescenes.md) <small>read-only</small> | Whether multiple scenes can exist at the same time |
 | [`protectedDataAvailable`](application/protecteddataavailable.md) <small>read-only</small> | Whether encrypted, protected files can be read right now |
+| [`backgroundTimeRemaining`](application/backgroundtimeremaining.md) <small>read-only</small> | How many more seconds the app can run in the background. `Infinity` in the foreground |
 
 Device environment settings:
 
@@ -75,6 +76,7 @@ Also inherits [`addEventListener()`](event-target/addeventlistener.md), [`remove
 | Method | Description |
 | --- | --- |
 | [`openURL()`](application/openurl.md) | Hands a URL to the system to open |
+| [`runBackgroundTask()`](application/runbackgroundtask.md) | Runs a function and, if the app moves to the background meanwhile, asks the system for extra time to finish it |
 
 ## Events
 
@@ -167,6 +169,8 @@ Four events fire when the state changes. Two of them fire before the state chang
 
 Scenes also have four events with the same names. The ones on `application` reflect the state of all scenes combined; the ones on a scene reflect that one scene's state. The values read from the two can differ at the same moment; see [`UIWindowScene`](ui-window-scene.md#scene-state-and-app-state).
 
+After the app enters the background, the system suspends it after a short while. Wrap work that has already started and needs a few more seconds to finish (an upload, writing a file) in [`runBackgroundTask()`](application/runbackgroundtask.md), and the system gives it extra time to finish; read how many seconds are left from [`backgroundTimeRemaining`](application/backgroundtimeremaining.md).
+
 ## System events can't be canceled
 
 Events on `application` fall into two categories, which differ in whether `preventDefault()` works:
@@ -241,6 +245,8 @@ This code hasn't been run as a whole in the simulator. Every API it uses has bee
 | `UIApplication.sharedApplication.protectedDataAvailable` | `application.protectedDataAvailable` |
 | `UIApplication.sharedApplication.idleTimerDisabled = YES` | `application.idleTimerDisabled = true` |
 | `[UIApplication.sharedApplication openURL:url options:@{} completionHandler:…]` | `application.openURL(url)` |
+| `beginBackgroundTaskWithName:expirationHandler:`, `endBackgroundTask:` | `application.runBackgroundTask(work, { name })` |
+| `UIApplication.sharedApplication.backgroundTimeRemaining` | `application.backgroundTimeRemaining` |
 | `NSUserDefaults.standardUserDefaults` | `application.storage` |
 | `UISceneWillConnectNotification` | `application.addEventListener('sceneconnect', …)` |
 | `UISceneDidDisconnectNotification` | `application.addEventListener('scenedisconnect', …)` |

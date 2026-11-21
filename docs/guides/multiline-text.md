@@ -110,18 +110,28 @@ console.log(input.hasText);
 
 ## 限制输入的长度
 
+多行输入没有最大长度的属性。监听 [`beforeinput`](../api/ui-text-view/beforeinput-event.md)，在修改发生之前决定让不让它发生。
+
 ```js
 const LIMIT = 200;
-input.addEventListener('input', () => {
-  if (input.text.length > LIMIT) {
-    input.text = input.text.slice(0, LIMIT);
+input.addEventListener('beforeinput', (event) => {
+  const { range, replacementString } = event;
+  // 这次修改如果发生，内容会是什么
+  const next = input.text.slice(0, range.location) + replacementString +
+    input.text.slice(range.location + range.length);
+  if (next.length > LIMIT) {
+    event.preventDefault();
   }
 });
 ```
 
-**效果**：内容超过 200 个 UTF-16 码元时，多出来的部分被去掉。写 `text` 不派发 `input`，所以回调不会因此再执行一次。截断之后光标在末尾。
+**效果**：内容已有 200 个 UTF-16 码元时，再打字、按回车都没有反应，字符不出现。粘贴一段会让总长超过 200 的文字，整段都不进去。删除照常。**未在真机验证**：这个事件只有真实的键盘输入会触发，验收用例是照系统的问法验的。
 
-用户会先看到多出来的字，随后它消失；这一点**未在模拟器验证**。
+- `range` 是要被换掉的那一段，`replacementString` 是要换上去的文字，见 [`beforeinput` 带的数据](../api/ui-text-view/beforeinput-event.md#事件对象)。
+- 监听器执行完，系统才决定这次修改做不做。所以被拦下的字符不会先显示出来。
+- 用代码写 `input.text`、调 `insertText()` 和 `deleteBackward()` 都不派发 `beforeinput`，不受这个限制。**未在真机验证。**
+
+> **注意**：用拼音这类输入法时，还没选字的拼音字母也是一次次修改。这时 `beforeinput` 怎么派发**未在真机验证**，拦截它可能打断输入。
 
 ## 显示占位文字
 

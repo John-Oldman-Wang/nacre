@@ -76,6 +76,7 @@ Shadow:
 | [`shadowOpacity`](ca-layer/shadowopacity.md) | Shadow opacity. Defaults to 0, so the shadow isn't shown |
 | [`shadowRadius`](ca-layer/shadowradius.md) | How far the shadow's edge is blurred |
 | [`shadowOffset`](ca-layer/shadowoffset.md) | The shadow's offset from the layer |
+| [`shadowPath`](ca-layer/shadowpath.md) | The shadow's shape. When not set, it is generated from the layer's content |
 
 Three-dimensional transform and mask:
 
@@ -141,7 +142,7 @@ For a view's own layer, use the view properties for these five. There are two re
 - A view's position and size are managed by Auto Layout. If you change `view.layer.frame` directly, the next layout pass overwrites it with the result computed from constraints. **This is not verified in the simulator.**
 - When `view.backgroundColor` is set to a color that changes with light and dark mode, such as `'label'`, the background follows automatically when the system switches modes. `layer.backgroundColor` doesn't; see [Colors on layers](#colors-on-layers).
 
-For things the view has no property for, write to `view.layer` directly: rounded corners (`cornerRadius`, `cornerCurve`, `maskedCorners`), border (`borderWidth`, `borderColor`), and shadow (the four `shadowColor` and related properties).
+For things the view has no property for, write to `view.layer` directly: rounded corners (`cornerRadius`, `cornerCurve`, `maskedCorners`), border (`borderWidth`, `borderColor`), and shadow (the five `shadowColor` and related properties).
 
 A layer created with `new` has no corresponding view; use the layer's own properties for everything.
 
@@ -337,6 +338,7 @@ For more patterns, see the guide [Drawing rounded corners, shadows, gradients, a
 | `layer.borderColor = UIColor.systemBlueColor.CGColor` | `layer.borderColor = 'systemBlue'` |
 | `[UIColor colorWithCGColor:layer.borderColor]` | `layer.borderColor` (reads a string) |
 | `layer.shadowOffset = CGSizeMake(0, 4)` | `layer.shadowOffset = new CGSize(0, 4)` |
+| `layer.shadowPath = path.CGPath` | `layer.shadowPath = path` |
 | `layer.contentsScale = view.traitCollection.displayScale` | `layer.contentsScale = view.traitCollection.displayScale` |
 | `layer.contents = (id)image.CGImage` | `layer.contents = image` |
 | `layer.transform = CATransform3DMakeRotation(a, 0, 1, 0)` | `layer.transform = CATransform3D.rotation(a, 0, 1, 0)` |

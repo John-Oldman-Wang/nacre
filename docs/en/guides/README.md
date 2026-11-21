@@ -62,6 +62,7 @@ Each guide walks through one task step by step. For the details of a specific pr
 | [Building a multiline text view](multiline-text.md) | This guide shows how to use `UITextView` for multiline input: reading and writing the content, showing placeholder text, growing with the content, read-only display, dismissing the keyboard, and staying clear of the keyboard. |
 | [Building a search bar](search.md) | This guide covers how to use `UISearchBar` for search: placing it in a view controller, filtering as the user types, submitting a search, the cancel button, scope buttons, and keyboard settings. |
 | [Responding to gestures](gestures.md) | This guide covers how to use gesture recognizers to make ordinary views respond to taps, long presses, drags, pinches, rotations, and swipes, and which one takes effect when a recognizer is combined with a button, with another recognizer, or with a scroll view. |
+| [Making VoiceOver read your interface correctly](accessibility.md) | This guide covers how to use the accessibility properties on `UIView` so that VoiceOver reads your interface correctly: when to make a view an accessibility element, what goes in the label, hint, and value, how to choose traits, merging a control you build yourself into one element, and keeping VoiceOver inside an overlay. |
 
 ## Layers and animation
 
