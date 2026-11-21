@@ -594,6 +594,10 @@ void WebViewSetAsker(NacreWebContentsAsk ask) { g_webContentsAsk = [ask copy]; }
 //
 // 到这里的是 webPreferences 那一层，值已经在 JS 侧转过类型。类型不对就
 // 建不出来（返回空），不猜
+// 定义在 NacreWebProtocol.mm：把这个分区此刻注册的自定义协议挂到配置上。
+// 内部头不为一个调用方加声明，签名对不上链接时会报
+void WebProtocolInstall(WKWebViewConfiguration* config, NSString* partition);
+
 nacre::NativeObjectRef WebViewConstruct(id options) {
   NSDictionary* prefs = [options isKindOfClass:NSDictionary.class] ? options : @{};
   id partitionValue = prefs[@"partition"];
@@ -608,6 +612,8 @@ nacre::NativeObjectRef WebViewConstruct(id options) {
   WKWebViewConfiguration* config = [WKWebViewConfiguration new];
   // 分区名 → 数据存储的换算在 NacreWebSession.mm，Session 用的是同一个
   config.websiteDataStore = WebStoreForPartition(partition);
+  // 自定义协议只能在建网页这一刻挂上，之后再注册的对这个网页不起作用
+  WebProtocolInstall(config, partition);
   if (javascript != nil) {
     config.defaultWebpagePreferences.allowsContentJavaScript = [javascript boolValue];
   }
