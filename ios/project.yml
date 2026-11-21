@@ -32,7 +32,11 @@ targets:
           - "NacreModule.h"
           - "PrivacyInfo.xcprivacy"
           - "NacreExtension.h"
-          - "Engine/NativeObjectRef.h"
+        headerVisibility: project
+      # 引擎：两端共用的纯 C++，在仓库根的 core/engine/（Android 也编它）
+      - path: ../core/engine
+        excludes:
+          - "NativeObjectRef.h"
         headerVisibility: project
       - path: Runtime/Nacre.h
         headerVisibility: public
@@ -48,11 +52,16 @@ targets:
       - path: Runtime/NacreExtension.h
         headerVisibility: private
       # NacreExtension.h 用到的那个结构体。它是纯 C++ 的，引擎也从这里拿
-      - path: Runtime/Engine/NativeObjectRef.h
+      - path: ../core/engine/NativeObjectRef.h
         headerVisibility: private
       # 内置脚本，在 main.js 之前执行。打进 framework 自己的包，
       # 运行时用 bundleForClass: 找它
       - path: Runtime/Builtin
+        type: folder
+        buildPhase: resources
+      # 两端共用的内置脚本（Web 标准那批），打进包里是根上的 parts/。运行时
+      # 把它和 Builtin/parts/ 合在一起按文件名排序执行，顺序和名字都和拆之前一样
+      - path: ../core/builtin/parts
         type: folder
         buildPhase: resources
       # 隐私清单。Apple 要求它在 framework 包的**根**，而且第三方 SDK 不能
@@ -106,7 +115,7 @@ targets:
         CLANG_CXX_LANGUAGE_STANDARD: c++20
         CLANG_CXX_LIBRARY: libc++
         OTHER_CPLUSPLUSFLAGS: ["$(inherited)", "-fno-rtti"]
-        HEADER_SEARCH_PATHS: ["$(inherited)", "$(SRCROOT)/Vendor/v8/include"]
+        HEADER_SEARCH_PATHS: ["$(inherited)", "$(SRCROOT)/Vendor/v8/include", "$(SRCROOT)/../core/engine"]
         # 按平台选择 V8 静态库：Vendor/v8/lib/iphoneos 或 Vendor/v8/lib/iphonesimulator
         LIBRARY_SEARCH_PATHS: ["$(inherited)", "$(SRCROOT)/Vendor/v8/lib/$(PLATFORM_NAME)"]
         OTHER_LDFLAGS:

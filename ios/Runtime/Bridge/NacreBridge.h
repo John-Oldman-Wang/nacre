@@ -15,7 +15,7 @@
 #include <string>
 #include <vector>
 
-#include "../Engine/Engine.h"
+#include "Engine.h"   // core/engine/，两端共用的引擎
 
 // 给能力包用的那一组（NacreKeep、NacreAsyncResult、DecodeJSON、枚举宏、注册
 // 接口……）单独成了一个头，核心自己也从那里拿。

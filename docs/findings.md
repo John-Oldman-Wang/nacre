@@ -27,7 +27,7 @@
 | M2 | 原生对象上监听它不认识的事件名会抛 `TypeError`，自定义事件用不了。`dispatchEvent(new Event('任意名'))` 不抛，但监听器注册不上 | `ios/Runtime/NacreRuntime.mm:1827、1834`、`Bridge/NacreGesture.mm` 的 `GestureSetSubscription`、`nacre.js:89` | 和 Web 一样：任何对象可以监听任意名字并自己派发，运行时不认识的名字只是不向原生订阅。已有待办「订阅按事件名分流」。文档都写成了「已知的限制」 |
 | M3 | 被模态呈现的 `UINavigationController` 上监听 `willdismiss` / `diddismiss` / `dismissattempted` 会抛 | `NacreRuntime.mm:1728-1737` | 和 `UITabBarController` 一样认这三个名字。与 M2 同一个根因 |
 | M4 | `asset(不存在的名字)` 抛 `TypeError: cannot build a color from this specification`，和「颜色写错不抛、只警告」不一致 | `Bridge/NacreFactories.mm:42-47`；JS 侧 `colorFromString`（`nacre.js` 约 4597 行）没有接住 | 警告并保持原来的颜色 |
-| M5 | `setInterval(fn, 0)` 只执行一次就不再重复 | `ios/Runtime/Engine/Engine.cpp:1483、1563`（`interval_ms > 0` 才重新入堆） | 按 0 间隔持续重复 |
+| M5 | `setInterval(fn, 0)` 只执行一次就不再重复 | `core/engine/Engine.cpp:1483、1563`（当时在 `ios/Runtime/Engine/`）（`interval_ms > 0` 才重新入堆） | 按 0 间隔持续重复 |
 | M6 | 没有主机部分的地址（`mailto:a@b.com`、`tel:`、`data:`）的 `href` 被拼成 `mailto://a@b.com` | `nacre.js:5805-5813`（`serializeURL` 无条件加 `//`） | 原样还回 |
 | M7 | `Response.text()` 遇到不是 UTF-8 的内容静默返回空串，也不看响应头声明的编码 | `NacreRuntime.mm:716` | 用替换字符解码，或者拒绝 |
 | M8 | 取消请求时抛的异常前后不一致：调用前已取消的以 `signal.reason` 拒绝；进行中取消的一律是新的 `AbortError`，丢掉了 `abort(reason)` 的原因，`AbortSignal.timeout()` 也得不到 `TimeoutError` | `nacre.js` 约 6385-6396、`NacreRuntime.mm` 的 `rejectCall:` | 两种情况都以 `signal.reason` 拒绝 |

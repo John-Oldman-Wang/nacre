@@ -6,7 +6,7 @@
 // 上层 API，Web 原样：浏览器、Node、Deno 都有这五个全局，很多 npm 包一引入
 // 就调它们。它们不是 ECMAScript 的一部分，V8 不带，要运行时自己补。
 //
-// 算的那部分全在引擎的 C++ 里（Engine/WebGlobals.cpp）：UTF-8 的编码和对象
+// 算的那部分全在引擎的 C++ 里（core/engine/WebGlobals.cpp）：UTF-8 的编码和对象
 // 的序列化是 V8 自带的，解码的状态机和 Base64 是照标准写的 C++。这里只做
 // 三件事：把参数按 Web IDL 转好、定类的形状、建带名字的 Error。
 //
@@ -194,15 +194,13 @@
   // 两种认法：
   //   1. 有句柄的是原生对象的包装，有监听器表的是 EventTarget——所有原生类
   //      和事件源都盖住了，包括以后接进来的、能力包里的
-  //   2. 其余纯 JS 的类按名字列在这里。**新加一个纯 JS 的类（结构体那种）
-  //      要往这张表里添一行**，不然它会被克隆成普通对象
+  //   2. 其余纯 JS 的类按名字列。Web 标准的在这里；平台自己的（iOS 的结构体
+  //      那种）由平台的 part 放进 ctx.platformCloneClasses。**新加一个纯 JS 的类
+  //      要往对应的表里添一行**，不然它会被克隆成普通对象
   const PLATFORM_CLASSES = [
     'EventTarget', 'Event',
     'URL', 'URLSearchParams', 'Headers', 'Request', 'Response', 'AbortController',
     'TextEncoder', 'TextDecoder', 'Crypto', 'Performance',
-    'CGPoint', 'CGSize', 'CGRect', 'UIEdgeInsets', 'NSDirectionalEdgeInsets',
-    'CGAffineTransform', 'CAFrameRateRange', 'NSRange', 'NSIndexPath',
-    'CLLocationCoordinate2D', 'CLLocation',
   ];
   // 第一次用到时才按名字去取：表里有几个类是后面的 part 和能力包定义的，
   // 这个 part 执行的时候它们还不存在
@@ -215,6 +213,7 @@
       }
     };
     for (const name of PLATFORM_CLASSES) add(globalThis[name]);
+    for (const name of ctx.platformCloneClasses || []) add(globalThis[name]);
     if (typeof Intl === 'object' && Intl !== null) {
       add(Intl.NumberFormat);
       add(Intl.DateTimeFormat);
