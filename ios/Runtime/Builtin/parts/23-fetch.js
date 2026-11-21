@@ -12,6 +12,7 @@
     URLSearchParams,
     define,
     defineNativeClass,
+    finalCheck,
     has,
     kHandle,
     nativeGet,
@@ -19,9 +20,11 @@
     native,
   } = ctx;
 
-  const Blob = defineNativeClass('Blob', class Blob extends NSObject {
+  // Web 标准的类，不继承任何类：不发事件，也不是 iOS 的对象（上层的类那条规矩）。
+  // 「原生类不许继承」原来在 NSObject 的构造里拦，现在自己拦
+  const Blob = defineNativeClass('Blob', class Blob {
     constructor(parts, options) {
-      super();
+      finalCheck(new.target);
       const list = parts === undefined || parts === null ? [] : Array.from(parts);
       const o = options === undefined || options === null ? {} : options;
       const type = has(o, 'type') ? String(o.type) : '';

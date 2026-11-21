@@ -42,6 +42,7 @@ export function stepUpperLayer(ctx) {
     ['Keychain', Keychain, application.keychain],
     ['NativeModules', NativeModules, application.nativeModules],
     ['Session', Session, web.webContents.session],
+    ['Blob', Blob, new Blob(['x'])],
   ];
   for (const [name, cls, instance] of withoutEvents) {
     assert('上层：' + name + ' 不继承任何类',
@@ -54,6 +55,11 @@ export function stepUpperLayer(ctx) {
   // 原生类不许继承：原来在 NSObject 的构造函数里拦，WebSocket 不再经过它，要自己拦
   class MySocket extends WebSocket {}
   assert('上层：继承 WebSocket 在 new 时抛', thrown(() => new MySocket('wss://echo.websocket.org')), 'TypeError');
+  class MyBlob extends Blob {}
+  assert('上层：继承 Blob 在 new 时抛', thrown(() => new MyBlob(['x'])), 'TypeError');
+  // Blob 不再经过 NSObject 的构造，自己的事照旧：建得出来、读得到内容
+  const blob = new Blob(['hello'], { type: 'text/plain' });
+  assert('上层：Blob 照常建得出来，size 和 type 对', blob.size + ' ' + blob.type, '5 text/plain');
   // 底层照旧
   assert('底层：UIView 还是 NSObject', new UIView() instanceof NSObject, true);
   assert('底层：NSUserDefaults（application.storage）还是 NSObject', application.storage instanceof NSObject, true);
