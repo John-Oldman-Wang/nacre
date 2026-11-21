@@ -121,7 +121,7 @@ export function stepNativeModules(ctx) {
   assert('methods 每次读是同一个对象', mod.methods === mod.methods, true);
   assert('methods.sync 的内容', mod.methods.sync.join(','),
          'add,argumentCount,bytes,cachedByte,echo,echoAll,emit,emitUnsupported,fail,failWithNSError,' +
-         'isMainThread,nonFinite,sha256,simulateDragEnd,simulateMarkedText,simulateMemoryWarning,typeOf,unsupported');
+         'isMainThread,nonFinite,sha256,simulateDragEnd,simulateGestureAsk,simulateMarkedText,simulateMemoryWarning,typeOf,unsupported');
   assert('methods.async 的内容', mod.methods.async.join(','),
          'bytesAsync,cachedBytesAsync,drop,echoAsync,echoLater,emitLater,failLater,nestedBytesAsync,' +
          'resolveThenReject,settleTwice,simulateSheetSwipeDown,threads,unsupportedAsync');

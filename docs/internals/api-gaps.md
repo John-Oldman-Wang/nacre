@@ -820,8 +820,7 @@
 
 | 想做的事 | 对应的原生能力 |
 | --- | --- |
-| 让两个识别器同时认出手势，比如边缩放边旋转 | `UIGestureRecognizerDelegate` 的 `gestureRecognizer:shouldRecognizeSimultaneouslyWithGestureRecognizer:`。系统在手势进行中当场询问，要求立刻回答，目前 JS 的回调做不到 |
-| 按条件决定一个手势要不要开始、要不要接收某次触摸 | `UIGestureRecognizerDelegate` 的 `gestureRecognizerShouldBegin:`、`gestureRecognizer:shouldReceiveTouch:` 等。原因同上 |
+| 按条件决定一个手势要不要接收某次触摸 | `UIGestureRecognizerDelegate` 的 `gestureRecognizer:shouldReceiveTouch:` 等（要不要开始已经有了：`beforebegin`） |
 | 撤销 `requireGestureRecognizerToFail()` 建立的关系 | 无。系统没有提供撤销的方法 |
 | 随时查询手势在任意视图里的位置 | `locationInView:`、`locationOfTouch:inView:`。现在位置从事件对象的 `location` 读 |
 | 自己定义一种手势 | 继承 `UIGestureRecognizer` 并覆写 `touchesBegan:withEvent:` 等方法。[原生类不能继承](../api/native-classes.md) |

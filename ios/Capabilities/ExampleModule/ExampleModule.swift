@@ -154,6 +154,30 @@ private func makeExampleModule() -> NacreModule {
     background.asyncAfter(deadline: .now() + delay) { resolve(value) }
   }
 
+  // 照 UIKit 的做法问手势识别器的委托：要不要开始（gestureRecognizerShouldBegin:），
+  // 给了第二个 tag 再问能不能和那边的识别器同时识别。识别器取那个视图上的第一个；
+  // 视图是滚动视图时取它内置的拖动手势。没有委托时照 UIKit 的默认：要开始、不同时。
+  // 兑现成 { shouldBegin, simultaneous }（没给第二个 tag 时 simultaneous 是 null）；
+  // 找不到视图或识别器是 null。真的触摸要手指。真的模块里不会有这种方法
+  module.addMethod("simulateGestureAsk") { args in
+    let window = UIApplication.shared.connectedScenes
+      .compactMap { $0 as? UIWindowScene }
+      .flatMap { $0.windows }
+      .first { $0.isKeyWindow }
+    func recognizer(_ value: Any?) -> UIGestureRecognizer? {
+      guard let tag = number(value), let view = window?.viewWithTag(Int(tag)) else { return nil }
+      if let scroll = view as? UIScrollView { return scroll.panGestureRecognizer }
+      return view.gestureRecognizers?.first
+    }
+    guard let a = recognizer(args.first) else { return nil }
+    let shouldBegin = a.delegate?.gestureRecognizerShouldBegin?(a) ?? true
+    var simultaneous: Any = NSNull()
+    if args.count > 1, let b = recognizer(args[1]) {
+      simultaneous = a.delegate?.gestureRecognizer?(a, shouldRecognizeSimultaneouslyWith: b) ?? false
+    }
+    return ["shouldBegin": shouldBegin, "simultaneous": simultaneous]
+  }
+
   // 照 UIKit「手指离开滚动视图」的做法调委托的 scrollViewWillEndDragging:
   // withVelocity:targetContentOffset:。参数：滚动视图的 tag、速度 x / y（pt/ms）、
   // 系统算出来的停点 x / y。兑现成委托改完之后的停点 { x, y }；找不到这个 tag

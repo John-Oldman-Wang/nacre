@@ -780,3 +780,16 @@ iOS 的触摸不是一套机制，是**四套并行**的（hit-testing、respond
 - 第一处：`UIScrollView` 的 `beforedragend`，带 `velocity`（pt/ms）和可写的 `targetContentOffset`。名字照 `dragbegin` / `dragend` 一组，系统来问的用 `before…`；原来方案里叫 `beforedecelerate`，但松手时速度为 0、不会减速时系统也问，那个名字会误导。
 - 验收：示例模块的 `simulateDragEnd` 照 UIKit 松手时的做法调委托，断言改成 80 的倍数、写普通对象、写了不是点的值、监听器抛了、摘掉监听器几种。真的手指没验。
 
+## 手势识别器的委托：beforebegin 和同时识别（2026-11-20）
+
+UIKit 用委托问识别器两件事，都是当场要答案：
+
+| 系统问的 | 我们怎么答 |
+| --- | --- |
+| 要不要开始（`gestureRecognizerShouldBegin:`） | 当场派发可取消的 `beforebegin`，`preventDefault()` 就不开始。和输入框的 `before…` 一个做法 |
+| 能不能和另一个同时识别（`…shouldRecognizeSimultaneouslyWithGestureRecognizer:`） | 不进 JS：查识别器上的 `recognizesSimultaneouslyWith` 这张表。系统默认「不能」，要 JS 答「能」，方向和 `preventDefault` 相反，所以用预先声明的状态，和方向、状态栏一样 |
+
+- 委托只装在**委托是空的**识别器上，也就是 JS 自己 `new` 的那些。UIKit 自带的识别器（滚动视图内置的拖动）委托必须是它自己，换掉会抛异常，所以在那上面用这两样抛 `TypeError`。表里可以填系统的识别器：UIKit 两边的委托都会问，有一边答能就同时识别。
+- 表用弱引用（`NSHashTable weakObjectsHashTable`）：识别器由各自的视图持有，这张表不该延长它们的命；JS 一侧因此也不记所有权边。
+- 两样都不要了就把委托摘掉，识别器回到 UIKit 的默认行为。
+- 验收：示例模块的 `simulateGestureAsk` 照 UIKit 的做法去问委托。真的触摸没验。

@@ -14,7 +14,9 @@
     nativeCall,
     nativeGet,
     nativeGetObject,
+    nativeGetObjectArray,
     nativeSet,
+    nativeSetObjectArray,
     requireNative,
     structArg,
     subscribeNative,
@@ -99,6 +101,20 @@
     // 它都当场释放。两个识别器各自由它所在的视图持有
     requireGestureRecognizerToFail(otherGestureRecognizer) {
       nativeCall(this, 'requireGestureRecognizerToFail:', [otherGestureRecognizer]);
+    }
+    // 能和哪些识别器同时识别。系统当场来问时运行时查这张表回答，不进 JS。
+    // 不记所有权边：原生用弱引用存，识别器各自由它所在的视图持有。
+    // 只能用在自己 new 的识别器上，UIKit 自带的写了抛
+    get recognizesSimultaneouslyWith() {
+      requireNative(this, 'recognizesSimultaneouslyWith');
+      return nativeGetObjectArray(this, 'recognizesSimultaneouslyWith');
+    }
+    set recognizesSimultaneouslyWith(value) {
+      requireNative(this, 'recognizesSimultaneouslyWith');
+      if (!Array.isArray(value)) {
+        throw new TypeError('recognizesSimultaneouslyWith needs an array of UIGestureRecognizer');
+      }
+      nativeSetObjectArray(this, 'recognizesSimultaneouslyWith', value);
     }
   });
 
