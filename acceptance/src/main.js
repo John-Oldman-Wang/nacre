@@ -284,9 +284,11 @@ application.addEventListener('sceneconnect', (e) => {
     ['stepPageOverrides', () => stepPageOverrides(ctx)],
     ['stepMemoryPressure', () => stepMemoryPressure(ctx)],
     ['stepLayerTransform', () => stepLayerTransform(ctx)],
-    ['stepMarkedText', () => stepMarkedText(ctx)],
-    ['stepDragTarget', () => stepDragTarget(ctx)],
-    ['stepGestureDelegate', () => stepGestureDelegate(ctx)],
+    // 这三步会全屏弹出自己的页面，把网页盖住；被盖住的网页不再更新，所以和
+    // 「出现和消失」那一步一样，等网页那一步的异步断言跑完再开始
+    ['stepMarkedText', () => Promise.resolve(ctx.webViewDone).then(() => stepMarkedText(ctx))],
+    ['stepDragTarget', () => Promise.resolve(ctx.webViewDone).then(() => stepDragTarget(ctx))],
+    ['stepGestureDelegate', () => Promise.resolve(ctx.webViewDone).then(() => stepGestureDelegate(ctx))],
     ['stepNetwork', () => stepNetwork(ctx)],
   ];
   // 收尾的几步排在最后，先后和原来一样。结尾三张和网页的比对各有几万条，要在
