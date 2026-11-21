@@ -820,7 +820,7 @@ declare class NativeModule extends EventTarget {
 }
 
 /** 登记进来的原生模块。只有一个，就是 `application.nativeModules`。 */
-declare class NativeModules extends NSObject {
+declare class NativeModules {
   private constructor();
   /** 登记了哪些模块，按名字排好了。每次读都是当时的情况。 */
   readonly names: readonly string[];
@@ -992,7 +992,7 @@ declare interface WebSocketErrorEvent extends Event {
  * 数「发出去还没完成的条数」，但那和 Web 的「排队字节数」不是一个定义，
  * 同名不同义比没有更糟。
  */
-declare class WebSocket extends NSObject {
+declare class WebSocket extends EventTarget {
   constructor(
     url: string,
     options?: {

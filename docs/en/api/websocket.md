@@ -13,7 +13,7 @@ A connection is created with `new WebSocket(url)`. When the constructor returns,
 
 The URL scheme is `wss:` (encrypted) or `ws:` (unencrypted).
 
-**Inheritance**: `EventTarget` → `NSObject` → `WebSocket`
+**Inheritance**: [`EventTarget`](event-target.md) → `WebSocket`
 
 `WebSocket` cannot be subclassed; see [Native classes](native-classes.md). For how to keep a long-lived connection and send and receive different kinds of messages, see the guide [Sending and receiving messages with WebSocket](../guides/websocket.md).
 

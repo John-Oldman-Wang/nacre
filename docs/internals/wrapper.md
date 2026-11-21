@@ -591,6 +591,20 @@ static inline void* NacreKeep(id _Nullable object) {
 
 真机那一遍顺带补上了能力注册没验到的一半：Keychain 的 `get` / `set` 走异步通道、经注册表，`✓ Keychain 记到的启动次数 = 27（上一次存的还在）`。它之前验不到，就是因为 App 先崩在这个问题上。
 
+## 上层的类不继承 NSObject
+
+2026-11-21 定。原来凡是原生那边有对象的类都继承 `NSObject`，包括我们自己定义的上层 API：`WebSocket`、`FileSystem`、`Keychain`、`Network`、`NativeModules`、`WebContents`、`Session`。JS 开发者沿着原型链看，会看到一个他不认识、也用不上的 `NSObject`——`WebSocket` 在网页上的父类是 `EventTarget`，到我们这里中间多了一层。按「两层 API」，上层不该带 ObjC 的概念，这是实现细节漏到了上层。
+
+改成这 7 个都不继承 `NSObject`：会发事件的 `WebSocket`、`WebContents`、`Network` 直接继承 `EventTarget`；不发事件的 `FileSystem`、`Keychain`、`NativeModules`、`Session` 不继承任何类，也就没有用不上的 `addEventListener`。这和 Web 一致：`localStorage`、`crypto`、`navigator` 不发事件，也都不是 `EventTarget`。包装工厂照样给它们挂事件表（`initWrapper`），用不上，不影响。底层的类照旧继承 `NSObject`，它照实映射 iOS 的类层级，以后要给所有对象补 `isEqual()` 这类能力也放在它上面。`WebView` 名字是我们起的，但它要能当子视图，只能留在 `UIView` 那条链上；`application.storage` 拿到的 `NSUserDefaults` 本来就是 ObjC 的类，属于底层。
+
+原来靠 `NSObject` 的两处跟着改：
+
+- **「原生类不许继承」**原来在 `NSObject` 的构造函数里统一拦。7 个里只有 `WebSocket` 能 `new`，它在自己的构造函数里调一次 `finalCheck`；另外 6 个本来就不能 `new`。
+- **`EventTarget` 要到第 25 个 part 才挂到全局**，排在前面的 part（`WebSocket` 在 06）直接写 `EventTarget` 拿不到，整套内置脚本加载失败、`main.js` 不执行。所以继承它的 part 一律从 ctx 里取。第一版就撞在这上面。
+- **桥上「原生对象还没建好就被当参数传」的报错**原来用 `instanceof NSObject` 认，改成看原型链上有没有运行时登记过的原生类（`nativeClassNames`）。真正分辨原生对象靠的是句柄，本来就不依赖 `NSObject`。
+
+验收的 `stepUpperLayer` 断言发事件的 3 个父类是 `EventTarget`、不发事件的 4 个不继承任何类、没有 `addEventListener`，7 个的实例都不是 `NSObject`，继承 `WebSocket` 照样在 `new` 时抛，底层的 `UIView`、`NSUserDefaults` 照旧是 `NSObject`。
+
 ---
 
 ← 返回[实现原理](README.md) ・ [项目说明](../project.md)

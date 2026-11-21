@@ -12,7 +12,7 @@ There is only one `application.network` in the whole app, and it can be used at 
 
 In the simulator, the network status follows the Mac running the simulator.
 
-**Inheritance**: [`EventTarget`](event-target.md) → `NSObject` → `Network`
+**Inheritance**: [`EventTarget`](event-target.md) → `Network`
 
 ## Constructor
 

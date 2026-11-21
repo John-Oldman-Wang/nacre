@@ -16,7 +16,7 @@ status: partial
 
 > **注意**：Keychain 不在核心里，要先装 `@nacrejs/keychain` 这个包才有。没装的时候 `application.keychain` 这个属性不存在（`'keychain' in application` 是 `false`），类型检查也会报它不存在。怎么装见下面「[先装上](#先装上)」。
 
-**继承关系**：`EventTarget` → `NSObject` → `Keychain`
+**继承关系**：`Keychain` 不继承任何类。
 
 ## 先装上
 

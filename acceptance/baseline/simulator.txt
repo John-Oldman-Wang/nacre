@@ -2452,6 +2452,32 @@
 + 三页的宽和高都大于 #
 + 三项宽 + 两个间距
 + 上一级目录的图片也加载出来了（包里的文件，整个包可读）
++ 上层：FileSystem 不继承任何类
++ 上层：FileSystem 没有 addEventListener
++ 上层：FileSystem 的实例不是 EventTarget
++ 上层：FileSystem 的实例不是 NSObject
++ 上层：Keychain 不继承任何类
++ 上层：Keychain 没有 addEventListener
++ 上层：Keychain 的实例不是 EventTarget
++ 上层：Keychain 的实例不是 NSObject
++ 上层：NativeModules 不继承任何类
++ 上层：NativeModules 没有 addEventListener
++ 上层：NativeModules 的实例不是 EventTarget
++ 上层：NativeModules 的实例不是 NSObject
++ 上层：Network 的实例不是 NSObject
++ 上层：Network 的实例是 EventTarget
++ 上层：Network 的父类是 EventTarget
++ 上层：Session 不继承任何类
++ 上层：Session 没有 addEventListener
++ 上层：Session 的实例不是 EventTarget
++ 上层：Session 的实例不是 NSObject
++ 上层：WebContents 的实例不是 NSObject
++ 上层：WebContents 的实例是 EventTarget
++ 上层：WebContents 的父类是 EventTarget
++ 上层：WebSocket 的实例不是 NSObject
++ 上层：WebSocket 的实例是 EventTarget
++ 上层：WebSocket 的父类是 EventTarget
++ 上层：继承 WebSocket 在 new 时抛
 + 上限 #:#
 + 上限按字节算，不按元素个数: QuotaExceededError
 + 下一次派发它也不在
@@ -3897,6 +3923,8 @@
 + 常数约束没有第二个锚点
 + 并发取两次都兑现成 UIImage
 + 应用之后项数变了
++ 底层：NSUserDefaults（application.storage）还是 NSObject
++ 底层：UIView 还是 NSObject
 + 底部菜单上 dismiss 也当自定义事件
 + 底部菜单不能加输入框：addTextField: text fields can only be added to an alert whose preferredStyle is "alert"
 + 底部菜单关掉之后 presentedViewController 清了

@@ -86,6 +86,7 @@ import { stepMarkedText } from './steps/marked-text.js';
 import { stepDragTarget } from './steps/drag-target.js';
 import { stepGestureDelegate } from './steps/gesture-delegate.js';
 import { stepNetwork } from './steps/network.js';
+import { stepUpperLayer } from './steps/upper-layer.js';
 import { stepGestures } from './steps/gestures.js';
 import { stepAlerts } from './steps/alerts.js';
 import { stepEffects } from './steps/effects.js';
@@ -290,6 +291,7 @@ application.addEventListener('sceneconnect', (e) => {
     ['stepDragTarget', () => Promise.resolve(ctx.webViewDone).then(() => stepDragTarget(ctx))],
     ['stepGestureDelegate', () => Promise.resolve(ctx.webViewDone).then(() => stepGestureDelegate(ctx))],
     ['stepNetwork', () => stepNetwork(ctx)],
+    ['stepUpperLayer', () => stepUpperLayer(ctx)],
   ];
   // 收尾的几步排在最后，先后和原来一样。结尾三张和网页的比对各有几万条，要在
   // 主线程上跑十几秒：它们等生命周期那一步的 GC 检查结束、并且主线程闲下来

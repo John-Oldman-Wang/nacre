@@ -13,7 +13,7 @@ Modules come in with npm packages. A package that provides a native module is th
 
 Such packages usually include a JS layer that wraps `call('methodName', …)` into ordinary functions. People using the package call those functions and don't need to touch `application.nativeModules` directly. Those who use it directly are the people writing such packages.
 
-**Inheritance**: `NSObject` → `NativeModules`
+**Inheritance**: `NativeModules` does not inherit from any class.
 
 For how to call modules from the JS side and handle errors and binary data, see the guide [Calling native modules from JS](../guides/call-native-modules.md). For how to write the native side and make it into a package, see [Writing your own native module](../guides/native-modules.md).
 

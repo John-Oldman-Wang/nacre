@@ -41,7 +41,7 @@
     return o.accessible;
   }
 
-  defineNativeClass('Keychain', class Keychain extends NSObject {
+  defineNativeClass('Keychain', class Keychain {
     constructor() { nativeOnly(new.target); }
 
     /** 没有这个键给 null，不 reject——和 storage.get 一致 */

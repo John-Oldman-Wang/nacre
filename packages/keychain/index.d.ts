@@ -52,7 +52,7 @@ interface KeychainError extends Error {
   domain: string;
 }
 
-declare class Keychain extends NSObject {
+declare class Keychain {
   /** 只能由运行时给出，用 `application.keychain`。 */
   private constructor();
 

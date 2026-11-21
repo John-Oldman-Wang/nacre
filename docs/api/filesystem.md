@@ -13,7 +13,7 @@ status: partial
 
 用户设置放在 [`application.storage`](storage.md)，令牌和密码放在 [`application.keychain`](keychain.md)。怎么选目录、怎么读写，见指南[读写文件](../guides/files.md)。
 
-**继承关系**：`NSObject` → `FileSystem`
+**继承关系**：`FileSystem` 不继承任何类。
 
 ## 构造函数
 

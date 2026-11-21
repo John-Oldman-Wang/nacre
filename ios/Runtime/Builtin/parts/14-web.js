@@ -318,7 +318,7 @@
   }
   const contentsHistory = new WeakMap();   // WebContents -> NavigationHistory
 
-  const WebContentsClass = defineNativeClass('WebContents', class WebContents extends NSObject {
+  const WebContentsClass = defineNativeClass('WebContents', class WebContents extends EventTarget {
     constructor() { nativeOnly(new.target); }
 
     // 事件原生一直在发，订阅只是让原生校验一下名字——写错当场报
@@ -628,7 +628,7 @@
     }
   }
 
-  defineNativeClass('Session', class Session extends NSObject {
+  defineNativeClass('Session', class Session {
     constructor() { nativeOnly(new.target); }
 
     /** 这个分区的 cookie。每次读是同一个对象 */

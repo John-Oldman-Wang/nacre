@@ -18,7 +18,7 @@ status: partial
 | 加载地址、后退前进 | `WebContents` | `web.webContents.loadURL(…)` |
 | 监听加载过程 | `WebContents` | `web.webContents.addEventListener(…)` |
 
-**继承关系**：`EventTarget` → `NSObject` → `WebContents`
+**继承关系**：[`EventTarget`](event-target.md) → `WebContents`
 
 怎么用它显示网页、处理加载失败、限制跳转，见指南[显示网页](../guides/web-pages.md)；和网页互发消息见[让网页和 App 互发消息](../guides/web-page-messaging.md)。
 

@@ -13,7 +13,7 @@ status: partial
 
 这类包通常自带一层 JS，把 `call('方法名', …)` 包成普通的函数。用包的人调的是那些函数，不用直接碰 `application.nativeModules`。直接用它的是写这类包的人。
 
-**继承关系**：`NSObject` → `NativeModules`
+**继承关系**：`NativeModules` 不继承任何类。
 
 JS 这一侧怎么调、怎么处理错误和二进制，见指南[从 JS 调原生模块](../guides/call-native-modules.md)。原生那一侧怎么写、怎么做成包，见[写自己的原生模块](../guides/native-modules.md)。
 
