@@ -442,6 +442,7 @@ function sidebar(lang) {
             api('URL', 'url'),
             api('URLSearchParams', 'url-search-params'),
             api('WebSocket', 'websocket'),
+            api('application.network', 'network'),
           ],
         },
         {

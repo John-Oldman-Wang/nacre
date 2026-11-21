@@ -209,6 +209,7 @@ API 分两类：
 | [`URL`](url.md) | **`URL`** 表示一个解析好的地址。 |
 | [`URLSearchParams`](url-search-params.md) | **`URLSearchParams`** 表示地址里 `?` 后面的那一串查询参数。 |
 | [`WebSocket`](websocket.md) | **`WebSocket`** 表示 App 和服务器之间的一条长连接。 |
+| [`application.network`](network.md) | **`application.network`** 表示设备此刻的网络状态：有没有连上网络、走的是哪种网络、这个网络是不是按流量计费。 |
 
 ### 网页
 

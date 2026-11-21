@@ -54,3 +54,4 @@
 /// <reference path="./ios/layer-transform.d.ts" />
 /// <reference path="./ios/marked-text.d.ts" />
 /// <reference path="./ios/drag-target.d.ts" />
+/// <reference path="./ios/network.d.ts" />

@@ -209,6 +209,7 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 | [`URL`](url.md) | **`URL`** represents a parsed address. |
 | [`URLSearchParams`](url-search-params.md) | **`URLSearchParams`** represents the query parameters after the `?` in a URL. |
 | [WebSocket](websocket.md) | **`WebSocket`** represents a persistent connection between the app and a server. |
+| [`application.network`](network.md) | **`application.network`** represents the device's network status at this moment: whether it is connected to a network, which kind of network it uses, and whether that network is metered. |
 
 ### Web content
 
