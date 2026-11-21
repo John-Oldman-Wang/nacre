@@ -55,3 +55,4 @@
 /// <reference path="./ios/marked-text.d.ts" />
 /// <reference path="./ios/drag-target.d.ts" />
 /// <reference path="./ios/network.d.ts" />
+/// <reference path="./ios/web-protocol.d.ts" />
