@@ -86,6 +86,7 @@ import { stepMarkedText } from './steps/marked-text.js';
 import { stepDragTarget } from './steps/drag-target.js';
 import { stepGestureDelegate } from './steps/gesture-delegate.js';
 import { stepNetwork } from './steps/network.js';
+import { stepWebProtocol } from './steps/web-protocol.js';
 import { stepUpperLayer } from './steps/upper-layer.js';
 import { stepGestures } from './steps/gestures.js';
 import { stepAlerts } from './steps/alerts.js';
@@ -291,6 +292,7 @@ application.addEventListener('sceneconnect', (e) => {
     ['stepDragTarget', () => Promise.resolve(ctx.webViewDone).then(() => stepDragTarget(ctx))],
     ['stepGestureDelegate', () => Promise.resolve(ctx.webViewDone).then(() => stepGestureDelegate(ctx))],
     ['stepNetwork', () => stepNetwork(ctx)],
+    ['stepWebProtocol', () => stepWebProtocol(ctx)],
     ['stepUpperLayer', () => stepUpperLayer(ctx)],
   ];
   // 收尾的几步排在最后，先后和原来一样。结尾三张和网页的比对各有几万条，要在
