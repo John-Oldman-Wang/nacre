@@ -21,7 +21,7 @@ Strings come in five forms:
 | --- | --- | --- |
 | Hexadecimal | `'#5856D6'`, `'#ff000080'` | 3, 4, 6, or 8 digits. Letters are case-insensitive |
 | `rgb()` | `'rgb(255, 59, 48)'`, `'rgba(0, 0, 0, 0.4)'` | Red, green, and blue are 0–255; opacity is 0–1 |
-| Color name | `'systemBackground'`, `'label'`, `'white'` | Only [the 39 in the table](#color-names-you-can-use). Names are case-sensitive |
+| Color name | `'systemBackground'`, `'label'`, `'white'` | Only [the 51 in the table](#color-names-you-can-use). Names are case-sensitive |
 | Follows light/dark | `'light-dark(#ffffff, #1c1c1e)'` | Light Mode uses the first, Dark Mode uses the second |
 | Asset Catalog | `'asset(BrandBlue)'` | Takes a color configured in the Xcode project |
 
@@ -49,13 +49,13 @@ TypeError: Illegal constructor: UIColor is created by the runtime, not by new
 
 ## Static properties
 
-There are 39, all read-only, all of type `UIColor`. Each property name is a [color name](#color-names-you-can-use) plus the `Color` suffix, the same as the name in Objective-C. Reading the same property always returns the same object.
+There are 51, all read-only, all of type `UIColor`. Each property name is a [color name](#color-names-you-can-use) plus the `Color` suffix, the same as the name in Objective-C. Reading the same property always returns the same object.
 
 | Group | Properties |
 | --- | --- |
 | Fixed colors | [`UIColor.blackColor`](ui-color/blackcolor.md) [`UIColor.darkGrayColor`](ui-color/darkgraycolor.md) [`UIColor.lightGrayColor`](ui-color/lightgraycolor.md) [`UIColor.whiteColor`](ui-color/whitecolor.md) [`UIColor.grayColor`](ui-color/graycolor.md) [`UIColor.redColor`](ui-color/redcolor.md) [`UIColor.greenColor`](ui-color/greencolor.md) [`UIColor.blueColor`](ui-color/bluecolor.md) [`UIColor.cyanColor`](ui-color/cyancolor.md) [`UIColor.yellowColor`](ui-color/yellowcolor.md) [`UIColor.magentaColor`](ui-color/magentacolor.md) [`UIColor.orangeColor`](ui-color/orangecolor.md) [`UIColor.purpleColor`](ui-color/purplecolor.md) [`UIColor.brownColor`](ui-color/browncolor.md) [`UIColor.clearColor`](ui-color/clearcolor.md) |
-| System colors | [`UIColor.systemRedColor`](ui-color/systemredcolor.md) [`UIColor.systemGreenColor`](ui-color/systemgreencolor.md) [`UIColor.systemBlueColor`](ui-color/systembluecolor.md) [`UIColor.systemOrangeColor`](ui-color/systemorangecolor.md) [`UIColor.systemYellowColor`](ui-color/systemyellowcolor.md) [`UIColor.systemPinkColor`](ui-color/systempinkcolor.md) [`UIColor.systemPurpleColor`](ui-color/systempurplecolor.md) [`UIColor.systemTealColor`](ui-color/systemtealcolor.md) [`UIColor.systemIndigoColor`](ui-color/systemindigocolor.md) [`UIColor.systemBrownColor`](ui-color/systembrowncolor.md) [`UIColor.systemMintColor`](ui-color/systemmintcolor.md) [`UIColor.systemCyanColor`](ui-color/systemcyancolor.md) [`UIColor.systemGrayColor`](ui-color/systemgraycolor.md) |
-| Semantic colors | [`UIColor.labelColor`](ui-color/labelcolor.md) [`UIColor.secondaryLabelColor`](ui-color/secondarylabelcolor.md) [`UIColor.tertiaryLabelColor`](ui-color/tertiarylabelcolor.md) [`UIColor.quaternaryLabelColor`](ui-color/quaternarylabelcolor.md) [`UIColor.placeholderTextColor`](ui-color/placeholdertextcolor.md) [`UIColor.separatorColor`](ui-color/separatorcolor.md) [`UIColor.opaqueSeparatorColor`](ui-color/opaqueseparatorcolor.md) [`UIColor.linkColor`](ui-color/linkcolor.md) [`UIColor.systemBackgroundColor`](ui-color/systembackgroundcolor.md) [`UIColor.secondarySystemBackgroundColor`](ui-color/secondarysystembackgroundcolor.md) [`UIColor.tertiarySystemBackgroundColor`](ui-color/tertiarysystembackgroundcolor.md) |
+| System colors | [`UIColor.systemRedColor`](ui-color/systemredcolor.md) [`UIColor.systemGreenColor`](ui-color/systemgreencolor.md) [`UIColor.systemBlueColor`](ui-color/systembluecolor.md) [`UIColor.systemOrangeColor`](ui-color/systemorangecolor.md) [`UIColor.systemYellowColor`](ui-color/systemyellowcolor.md) [`UIColor.systemPinkColor`](ui-color/systempinkcolor.md) [`UIColor.systemPurpleColor`](ui-color/systempurplecolor.md) [`UIColor.systemTealColor`](ui-color/systemtealcolor.md) [`UIColor.systemIndigoColor`](ui-color/systemindigocolor.md) [`UIColor.systemBrownColor`](ui-color/systembrowncolor.md) [`UIColor.systemMintColor`](ui-color/systemmintcolor.md) [`UIColor.systemCyanColor`](ui-color/systemcyancolor.md) [`UIColor.systemGrayColor`](ui-color/systemgraycolor.md) [`UIColor.systemGray2Color`](ui-color/systemgray2color.md) [`UIColor.systemGray3Color`](ui-color/systemgray3color.md) [`UIColor.systemGray4Color`](ui-color/systemgray4color.md) [`UIColor.systemGray5Color`](ui-color/systemgray5color.md) [`UIColor.systemGray6Color`](ui-color/systemgray6color.md) |
+| Semantic colors | [`UIColor.labelColor`](ui-color/labelcolor.md) [`UIColor.secondaryLabelColor`](ui-color/secondarylabelcolor.md) [`UIColor.tertiaryLabelColor`](ui-color/tertiarylabelcolor.md) [`UIColor.quaternaryLabelColor`](ui-color/quaternarylabelcolor.md) [`UIColor.placeholderTextColor`](ui-color/placeholdertextcolor.md) [`UIColor.separatorColor`](ui-color/separatorcolor.md) [`UIColor.opaqueSeparatorColor`](ui-color/opaqueseparatorcolor.md) [`UIColor.linkColor`](ui-color/linkcolor.md) [`UIColor.systemBackgroundColor`](ui-color/systembackgroundcolor.md) [`UIColor.secondarySystemBackgroundColor`](ui-color/secondarysystembackgroundcolor.md) [`UIColor.tertiarySystemBackgroundColor`](ui-color/tertiarysystembackgroundcolor.md) [`UIColor.systemGroupedBackgroundColor`](ui-color/systemgroupedbackgroundcolor.md) [`UIColor.secondarySystemGroupedBackgroundColor`](ui-color/secondarysystemgroupedbackgroundcolor.md) [`UIColor.tertiarySystemGroupedBackgroundColor`](ui-color/tertiarysystemgroupedbackgroundcolor.md) [`UIColor.systemFillColor`](ui-color/systemfillcolor.md) [`UIColor.secondarySystemFillColor`](ui-color/secondarysystemfillcolor.md) [`UIColor.tertiarySystemFillColor`](ui-color/tertiarysystemfillcolor.md) [`UIColor.quaternarySystemFillColor`](ui-color/quaternarysystemfillcolor.md) |
 
 ## Instance properties
 
@@ -106,7 +106,7 @@ Besides strings, writes also accept `UIColor` objects, `null`, and `undefined`. 
 
 ## Color names you can use
 
-There are 39 in total. Names are case-sensitive. A name not in the table is treated as invalid, and the warning lists this table.
+There are 51 in total. Names are case-sensitive. A name not in the table is treated as invalid, and the warning lists this table.
 
 **Fixed colors**, 15. Their values are fixed and don't change with the appearance. The values below come from Apple's definitions, converted to 0–255 and rounded.
 
@@ -130,11 +130,11 @@ There are 39 in total. Names are case-sensitive. A name not in the table is trea
 
 The values of `green`, `orange`, `brown`, `darkGray`, and `lightGray` differ from the CSS colors with the same names; see [Same name, different value](#same-name-different-value).
 
-**System colors**, 13. These are the colors commonly used in iOS interfaces; their values are determined by the system. Their values differ slightly between Light Mode and Dark Mode so they stay legible on both backgrounds.
+**System colors**, 18. These are the colors commonly used in iOS interfaces; their values are determined by the system. Their values differ slightly between Light Mode and Dark Mode so they stay legible on both backgrounds.
 
-`systemRed` `systemGreen` `systemBlue` `systemOrange` `systemYellow` `systemPink` `systemPurple` `systemTeal` `systemIndigo` `systemBrown` `systemMint` `systemCyan` `systemGray`
+`systemRed` `systemGreen` `systemBlue` `systemOrange` `systemYellow` `systemPink` `systemPurple` `systemTeal` `systemIndigo` `systemBrown` `systemMint` `systemCyan` `systemGray` `systemGray2` `systemGray3` `systemGray4` `systemGray5` `systemGray6`
 
-**Semantic colors**, 11. Named by purpose; their values are determined by the system and change with Light Mode, Dark Mode, and the Increase Contrast setting.
+**Semantic colors**, 18. Named by purpose; their values are determined by the system and change with Light Mode, Dark Mode, and the Increase Contrast setting.
 
 | Name | Purpose |
 | --- | --- |
@@ -149,6 +149,13 @@ The values of `green`, `orange`, `brown`, `darkGray`, and `lightGray` differ fro
 | `systemBackground` | Page background. White in Light Mode, black in Dark Mode |
 | `secondarySystemBackground` | Background for a layer of content placed on the page background |
 | `tertiarySystemBackground` | Background for content placed on the second layer |
+| `systemGroupedBackground` | Page background in a grouped style (like the system Settings app, with groups placed on the page) |
+| `secondarySystemGroupedBackground` | Background of the groups on a grouped-style page |
+| `tertiarySystemGroupedBackground` | Background for content placed one more layer inside a group |
+| `systemFill` | Fill for thin and small shapes: a switch track, a progress bar background. Translucent |
+| `secondarySystemFill` | Fill for medium-size shapes. Translucent |
+| `tertiarySystemFill` | Fill for large shapes: input fields, search fields, buttons. Translucent |
+| `quaternarySystemFill` | Fill for large areas that contain complex content. Translucent |
 
 The values of `label` in both modes were measured (light `#000000`, dark `#ffffff`). The value of `systemBackground` comes from Apple's definition. For the other semantic colors only the purpose is given; their exact values haven't been measured.
 
@@ -187,7 +194,7 @@ The warning format is `[Nacre] <property or method name>: <value written> is not
 When the string starts with a letter and contains only letters and digits, the runtime treats it as a misspelled color name and lists every valid name after the warning:
 
 ```text
-[Nacre] backgroundColor: "nosuchColor" is not a valid color, ignored; expected a color name, one of: black / darkGray / lightGray / white / gray / red / green / blue / cyan / yellow / magenta / orange / purple / brown / clear / systemRed / systemGreen / systemBlue / systemOrange / systemYellow / systemPink / systemPurple / systemTeal / systemIndigo / systemBrown / systemMint / systemCyan / systemGray / label / secondaryLabel / tertiaryLabel / quaternaryLabel / placeholderText / separator / opaqueSeparator / link / systemBackground / secondarySystemBackground / tertiarySystemBackground
+[Nacre] backgroundColor: "nosuchColor" is not a valid color, ignored; expected a color name, one of: black / darkGray / lightGray / white / gray / red / green / blue / cyan / yellow / magenta / orange / purple / brown / clear / systemRed / systemGreen / systemBlue / systemOrange / systemYellow / systemPink / systemPurple / systemTeal / systemIndigo / systemBrown / systemMint / systemCyan / systemGray / systemGray2 / systemGray3 / systemGray4 / systemGray5 / systemGray6 / label / secondaryLabel / tertiaryLabel / quaternaryLabel / placeholderText / separator / opaqueSeparator / link / systemBackground / secondarySystemBackground / tertiarySystemBackground / systemGroupedBackground / secondarySystemGroupedBackground / tertiarySystemGroupedBackground / systemFill / secondarySystemFill / tertiarySystemFill / quaternarySystemFill
 ```
 
 "Doesn't throw" and "keeps the previous color" have been verified in the acceptance tests, for all four writes in the table above. The warning text comes from the runtime's code.
@@ -258,7 +265,7 @@ Different case also counts as a different form, for example `'#5856D6'` and `'#5
 
 | Color | Reads back as |
 | --- | --- |
-| One of the 39 colors in the table | Its name, for example `'label'` |
+| One of the 51 colors in the table | Its name, for example `'label'` |
 | An opaque fixed color | `'#rrggbb'`, lowercase |
 | A semi-transparent fixed color | `'rgba(r, g, b, a)'`. `r`, `g`, `b` are integers 0–255; `a` has at most three decimal places |
 | Anything else (unnamed dynamic colors, etc.) | `'native(n)'`, where `n` is an integer |
@@ -290,7 +297,7 @@ For each property's default value and what writing `null` means, see its own pag
 
 In everyday code, you don't. Strings can do everything a `UIColor` object can do here.
 
-`UIColor` objects can only be obtained from the 39 [static properties](#static-properties). One can be assigned directly to a color property, with the same effect as writing the corresponding name:
+`UIColor` objects can only be obtained from the 51 [static properties](#static-properties). One can be assigned directly to a color property, with the same effect as writing the corresponding name:
 
 ```js
 const box1 = new UIView();
@@ -366,7 +373,7 @@ This section maps things for people familiar with CSS colors.
 | --- | --- | --- |
 | Writing an invalid color | Doesn't throw, keeps the previous value, no message | Doesn't throw, keeps the previous value, prints a warning |
 | `light-dark()` | Takes effect only after `color-scheme` is declared | Takes effect as soon as you write it |
-| Color names | Over a hundred, case-insensitive | 39, case-sensitive |
+| Color names | Over a hundred, case-insensitive | 51, case-sensitive |
 | System colors | `Canvas`, `CanvasText`, etc. | Semantic colors such as `systemBackground` and `label` |
 | Fully transparent | `transparent` | `'clear'` or `null` |
 

@@ -21,7 +21,7 @@ view.backgroundColor = '#5856D6';
 | --- | --- | --- |
 | 十六进制 | `'#5856D6'`、`'#ff000080'` | 3、4、6、8 位。字母不区分大小写 |
 | `rgb()` | `'rgb(255, 59, 48)'`、`'rgba(0, 0, 0, 0.4)'` | 红、绿、蓝是 0–255，不透明度是 0–1 |
-| 颜色名 | `'systemBackground'`、`'label'`、`'white'` | 只有[表里的 39 个](#能用的颜色名)。名字区分大小写 |
+| 颜色名 | `'systemBackground'`、`'label'`、`'white'` | 只有[表里的 51 个](#能用的颜色名)。名字区分大小写 |
 | 跟随深浅色 | `'light-dark(#ffffff, #1c1c1e)'` | 浅色模式用第一个，深色模式用第二个 |
 | Asset Catalog | `'asset(BrandBlue)'` | 取 Xcode 工程里配置好的颜色 |
 
@@ -49,13 +49,13 @@ TypeError: Illegal constructor: UIColor is created by the runtime, not by new
 
 ## 静态属性
 
-39 个，全部只读，类型都是 `UIColor`。属性名是[颜色名](#能用的颜色名)加上 `Color` 后缀，和 Objective-C 里的名字相同。同一个属性每次取到的是同一个对象。
+51 个，全部只读，类型都是 `UIColor`。属性名是[颜色名](#能用的颜色名)加上 `Color` 后缀，和 Objective-C 里的名字相同。同一个属性每次取到的是同一个对象。
 
 | 分组 | 属性 |
 | --- | --- |
 | 固定色 | [`UIColor.blackColor`](ui-color/blackcolor.md) [`UIColor.darkGrayColor`](ui-color/darkgraycolor.md) [`UIColor.lightGrayColor`](ui-color/lightgraycolor.md) [`UIColor.whiteColor`](ui-color/whitecolor.md) [`UIColor.grayColor`](ui-color/graycolor.md) [`UIColor.redColor`](ui-color/redcolor.md) [`UIColor.greenColor`](ui-color/greencolor.md) [`UIColor.blueColor`](ui-color/bluecolor.md) [`UIColor.cyanColor`](ui-color/cyancolor.md) [`UIColor.yellowColor`](ui-color/yellowcolor.md) [`UIColor.magentaColor`](ui-color/magentacolor.md) [`UIColor.orangeColor`](ui-color/orangecolor.md) [`UIColor.purpleColor`](ui-color/purplecolor.md) [`UIColor.brownColor`](ui-color/browncolor.md) [`UIColor.clearColor`](ui-color/clearcolor.md) |
-| 系统色 | [`UIColor.systemRedColor`](ui-color/systemredcolor.md) [`UIColor.systemGreenColor`](ui-color/systemgreencolor.md) [`UIColor.systemBlueColor`](ui-color/systembluecolor.md) [`UIColor.systemOrangeColor`](ui-color/systemorangecolor.md) [`UIColor.systemYellowColor`](ui-color/systemyellowcolor.md) [`UIColor.systemPinkColor`](ui-color/systempinkcolor.md) [`UIColor.systemPurpleColor`](ui-color/systempurplecolor.md) [`UIColor.systemTealColor`](ui-color/systemtealcolor.md) [`UIColor.systemIndigoColor`](ui-color/systemindigocolor.md) [`UIColor.systemBrownColor`](ui-color/systembrowncolor.md) [`UIColor.systemMintColor`](ui-color/systemmintcolor.md) [`UIColor.systemCyanColor`](ui-color/systemcyancolor.md) [`UIColor.systemGrayColor`](ui-color/systemgraycolor.md) |
-| 语义色 | [`UIColor.labelColor`](ui-color/labelcolor.md) [`UIColor.secondaryLabelColor`](ui-color/secondarylabelcolor.md) [`UIColor.tertiaryLabelColor`](ui-color/tertiarylabelcolor.md) [`UIColor.quaternaryLabelColor`](ui-color/quaternarylabelcolor.md) [`UIColor.placeholderTextColor`](ui-color/placeholdertextcolor.md) [`UIColor.separatorColor`](ui-color/separatorcolor.md) [`UIColor.opaqueSeparatorColor`](ui-color/opaqueseparatorcolor.md) [`UIColor.linkColor`](ui-color/linkcolor.md) [`UIColor.systemBackgroundColor`](ui-color/systembackgroundcolor.md) [`UIColor.secondarySystemBackgroundColor`](ui-color/secondarysystembackgroundcolor.md) [`UIColor.tertiarySystemBackgroundColor`](ui-color/tertiarysystembackgroundcolor.md) |
+| 系统色 | [`UIColor.systemRedColor`](ui-color/systemredcolor.md) [`UIColor.systemGreenColor`](ui-color/systemgreencolor.md) [`UIColor.systemBlueColor`](ui-color/systembluecolor.md) [`UIColor.systemOrangeColor`](ui-color/systemorangecolor.md) [`UIColor.systemYellowColor`](ui-color/systemyellowcolor.md) [`UIColor.systemPinkColor`](ui-color/systempinkcolor.md) [`UIColor.systemPurpleColor`](ui-color/systempurplecolor.md) [`UIColor.systemTealColor`](ui-color/systemtealcolor.md) [`UIColor.systemIndigoColor`](ui-color/systemindigocolor.md) [`UIColor.systemBrownColor`](ui-color/systembrowncolor.md) [`UIColor.systemMintColor`](ui-color/systemmintcolor.md) [`UIColor.systemCyanColor`](ui-color/systemcyancolor.md) [`UIColor.systemGrayColor`](ui-color/systemgraycolor.md) [`UIColor.systemGray2Color`](ui-color/systemgray2color.md) [`UIColor.systemGray3Color`](ui-color/systemgray3color.md) [`UIColor.systemGray4Color`](ui-color/systemgray4color.md) [`UIColor.systemGray5Color`](ui-color/systemgray5color.md) [`UIColor.systemGray6Color`](ui-color/systemgray6color.md) |
+| 语义色 | [`UIColor.labelColor`](ui-color/labelcolor.md) [`UIColor.secondaryLabelColor`](ui-color/secondarylabelcolor.md) [`UIColor.tertiaryLabelColor`](ui-color/tertiarylabelcolor.md) [`UIColor.quaternaryLabelColor`](ui-color/quaternarylabelcolor.md) [`UIColor.placeholderTextColor`](ui-color/placeholdertextcolor.md) [`UIColor.separatorColor`](ui-color/separatorcolor.md) [`UIColor.opaqueSeparatorColor`](ui-color/opaqueseparatorcolor.md) [`UIColor.linkColor`](ui-color/linkcolor.md) [`UIColor.systemBackgroundColor`](ui-color/systembackgroundcolor.md) [`UIColor.secondarySystemBackgroundColor`](ui-color/secondarysystembackgroundcolor.md) [`UIColor.tertiarySystemBackgroundColor`](ui-color/tertiarysystembackgroundcolor.md) [`UIColor.systemGroupedBackgroundColor`](ui-color/systemgroupedbackgroundcolor.md) [`UIColor.secondarySystemGroupedBackgroundColor`](ui-color/secondarysystemgroupedbackgroundcolor.md) [`UIColor.tertiarySystemGroupedBackgroundColor`](ui-color/tertiarysystemgroupedbackgroundcolor.md) [`UIColor.systemFillColor`](ui-color/systemfillcolor.md) [`UIColor.secondarySystemFillColor`](ui-color/secondarysystemfillcolor.md) [`UIColor.tertiarySystemFillColor`](ui-color/tertiarysystemfillcolor.md) [`UIColor.quaternarySystemFillColor`](ui-color/quaternarysystemfillcolor.md) |
 
 ## 实例属性
 
@@ -106,7 +106,7 @@ TypeError: Illegal constructor: UIColor is created by the runtime, not by new
 
 ## 能用的颜色名
 
-一共 39 个。名字区分大小写。不在表里的名字按写错处理，警告里会列出这张表。
+一共 51 个。名字区分大小写。不在表里的名字按写错处理，警告里会列出这张表。
 
 **固定色**，15 个。色值固定，不随外观变。下表的色值来自 Apple 的定义，换算成 0–255 并四舍五入。
 
@@ -130,11 +130,11 @@ TypeError: Illegal constructor: UIColor is created by the runtime, not by new
 
 其中 `green`、`orange`、`brown`、`darkGray`、`lightGray` 的色值和 CSS 的同名颜色不同，见[同名但色值不同的颜色名](#同名但色值不同的颜色名)。
 
-**系统色**，13 个。这是 iOS 界面里常用的一组颜色，色值由系统决定。浅色模式和深色模式下的色值略有不同，用来在两种底色上都保持清晰。
+**系统色**，18 个。这是 iOS 界面里常用的一组颜色，色值由系统决定。浅色模式和深色模式下的色值略有不同，用来在两种底色上都保持清晰。
 
-`systemRed` `systemGreen` `systemBlue` `systemOrange` `systemYellow` `systemPink` `systemPurple` `systemTeal` `systemIndigo` `systemBrown` `systemMint` `systemCyan` `systemGray`
+`systemRed` `systemGreen` `systemBlue` `systemOrange` `systemYellow` `systemPink` `systemPurple` `systemTeal` `systemIndigo` `systemBrown` `systemMint` `systemCyan` `systemGray` `systemGray2` `systemGray3` `systemGray4` `systemGray5` `systemGray6`
 
-**语义色**，11 个。按用途命名，色值由系统决定，跟随浅色模式、深色模式和「增强对比度」设置变化。
+**语义色**，18 个。按用途命名，色值由系统决定，跟随浅色模式、深色模式和「增强对比度」设置变化。
 
 | 名字 | 用途 |
 | --- | --- |
@@ -149,6 +149,13 @@ TypeError: Illegal constructor: UIColor is created by the runtime, not by new
 | `systemBackground` | 页面底色。浅色模式下是白色，深色模式下是黑色 |
 | `secondarySystemBackground` | 放在页面底色上面的一层内容的底色 |
 | `tertiarySystemBackground` | 放在第二层上面的内容的底色 |
+| `systemGroupedBackground` | 分组样式的页面底色（像系统「设置」那样，页面上放一块块分组） |
+| `secondarySystemGroupedBackground` | 分组样式页面上，分组的底色 |
+| `tertiarySystemGroupedBackground` | 分组里面再放一层内容时的底色 |
+| `systemFill` | 细小形状的填充：开关的轨道、进度条的底。半透明 |
+| `secondarySystemFill` | 中等大小形状的填充。半透明 |
+| `tertiarySystemFill` | 大一些的形状的填充：输入框、搜索框、按钮。半透明 |
+| `quaternarySystemFill` | 里面有复杂内容的大块区域的填充。半透明 |
 
 `label` 在两种模式下的色值是实测的（浅色 `#000000`，深色 `#ffffff`）。`systemBackground` 的色值来自 Apple 的定义。其余语义色只写了用途，具体色值没有量过。
 
@@ -187,7 +194,7 @@ console.log(view.backgroundColor);
 写入的字符串以字母开头、只由字母和数字组成时，运行时把它当作写错的颜色名，在警告后面列出全部能用的名字：
 
 ```text
-[Nacre] backgroundColor: "nosuchColor" is not a valid color, ignored; expected a color name, one of: black / darkGray / lightGray / white / gray / red / green / blue / cyan / yellow / magenta / orange / purple / brown / clear / systemRed / systemGreen / systemBlue / systemOrange / systemYellow / systemPink / systemPurple / systemTeal / systemIndigo / systemBrown / systemMint / systemCyan / systemGray / label / secondaryLabel / tertiaryLabel / quaternaryLabel / placeholderText / separator / opaqueSeparator / link / systemBackground / secondarySystemBackground / tertiarySystemBackground
+[Nacre] backgroundColor: "nosuchColor" is not a valid color, ignored; expected a color name, one of: black / darkGray / lightGray / white / gray / red / green / blue / cyan / yellow / magenta / orange / purple / brown / clear / systemRed / systemGreen / systemBlue / systemOrange / systemYellow / systemPink / systemPurple / systemTeal / systemIndigo / systemBrown / systemMint / systemCyan / systemGray / systemGray2 / systemGray3 / systemGray4 / systemGray5 / systemGray6 / label / secondaryLabel / tertiaryLabel / quaternaryLabel / placeholderText / separator / opaqueSeparator / link / systemBackground / secondarySystemBackground / tertiarySystemBackground / systemGroupedBackground / secondarySystemGroupedBackground / tertiarySystemGroupedBackground / systemFill / secondarySystemFill / tertiarySystemFill / quaternarySystemFill
 ```
 
 「不抛异常」和「保持原来的颜色」在验收用例里验证过，上表四种写入都验证了。警告的文字来自运行时的代码。
@@ -258,7 +265,7 @@ console.log(box1.backgroundColor);
 
 | 颜色 | 读出来 |
 | --- | --- |
-| 表里的 39 个颜色之一 | 它的名字，比如 `'label'` |
+| 表里的 51 个颜色之一 | 它的名字，比如 `'label'` |
 | 不透明的固定颜色 | `'#rrggbb'`，小写 |
 | 半透明的固定颜色 | `'rgba(r, g, b, a)'`。`r`、`g`、`b` 是 0–255 的整数，`a` 最多三位小数 |
 | 其他（没有名字的动态色等） | `'native(n)'`，`n` 是一个整数 |
@@ -290,7 +297,7 @@ console.log(box1.backgroundColor);
 
 日常不需要。字符串能做到 `UIColor` 对象在这里能做到的全部事情。
 
-`UIColor` 对象只能从 39 个[静态属性](#静态属性)取得。它可以直接赋给颜色属性，效果和写对应的名字相同：
+`UIColor` 对象只能从 51 个[静态属性](#静态属性)取得。它可以直接赋给颜色属性，效果和写对应的名字相同：
 
 ```js
 const box1 = new UIView();
@@ -366,7 +373,7 @@ Swift 里的名字没有 `Color` 后缀（`UIColor.systemBackground`），和这
 | --- | --- | --- |
 | 写入不合法的颜色 | 不抛异常，保持原值，没有提示 | 不抛异常，保持原值，输出一条警告 |
 | `light-dark()` | 要先声明 `color-scheme` 才生效 | 写了就生效 |
-| 颜色名 | 一百多个，不区分大小写 | 39 个，区分大小写 |
+| 颜色名 | 一百多个，不区分大小写 | 51 个，区分大小写 |
 | 系统颜色 | `Canvas`、`CanvasText` 等 | `systemBackground`、`label` 等语义色 |
 | 全透明 | `transparent` | `'clear'` 或 `null` |
 

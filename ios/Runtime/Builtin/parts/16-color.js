@@ -25,12 +25,17 @@
     'systemRedColor', 'systemGreenColor', 'systemBlueColor', 'systemOrangeColor',
     'systemYellowColor', 'systemPinkColor', 'systemPurpleColor', 'systemTealColor',
     'systemIndigoColor', 'systemBrownColor', 'systemMintColor', 'systemCyanColor',
-    'systemGrayColor',
+    'systemGrayColor', 'systemGray2Color', 'systemGray3Color', 'systemGray4Color',
+    'systemGray5Color', 'systemGray6Color',
     // UIInterface.h：语义色
     'labelColor', 'secondaryLabelColor', 'tertiaryLabelColor', 'quaternaryLabelColor',
     'placeholderTextColor', 'separatorColor', 'opaqueSeparatorColor', 'linkColor',
     'systemBackgroundColor', 'secondarySystemBackgroundColor',
     'tertiarySystemBackgroundColor',
+    'systemGroupedBackgroundColor', 'secondarySystemGroupedBackgroundColor',
+    'tertiarySystemGroupedBackgroundColor',
+    'systemFillColor', 'secondarySystemFillColor', 'tertiarySystemFillColor',
+    'quaternarySystemFillColor',
   ];
   for (const name of COLOR_CONSTANTS) {
     Object.defineProperty(UIColor, name, {

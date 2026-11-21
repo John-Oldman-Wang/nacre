@@ -753,7 +753,6 @@
 | 读出一个颜色的红、绿、蓝、不透明度 | `getRed:green:blue:alpha:` | 未实现 |
 | 按色值比较两个颜色 | `isEqual:` | 未实现 |
 | 在写入之前检查一个字符串是不是合法的颜色 | — | 未实现。只能写入后看控制台的警告 |
-| 用更多系统颜色：`systemGray2`–`systemGray6`、`systemFill` 一组、`systemGroupedBackground` 一组 | 对应的 `UIColor` 类级属性 | 未实现 |
 | 用图片平铺作为颜色 | `colorWithPatternImage:` | 未实现 |
 | 让图层上的颜色自动跟随深浅色模式 | 原生也不自动跟随 | 做法是在 `traitchange` 事件里重新写入，见指南[适配深色模式](../guides/dark-mode.md) |
 | 在命令行工具生成的工程里添加 Asset Catalog 颜色 | Asset Catalog 的 Color Set | 未实现。生成的工程每次重建 |
