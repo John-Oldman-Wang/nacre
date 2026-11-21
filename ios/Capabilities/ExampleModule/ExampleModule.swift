@@ -178,6 +178,46 @@ private func makeExampleModule() -> NacreModule {
     return ["shouldBegin": shouldBegin, "simultaneous": simultaneous]
   }
 
+  // 照系统的做法调 App 委托「拿到推送令牌」的回调。参数：令牌的十六进制。
+  // 委托没有这个方法时答 false。真的令牌要 Apple 的服务器给，自动跑的验收靠它。
+  // 真的模块里不会有这种方法
+  module.addMethod("simulatePushToken") { args in
+    guard let hex = args.first as? String, hex.count % 2 == 0 else {
+      return NacreModule.error(name: "TypeError", message: "simulatePushToken needs a hex string")
+    }
+    var bytes = [UInt8]()
+    var index = hex.startIndex
+    while index < hex.endIndex {
+      let next = hex.index(index, offsetBy: 2)
+      guard let byte = UInt8(hex[index..<next], radix: 16) else {
+        return NacreModule.error(name: "TypeError", message: "simulatePushToken needs a hex string")
+      }
+      bytes.append(byte)
+      index = next
+    }
+    let app = UIApplication.shared
+    guard let delegate = app.delegate,
+          delegate.responds(to: #selector(UIApplicationDelegate.application(_:didRegisterForRemoteNotificationsWithDeviceToken:))) else {
+      return false
+    }
+    delegate.application?(app, didRegisterForRemoteNotificationsWithDeviceToken: Data(bytes))
+    return true
+  }
+
+  // 照系统的做法调 App 委托「注册推送失败」的回调。参数：错误的说明
+  module.addMethod("simulatePushFailure") { args in
+    let message = args.first as? String ?? "failed"
+    let app = UIApplication.shared
+    guard let delegate = app.delegate,
+          delegate.responds(to: #selector(UIApplicationDelegate.application(_:didFailToRegisterForRemoteNotificationsWithError:))) else {
+      return false
+    }
+    let error = NSError(domain: NSCocoaErrorDomain, code: 3000,
+                        userInfo: [NSLocalizedDescriptionKey: message])
+    delegate.application?(app, didFailToRegisterForRemoteNotificationsWithError: error)
+    return true
+  }
+
   // 照 UIKit 的做法问多行输入框（UITextView）的委托。参数：输入框的 tag、问什么，
   // 后面是那一问的参数：
   //   "change", location, length, text  → 让不让这样改（textView:shouldChangeTextInRange:
@@ -274,6 +314,27 @@ private func makeExampleModule() -> NacreModule {
   // presentationControllerWillDismiss:，关掉（不带动画），关完再调
   // presentationControllerDidDismiss:。真的拖拽要手指，自动跑的验收靠它。
   // 兑现成被关掉的那一页的类名；没有弹出的页面时兑现 null。真的模块里不会有这种方法
+  // 照系统的做法调 App 委托「收到静默推送」的回调。参数：推送的内容（一个对象）。
+  // 兑现成委托交回的结果：'newData' / 'noData' / 'failed'；委托没有这个方法时是 null。
+  // 真的模块里不会有这种方法
+  module.addAsyncMethod("simulateSilentPush") { args, resolve, _ in
+    let payload = args.first as? [AnyHashable: Any] ?? [:]
+    let app = UIApplication.shared
+    let selector = #selector(UIApplicationDelegate.application(_:didReceiveRemoteNotification:fetchCompletionHandler:))
+    guard let delegate = app.delegate, delegate.responds(to: selector) else {
+      resolve(nil)
+      return
+    }
+    delegate.application?(app, didReceiveRemoteNotification: payload) { result in
+      switch result {
+      case .newData: resolve("newData")
+      case .noData: resolve("noData")
+      case .failed: resolve("failed")
+      @unknown default: resolve("unknown")
+      }
+    }
+  }
+
   module.addAsyncMethod("simulateSheetSwipeDown") { _, resolve, _ in
     let window = UIApplication.shared.connectedScenes
       .compactMap { $0 as? UIWindowScene }

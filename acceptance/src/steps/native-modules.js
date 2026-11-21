@@ -121,10 +121,10 @@ export function stepNativeModules(ctx) {
   assert('methods 每次读是同一个对象', mod.methods === mod.methods, true);
   assert('methods.sync 的内容', mod.methods.sync.join(','),
          'add,argumentCount,bytes,cachedByte,echo,echoAll,emit,emitUnsupported,fail,failWithNSError,' +
-         'isMainThread,nonFinite,sha256,simulateDragEnd,simulateGestureAsk,simulateMarkedText,simulateMemoryWarning,simulateTextViewAsk,typeOf,unsupported');
+         'isMainThread,nonFinite,sha256,simulateDragEnd,simulateGestureAsk,simulateMarkedText,simulateMemoryWarning,simulatePushFailure,simulatePushToken,simulateTextViewAsk,typeOf,unsupported');
   assert('methods.async 的内容', mod.methods.async.join(','),
          'bytesAsync,cachedBytesAsync,drop,echoAsync,echoLater,emitLater,failLater,nestedBytesAsync,' +
-         'resolveThenReject,settleTwice,simulateSheetSwipeDown,threads,unsupportedAsync');
+         'resolveThenReject,settleTwice,simulateSheetSwipeDown,simulateSilentPush,threads,unsupportedAsync');
   assert('同名的第二个模块没有盖掉先登记的', mod.methods.sync.includes('shadow'), false);
   assert('events 的内容', mod.events.join(','), 'data,tick');
   assert('events 是冻结的', Object.isFrozen(mod.events), true);

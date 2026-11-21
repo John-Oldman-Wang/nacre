@@ -110,6 +110,7 @@
 | [用面容 ID 确认身份](face-id.md) | 这一篇讲怎么用 `LAContext` 让系统确认现在拿着手机的人是机主：付款前确认、打开 App 时解锁、显示敏感信息前确认。 |
 | [取用户的位置](get-location.md) | 这一篇讲怎么用 `CLLocationManager` 拿到用户的位置：申请授权、取一次位置、跟着用户移动持续接收、挑出可用的位置、处理出错。 |
 | [发本地通知](local-notifications.md) | 这一篇讲怎么让 App 发通知：问用户同不同意、约定什么时候送达、App 开着时也显示横幅、用户点了通知之后打开对应的页面、撤销和清理。 |
+| [远程推送](push-notifications.md) | 这一篇讲怎么让 App 收到服务器发来的推送：装包、写 entitlement、用开了推送能力的描述文件签名、拿到设备令牌交给服务器、处理能看见的推送和静默推送。 |
 | [拍一张照片](take-photo.md) | 这一篇讲怎么用 `UIImagePickerController` 弹出系统的拍照界面、拿到用户拍的照片。 |
 | [从相册选图、把图存进相册](pick-photos.md) | 这一篇讲怎么让用户从相册里选图、把选中的图取出来显示，以及把一张图存进相册。 |
 | [让用户选联系人](pick-contact.md) | 这一篇讲怎么用 `CNContactPickerViewController` 让用户从通讯录里选一个联系人、一个电话、一个邮箱或者几个人，以及怎么把拿到的 `CNContact` 显示出来。 |

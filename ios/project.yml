@@ -440,6 +440,39 @@ targets:
         OTHER_CPLUSPLUSFLAGS: ["$(inherited)", "-fno-rtti"]
         OTHER_LDFLAGS: ["$(inherited)", "-lc++"]
 
+
+  # 远程推送（@nacrejs/push）。形状和 NacreUserNotifications 一样。它要用户的
+  # 工程带 aps-environment 这条 entitlement（包的清单里声明），所以单独成包：
+  # 不用推送的 App 不该被要求写它。
+  NacrePush:
+    type: framework
+    platform: iOS
+    sources:
+      - path: Capabilities/Push
+        excludes:
+          - "Builtin/**"
+      # 它自己的 JS：application.remoteNotifications 和 PushEvent
+      - path: Capabilities/Push/Builtin
+        type: folder
+        buildPhase: resources
+    dependencies:
+      # 只链不嵌：两个 framework 都由宿主 App 嵌进去
+      - target: Nacre
+        embed: false
+      # 注册推送、App 的委托都在 UIKit 里
+      - sdk: UIKit.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: nacre.push
+        GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: "0.0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        # 和核心一致：两边共用 std::string 和 NativeObjectRef
+        CLANG_CXX_LANGUAGE_STANDARD: c++20
+        CLANG_CXX_LIBRARY: libc++
+        OTHER_CPLUSPLUSFLAGS: ["$(inherited)", "-fno-rtti"]
+        OTHER_LDFLAGS: ["$(inherited)", "-lc++"]
+
 settings:
   base:
     # 只支持 arm64（真机 + Apple Silicon 模拟器）

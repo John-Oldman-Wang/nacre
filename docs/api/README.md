@@ -282,6 +282,8 @@ API 分两类：
 | [`UNNotification`](un-notification.md) | **`UNNotification`** 表示一条已经送达的通知。 |
 | [`UNNotificationResponse`](un-notification-response.md) | **`UNNotificationResponse`** 表示用户对一条通知做的动作，比如点了它。 |
 | [`UNNotificationSettings`](un-notification-settings.md) | **`UNNotificationSettings`** 表示这个 App 的通知设置在某一刻的样子：用户同不同意发通知，声音、角标、锁屏、通知中心等各项开没开。 |
+| [`RemoteNotifications`](remote-notifications.md) | **`RemoteNotifications`** 表示这个 App 的远程推送：向 Apple 的推送服务注册、拿到这台设备的令牌，以及收到静默推送。 |
+| [`PushEvent`](push-event.md) | **`PushEvent`** 表示一条到达的静默推送。 |
 | [`UIImagePickerController`](ui-image-picker-controller.md) | **`UIImagePickerController`** 表示系统的拍照界面。 |
 | [`PHPickerViewController`](photos.md) | **`PHPickerViewController`** 表示系统的选图界面。 |
 | [`PHPickerConfiguration`](ph-picker-configuration.md) | **`PHPickerConfiguration`** 表示选图界面的配置：最多选几项、显示哪些类型、选中的方式、界面的样子。 |
