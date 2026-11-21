@@ -232,7 +232,7 @@ iOS 26.0 和 27.2 模拟器上一致。包里放了一组验收用的网页（`a
 | | 结论 |
 | --- | --- |
 | 两个未公开的开关（`allowFileAccessFromFileURLs`、`allowUniversalAccessFromFileURLs`，靠 KVC 设） | 不用。这个项目到现在只用公开接口 |
-| 自定义协议：`WKURLSchemeHandler` 让本地文件以 `app://…` 这样的地址提供，网页有一个正常的来源 | 是正路，对应 Electron 的 `protocol.handle`。单独一步，要另外设计（协议名、目录怎么映射、在哪配置） |
+| 自定义协议：`WKURLSchemeHandler` 让本地文件以 `app://…` 这样的地址提供，网页有一个正常的来源 | 是正路。2026-11-21 做了，见下面[自定义协议](#自定义协议) |
 
 `loadFile` 不会因为将来做了自定义协议而变：它在 Electron 里就是 `file://`，这里也一直是。自定义协议将来用 `loadURL('app://…')` 加载。这样现在存在 `file://` 来源下的数据不会搬家。
 
@@ -603,3 +603,38 @@ WKWebView 没有把网页的控制台交给 App 的接口。做法是每张网�
 
 写用例时有三条用 `getTitle()` 判断脚本跑没跑，`loadURL` 兑现的那一刻读到的是空串。这是已经写进文档的行为（标题和「加载完」谁先到不固定），用例改成在网页里读 `document.title`。
 
+## 自定义协议
+
+`session.protocol.serveDirectory(scheme, directory)`、`unhandle`、`isProtocolHandled`。2026-11-21 做的，形状和用户讨论过。文件：`NacreWebProtocol.mm`、`56-web-protocol.js`、`packages/types/ios/web-protocol.d.ts`、`acceptance/src/steps/web-protocol.js`，素材在 `acceptance/assets/web-protocol/`。**放在 `web-protocol` 分支上，没有合并**（用户说先不合并，iOS 的能力等用到时再建设）。
+
+### 为什么是声明式的
+
+两种做法比过：
+
+| | 照 Electron 的 `protocol.handle(scheme, request => Response)` | 声明一个目录：`serveDirectory(scheme, directory)` |
+| --- | --- | --- |
+| 能做什么 | 任意内容，动态生成也行 | 只从一个目录里给文件 |
+| 代价 | 网页的每个资源都要过一次主线程上的 JS | 原生直接读文件，不进 JS |
+
+要解决的只是「本地网页有一个正常的来源」，选了后者。`unhandle`、`isProtocolHandled` 是 Electron 的名字；`serveDirectory` 是我们的。`Protocol` 不发事件，照「上层的类」那条规矩不继承任何类。
+
+### 只能在建网页时挂上
+
+WebKit 的协议处理对象挂在 `WKWebViewConfiguration` 上，网页建好之后改不了。所以分两半：注册表（分区 → 协议名 → 目录）由 JS 改；`WebViewConstruct` 建网页时调 `WebProtocolInstall`，把这个分区此刻的注册表抄进配置，一个协议一个处理对象。之后再注册、换目录、`unhandle`，对已经建好的网页都不起作用——验收里各有一条。Electron 也要求先注册、后建窗口。
+
+`NacreWebView.mm` 里加的是一处调用和一行就地的声明（内部头不为一个调用方加声明）。
+
+### 一个请求怎么答
+
+- 只认 GET、HEAD，别的给 405
+- `NSURL.path` 已经解开了百分号编码，`%2e%2e` 在这里就是 `..`。拼到目录上、规整之后不在目录里的给 404。验收里拿 `/%2e%2e/web/data.json` 试：那个文件在包里真的存在，跑出去就能读到，所以这条断言是有意义的
+- 是目录就给里面的 `index.html`
+- 读文件在后台队列上，回到主线程交给 WebKit。WebKit 叫停（`stopURLSchemeTask:`）之后再碰那个任务会抛异常，所以记着哪些任务还活着
+- `Content-Type` 按扩展名查一张表，表里没有的给 `application/octet-stream`。原来想表外的问系统（`UTType`），要多链 `UniformTypeIdentifiers` 框架、改 `project.yml`，网页用得到的类型表里都有，就没加
+- 不处理 `Range`，总是整个文件和 200
+
+### 量到的三件事（iPhone 14 真机，iOS 27.2）
+
+- **主页面的状态码拿不到。** 处理对象回的是 `NSHTTPURLResponse`，网页里的 `fetch` 也看得到 200 / 404 / 405；但导航的回应（`decidePolicyForNavigationResponse:` 里的 `response`）不是 `NSHTTPURLResponse`，`did-navigate` 上的 `httpResponseCode` 是 -1，和 `file://` 一样。草案原来写的是「主页面 404 时状态码在 `did-navigate` 上」，和用户确认后照实测改成 -1，没有自己记一份状态码去补
+- **没有内容类型的 404，主页面加载会被拒绝。** 最初 404 / 405 只给状态码、没有内容：主页面的这种回应被判成「不能显示」（`canShowMIMEType` 为假），我们照系统的做法取消，`loadURL` 就拒绝了。改成带一句 `text/plain` 的 `Not Found` 之后，主页面照 https 的 404 那样显示出来、`loadURL` 兑现
+- **这样的页面是安全上下文**：`isSecureContext` 为真。只打印，不断言

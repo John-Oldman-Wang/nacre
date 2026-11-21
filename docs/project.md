@@ -569,7 +569,6 @@ Commit message 格式：
 | 绘图和动画 | `shadowPath`；`UIViewPropertyAnimator`（跟着手指走、可以打断和反向的动画） |
 | 富文本 | 链接的点击 |
 | 网络和数据 | `crypto.subtle`；后台任务；排最后的：`Blob.slice`、剪贴板的图片和网址和多条内容、`rejectionhandled` 事件 |
-| 网页 | 让本地网页用上模块脚本和 `fetch` 的自定义协议 |
 | 无障碍 | 读屏要的标签和提示（`accessibilityLabel` 一组），核心视图上的属性 |
 | 系统能力（做成包） | 推送的注册（`@nacrejs/push`）、通用链接、Apple 登录：都能写，卡在验证上，要显式包名的描述文件，通用链接还要真实域名；扫码（相机的实时取景）；应用内购买（先不做） |
 

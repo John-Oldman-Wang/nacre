@@ -1368,7 +1368,8 @@
 | 拦住服务器重定向 | Electron 的 `will-redirect` |
 | 拦住 `<iframe>` 里的跳转 | Electron 的 `will-frame-navigate` |
 | 网页同步地向 App 要一个结果 | Electron 的 `ipcRenderer.sendSync` |
-| 从本地加载用到模块脚本、用 `fetch` 读本地文件的网页 | Electron 的 `protocol.handle`；`WKURLSchemeHandler`（让本地文件以自己定的协议提供） |
+| 自定义协议的内容由 JS 动态生成（不是从目录里取文件） | Electron 的 `protocol.handle(scheme, request => Response)`。从目录取文件的有 `session.protocol.serveDirectory()` |
+| 自定义协议回应分段请求（本地 `<video>` 拖进度条） | `Range` 请求头。现在总是给整个文件 |
 | 自己指定本地网页能读哪个目录 | `loadFileURL:allowingReadAccessToURL:` 的第二个参数 |
 | 加载进度的百分比 | `estimatedProgress` |
 | 网页内跳转的通知（只改 `#` 后面的部分） | Electron 的 `did-navigate-in-page` |
