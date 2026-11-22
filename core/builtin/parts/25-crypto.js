@@ -15,11 +15,8 @@
     Int8Array, Uint8Array, Uint8ClampedArray, Int16Array, Uint16Array,
     Int32Array, Uint32Array, BigInt64Array, BigUint64Array,
   ];
-  // Web 用 DOMException，我们没有那个类，照 fetch 的做法给 Error 改名字
   function namedError(name, message) {
-    const err = new Error(message);
-    err.name = name;
-    return err;
+    return new ctx.DOMException(message, name);
   }
   function fillRandom(array) {
     if (!native.randomFill(array)) {

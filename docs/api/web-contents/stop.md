@@ -21,7 +21,7 @@ stop()
 
 无（`undefined`）。
 
-还没兑现的 `loadURL()` 以 `name` 为 `'AbortError'` 的错误拒绝，`code` 是 `-999`。没有在加载时调用什么都不发生。
+还没兑现的 `loadURL()` 以 [`DOMException`](../dom-exception.md) 拒绝，`name` 是 `'AbortError'`，`code` 是 20。系统给的原值在 `cause` 上（一个 [`NSError`](../ns-error.md)），`cause.code` 是 `-999`。没有在加载时调用什么都不发生。
 
 > **注意**：`loadURL` 之后立刻 `stop()`，Promise 以 `AbortError` 拒绝，但**不派发** `did-fail-load`。
 
@@ -37,10 +37,13 @@ stop()
 const contents = new WebView().webContents;
 const loading = contents.loadURL('https://example.com/big');
 contents.stop();
-loading.catch((err) => console.log(err.name, err.code));
+loading.catch((err) => {
+  const systemCode = err.cause instanceof NSError ? err.cause.code : null;
+  console.log(err.name, err.code, systemCode);
+});
 ```
 
-**结果**：输出 `AbortError -999`。
+**结果**：输出 `AbortError 20 -999`。
 
 ## 和 Electron 的差别
 

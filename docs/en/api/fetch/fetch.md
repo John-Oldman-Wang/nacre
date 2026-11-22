@@ -71,9 +71,9 @@ A `Promise` that fulfills with a [`Response`](../response.md). For when it fulfi
 - A header name contains invalid characters: `message` starts with `Invalid header name:`.
 - A header value contains a line break or null character: `Header value cannot contain NUL, CR or LF`.
 
-**An `Error` whose `name` is `'AbortError'`**
+**A [`DOMException`](../dom-exception.md) whose `name` is `'AbortError'`**
 
-The request is canceled while in progress, or `AbortSignal.timeout()` runs out: `message` is `The operation was aborted`. Timeouts and manual cancellation give the same exception; you can't tell which from the exception.
+The request is canceled while in progress, or `AbortSignal.timeout()` runs out: `code` is 20 and `message` is `The operation was aborted`. Timeouts and manual cancellation give the same exception; you can't tell which from the exception.
 
 **`signal.reason`**
 
@@ -165,7 +165,7 @@ main();
 - There is no `init.mode`, `init.credentials`, `init.cache`, or `init.redirect`; writing them has no effect.
 - There is no CORS preflight or same-origin policy; any URL can be requested.
 - All headers can be set, including `Host` and `Cookie`.
-- Cancellation while in progress throws an `Error` whose `name` is `'AbortError'`, not `signal.reason`. There is no `DOMException` class.
+- Cancellation while in progress throws a new `DOMException` (whose `name` is `'AbortError'`), not `signal.reason`.
 - After `AbortSignal.timeout()` runs out, it throws `AbortError`, not `TimeoutError`.
 
 ## See also

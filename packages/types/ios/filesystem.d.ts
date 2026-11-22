@@ -13,19 +13,15 @@ interface FileStat {
 }
 
 /**
- * 出错时 reject 的 `Error`。
+ * 出错时拒绝的 `DOMException`。映射不到的是 `'OperationError'`。
  *
- * `name` 借的是 `DOMException` 的标准名字；映射盖不住的落进 `'FileError'`，
- * 那时用 `code` / `domain` 这两个原值分辨。
+ * 系统的原值在 `cause`（一个 `NSError`，`domain` 一般是 `'NSCocoaErrorDomain'`）上。
  */
-interface FileSystemError extends Error {
-  name: 'NotFoundError' | 'NotAllowedError' | 'InvalidModificationError'
+interface FileSystemError extends DOMException {
+  readonly name: 'NotFoundError' | 'NotAllowedError' | 'InvalidModificationError'
       | 'QuotaExceededError' | 'NoModificationAllowedError' | 'TypeMismatchError'
-      | 'FileError';
-  /** `NSError.code` 的原值。 */
-  code: number;
-  /** 一般是 `'NSCocoaErrorDomain'`。 */
-  domain: string;
+      | 'OperationError';
+  readonly cause?: NSError;
 }
 
 declare class FileSystem {

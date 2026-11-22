@@ -168,10 +168,10 @@ static NacreAsyncResult* MissingUsageDescription() {
                  0, @"");
 }
 
-// 存图失败的错误。没有权限的两种给 NotAllowedError，其余给 PhotosError，
+// 存图失败的错误。没有权限的两种给 NotAllowedError，其余给 NSError，
 // code 和 domain 原样交出去
 static NacreAsyncResult* PhotosFailure(NSError* error, NSString* what) {
-  NSString* name = @"PhotosError";
+  NSString* name = @"NSError";
   if ([error.domain isEqualToString:PHPhotosErrorDomain] &&
       (error.code == PHPhotosErrorAccessUserDenied ||
        error.code == PHPhotosErrorAccessRestricted)) {

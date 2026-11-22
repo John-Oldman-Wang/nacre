@@ -46,7 +46,7 @@ status: partial
 
 ## Base64 的两个函数处理的是字节，不是文字
 
-`btoa()` 的参数是字符串，但它把每个字符当成一个字节（0–255）。字符串里有汉字或表情时，`btoa()` 抛异常，`name` 是 `InvalidCharacterError`。
+`btoa()` 的参数是字符串，但它把每个字符当成一个字节（0–255）。字符串里有汉字或表情时，`btoa()` 抛一个 [`DOMException`](dom-exception.md)，`name` 是 `InvalidCharacterError`。
 
 要把任意文字编码成 Base64，先用 `TextEncoder` 转成字节，写法见[把文字编码成 Base64](../guides/text-and-bytes.md#把文字编码成-base64)。
 
@@ -71,7 +71,7 @@ console.log(binary.length, again[2]);
 
 ## 哪些值不能深拷贝
 
-`structuredClone()` 复制的是数据。下面这些不是数据，传进去时抛异常，`name` 是 `DataCloneError`：
+`structuredClone()` 复制的是数据。下面这些不是数据，传进去时抛一个 `DOMException`，`name` 是 `DataCloneError`：
 
 - 函数、`Symbol`。
 - 原生对象：`UIView`、`UIColor`、`UIImage`、`Blob`，以及所有其他原生类的实例。
@@ -122,7 +122,6 @@ console.log(settings.recent.length, copy.recent.length, copy.savedAt instanceof 
 
 | 情况 | 浏览器 | 这里 |
 | --- | --- | --- |
-| `btoa`、`atob`、`structuredClone` 出错时抛出的对象 | `DOMException` | `Error`，`name` 相同（`InvalidCharacterError`、`DataCloneError`）。按 `err.name` 判断的代码照常工作，按 `instanceof DOMException` 判断的不行，这里没有 `DOMException` 这个类 |
 | `structuredClone(value, { transfer: [buffer] })` | 把 `buffer` 转移给拷贝，原来的不能再用 | 抛 `DataCloneError`。不写 `transfer`，`buffer` 会被复制一份 |
 | `structuredClone(new SharedArrayBuffer(8))` | 拷贝和原来的共用同一块内存 | 抛 `DataCloneError` |
 | `structuredClone(new Blob(['x']))` | 可以 | 抛 `DataCloneError` |

@@ -30,13 +30,13 @@ send(data)
 
 Promise。消息交给网络发出后兑现为 `true`。它不等服务器确认：兑现不表示服务器已经收到。
 
-Promise 被拒绝时，错误对象的 `name` 区分原因：
+Promise 被拒绝时，拒绝的是一个 [`DOMException`](../dom-exception.md)，`name` 区分原因：
 
 | `name` | `message` | 什么时候 |
 | --- | --- | --- |
 | `InvalidStateError` | `send: the socket is not open` | 连接没有打开：还在连接、正在关闭或已经结束 |
 | `InvalidStateError` | `send: expects a string or a Blob` | `data` 不是上表里的类型 |
-| `NetworkError` | 系统的错误描述 | 发送过程中网络出错 |
+| `NetworkError` | 系统的错误描述 | 发送过程中网络出错。系统给的原值在 `cause` 上，是一个 [`NSError`](../ns-error.md)。**未在真机验证** |
 
 ### 异常
 

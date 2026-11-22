@@ -619,6 +619,7 @@ export function stepFetchStream(ctx) {
       const err = await within(waiting, 3000).then(() => null, (e) => e);
       assert('body 流：中止时在等的 read 被拒', err instanceof Error, true);
       assert('body 流：中止的异常 name 是 AbortError', err instanceof Error ? err.name : '', 'AbortError');
+      assert('body 流：中止的异常是 DOMException', err instanceof DOMException, true);
       assert('body 流：中止之后 closed 被拒，也是 AbortError', await outcome(() => within(closed, 2000)),
              'rejected: AbortError');
       assert('body 流：中止之后再 read 还是 AbortError', await outcome(() => within(reader.read(), 2000)),

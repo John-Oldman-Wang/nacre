@@ -28,7 +28,7 @@ A [string in which "each character is one byte"](../web-globals.md#strings-in-wh
 
 ### Exceptions
 
-**`Error`**, with `name` set to `InvalidCharacterError`
+**[`DOMException`](../dom-exception.md)**, with `name` set to `InvalidCharacterError` and `code` set to 5
 
 Thrown in the following cases, all with the message `atob: the string is not correctly encoded Base64`:
 
@@ -53,7 +53,7 @@ console.log(atob('aGVs bG8'));
 
 ## Differences from the web
 
-Browsers throw a `DOMException`; here it is an `Error` with the same `name` (`InvalidCharacterError`). Code that checks `err.name` works as usual; code that checks `instanceof DOMException` doesn't, because there is no `DOMException` class here.
+Same as on the web.
 
 ## See also
 

@@ -28,7 +28,7 @@ It **resolves** to the device token: a lowercase hexadecimal string. The server 
 - When called several times at once, the system registers only once, and all the Promises resolve to the same result (measured).
 - Each time the app is reinstalled, the token received is different (measured).
 
-When **rejected**, it gives an `Error` whose `message` is the reason the system gives, in the phone's language. The most common cause is that the provisioning profile used for signing lacks the push capability; on a Chinese-language system the measured text is:
+When **rejected**, it gives a [`DOMException`](../dom-exception.md) whose `name` is `'OperationError'` and whose `message` is the reason the system gives, in the phone's language; the system's original values are on `cause` (an [`NSError`](../ns-error.md)). The most common cause is that the provisioning profile used for signing lacks the push capability; on a Chinese-language system the measured text is:
 
 ```
 未找到应用程序的“aps-environment”的授权字符串

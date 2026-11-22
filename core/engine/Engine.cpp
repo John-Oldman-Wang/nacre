@@ -397,6 +397,7 @@ struct Engine::Impl {
   v8::Global<v8::Function> wrapper_factory;  // 内置 JS 提供：(className, id) -> 包装对象
   v8::Global<v8::Function> block_sink;         // 内置 JS 提供：(id, argsJSON) -> 调那段登记过的代码
   v8::Global<v8::Function> object_event_sink;  // 内置 JS 提供：(wrapper, type) -> void
+  v8::Global<v8::Function> error_factory;      // 内置 JS 提供：(name, message, detail) -> 错误对象
   std::unordered_map<int, void*> handle_to_ptr;
   std::unordered_map<void*, int> ptr_to_handle;
   std::unordered_map<int, v8::Global<v8::Object>> wrappers;  // weak
@@ -626,6 +627,35 @@ struct Engine::Impl {
     return it == handle_to_ptr.end() ? nullptr : it->second;
   }
 
+  static void NativeSetErrorFactory(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    Impl* self = From(info.GetIsolate());
+    if (info.Length() > 0 && info[0]->IsFunction()) {
+      self->error_factory.Reset(info.GetIsolate(), info[0].As<v8::Function>());
+    }
+  }
+
+  // 建一个错误：交给内置脚本的工厂。工厂还没装上（或者自己抛了）时退回
+  // 最朴素的做法：TypeError 是 TypeError，别的是 Error 加 name
+  v8::Local<v8::Value> MakeError(v8::Isolate* isolate, v8::Local<v8::Context> ctx,
+                                 const std::string& name, const std::string& message,
+                                 v8::Local<v8::Value> detail) {
+    if (!error_factory.IsEmpty()) {
+      v8::TryCatch try_catch(isolate);
+      v8::Local<v8::Value> args[] = {Utf8(isolate, name), Utf8(isolate, message), detail};
+      v8::Local<v8::Value> made;
+      if (error_factory.Get(isolate)->Call(ctx, v8::Undefined(isolate), 3, args).ToLocal(&made)) {
+        return made;
+      }
+    }
+    if (name == "TypeError") return v8::Exception::TypeError(Utf8(isolate, message));
+    if (name == "RangeError") return v8::Exception::RangeError(Utf8(isolate, message));
+    v8::Local<v8::Value> error = v8::Exception::Error(Utf8(isolate, message));
+    if (error->IsObject() && !name.empty()) {
+      error.As<v8::Object>()->Set(ctx, Utf8(isolate, "name"), Utf8(isolate, name)).Check();
+    }
+    return error;
+  }
+
   static void NativeSetWrapperFactory(const v8::FunctionCallbackInfo<v8::Value>& info) {
     Impl* self = From(info.GetIsolate());
     if (info.Length() > 0 && info[0]->IsFunction()) {
@@ -809,10 +839,20 @@ struct Engine::Impl {
   }
 
   // 带参数的类方法，返回原生对象
-  // 宿主拒绝了这次写入或调用：没有这个属性，或者值不被接受。统一抛
-  // TypeError——Web IDL 的 enum 参数给错值也是 TypeError。
+  // 宿主拒绝了这次写入或调用：没有这个属性，或者值不被接受。默认抛
+  // TypeError——Web IDL 的 enum 参数给错值也是 TypeError。开头带
+  // kNamedErrorMarker 的，按标记里的名字建（RangeError、DOMException……）
   static bool Rejected(v8::Isolate* isolate, const std::string& error) {
     if (error.empty()) return false;
+    if (error[0] == kNamedErrorMarker) {
+      const size_t end = error.find(kNamedErrorMarker, 1);
+      if (end != std::string::npos) {
+        v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
+        isolate->ThrowException(From(isolate)->MakeError(
+            isolate, ctx, error.substr(1, end - 1), error.substr(end + 1), v8::Undefined(isolate)));
+        return true;
+      }
+    }
     isolate->ThrowException(v8::Exception::TypeError(Utf8(isolate, error)));
     return true;
   }
@@ -1181,6 +1221,7 @@ struct Engine::Impl {
         {"setIdleTimerDisabled", NativeSetIdleTimerDisabled},
         {"setEventSink", NativeSetEventSink},
         {"setWrapperFactory", NativeSetWrapperFactory},
+        {"setErrorFactory", NativeSetErrorFactory},
         {"scenes", NativeScenes},
         {"setObjectEventSink", NativeSetObjectEventSink},
         {"setBlockSink", NativeSetBlockSink},
@@ -1442,6 +1483,7 @@ Engine::~Engine() {
   // 所有 Global 都必须在 Isolate 销毁之前释放
   impl_->event_sink.Reset();
   impl_->wrapper_factory.Reset();
+  impl_->error_factory.Reset();
   impl_->object_event_sink.Reset();
   impl_->block_sink.Reset();
   impl_->wrappers.clear();
@@ -1793,38 +1835,16 @@ void Engine::RejectCall(int call_id, const std::string& name,
   NACRE_SETTLE_PROLOGUE(call_id);
   if (resolver.IsEmpty()) return;
   v8::TryCatch try_catch(isolate);
-  // TypeError 要建成真正的 TypeError 实例，不能只是改个 name——Web 规范里
-  // fetch 的网络失败拒绝的就是 TypeError，用户代码会 instanceof 它。
-  // 其余的（AbortError 之类）Web 用的是 DOMException，我们没有那个类，
-  // 退而求其次用 Error 加 name，JS 侧靠 err.name 分辨。
-  v8::Local<v8::Value> error =
-      name == "TypeError" ? v8::Exception::TypeError(Utf8(isolate, message))
-                          : v8::Exception::Error(Utf8(isolate, message));
-  if (error->IsObject() && !name.empty() && name != "TypeError") {
-    error.As<v8::Object>()
-        ->Set(ctx, Utf8(isolate, "name"), Utf8(isolate, name))
-        .Check();
+  // 建什么类由内置脚本的工厂定（05-dom-exception.js）：TypeError、
+  // DOMException，或者平台的错误。系统给的原值（domain / code）一起交过去：
+  // 上层给好用的分类（err.name），底层不丢事实（err.cause 或者错误本身）
+  v8::Local<v8::Value> detail = v8::Undefined(isolate);
+  if (!detail_json.empty() &&
+      !v8::JSON::Parse(ctx, Utf8(isolate, detail_json)).ToLocal(&detail)) {
+    try_catch.Reset();
+    detail = v8::Undefined(isolate);
   }
-  // 映射盖不住的那部分事实原样挂上去。上层给好用的分类（err.name），
-  // 底层不丢事实（err.code / err.domain）——两层 API 的分工落到错误上
-  if (error->IsObject() && !detail_json.empty()) {
-    v8::Local<v8::Value> detail;
-    if (v8::JSON::Parse(ctx, Utf8(isolate, detail_json)).ToLocal(&detail) &&
-        detail->IsObject()) {
-      v8::Local<v8::Object> from = detail.As<v8::Object>();
-      v8::Local<v8::Array> keys;
-      if (from->GetOwnPropertyNames(ctx).ToLocal(&keys)) {
-        for (uint32_t i = 0; i < keys->Length(); i++) {
-          v8::Local<v8::Value> k, v;
-          if (keys->Get(ctx, i).ToLocal(&k) && from->Get(ctx, k).ToLocal(&v)) {
-            error.As<v8::Object>()->Set(ctx, k, v).Check();
-          }
-        }
-      }
-    } else {
-      try_catch.Reset();
-    }
-  }
+  v8::Local<v8::Value> error = impl_->MakeError(isolate, ctx, name, message, detail);
   if (resolver->Reject(ctx, error).IsNothing()) try_catch.Reset();
   impl_->AfterSettle();
 }

@@ -89,12 +89,14 @@ export function stepFetch(ctx) {
         console.log('  ✗ 取消了居然还成功');
       } catch (err) {
         assert('取消后拒绝，name 是 AbortError', err.name, 'AbortError');
+        assert('取消后拒绝的是 DOMException，code 20', err instanceof DOMException && err.code, 20);
       }
       assert('abort 事件派发了', gotAbortEvent, true);
       assert('中止后 aborted', ctrl.signal.aborted, true);
       // reason 的类型是 unknown——任何值都能当中止原因，这是 Web 的语义
       assert('reason 默认是 AbortError',
            /** @type {Error} */ (ctrl.signal.reason).name, 'AbortError');
+      assert('reason 默认是 DOMException', ctrl.signal.reason instanceof DOMException, true);
       ctrl.abort();   // 重复中止是空操作，不该再派发
       assert('重复 abort 不出错', ctrl.signal.aborted, true);
 
@@ -111,6 +113,14 @@ export function stepFetch(ctx) {
         console.log('  ✗ 超时了居然还成功');
       } catch (err) {
         assert('AbortSignal.timeout 到点中止', err.name, 'AbortError');
+      }
+      {
+        const timed = AbortSignal.timeout(10);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        const reason = timed.reason;
+        assert('AbortSignal.timeout 的 reason 是 DOMException TimeoutError，code 23',
+               reason instanceof DOMException ? reason.name + ' ' + reason.code : String(reason),
+               'TimeoutError 23');
       }
       try { AbortSignal.abort().throwIfAborted(); console.log('  ✗ throwIfAborted 没抛'); }
       catch (err) { assert('throwIfAborted 抛的是 reason', err.name, 'AbortError'); }

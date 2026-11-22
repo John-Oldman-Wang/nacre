@@ -59,9 +59,8 @@
     }
     waitUntil(promise) {
       if (!this[kDispatching]) {
-        const err = new Error('waitUntil must be called while the push event is being dispatched');
-        err.name = 'InvalidStateError';
-        throw err;
+        throw new ctx.DOMException('waitUntil must be called while the push event is being dispatched',
+                                   'InvalidStateError');
       }
       this[kPromises].push(Promise.resolve(promise));
     }

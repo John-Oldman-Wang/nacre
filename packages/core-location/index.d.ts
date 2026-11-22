@@ -115,26 +115,31 @@ declare class CLLocation {
 }
 
 /**
- * 定位出错时的 `Error`：`requestLocation()` 和 `requestWhenInUseAuthorization()`
+ * 定位出错时的错误：`requestLocation()` 和 `requestWhenInUseAuthorization()`
  * 拒绝时给的，`locationerror` 事件带的也是它。
  *
+ * 含义 Web 上有的是 `DOMException`，系统给的原值在 `cause`（一个 `NSError`，
+ * `domain` 是 `'kCLErrorDomain'`）上；运行时自己给的（`AbortError` 和
+ * `InvalidStateError`）没有 `cause`：
+ *
  * - `'NotAllowedError'` —— 没有授权
- * - `'LocationUnknownError'` —— 这一刻定不出位置。连续更新时系统会接着试
  * - `'NetworkError'` —— 网络问题
  * - `'AbortError'` —— `requestLocation()` 被 `startUpdatingLocation()` 或
  *   `stopUpdatingLocation()` 取消了
  * - `'InvalidStateError'` —— 现在不能做这件事（正在连续更新时取一次、App 在
  *   后台时申请授权、Info.plist 里没有那句说明）
- * - `'CLError'` —— 系统给的别的错误，看 `code`
+ *
+ * iOS 特有的是 `NSError`，`domain` 和 `code` 是系统的原值：
+ *
+ * - `'LocationUnknownError'` —— 这一刻定不出位置。连续更新时系统会接着试
+ * - `'NSError'` —— 系统给的别的错误，看 `code`
  */
-interface CLLocationError extends Error {
-  name: 'NotAllowedError' | 'LocationUnknownError' | 'NetworkError' | 'AbortError'
-      | 'InvalidStateError' | 'CLError';
-  /** `NSError.code` 的原值。运行时自己给的错误（后两种和 `AbortError`）是 0。 */
-  code: number;
-  /** 系统给的错误是 `'kCLErrorDomain'`，运行时自己给的是空串。 */
-  domain: string;
-}
+type CLLocationError =
+  | (DOMException & {
+      readonly name: 'NotAllowedError' | 'NetworkError' | 'AbortError' | 'InvalidStateError';
+      readonly cause?: NSError;
+    })
+  | (NSError & { readonly name: 'LocationUnknownError' | 'NSError' });
 
 /** `locationupdate` 的事件对象。 */
 declare interface CLLocationUpdateEvent extends Event {

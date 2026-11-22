@@ -18,11 +18,8 @@
 
   const { define, kHandle, kListeners, native } = ctx;
 
-  // Web 用 DOMException，我们没有那个类，照 crypto 和 fetch 的做法给 Error 改名字
   function namedError(name, message) {
-    const err = new Error(message);
-    err.name = name;
-    return err;
+    return new ctx.DOMException(message, name);
   }
 
   // Web IDL 的字典参数：undefined 和 null 当成空的，别的不是对象的值抛 TypeError
@@ -247,6 +244,7 @@
           'leave it out and the ArrayBuffer is copied instead');
       }
     }
-    return native.structuredClone(value, isPlatformObject);
+    return native.structuredClone(value, isPlatformObject,
+                                  (message) => namedError('DataCloneError', message));
   });
 })

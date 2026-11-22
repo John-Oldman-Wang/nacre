@@ -21,7 +21,7 @@ How many milliseconds before aborting, a number. Converted with `Number()`; if t
 
 ### Return value
 
-A new `AbortSignal`. When the time is up it aborts, and [`reason`](reason.md) is an `Error` whose `name` is `'TimeoutError'` and whose `message` is `The operation timed out`.
+A new `AbortSignal`. When the time is up it aborts, and [`reason`](reason.md) is a [`DOMException`](../dom-exception.md) whose `name` is `'TimeoutError'`, whose `code` is 23, and whose `message` is `The operation timed out` (measured).
 
 ### Exceptions
 
@@ -51,7 +51,6 @@ main();
 ## Differences from the web
 
 - When the time is up, `fetch()` throws `AbortError`. On the web it throws `TimeoutError`.
-- `reason` is an `Error` whose `name` is `'TimeoutError'`. On the web it is a `DOMException`.
 - When `ms` doesn't convert to a number, it is treated as 0. On the web it throws `TypeError`. **From the code; not verified in the simulator.**
 
 ## See also

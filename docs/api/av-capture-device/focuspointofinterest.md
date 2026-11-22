@@ -22,9 +22,9 @@ native: AVCaptureDevice.focusPointOfInterest
 
 ### 写错时
 
-- 没锁就写：抛 `TypeError`，值不变（实测）。信息是 `focusPointOfInterest: the system refused (…)`，括号里是系统给的原因，说的是要先锁（`-lockForConfiguration:`）。
+- 没锁就写：抛 [`DOMException`](../dom-exception.md)，`name` 是 `'InvalidStateError'`，值不变（实测）。信息是 `focusPointOfInterest: the system refused (…)`，括号里是系统给的原因，说的是要先锁（`-lockForConfiguration:`）。
 - 写的不是对象：抛 `TypeError`：`focusPointOfInterest needs an object with all of: x, y`（实测）。
-- 摄像头不支持指定对焦点：系统拒绝，抛 `TypeError`，信息里带系统给的原因。**未在真机验证。**
+- 摄像头不支持指定对焦点：系统拒绝，抛 `DOMException`，`name` 是 `'InvalidStateError'`，信息里带系统给的原因。**未在真机验证。**
 
 ## 示例
 
@@ -47,7 +47,7 @@ if (device !== null && device.isFocusPointOfInterestSupported) {
 
 ## 对应的 iOS API
 
-`AVCaptureDevice.focusPointOfInterest`。ObjC 里没锁就写抛 `NSGenericException`，这里是 `TypeError`。
+`AVCaptureDevice.focusPointOfInterest`。ObjC 里没锁就写抛 `NSGenericException`，这里抛 `DOMException`，`name` 是 `'InvalidStateError'`。
 
 ## 参见
 

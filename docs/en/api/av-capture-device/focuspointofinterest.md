@@ -22,9 +22,9 @@ Reads as a [`CGPoint`](../cg-point.md). When writing, you can pass a `CGPoint` o
 
 ### Invalid values
 
-- Writing without the lock: throws `TypeError`, and the value doesn't change (verified by testing). The message is `focusPointOfInterest: the system refused (…)`; the parentheses hold the reason the system gave, which says to lock first (`-lockForConfiguration:`).
+- Writing without the lock: throws a [`DOMException`](../dom-exception.md) whose `name` is `'InvalidStateError'`, and the value doesn't change (verified by testing). The message is `focusPointOfInterest: the system refused (…)`; the parentheses hold the reason the system gave, which says to lock first (`-lockForConfiguration:`).
 - Writing something that isn't an object: throws `TypeError`: `focusPointOfInterest needs an object with all of: x, y` (verified by testing).
-- The camera doesn't support a focus point: the system refuses, and it throws `TypeError` with the reason the system gave. **Not verified on a device.**
+- The camera doesn't support a focus point: the system refuses, and it throws a `DOMException` whose `name` is `'InvalidStateError'`, with the reason the system gave in the message. **Not verified on a device.**
 
 ## Examples
 
@@ -47,7 +47,7 @@ if (device !== null && device.isFocusPointOfInterestSupported) {
 
 ## Corresponding iOS API
 
-`AVCaptureDevice.focusPointOfInterest`. In ObjC, writing without the lock throws `NSGenericException`; here it's `TypeError`.
+`AVCaptureDevice.focusPointOfInterest`. In ObjC, writing without the lock throws `NSGenericException`; here it throws a `DOMException` whose `name` is `'InvalidStateError'`.
 
 ## See also
 

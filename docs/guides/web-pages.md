@@ -90,14 +90,15 @@ contents.loadURL('https://example.com/');
 
 ## 处理加载失败
 
-加载失败时，`loadURL` 返回的 Promise 被拒绝，同时派发 [`did-fail-load`](../api/web-contents/did-fail-load-event.md) 事件。两处带的信息相同。只关心自己发起的这一次加载时用 Promise；要连同用户点链接引起的加载失败一起处理时，监听事件。
+加载失败时，`loadURL` 返回的 Promise 被拒绝，同时派发 [`did-fail-load`](../api/web-contents/did-fail-load-event.md) 事件。两处带的信息相同。拒绝的是一个 [`DOMException`](../api/dom-exception.md)，`name` 是 `'NetworkError'` 或 `'AbortError'`；系统的错误码在它的 `cause` 上（一个 [`NSError`](../api/ns-error.md)），和事件的 `errorCode` 是同一个数。只关心自己发起的这一次加载时用 Promise；要连同用户点链接引起的加载失败一起处理时，监听事件。
 
 ```js
 try {
   await contents.loadURL('https://no-such-host.invalid/');
 } catch (err) {
-  const failure = /** @type {Error & { code: number }} */ (err);
-  console.log(failure.name, failure.code);
+  const failure = /** @type {DOMException} */ (err);
+  const systemCode = failure.cause instanceof NSError ? failure.cause.code : null;
+  console.log(failure.name, systemCode);
 }
 ```
 
@@ -156,7 +157,10 @@ contents.reload();
 ```js
 const loading = contents.loadURL('https://example.com/big');
 contents.stop();
-loading.catch((err) => console.log(err.name, err.code));
+loading.catch((err) => {
+  const systemCode = err.cause instanceof NSError ? err.cause.code : null;
+  console.log(err.name, systemCode);
+});
 ```
 
 **效果**
@@ -251,7 +255,7 @@ await contents.loadFile('JS/web/help.html', { query: { topic: 'fees' }, hash: 'r
 - 不联网也能显示。网页旁边的样式表、脚本、图片用相对路径引用，照常加载。
 - 控制台输出一个 `file:///` 开头、以 `/JS/web/help.html` 结尾的地址。
 - 第二次加载时，网页里 `location.search` 是 `?topic=fees`，`location.hash` 是 `#refund`。
-- 文件不存在时 Promise 以 `NetworkError` 拒绝，`code` 是 `-1100`。
+- 文件不存在时 Promise 以 `NetworkError` 拒绝，`cause.code` 是 `-1100`。
 
 > **注意**：本地网页里 `<script type="module">` 不执行，`fetch` 也读不了本地文件。用到这两样的网页（比如 Vite 默认的打包结果）不能这样加载，见[本地网页的限制](../api/web-contents.md#本地网页的限制)。
 

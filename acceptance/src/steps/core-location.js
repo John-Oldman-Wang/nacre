@@ -365,9 +365,10 @@ export function stepCoreLocation(ctx) {
         console.log('  ✗ 没授权时 requestLocation() = 兑现了（期望拒绝 NotAllowedError）');
       } else {
         assert('没授权时 requestLocation() 拒绝', denied.error.name, 'NotAllowedError');
-        assert('拒绝的是 Error', denied.error instanceof Error, true);
-        assert('带着系统的错误域', denied.error.domain, 'kCLErrorDomain');
-        assert('带着系统的错误码（denied 是 1）', denied.error.code, 1);
+        assert('拒绝的是 DOMException', denied.error instanceof DOMException, true);
+        assert('系统的原值在 cause 上，是 NSError', denied.error.cause instanceof NSError, true);
+        assert('带着系统的错误域', denied.error.cause && denied.error.cause.domain, 'kCLErrorDomain');
+        assert('带着系统的错误码（denied 是 1）', denied.error.cause && denied.error.cause.code, 1);
       }
       console.log('  ! 定位还没授权（' + manager.authorizationStatus + '），取位置和连续更新' +
                   '这一段未验证。给模拟器授权并设一个位置之后重跑，或者点面板上的按钮');
@@ -459,6 +460,8 @@ export function stepCoreLocation(ctx) {
     } else {
       assert('连续更新时 requestLocation() 拒绝',
              busy.ok ? '兑现了' : busy.error.name, 'InvalidStateError');
+      assert('连续更新时 requestLocation()：拒绝的是 DOMException',
+             !busy.ok && busy.error instanceof DOMException, true);
     }
     const t0 = Date.now();
     while (update === undefined && Date.now() - t0 < 15000) {
@@ -494,6 +497,8 @@ export function stepCoreLocation(ctx) {
     } else {
       assert('取一次之后马上 stopUpdatingLocation()：那一次拒绝',
              aborted.ok ? '兑现了' : aborted.error.name, 'AbortError');
+      assert('取一次之后马上 stopUpdatingLocation()：拒绝的是 DOMException',
+             !aborted.ok && aborted.error instanceof DOMException, true);
     }
   })().catch((err) => {
     console.log('  ✗ 定位的异步部分中断了 = ' + (err instanceof Error ? err.message : String(err)) +

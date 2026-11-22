@@ -18,7 +18,7 @@ AbortSignal.abort(reason)
 
 **`reason`**
 
-取消的原因，任意值，可选。不给时是一个 `name` 为 `'AbortError'`、`message` 为 `The operation was aborted` 的 `Error`。
+取消的原因，任意值，可选。不给时是一个 [`DOMException`](../dom-exception.md)，`name` 是 `'AbortError'`，`code` 是 20，`message` 是 `The operation was aborted`。
 
 ### 返回值
 
@@ -49,7 +49,7 @@ main();
 
 ## 和 Web 的差别
 
-不给 `reason` 时是 `name` 为 `'AbortError'` 的 `Error`。Web 里是 `DOMException`。
+和 Web 相同。
 
 ## 参见
 

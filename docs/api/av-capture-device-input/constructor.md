@@ -30,9 +30,9 @@ new AVCaptureDeviceInput(device)
 - `device` 不是 `AVCaptureDevice`（`null`、字符串、别的原生对象）：`AVCaptureDeviceInput needs an AVCaptureDevice, got …`。
 - 继承它：`class Mine extends AVCaptureDeviceInput {}` 在 `new Mine()` 时抛，信息以 `Illegal constructor` 开头。
 
-**`Error`**
+**[`NSError`](../ns-error.md)**
 
-参数对，但系统打不开这个摄像头：`cannot open this camera: …`，后面是系统给的原因。实测用户拒绝过摄像头的授权时抛这个。摄像头被别的 App 占着时会不会抛**未在真机验证**。
+参数对，但系统打不开这个摄像头：`cannot open this camera: …`，后面是系统给的原因。`name` 是 `'NSError'`，`domain` 是空串，`code` 是 0：系统的原因只在 `message` 里。实测用户拒绝过摄像头的授权时抛这个。摄像头被别的 App 占着时会不会抛**未在真机验证**。
 
 ## 说明
 
@@ -55,7 +55,7 @@ if (camera !== null && AVCaptureDevice.authorizationStatusForMediaType('video') 
 
 ## 对应的 iOS API
 
-`+[AVCaptureDeviceInput deviceInputWithDevice:error:]`。ObjC 里失败时返回 `nil` 并填 `error`；这里改成抛 `Error`。
+`+[AVCaptureDeviceInput deviceInputWithDevice:error:]`。ObjC 里失败时返回 `nil` 并填 `error`；这里改成抛 `NSError`，系统给的原因在 `message` 里，`domain` 是空串、`code` 是 0。
 
 ## 参见
 

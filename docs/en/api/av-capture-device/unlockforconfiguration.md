@@ -28,7 +28,7 @@ None.
 ## Description
 
 - After giving it back, the settings already written stay as they are: a torch that's on stays on, and the zoom factor doesn't change.
-- Writing the torch, zoom, or focus properties after giving it back throws `TypeError` (verified by testing). To change them again, call `lockForConfiguration()` again.
+- Writing the torch, zoom, or focus properties after giving it back throws a `DOMException` whose `name` is `'InvalidStateError'` (verified by testing). To change them again, call `lockForConfiguration()` again.
 - What happens when it's called without holding the lock is **not verified on a device**.
 
 ## Examples

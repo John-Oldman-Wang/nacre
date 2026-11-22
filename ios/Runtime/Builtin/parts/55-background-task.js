@@ -14,9 +14,7 @@
 
   /** @param {string} message */
   function timeoutError(message) {
-    const err = new Error(message);
-    err.name = 'TimeoutError';
-    return err;
+    return new ctx.DOMException(message, 'TimeoutError');
   }
 
   define(Application.prototype, 'runBackgroundTask', function runBackgroundTask(work, options) {

@@ -41,7 +41,7 @@ contents.addEventListener('did-fail-load', (event) => {})
 
 ## 什么时候派发
 
-- App 发起的加载失败时，和 `loadURL()` 的 Promise 被拒绝同时发生，两处带的信息相同。
+- App 发起的加载失败时，和 `loadURL()` 的 Promise 被拒绝同时发生，两处带的信息相同：`errorCode` 和拒绝的错误的 `cause.code` 是同一个数（实测）。
 - 用户点链接引起的加载失败时，也派发。
 - 服务器返回 404、500 **不算失败**，不派发。
 

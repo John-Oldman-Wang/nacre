@@ -18,6 +18,7 @@
 /// <reference path="./ios/enums.d.ts" />
 /// <reference path="./ios/structs.d.ts" />
 /// <reference path="./ios/base.d.ts" />
+/// <reference path="./ios/error.d.ts" />
 /// <reference path="./ios/resources.d.ts" />
 /// <reference path="./ios/scene.d.ts" />
 /// <reference path="./ios/view.d.ts" />

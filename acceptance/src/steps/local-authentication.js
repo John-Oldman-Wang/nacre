@@ -13,7 +13,7 @@ const ERROR_NAMES = [
   'AuthenticationFailedError', 'UserCancelError', 'UserFallbackError', 'SystemCancelError',
   'PasscodeNotSetError', 'BiometryNotAvailableError', 'BiometryNotEnrolledError',
   'BiometryLockoutError', 'AppCancelError', 'InvalidContextError', 'NotInteractiveError',
-  'LAError',
+  'NSError',
 ];
 
 /**
@@ -123,7 +123,7 @@ export function stepLocalAuthentication(ctx) {
     assert('canEvaluatePolicyError(' + policy + ')：能认证时是 null，不能时不是',
            why === null, can);
     if (why === null) continue;
-    assert(policy + ' 的原因：是 Error', why instanceof Error, true);
+    assert(policy + ' 的原因：是 NSError', why instanceof NSError, true);
     assert(policy + ' 的原因：name 是约定的十二个之一', ERROR_NAMES.includes(why.name), true);
     assert(policy + ' 的原因：name 是「开始不了」的四种之一', CANNOT_START.includes(why.name), true);
     assert(policy + ' 的原因：code 是数', typeof why.code, 'number');
@@ -287,7 +287,7 @@ export function stepLocalAuthentication(ctx) {
       settled = true;
       console.log('  实测：' + label + ' → ' + describeFailure(err));
       assert(label + '：被拒绝，err.name 在约定的名字里', names.includes(err.name), true);
-      assert(label + '：拒绝的是 Error', err instanceof Error, true);
+      assert(label + '：拒绝的是 NSError', err instanceof NSError, true);
       assert(label + '：err.name 是约定的十二个之一', ERROR_NAMES.includes(err.name), true);
       assert(label + '：err.code 是数', typeof err.code, 'number');
       assert(label + '：err.domain', err.domain, LA_DOMAIN);

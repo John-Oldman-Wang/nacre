@@ -79,7 +79,7 @@ status: partial
 
 | 方法 | 说明 |
 | --- | --- |
-| [`lockForConfiguration()`](av-capture-device/lockforconfiguration.md) | 拿到改设置的权利。拿不到时抛 `Error` |
+| [`lockForConfiguration()`](av-capture-device/lockforconfiguration.md) | 拿到改设置的权利。拿不到时抛 [`NSError`](ns-error.md) |
 | [`unlockForConfiguration()`](av-capture-device/unlockforconfiguration.md) | 交还改设置的权利 |
 | [`rampToVideoZoomFactor()`](av-capture-device/ramptovideozoomfactor.md) | 平滑地变焦到一个倍数 |
 | [`cancelVideoZoomRamp()`](av-capture-device/cancelvideozoomramp.md) | 停下正在进行的平滑变焦 |
@@ -103,7 +103,7 @@ App 用摄像头之前，要由用户同意。用户的决定从 [`authorization
 - 申请用 [`requestAccessForMediaType('video')`](av-capture-device/requestaccessformediatype.md)。还没问过用户时，系统弹出提示框，提示框里显示 `nacre.config.json` 里写的 [`NSCameraUsageDescription`](av-capture-session.md#先装上)。用户同意之后状态是 `'authorized'`（实测）。
 - 每个 App 只问一次。问过之后再申请，不弹提示框，当场兑现成上次的结果（实测）。用户拒绝之后，只能由他自己去系统设置里改。
 - 还没问过用户就 [`new AVCaptureDeviceInput(device)`](av-capture-device-input/constructor.md)，这一下也会弹出提示框（实测）。推荐先调 `requestAccessForMediaType()`：这样在接摄像头之前就知道结果，用户拒绝时可以换一个界面告诉他。
-- 没有授权时 `new AVCaptureDeviceInput(device)` 抛 `Error`（实测）。
+- 没有授权时 `new AVCaptureDeviceInput(device)` 抛 [`NSError`](ns-error.md)（实测）。
 - 媒体类型只能写 `'video'`。写别的，`authorizationStatusForMediaType()` 抛 `TypeError`，`requestAccessForMediaType()` 以 `TypeError` 拒绝（实测）。
 - 授权变了的时候没有事件。用户在系统设置里改了之后，下次要用时重新读一次。
 
@@ -111,9 +111,9 @@ App 用摄像头之前，要由用户同意。用户的决定从 [`authorization
 
 写 [`torchMode`](av-capture-device/torchmode.md)、[`videoZoomFactor`](av-capture-device/videozoomfactor.md)、[`focusMode`](av-capture-device/focusmode.md)、[`focusPointOfInterest`](av-capture-device/focuspointofinterest.md)、[`autoFocusRangeRestriction`](av-capture-device/autofocusrangerestriction.md) 之前，要先调 [`lockForConfiguration()`](av-capture-device/lockforconfiguration.md) 拿到改设置的权利，改完调 [`unlockForConfiguration()`](av-capture-device/unlockforconfiguration.md) 交还。
 
-- 没锁就写：抛 `TypeError`，值不变（实测）。信息是 `<属性名>: the system refused (…)`，括号里是系统给的原因。比如没锁就写 `videoZoomFactor`，括号里是 `*** -[AVCaptureDevice setVideoZoomFactor:] May not be called without first successfully gaining exclusive ownership of the device using -lockForConfiguration:`（实测）。
+- 没锁就写：抛 [`DOMException`](dom-exception.md)，`name` 是 `'InvalidStateError'`，值不变（实测）。信息是 `<属性名>: the system refused (…)`，括号里是系统给的原因。比如没锁就写 `videoZoomFactor`，括号里是 `*** -[AVCaptureDevice setVideoZoomFactor:] May not be called without first successfully gaining exclusive ownership of the device using -lockForConfiguration:`（实测）。
 - 交还之后再写，又会抛（实测）。
-- 拿不到权利时（比如摄像头被别的 App 占着）`lockForConfiguration()` 抛 `Error`。这种情况**未在真机验证**。
+- 拿不到权利时（比如摄像头被别的 App 占着）`lockForConfiguration()` 抛 [`NSError`](ns-error.md)，`domain` 和 `code` 是系统给的原值。这种情况**未在真机验证**。
 - [`rampToVideoZoomFactor()`](av-capture-device/ramptovideozoomfactor.md) 和 [`cancelVideoZoomRamp()`](av-capture-device/cancelvideozoomramp.md) 没锁时调也不抛（实测）。
 - 读这些属性不用锁。
 
@@ -183,7 +183,7 @@ console.log(front === null ? '没有前置摄像头' : front.position);
 | `[AVCaptureDevice requestAccessForMediaType:AVMediaTypeVideo completionHandler:…]` | `await AVCaptureDevice.requestAccessForMediaType('video')` |
 | `[AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo]` | `AVCaptureDevice.defaultDeviceWithMediaType('video')` |
 | `[AVCaptureDevice defaultDeviceWithDeviceType:AVCaptureDeviceTypeBuiltInWideAngleCamera mediaType:AVMediaTypeVideo position:AVCaptureDevicePositionFront]` | `AVCaptureDevice.defaultDeviceWithDeviceType('builtInWideAngleCamera', { mediaType: 'video', position: 'front' })` |
-| `[device lockForConfiguration:&error]`，失败时返回 `NO` | `device.lockForConfiguration()`，失败时抛 `Error` |
+| `[device lockForConfiguration:&error]`，失败时返回 `NO` | `device.lockForConfiguration()`，失败时抛 `NSError`，`domain` 和 `code` 是 `error` 的原值 |
 | `device.torchMode = AVCaptureTorchModeOn` | `device.torchMode = 'on'` |
 | `device.torchAvailable` | `device.isTorchAvailable` |
 | `[device rampToVideoZoomFactor:2 withRate:4]` | `device.rampToVideoZoomFactor(2, { withRate: 4 })` |

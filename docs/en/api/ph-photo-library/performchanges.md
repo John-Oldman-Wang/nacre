@@ -26,7 +26,7 @@ A `Promise` that resolves to `undefined` once saved.
 - When the user hasn't been asked yet, it first shows the permission prompt and saves after the user allows it.
 - After the user has denied it, no prompt is shown and the Promise is rejected directly.
 
-When the Promise is rejected, you get an `Error` whose `name` is `NotAllowedError`, `InvalidStateError`, or `PhotosError`, with `code` and `domain`; see [Errors](../ph-photo-library.md#errors).
+When the Promise is rejected, an error whose `name` is `NotAllowedError` or `InvalidStateError` is a [`DOMException`](../dom-exception.md), and other failures are an [`NSError`](../ns-error.md) whose `name` is `'NSError'`; see [Errors](../ph-photo-library.md#errors).
 
 The result of saving is **not verified in the simulator**.
 

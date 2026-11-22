@@ -32,9 +32,9 @@ dispatch_queue_t FileQueue() {
 
 // Cocoa 的文件错误码 → DOMException 的标准名字。借 Web 的名字是因为 JS
 // 开发者认识它们，而且 Web 的 File System Access API 用的就是这一组。
-// 映射盖不住的落进 FileError，但 code / domain 会原样交出去当逃生口。
+// 映射盖不住的落进 OperationError；code / domain 照样交出去，JS 那边建成 cause 上的 NSError。
 NSString* FileErrorName(NSError* error) {
-  if (![error.domain isEqualToString:NSCocoaErrorDomain]) return @"FileError";
+  if (![error.domain isEqualToString:NSCocoaErrorDomain]) return @"OperationError";
   switch (error.code) {
     case NSFileNoSuchFileError:
     case NSFileReadNoSuchFileError:
@@ -51,14 +51,14 @@ NSString* FileErrorName(NSError* error) {
     case NSFileReadInvalidFileNameError:
       return @"TypeMismatchError";
     default:
-      return @"FileError";
+      return @"OperationError";
   }
 }
 
 NacreAsyncResult* Failure(NSError* error, NSString* fallback) {
   NacreAsyncResult* r = [NacreAsyncResult new];
   r.isError = YES;
-  r.errorName = error ? FileErrorName(error) : @"FileError";
+  r.errorName = error ? FileErrorName(error) : @"OperationError";
   r.errorMessage = error.localizedDescription ?: fallback;
   r.errorCode = error ? error.code : 0;
   r.errorDomain = error.domain ?: @"";

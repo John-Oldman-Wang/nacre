@@ -44,12 +44,15 @@ interface KeychainWriteOptions {
   accessible?: KeychainAccessible;
 }
 
-/** 出错时 reject 的 `Error`。`code` 是 `OSStatus` 的原值。 */
-interface KeychainError extends Error {
-  name: 'NotAllowedError' | 'SecurityError' | 'TypeMismatchError'
-      | 'InvalidModificationError' | 'KeychainError';
-  code: number;
-  domain: string;
+/**
+ * 出错时拒绝的 `DOMException`（参数不对是 `TypeError`）。映射不到的是
+ * `'OperationError'`。系统的 `OSStatus` 原值在 `cause.code`，`cause.domain` 是
+ * `'NSOSStatusErrorDomain'`。
+ */
+interface KeychainError extends DOMException {
+  readonly name: 'NotAllowedError' | 'SecurityError' | 'TypeMismatchError'
+      | 'InvalidModificationError' | 'OperationError';
+  readonly cause?: NSError;
 }
 
 declare class Keychain {

@@ -32,7 +32,7 @@ read()
 
 返回的 `Promise` 在这些情况下被拒绝：
 
-**`name` 是 `'AbortError'` 的 `Error`**
+**[`DOMException`](../dom-exception.md)，`name` 是 `'AbortError'`**
 
 请求被 `AbortController` 取消，或 `AbortSignal.timeout()` 到时间。正在等待的和之后的 `read()` 都被拒绝。内容已经全部到达、只是还没读走时也一样。
 

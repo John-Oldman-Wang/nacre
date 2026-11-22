@@ -249,8 +249,9 @@ void Base64DecodeString(const v8::FunctionCallbackInfo<v8::Value>& info) {
 // postMessage 和 structuredClone 用的是它）：序列化成一段字节，再反序列化
 // 出来，就是一份克隆。环、同一个对象出现多次、Map / Set / 类型数组 / Error
 // 都是它处理的，这里只补 V8 留给宿主的三件事：
-//   1. 「不能克隆」时抛什么——标准说 DataCloneError，我们没有 DOMException，
-//      抛 name 是 DataCloneError 的 Error
+//   1. 「不能克隆」时抛什么——标准说 DataCloneError（一个 DOMException）。
+//      DOMException 是内置脚本定义的，由它给的工厂建；没给工厂时退回
+//      name 是 DataCloneError 的 Error
 //   2. 哪些普通的 JS 对象其实是「平台对象」。原生对象的包装、结构体、
 //      EventTarget 这些在 V8 眼里都是普通对象，不拦的话会被克隆成一个
 //      丢了原型和内部状态的空壳，而且不报错。问内置脚本（它认得这些类）
@@ -268,14 +269,27 @@ v8::Local<v8::Value> MakeDataCloneError(v8::Isolate* isolate, v8::Local<v8::Cont
 class CloneDelegate : public v8::ValueSerializer::Delegate {
  public:
   CloneDelegate(v8::Isolate* isolate, v8::Local<v8::Context> ctx,
-                v8::Local<v8::Value> is_platform_object)
+                v8::Local<v8::Value> is_platform_object, v8::Local<v8::Value> make_clone_error)
       : isolate_(isolate),
         ctx_(ctx),
         is_platform_object_(is_platform_object),
+        make_clone_error_(make_clone_error),
         object_prototype_(v8::Object::New(isolate)->GetPrototype()) {}
 
   void ThrowDataCloneError(v8::Local<v8::String> message) override {
-    isolate_->ThrowException(MakeDataCloneError(isolate_, ctx_, message));
+    // 工厂在自己的 TryCatch 里调（它要是抛了就当没有工厂），抛要在那个作用域外面：
+    // 在里面抛会被它接住、跟着它一起丢掉
+    v8::Local<v8::Value> made;
+    if (make_clone_error_->IsFunction()) {
+      v8::TryCatch try_catch(isolate_);
+      v8::Local<v8::Value> argv[] = {message};
+      if (!make_clone_error_.As<v8::Function>()
+               ->Call(ctx_, v8::Undefined(isolate_), 1, argv)
+               .ToLocal(&made)) {
+        made.Clear();
+      }
+    }
+    isolate_->ThrowException(made.IsEmpty() ? MakeDataCloneError(isolate_, ctx_, message) : made);
   }
 
   // 让 V8 对每个普通对象来问一次 IsHostObject，而不是只看有没有内部字段
@@ -337,6 +351,7 @@ class CloneDelegate : public v8::ValueSerializer::Delegate {
   v8::Isolate* isolate_;
   v8::Local<v8::Context> ctx_;
   v8::Local<v8::Value> is_platform_object_;
+  v8::Local<v8::Value> make_clone_error_;
   v8::Local<v8::Value> object_prototype_;
 };
 
@@ -344,9 +359,10 @@ struct FreeDeleter {
   void operator()(uint8_t* data) const { std::free(data); }
 };
 
-// structuredClone(value, isPlatformObject) -> 克隆出来的值
+// structuredClone(value, isPlatformObject, makeCloneError) -> 克隆出来的值
 //
 // isPlatformObject 是内置脚本给的判断函数：(object) => boolean。
+// makeCloneError 是内置脚本给的工厂：(message) => DataCloneError。
 // 失败时异常已经抛出去了，这里直接返回
 void StructuredClone(const v8::FunctionCallbackInfo<v8::Value>& info) {
   v8::Isolate* isolate = info.GetIsolate();
@@ -355,7 +371,9 @@ void StructuredClone(const v8::FunctionCallbackInfo<v8::Value>& info) {
 
   v8::Local<v8::Value> is_platform_object = v8::Undefined(isolate);
   if (info.Length() > 1) is_platform_object = info[1];
-  CloneDelegate delegate(isolate, ctx, is_platform_object);
+  v8::Local<v8::Value> make_clone_error = v8::Undefined(isolate);
+  if (info.Length() > 2) make_clone_error = info[2];
+  CloneDelegate delegate(isolate, ctx, is_platform_object, make_clone_error);
 
   // 序列化出来的那段内存是 V8 用 realloc 要的（委托没有换分配函数），用 free 还
   std::unique_ptr<uint8_t, FreeDeleter> data;

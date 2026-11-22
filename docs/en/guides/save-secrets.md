@@ -166,12 +166,12 @@ async function savePin() {
     await kc.set('pin', '1234', { accessible: 'whenPasscodeSetThisDeviceOnly' });
   } catch (err) {
     const e = /** @type {KeychainError} */ (err);
-    console.log('Write failed:', e.name, e.code);
+    console.log('Write failed:', e.name, e.cause?.code);
   }
 }
 ```
 
-**Result**: if the device has a passcode set, the write succeeds and nothing is logged. If not, the promise is rejected and the error's category and code are logged (**not verified in the simulator**: on the simulator used for acceptance, writes at this level succeed). For what each `name` means, see [What you get on error](../api/keychain.md#what-you-get-on-error).
+**Result**: if the device has a passcode set, the write succeeds and nothing is logged. If not, the promise is rejected and the error's category and the system's error code are logged (**not verified in the simulator**: on the simulator used for acceptance, writes at this level succeed). For what each `name` means, see [What you get on error](../api/keychain.md#what-you-get-on-error).
 
 ## See also
 

@@ -18,7 +18,7 @@ It belongs to the `@nacrejs/av-capture` package; for installation, see [`AVCaptu
 
 [`AVCaptureDeviceInput()`](av-capture-device-input/constructor.md)
 
-Wraps a camera as a session input. Throws `Error` without authorization.
+Wraps a camera as a session input. Throws [`NSError`](ns-error.md) without authorization.
 
 ## Instance properties
 
@@ -58,7 +58,7 @@ if (camera !== null) {
 
 | ObjC | JS |
 | --- | --- |
-| `[AVCaptureDeviceInput deviceInputWithDevice:device error:&error]`, which returns `nil` on failure | `new AVCaptureDeviceInput(device)`, which throws `Error` on failure |
+| `[AVCaptureDeviceInput deviceInputWithDevice:device error:&error]`, which returns `nil` on failure | `new AVCaptureDeviceInput(device)`, which throws an `NSError` on failure, whose `domain` is an empty string and `code` is 0, with the system's reason in `message` |
 | `input.device` | `input.device` |
 
 ## See also

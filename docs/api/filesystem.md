@@ -80,14 +80,14 @@ console.log(path.startsWith('/'));
 
 ## 出错时得到什么
 
-操作失败时 Promise 被拒绝，拒绝的值是一个 `Error` 对象（类型定义里叫 `FileSystemError`），多带两个属性：
+操作失败时 Promise 被拒绝，拒绝的值是一个 [`DOMException`](dom-exception.md)（类型定义里叫 `FileSystemError`）：
 
 | 属性 | 类型 | 含义 |
 | --- | --- | --- |
 | `name` | `string` | 错误的类别，取值见下表。用它判断出了什么错 |
 | `message` | `string` | 系统给出的说明文字。文字随系统语言变化，不要用它做判断 |
-| `code` | `number` | 系统的错误码原值 |
-| `domain` | `string` | 系统的错误域，一般是 `'NSCocoaErrorDomain'` |
+| `code` | `number` | `name` 对应的 Web 老数字码，比如 `'NotFoundError'` 是 8。见 [`DOMException`](dom-exception.md#运行时给出的名字) |
+| `cause` | [`NSError`](ns-error.md) | 系统给的原值：`cause.domain` 是错误域，一般是 `'NSCocoaErrorDomain'`；`cause.code` 是系统的错误码 |
 
 `name` 的取值：
 
@@ -99,7 +99,7 @@ console.log(path.startsWith('/'));
 | `'QuotaExceededError'` | 设备存储空间已满 |
 | `'NoModificationAllowedError'` | 所在的存储只读 |
 | `'TypeMismatchError'` | 文件名不合法 |
-| `'FileError'` | 以上都不是。这时用 `code` 和 `domain` 区分 |
+| `'OperationError'` | 以上都不是。这时用 `cause.domain` 和 `cause.code` 区分 |
 
 这张表里只有 `'NotFoundError'` 在模拟器验证过，其余各行来自代码里的对应关系，**未在模拟器验证**。
 
@@ -110,13 +110,13 @@ async function readMissing() {
     await fs.readText(fs.documents + '/没有这个.txt');
   } catch (err) {
     const e = /** @type {FileSystemError} */ (err);
-    console.log(e.name, e.code, e.domain);
+    console.log(e.name, e.code, e.cause?.domain, e.cause?.code);
   }
 }
 readMissing();
 ```
 
-**结果**：输出 `NotFoundError 260 NSCocoaErrorDomain`。
+**结果**：输出 `NotFoundError 8 NSCocoaErrorDomain 260`（实测）。
 
 ## 文件大小
 
@@ -183,7 +183,7 @@ main().catch((err) => {
 | `[fm removeItemAtPath:error:]` | `await fs.remove(path)` |
 | `[fm moveItemAtPath:toPath:error:]` | `await fs.move(from, to)` |
 | `[fm copyItemAtPath:toPath:error:]` | `await fs.copy(from, to)` |
-| `NSError **` | Promise 被拒绝，`err.code` 和 `err.domain` 是原值 |
+| `NSError **` | Promise 被拒绝，拒绝的是 `DOMException`，系统的 `NSError` 在 `err.cause` 上：`err.cause.domain`、`err.cause.code` 是原值 |
 
 ## 参见
 

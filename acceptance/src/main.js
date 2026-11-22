@@ -117,6 +117,7 @@ import { stepSemantics } from './steps/semantics.js';
 import { stepEnumProperties } from './steps/enum-properties.js';
 import { stepArgValues } from './steps/arg-values.js';
 import { stepWebGlobals } from './steps/web-globals.js';
+import { stepErrors } from './steps/errors.js';
 import { stepOpenURL } from './steps/openurl.js';
 import { stepFetchStream } from './steps/fetch-stream.js';
 import { stepNativeModules } from './steps/native-modules.js';
@@ -286,6 +287,7 @@ application.addEventListener('sceneconnect', (e) => {
     ['stepEnumProperties', () => stepEnumProperties(ctx)],
     ['stepArgValues', () => stepArgValues(ctx)],
     ['stepWebGlobals', () => stepWebGlobals(ctx)],
+    ['stepErrors', () => stepErrors(ctx)],
     ['stepOpenURL', () => stepOpenURL(ctx)],
     ['stepFetchStream', () => stepFetchStream(ctx)],
     ['stepNativeModules', () => stepNativeModules(ctx)],

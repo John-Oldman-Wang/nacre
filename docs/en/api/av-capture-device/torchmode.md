@@ -25,8 +25,8 @@ A string, one of these three:
 
 ### Invalid values
 
-- Writing without the lock: throws `TypeError`, and the value doesn't change (verified by testing). The message is `torchMode: the system refused (…)`; the parentheses hold the reason the system gave, which says to lock first (`-lockForConfiguration:`).
-- The camera has no torch ([`hasTorch`](hastorch.md) is `false`) or doesn't support this value: the system refuses, and it throws `TypeError` with the reason the system gave. **Not verified on a device.**
+- Writing without the lock: throws a [`DOMException`](../dom-exception.md) whose `name` is `'InvalidStateError'`, and the value doesn't change (verified by testing). The message is `torchMode: the system refused (…)`; the parentheses hold the reason the system gave, which says to lock first (`-lockForConfiguration:`).
+- The camera has no torch ([`hasTorch`](hastorch.md) is `false`) or doesn't support this value: the system refuses, and it throws a `DOMException` whose `name` is `'InvalidStateError'`, with the reason the system gave in the message. **Not verified on a device.**
 - Writing a value not in the table doesn't throw: a warning listing all valid values is printed to the console, and `torchMode` keeps its previous value (verified by testing).
 
 ## Examples
@@ -48,7 +48,7 @@ if (device !== null && device.hasTorch) {
 
 ## Corresponding iOS API
 
-`AVCaptureDevice.torchMode`. `AVCaptureTorchModeOn` is written as `'on'`, and so on. In ObjC, writing without the lock throws `NSGenericException`; here it's `TypeError`.
+`AVCaptureDevice.torchMode`. `AVCaptureTorchModeOn` is written as `'on'`, and so on. In ObjC, writing without the lock throws `NSGenericException`; here it throws a `DOMException` whose `name` is `'InvalidStateError'`.
 
 ## See also
 

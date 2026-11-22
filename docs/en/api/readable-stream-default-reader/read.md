@@ -32,7 +32,7 @@ You can call `read()` again without waiting for the previous call to complete; r
 
 The returned `Promise` rejects in these cases:
 
-**An `Error` whose `name` is `'AbortError'`**
+**A [`DOMException`](../dom-exception.md) whose `name` is `'AbortError'`**
 
 The request is canceled by `AbortController`, or `AbortSignal.timeout()` runs out. The pending `read()` and all later ones reject. This holds even when all the content has arrived but hasn't been read yet.
 

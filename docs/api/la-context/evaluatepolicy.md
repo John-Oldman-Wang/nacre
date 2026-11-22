@@ -34,7 +34,7 @@ evaluatePolicy(policy, { localizedReason })
 `Promise<true>`。
 
 - 通过时兑现为 `true`。不会兑现为 `false`。
-- 没通过时被拒绝，拒绝的是带 `name`、`code`、`domain` 的 `Error`，见[认证没通过的原因](../la-context.md#认证没通过的原因)。
+- 没通过时被拒绝，拒绝的是一个 [`NSError`](../ns-error.md)，带 `name`、`code`、`domain`，见[认证没通过的原因](../la-context.md#认证没通过的原因)。
 - 调过 [`invalidate()`](invalidate.md) 的对象：以 `InvalidContextError` 拒绝，系统界面不出现。
 - [`interactionNotAllowed`](interactionnotallowed.md) 是 `true` 而认证需要界面：以 `NotInteractiveError` 拒绝。
 
@@ -71,7 +71,7 @@ try {
 
 ## 对应的 iOS API
 
-`-[LAContext evaluatePolicy:localizedReason:reply:]`。`reply` 回调换成了 Promise：`success == YES` 是兑现，`NO` 是拒绝；`err.code`、`err.domain` 是 `error.code`、`error.domain`，`err.message` 是 `error.localizedDescription`。
+`-[LAContext evaluatePolicy:localizedReason:reply:]`。`reply` 回调换成了 Promise：`success == YES` 是兑现，`NO` 是拒绝，拒绝的是 `NSError`；`err.code`、`err.domain` 是 `error.code`、`error.domain`，`err.message` 是 `error.localizedDescription`。
 
 ## 参见
 

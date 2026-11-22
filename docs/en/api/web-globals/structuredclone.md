@@ -50,7 +50,7 @@ When the same object appears more than once in `value`, it is also the same obje
 
 ### Exceptions
 
-**`Error`**, with `name` set to `DataCloneError`
+**[`DOMException`](../dom-exception.md)**, with `name` set to `DataCloneError` and `code` set to 25
 
 - `value` contains something that can't be copied; see [Values that can't be deep-copied](../web-globals.md#values-that-cant-be-deep-copied). `message` says which one, for example `#<UIView> could not be cloned.` or `Symbol(id) could not be cloned.`. If anything anywhere can't be copied, the whole call throws; it never returns a half-copied result.
 - `options.transfer` is a non-empty array: `structuredClone: options.transfer is not supported yet; leave it out and the ArrayBuffer is copied instead`
@@ -84,7 +84,6 @@ console.log(settings.recent.length, copy.recent.length, copy.savedAt instanceof 
 
 | Situation | Browser | Here |
 | --- | --- | --- |
-| The object thrown on error | `DOMException` | `Error`, with the same `name` (`DataCloneError`). Code that checks `err.name` works as usual; code that checks `instanceof DOMException` doesn't |
 | `structuredClone(value, { transfer: [buffer] })` | Transfers `buffer` to the copy; the original can't be used anymore | Throws `DataCloneError`. Without `transfer`, `buffer` is copied |
 | `structuredClone(new SharedArrayBuffer(8))` | The copy and the original share the same memory | Throws `DataCloneError` |
 | `structuredClone(new Blob(['x']))` | Works | Throws `DataCloneError` |

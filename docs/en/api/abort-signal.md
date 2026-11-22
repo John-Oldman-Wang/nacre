@@ -67,7 +67,6 @@ main();
 
 ## Differences from the web
 
-- There is no `DOMException`. The default `reason` is an `Error` whose `name` is `'AbortError'`, and the timeout `reason` is an `Error` whose `name` is `'TimeoutError'`.
 - When a request is canceled while in progress, `fetch()` throws `AbortError`, not `signal.reason`.
 - There is no `AbortSignal.any()` and no `onabort` property.
 

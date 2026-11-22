@@ -13,7 +13,7 @@ status: partial
 - `CLLocationManager`：这一页。
 - [`CLLocation`](cl-location.md)：一个位置。经纬度、海拔、各个量的误差、速度、移动方向，以及这个位置是什么时候量的。
 - [`CLLocationCoordinate2D`](cl-location-coordinate-2d.md)：经纬度，单位是度。
-- [`CLLocationError`](cl-location-error.md)：定位出错时得到的 `Error`。
+- [`CLLocationError`](cl-location-error.md)：定位出错时得到的错误，是 [`DOMException`](dom-exception.md) 或 [`NSError`](ns-error.md)。
 
 这一组只包括「使用 App 期间」的定位：App 在前台、用户正在用它的时候取位置。
 
@@ -238,7 +238,7 @@ tracker.startUpdatingLocation();
 | `locationManager:didUpdateLocations:` | `locationupdate` 事件，`e.locations` |
 | `locationManager:didFailWithError:` | `locationerror` 事件，`e.error` |
 | `locationManagerDidChangeAuthorization:` | `authorizationchange` 事件 |
-| `error.code == kCLErrorDenied` | `error.name === 'NotAllowedError'` |
+| `error.code == kCLErrorDenied` | `error.name === 'NotAllowedError'`，系统的 `NSError` 在 `error.cause` 上 |
 
 ## 参见
 

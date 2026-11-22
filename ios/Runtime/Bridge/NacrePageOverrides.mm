@@ -323,7 +323,9 @@ static bool CallPage(id object, NSString* sel, const NacreArgs& args, std::strin
                                                   }];
   returned = YES;
   if (failure != nil) {
-    *out = EncodeJSON(@{@"message" : failure.localizedDescription ?: @"", @"code" : @(failure.code)});
+    *out = EncodeJSON(@{@"message" : failure.localizedDescription ?: @"",
+                        @"domain" : failure.domain ?: @"",
+                        @"code" : @(failure.code)});
   }
   return true;
 }

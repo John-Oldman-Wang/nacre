@@ -144,18 +144,12 @@ These values are plain JS objects that do not inherit from `NSObject` and can on
 
 ## Errors
 
-When a promise-returning method is rejected, the reason is an `Error` (called `UNError` in the type definitions) with three extra fields:
+When a promise-returning method is rejected, the error is called `UNError` in the type definitions. There are two kinds, by `name`:
 
-| Field | Meaning |
-| --- | --- |
-| `name` | The category; see the table below |
-| `code` | The system error code (an integer) |
-| `domain` | The system error domain; notification errors are `'UNErrorDomain'` |
-
-| `name` | Meaning |
-| --- | --- |
-| `'NotAllowedError'` | The user has not allowed this app to send notifications (`code` is 1) |
-| `'UNError'` | Other errors reported by the system; check `code`. Apple's headers list 1400 (the trigger cannot compute the next time), 1401 (the notification has no content), and 1600 (invalid badge number) |
+| `name` | Meaning | Kind of error |
+| --- | --- | --- |
+| `'NotAllowedError'` | The user has not allowed this app to send notifications | [`DOMException`](dom-exception.md). The system's original error is in `cause`, an [`NSError`](ns-error.md): `cause.domain` is `'UNErrorDomain'` and `cause.code` is 1 |
+| `'NSError'` | Other errors reported by the system; check `code`. Apple's headers list 1400 (the trigger cannot compute the next time), 1401 (the notification has no content), and 1600 (invalid badge number) | [`NSError`](ns-error.md). `code` is the system error code and `domain` is the system error domain; notification errors are `'UNErrorDomain'` |
 
 Which error code the system reports in which situation is **not verified in the simulator**.
 
@@ -264,7 +258,7 @@ For more patterns (a fixed time every day, withdrawing, badges, remote push), se
 | `userNotificationCenter:willPresentNotification:withCompletionHandler:` | The `notification` event, `event.notification` |
 | Calling `completionHandler(UNNotificationPresentationOptionBanner \| UNNotificationPresentationOptionSound)` in the method above | Set `center.foregroundPresentationOptions = ['banner', 'sound']` in advance |
 | `userNotificationCenter:didReceiveNotificationResponse:withCompletionHandler:` | The `notificationclick` event, `event.response` |
-| `error.code == UNErrorCodeNotificationsNotAllowed` | `error.name === 'NotAllowedError'` |
+| `error.code == UNErrorCodeNotificationsNotAllowed` | `error.name === 'NotAllowedError'`; the system's `NSError` is in `error.cause` |
 
 ## See also
 

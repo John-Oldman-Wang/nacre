@@ -224,13 +224,13 @@ async function readMaybe() {
     if (e.name === 'NotFoundError') {
       console.log('文件不存在');
     } else {
-      console.log('其他错误:', e.name, e.code);
+      console.log('其他错误:', e.name, e.cause?.domain, e.cause?.code);
     }
   }
 }
 ```
 
-**结果**：文件不存在时输出 `文件不存在`。
+**结果**：文件不存在时输出 `文件不存在`。别的错误输出类别、系统的错误域和错误码。
 
 `name` 的全部取值见[出错时得到什么](../api/filesystem.md#出错时得到什么)。不要用 `message` 做判断，它随系统语言变化。
 

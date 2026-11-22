@@ -21,7 +21,7 @@ None.
 
 None (`undefined`).
 
-A `loadURL()` that hasn't fulfilled yet rejects with an error whose `name` is `'AbortError'` and `code` is `-999`. Calling it while nothing is loading does nothing.
+A `loadURL()` that hasn't fulfilled yet rejects with a [`DOMException`](../dom-exception.md) whose `name` is `'AbortError'` and whose `code` is 20. The system's original error is on `cause` (an [`NSError`](../ns-error.md)), and `cause.code` is `-999`. Calling it while nothing is loading does nothing.
 
 > **Note:** Calling `stop()` right after `loadURL` rejects the Promise with `AbortError` but **doesn't fire** `did-fail-load`.
 
@@ -37,10 +37,13 @@ The page has been destroyed: `Object has been destroyed`.
 const contents = new WebView().webContents;
 const loading = contents.loadURL('https://example.com/big');
 contents.stop();
-loading.catch((err) => console.log(err.name, err.code));
+loading.catch((err) => {
+  const systemCode = err.cause instanceof NSError ? err.cause.code : null;
+  console.log(err.name, err.code, systemCode);
+});
 ```
 
-**Result**: It prints `AbortError -999`.
+**Result**: It prints `AbortError 20 -999`.
 
 ## Differences from Electron
 

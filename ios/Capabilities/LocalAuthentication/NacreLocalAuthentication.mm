@@ -142,7 +142,7 @@ static std::string PolicyErrorJSON(NSError* error) {
                                                         : @"Policy cannot be evaluated";
   NSDictionary* fields = @{
     // 返回 NO 却没给 error：头文件不承诺这种情况不发生，给一个认得出来的兜底
-    @"name": error != nil ? LocalAuthenticationErrorName(error) : @"LAError",
+    @"name": error != nil ? LocalAuthenticationErrorName(error) : @"NSError",
     @"message": message,
     @"code": @(error != nil ? error.code : 0),
     @"domain": error.domain ?: LAErrorDomain,
@@ -200,9 +200,9 @@ static bool LocalAuthenticationCallMethod(id object, NSString* sel, const NacreA
 
 // ---- 认证 ----
 // LAError → err.name。名字是常量去掉 LAError 前缀、加 Error 后缀；原值在
-// err.code 里。只列 iOS 上、这两种策略会出现的；其余的统一叫 LAError
+// err.code 里。只列 iOS 上、这两种策略会出现的；其余的统一叫 NSError
 static NSString* LocalAuthenticationErrorName(NSError* error) {
-  if (![error.domain isEqualToString:LAErrorDomain]) return @"LAError";
+  if (![error.domain isEqualToString:LAErrorDomain]) return @"NSError";
   switch (error.code) {
     case LAErrorAuthenticationFailed: return @"AuthenticationFailedError";
     case LAErrorUserCancel: return @"UserCancelError";
@@ -215,7 +215,7 @@ static NSString* LocalAuthenticationErrorName(NSError* error) {
     case LAErrorAppCancel: return @"AppCancelError";
     case LAErrorInvalidContext: return @"InvalidContextError";
     case LAErrorNotInteractive: return @"NotInteractiveError";
-    default: return @"LAError";
+    default: return @"NSError";
   }
 }
 

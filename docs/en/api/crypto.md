@@ -34,7 +34,7 @@ It can't be created with `new`: `new Crypto()` throws `TypeError: Illegal constr
 
 ## What is thrown on error
 
-`QuotaExceededError`, `TypeMismatchError`, and `OperationError` are thrown as `Error` objects; use `err.name` to tell which. When the argument isn't a typed array, a `TypeError` is thrown.
+`QuotaExceededError`, `TypeMismatchError`, and `OperationError` are thrown as [`DOMException`](dom-exception.md) objects; use `err.name` to tell which. When the argument isn't a typed array, a `TypeError` is thrown.
 
 ## Examples
 
@@ -61,7 +61,6 @@ The names, parameters, and 65536-byte limit of `crypto.getRandomValues()` and `c
 
 | Case | Browsers | Here |
 | --- | --- | --- |
-| The object thrown on error | `DOMException` | `Error`, with the same `name` (`QuotaExceededError`, `TypeMismatchError`). Code that checks `err.name` works as usual; code that checks `instanceof DOMException` doesn't, since there is no `DOMException` class here |
 | `crypto.subtle` | Available | Not available |
 
 ## See also

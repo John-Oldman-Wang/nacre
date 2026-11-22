@@ -71,9 +71,9 @@ fetch(input, init)
 - 请求头的名字里有不合法的字符：`message` 以 `Invalid header name:` 开头。
 - 请求头的值里有换行或空字符：`Header value cannot contain NUL, CR or LF`。
 
-**`name` 是 `'AbortError'` 的 `Error`**
+**[`DOMException`](../dom-exception.md)，`name` 是 `'AbortError'`**
 
-请求进行中被取消，或者 `AbortSignal.timeout()` 到了时间：`message` 是 `The operation was aborted`。超时和手动取消得到的异常相同，从异常上区分不出是哪一种。
+请求进行中被取消，或者 `AbortSignal.timeout()` 到了时间：`code` 是 20，`message` 是 `The operation was aborted`。超时和手动取消得到的异常相同，从异常上区分不出是哪一种。
 
 **`signal.reason`**
 
@@ -165,7 +165,7 @@ main();
 - 没有 `init.mode`、`init.credentials`、`init.cache`、`init.redirect`，写了不起作用。
 - 没有 CORS 预检和同源策略，可以请求任何地址。
 - 所有请求头都可以设置，包括 `Host`、`Cookie`。
-- 请求进行中被取消时抛出 `name` 为 `'AbortError'` 的 `Error`，不是 `signal.reason`。没有 `DOMException` 这个类。
+- 请求进行中被取消时抛出一个新的 `DOMException`（`name` 是 `'AbortError'`），不是 `signal.reason`。
 - `AbortSignal.timeout()` 到时间后抛出 `AbortError`，不是 `TimeoutError`。
 
 ## 参见

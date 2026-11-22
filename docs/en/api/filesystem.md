@@ -80,14 +80,14 @@ When the user uninstalls the app, all files in the first four directories are de
 
 ## What you get on failure
 
-When an operation fails, the Promise is rejected. The rejection value is an `Error` object (called `FileSystemError` in the type definitions) with two extra properties:
+When an operation fails, the Promise is rejected. The rejection value is a [`DOMException`](dom-exception.md) (called `FileSystemError` in the type definitions):
 
 | Property | Type | Meaning |
 | --- | --- | --- |
 | `name` | `string` | The category of the error; see the table below for values. Use it to determine what went wrong |
 | `message` | `string` | Explanatory text from the system. The text changes with the system language; do not base decisions on it |
-| `code` | `number` | The system's raw error code |
-| `domain` | `string` | The system's error domain, usually `'NSCocoaErrorDomain'` |
+| `code` | `number` | The legacy web numeric code for `name`; for example, `'NotFoundError'` is 8. See [`DOMException`](dom-exception.md#names-the-runtime-gives) |
+| `cause` | [`NSError`](ns-error.md) | The system's original error: `cause.domain` is the error domain, usually `'NSCocoaErrorDomain'`; `cause.code` is the system's error code |
 
 Values of `name`:
 
@@ -99,7 +99,7 @@ Values of `name`:
 | `'QuotaExceededError'` | The device's storage is full |
 | `'NoModificationAllowedError'` | The storage it is on is read-only |
 | `'TypeMismatchError'` | The file name is invalid |
-| `'FileError'` | None of the above. Use `code` and `domain` to tell cases apart |
+| `'OperationError'` | None of the above. Use `cause.domain` and `cause.code` to tell cases apart |
 
 Of this table, only `'NotFoundError'` has been verified in the simulator. The other rows come from the mapping in the code and are **not verified in the simulator**.
 
@@ -110,13 +110,13 @@ async function readMissing() {
     await fs.readText(fs.documents + '/missing.txt');
   } catch (err) {
     const e = /** @type {FileSystemError} */ (err);
-    console.log(e.name, e.code, e.domain);
+    console.log(e.name, e.code, e.cause?.domain, e.cause?.code);
   }
 }
 readMissing();
 ```
 
-**Result**: Logs `NotFoundError 260 NSCocoaErrorDomain`.
+**Result**: Logs `NotFoundError 8 NSCocoaErrorDomain 260` (measured).
 
 ## File size
 
@@ -183,7 +183,7 @@ This code has not been run as a whole in the simulator. Every API it uses has be
 | `[fm removeItemAtPath:error:]` | `await fs.remove(path)` |
 | `[fm moveItemAtPath:toPath:error:]` | `await fs.move(from, to)` |
 | `[fm copyItemAtPath:toPath:error:]` | `await fs.copy(from, to)` |
-| `NSError **` | The Promise is rejected; `err.code` and `err.domain` are the raw values |
+| `NSError **` | The Promise is rejected with a `DOMException`; the system's `NSError` is in `err.cause`, and `err.cause.domain` and `err.cause.code` are the raw values |
 
 ## See also
 

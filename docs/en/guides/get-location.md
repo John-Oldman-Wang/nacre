@@ -207,7 +207,8 @@ manager.addEventListener('locationerror', (e) => {
   } else if (e.error.name === 'LocationUnknownError') {
     console.log('Location temporarily unavailable; the system keeps trying');
   } else {
-    console.log('Location error', e.error.name, e.error.code);
+    const system = e.error instanceof NSError ? e.error : e.error.cause;
+    console.log('Location error', e.error.name, system?.domain, system?.code);
   }
 });
 ```

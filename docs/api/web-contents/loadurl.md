@@ -30,7 +30,7 @@ loadURL(url, { baseURLForDataURL })
 
 字符串，一个完整的地址，比如 `'https://example.com/docs/'`、`'file://' + application.fileSystem.assets + '/web/'`。只对 `data:` 地址起作用：网页里的相对路径（图片、样式表、链接）按它找，网页的 `document.baseURI` 是它。目录的地址末尾要带 `/`。`url` 不是 `data:` 地址时不起作用。
 
-> **注意**：明文的 `http://` 地址会被系统拦截：Promise 以 `NetworkError` 拒绝，`code` 是 `-1022`。iOS 默认不允许 App 用没有加密的 HTTP 连接，CLI 生成的工程没有放开这条限制。用 `https://`。`http://localhost` 不受这条限制，开发时可以用。
+> **注意**：明文的 `http://` 地址会被系统拦截：Promise 以 `NetworkError` 拒绝，`cause.code` 是 `-1022`。iOS 默认不允许 App 用没有加密的 HTTP 连接，CLI 生成的工程没有放开这条限制。用 `https://`。`http://localhost` 不受这条限制，开发时可以用。
 
 ### 返回值
 
@@ -42,17 +42,17 @@ loadURL(url, { baseURLForDataURL })
 | 服务器返回 404、500 等 | 兑现。错误页照常加载完。状态码在 [`did-navigate`](did-navigate-event.md) 事件的 `httpResponseCode` 上 |
 | 地址没带协议，或者是空串 | 以 `TypeError` 拒绝：`loadURL: invalid URL; it must include the scheme, like https://`。不发起加载 |
 | `baseURLForDataURL` 不是完整的地址（比如 `'docs/'`） | 以 `TypeError` 拒绝：`loadURL: baseURLForDataURL must be an absolute URL, like https://example.com/`。不发起加载 |
-| 网络层失败（域名解析不了、没有网络、超时） | 以 `name` 为 `'NetworkError'` 的错误拒绝 |
-| 被 [`stop()`](stop.md) 停掉 | 以 `name` 为 `'AbortError'` 的错误拒绝，`code` 是 `-999` |
-| 被另一次加载取代（连着调两次 `loadURL`） | 前一次以 `name` 为 `'AbortError'` 的错误拒绝，后一次照常兑现 |
-| 加载中途被 [`close()`](close.md) 销毁 | 以 `name` 为 `'AbortError'` 的错误拒绝 |
+| 网络层失败（域名解析不了、没有网络、超时） | 以 `DOMException` 拒绝，`name` 是 `'NetworkError'` |
+| 被 [`stop()`](stop.md) 停掉 | 以 `DOMException` 拒绝，`name` 是 `'AbortError'`，`cause.code` 是 `-999` |
+| 被另一次加载取代（连着调两次 `loadURL`） | 前一次以 `DOMException` 拒绝，`name` 是 `'AbortError'`；后一次照常兑现 |
+| 加载中途被 [`close()`](close.md) 销毁 | 以 `DOMException` 拒绝，`name` 是 `'AbortError'` |
 | 加载中途网页的进程不在了 | 拒绝 |
 | 网页已经销毁 | 以 `TypeError` 拒绝：`Object has been destroyed` |
 
-拒绝的错误上有两个附加的字段：
+`NetworkError` 和 `AbortError` 是 [`DOMException`](../dom-exception.md)，它们的 `code` 是 Web 的老数字码（19 和 20）。系统给的原值在 `cause` 上，是一个 [`NSError`](../ns-error.md)：
 
-- `code`：系统的错误码，和 [`did-fail-load`](did-fail-load-event.md) 的 `errorCode` 相同。
-- `domain`：错误的来源。网络层的错误是 `'NSURLErrorDomain'`。
+- `cause.code`：系统的错误码，和 [`did-fail-load`](did-fail-load-event.md) 的 `errorCode` 相同。
+- `cause.domain`：错误的来源。网络层的错误和被停掉、被取代、被销毁的加载都是 `'NSURLErrorDomain'`。
 
 `message` 是系统给的说明，语言跟随系统，只适合打日志。
 
@@ -91,14 +91,15 @@ const contents = new WebView().webContents;
 try {
   await contents.loadURL('https://no-such-host.invalid/');
 } catch (err) {
-  const failure = /** @type {Error & { code: number }} */ (err);
-  console.log(failure.name, failure.code);
+  const failure = /** @type {DOMException} */ (err);
+  const systemCode = failure.cause instanceof NSError ? failure.cause.code : null;
+  console.log(failure.name, failure.code, systemCode);
 }
 ```
 
 **结果**
 
-- 输出 `NetworkError -1003`。
+- 输出 `NetworkError 19 -1003`。
 - 网页停在原来那一页，不会变成空白，也不显示错误页。
 - 同时派发一次 `did-fail-load`，它的 `errorCode` 是 `-1003`，`validatedURL` 是 `https://no-such-host.invalid/`。
 

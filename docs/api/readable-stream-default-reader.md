@@ -37,7 +37,7 @@ web: ReadableStreamDefaultReader
 
 | 情况 | 结果 |
 | --- | --- |
-| 请求被 `AbortController` 取消，或 `AbortSignal.timeout()` 到时间 | 正在等待的和之后的 `read()` 都被拒绝，异常是 `name` 为 `'AbortError'` 的 `Error`；`closed` 也以它被拒绝。内容已经全部到达、只是还没读走时也一样 |
+| 请求被 `AbortController` 取消，或 `AbortSignal.timeout()` 到时间 | 正在等待的和之后的 `read()` 都被拒绝，异常是一个 [`DOMException`](dom-exception.md)，`name` 是 `'AbortError'`；`closed` 也以它被拒绝。内容已经全部到达、只是还没读走时也一样 |
 | 下载中途网络中断 | `read()` 被拒绝，异常是 `TypeError`，`message` 以 `Network request failed: ` 开头；`closed` 也以它被拒绝。中断之前到达、还没读走的内容不再给 |
 | 调过 `releaseLock()` 之后调 `read()`、`cancel()` | 返回的 `Promise` 以 `TypeError` 被拒绝；`closed` 也以 `TypeError` 被拒绝 |
 | 有 `read()` 正在等待时调 `releaseLock()` | 那个 `read()` 以 `TypeError` 被拒绝。它要读的那一块不会丢，下一个读取器会读到 |

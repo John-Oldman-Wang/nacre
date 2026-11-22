@@ -55,7 +55,7 @@ TypeError: runBackgroundTask options must be an object, got 5
 ## 说明
 
 - **多给的时间由系统决定**，一般在 30 秒左右，不保证。剩下多少秒从 [`backgroundTimeRemaining`](backgroundtimeremaining.md) 读。
-- **时间快用完时，`work` 拿到的 `signal` 被中止**，`signal.reason` 是一个 `name` 为 `'TimeoutError'` 的 `Error`。运行时随即结束这个任务，不再等 `work`。之后系统随时可能暂停 App，`work` 里还没执行的部分要等 App 回到前台才继续。`work` 要监听 `signal`，收到中止就停下手里的事，或者把 `signal` 直接交给 [`fetch()`](../fetch.md)，请求会被取消。**未在真机验证。**
+- **时间快用完时，`work` 拿到的 `signal` 被中止**，`signal.reason` 是一个 [`DOMException`](../dom-exception.md)，`name` 是 `'TimeoutError'`，`code` 是 23。运行时随即结束这个任务，不再等 `work`。之后系统随时可能暂停 App，`work` 里还没执行的部分要等 App 回到前台才继续。`work` 要监听 `signal`，收到中止就停下手里的事，或者把 `signal` 直接交给 [`fetch()`](../fetch.md)，请求会被取消。**未在真机验证。**
 - **系统一开始就不给时间时**（App 已经快被暂停了），`work` 照样运行，`signal` 一开始就是中止的，`reason` 同样是 `'TimeoutError'`。**未在真机验证。**
 - 在前台做完时 `signal` 不会中止（实测）。App 一直在前台的话，任务随 `work` 做完而结束，不需要别的处理。
 - 可以同时运行几个，各自独立结束（实测）。

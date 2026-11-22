@@ -126,13 +126,13 @@ App 第一次用面容 ID 认证时，系统先弹出提示框，问用户是否
 | 情况 | 表现 |
 | --- | --- |
 | 参数写错：策略不认识、没给 `localizedReason`、`localizedReason` 是空串 | `evaluatePolicy()` 当场抛 `TypeError`，不返回 Promise，系统界面不会出现 |
-| 认证没通过：用户取消、没认出来、设备现在认证不了 | 返回的 Promise 被拒绝，拒绝的是带 `name`、`code`、`domain` 的 `Error` |
+| 认证没通过：用户取消、没认出来、设备现在认证不了 | 返回的 Promise 被拒绝，拒绝的是一个 [`NSError`](ns-error.md)，带 `name`、`code`、`domain` |
 
 Promise 不会兑现为 `false`。兑现就是通过。
 
 ## 认证没通过的原因
 
-`evaluatePolicy()` 的 Promise 被拒绝时，拒绝的是一个 `Error`，多三个字段。`canEvaluatePolicyError()` 返回的也是这种对象。类型定义里它叫 `LAError`。
+`evaluatePolicy()` 的 Promise 被拒绝时，拒绝的是一个 [`NSError`](ns-error.md)。`canEvaluatePolicyError()` 返回的也是它。类型定义里它叫 `LAError`；全局上没有 `LAError`，要判断类型时写 `err instanceof NSError`。
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
@@ -156,7 +156,7 @@ Promise 不会兑现为 `false`。兑现就是通过。
 | `'BiometryLockoutError'` | -8 | 生物认证失败次数过多被锁定，要先输一次锁屏密码才恢复 | 改用 `'deviceOwnerAuthentication'` 再认证一次 |
 | `'InvalidContextError'` | -10 | 这个对象调过 `invalidate()` | 建一个新的 `LAContext` |
 | `'NotInteractiveError'` | -1004 | 需要显示界面，而 `interactionNotAllowed` 是 `true` | 见 [`interactionNotAllowed`](la-context/interactionnotallowed.md) |
-| `'LAError'` | 其他 | 上面没有列到的原因 | 看 `code` 和 `message` |
+| `'NSError'` | 其他 | 上面没有列到的原因 | 看 `code` 和 `message` |
 
 ## 示例
 
@@ -233,7 +233,7 @@ if (context.canEvaluatePolicy('deviceOwnerAuthenticationWithBiometrics')) {
 | `[context canEvaluatePolicy:policy error:&error]` 的返回值 | `context.canEvaluatePolicy(policy)` |
 | `[context canEvaluatePolicy:policy error:&error]` 的 `error` | `context.canEvaluatePolicyError(policy)`：能认证时是 `null`，不能时是那个错误 |
 | `[context evaluatePolicy:policy localizedReason:reason reply:^(BOOL success, NSError *error) { … }]` | `await context.evaluatePolicy(policy, { localizedReason: reason })` |
-| `reply` 里的 `success == NO` 和 `error` | Promise 被拒绝，`err.code` 是 `error.code`，`err.domain` 是 `error.domain`，`err.message` 是 `error.localizedDescription` |
+| `reply` 里的 `success == NO` 和 `error` | Promise 被拒绝，拒绝的是 `NSError`，`err.code` 是 `error.code`，`err.domain` 是 `error.domain`，`err.message` 是 `error.localizedDescription` |
 | `[context invalidate]` | `context.invalidate()` |
 | `context.biometryType` | `context.biometryType` |
 | `LABiometryTypeNone` / `TouchID` / `FaceID` / `OpticID` | `'none'` / `'touchID'` / `'faceID'` / `'opticID'` |

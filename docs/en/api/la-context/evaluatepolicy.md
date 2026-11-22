@@ -34,7 +34,7 @@ How it appears in the UI is **not verified in the simulator**.
 `Promise<true>`.
 
 - Fulfills with `true` on success. It never fulfills with `false`.
-- Rejects on failure with an `Error` carrying `name`, `code`, and `domain`; see [Reasons authentication failed](../la-context.md#reasons-authentication-failed).
+- Rejects on failure with an [`NSError`](../ns-error.md) carrying `name`, `code`, and `domain`; see [Reasons authentication failed](../la-context.md#reasons-authentication-failed).
 - An object that has had [`invalidate()`](invalidate.md) called: rejects with `InvalidContextError`, and the system UI does not appear.
 - [`interactionNotAllowed`](interactionnotallowed.md) is `true` and authentication needs UI: rejects with `NotInteractiveError`.
 
@@ -71,7 +71,7 @@ try {
 
 ## Corresponding iOS API
 
-`-[LAContext evaluatePolicy:localizedReason:reply:]`. The `reply` callback is replaced with a Promise: `success == YES` is fulfillment and `NO` is rejection; `err.code` and `err.domain` are `error.code` and `error.domain`, and `err.message` is `error.localizedDescription`.
+`-[LAContext evaluatePolicy:localizedReason:reply:]`. The `reply` callback is replaced with a Promise: `success == YES` is fulfillment and `NO` is rejection with an `NSError`; `err.code` and `err.domain` are `error.code` and `error.domain`, and `err.message` is `error.localizedDescription`.
 
 ## See also
 

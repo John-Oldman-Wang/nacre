@@ -27,7 +27,7 @@ waitUntil(promise)
 
 **`InvalidStateError`**
 
-一个 `Error`，`name` 是 `'InvalidStateError'`。在派发结束之后调用时抛出：
+一个 [`DOMException`](../dom-exception.md)，`name` 是 `'InvalidStateError'`，`code` 是 11（实测是 `DOMException`）。在派发结束之后调用时抛出：
 
 ```
 waitUntil must be called while the push event is being dispatched

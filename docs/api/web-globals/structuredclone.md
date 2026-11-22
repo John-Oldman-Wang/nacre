@@ -50,7 +50,7 @@ structuredClone(value[, options])
 
 ### 异常
 
-**`Error`**，`name` 是 `DataCloneError`
+**[`DOMException`](../dom-exception.md)**，`name` 是 `DataCloneError`，`code` 是 25
 
 - `value` 里有不能拷贝的东西，见[哪些值不能深拷贝](../web-globals.md#哪些值不能深拷贝)。`message` 说明是哪一个，例如 `#<UIView> could not be cloned.`、`Symbol(id) could not be cloned.`。只要有一处不能拷贝，整个调用就抛异常，不会返回拷贝了一半的结果。
 - `options.transfer` 给了非空的数组：`structuredClone: options.transfer is not supported yet; leave it out and the ArrayBuffer is copied instead`
@@ -84,7 +84,6 @@ console.log(settings.recent.length, copy.recent.length, copy.savedAt instanceof 
 
 | 情况 | 浏览器 | 这里 |
 | --- | --- | --- |
-| 出错时抛出的对象 | `DOMException` | `Error`，`name` 相同（`DataCloneError`）。按 `err.name` 判断的代码照常工作，按 `instanceof DOMException` 判断的不行 |
 | `structuredClone(value, { transfer: [buffer] })` | 把 `buffer` 转移给拷贝，原来的不能再用 | 抛 `DataCloneError`。不写 `transfer`，`buffer` 会被复制一份 |
 | `structuredClone(new SharedArrayBuffer(8))` | 拷贝和原来的共用同一块内存 | 抛 `DataCloneError` |
 | `structuredClone(new Blob(['x']))` | 可以 | 抛 `DataCloneError` |

@@ -260,19 +260,18 @@ type PHAuthorizationStatus =
   | 'limited';
 
 /**
- * 存图失败时 reject 的 `Error`。`code` 和 `domain` 是系统那个 `NSError` 的
- * 原值。
+ * 存图失败时拒绝的错误。
+ *
+ * - `'NotAllowedError'`：用户没同意，或者被系统限制了。是 `DOMException`
+ * - `'InvalidStateError'`：工程的 Info.plist 里没有 `NSPhotoLibraryAddUsageDescription`。
+ *   是 `DOMException`
+ * - `'NSError'`：别的失败。是 `NSError`，`code` 和 `domain` 是系统的原值
+ *
+ * 前两种是系统给的错误时，原值在 `cause`（一个 `NSError`）上。
  */
-interface PHPhotoLibraryError extends Error {
-  /**
-   * `NotAllowedError`：用户没同意，或者被系统限制了。
-   * `InvalidStateError`：工程的 Info.plist 里没有 `NSPhotoLibraryAddUsageDescription`。
-   * `PhotosError`：别的失败。
-   */
-  name: 'NotAllowedError' | 'InvalidStateError' | 'PhotosError';
-  code: number;
-  domain: string;
-}
+type PHPhotoLibraryError =
+  | (DOMException & { readonly name: 'NotAllowedError' | 'InvalidStateError'; readonly cause?: NSError })
+  | (NSError & { readonly name: 'NSError' });
 
 /** `performChanges()` 要做的修改。现在只有一种。 */
 interface PHPhotoLibraryChanges {

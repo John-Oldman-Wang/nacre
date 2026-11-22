@@ -45,7 +45,7 @@ What is passed isn't a typed array (such as an ordinary array): `getRandomValues
 
 The system's random source failed: `the system random source failed`. This error never occurred during acceptance testing.
 
-`QuotaExceededError`, `TypeMismatchError`, and `OperationError` are `Error` objects whose `name` is set to these values; use `err.name` to tell them apart.
+`QuotaExceededError`, `TypeMismatchError`, and `OperationError` are [`DOMException`](../dom-exception.md) objects; use `err.name` to tell them apart. Their `code` values are 22, 17, and 0 respectively.
 
 ## Examples
 
@@ -69,7 +69,7 @@ console.log(token);
 try {
   crypto.getRandomValues(new Uint8Array(65537));
 } catch (err) {
-  console.log(/** @type {Error} */ (err).name);
+  console.log(/** @type {DOMException} */ (err).name);
 }
 ```
 
@@ -77,8 +77,7 @@ try {
 
 ## Differences from the web
 
-- On error, an `Error` is thrown, not a `DOMException`. The `name` is the same, so code that checks `err.name` works as usual; there is no `DOMException` class here.
-- Otherwise the same as on the web.
+Same as on the web.
 
 ## See also
 

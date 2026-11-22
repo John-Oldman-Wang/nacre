@@ -111,7 +111,7 @@ NSString* KeychainErrorName(OSStatus status) {
     case errSecDuplicateItem:
       return @"InvalidModificationError";
     default:
-      return @"KeychainError";
+      return @"OperationError";
   }
 }
 

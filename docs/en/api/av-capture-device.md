@@ -79,7 +79,7 @@ None of these properties has a change event.
 
 | Method | Description |
 | --- | --- |
-| [`lockForConfiguration()`](av-capture-device/lockforconfiguration.md) | Gets the right to change settings. Throws `Error` if it can't |
+| [`lockForConfiguration()`](av-capture-device/lockforconfiguration.md) | Gets the right to change settings. Throws [`NSError`](ns-error.md) if it can't |
 | [`unlockForConfiguration()`](av-capture-device/unlockforconfiguration.md) | Gives back the right to change settings |
 | [`rampToVideoZoomFactor()`](av-capture-device/ramptovideozoomfactor.md) | Zooms smoothly to a factor |
 | [`cancelVideoZoomRamp()`](av-capture-device/cancelvideozoomramp.md) | Stops a smooth zoom in progress |
@@ -103,7 +103,7 @@ The user has to agree before the app can use the camera. The user's decision is 
 - Request with [`requestAccessForMediaType('video')`](av-capture-device/requestaccessformediatype.md). If the user hasn't been asked yet, the system shows an alert showing the [`NSCameraUsageDescription`](av-capture-session.md#installation) written in `nacre.config.json`. After the user agrees, the status is `'authorized'` (verified by testing).
 - Each app is asked only once. Requesting again after that shows no alert and fulfills immediately with the previous result (verified by testing). After the user declines, only the user can change it, in the system Settings.
 - Calling [`new AVCaptureDeviceInput(device)`](av-capture-device-input/constructor.md) before the user has been asked also shows the alert at that moment (verified by testing). Calling `requestAccessForMediaType()` first is recommended: that way you know the result before connecting the camera, and can show a different screen when the user declines.
-- Without authorization, `new AVCaptureDeviceInput(device)` throws `Error` (verified by testing).
+- Without authorization, `new AVCaptureDeviceInput(device)` throws [`NSError`](ns-error.md) (verified by testing).
 - The media type can only be `'video'`. For anything else, `authorizationStatusForMediaType()` throws `TypeError` and `requestAccessForMediaType()` rejects with `TypeError` (verified by testing).
 - There is no event when authorization changes. After the user changes it in Settings, read it again the next time you need it.
 
@@ -111,9 +111,9 @@ The user has to agree before the app can use the camera. The user's decision is 
 
 Before writing [`torchMode`](av-capture-device/torchmode.md), [`videoZoomFactor`](av-capture-device/videozoomfactor.md), [`focusMode`](av-capture-device/focusmode.md), [`focusPointOfInterest`](av-capture-device/focuspointofinterest.md), or [`autoFocusRangeRestriction`](av-capture-device/autofocusrangerestriction.md), call [`lockForConfiguration()`](av-capture-device/lockforconfiguration.md) to get the right to change settings, and call [`unlockForConfiguration()`](av-capture-device/unlockforconfiguration.md) to give it back when done.
 
-- Writing without the lock throws `TypeError` and leaves the value unchanged (verified by testing). The message is `<property name>: the system refused (…)`, with the reason the system gave in the parentheses. For example, writing `videoZoomFactor` without the lock puts `*** -[AVCaptureDevice setVideoZoomFactor:] May not be called without first successfully gaining exclusive ownership of the device using -lockForConfiguration:` in the parentheses (verified by testing).
+- Writing without the lock throws a [`DOMException`](dom-exception.md) whose `name` is `'InvalidStateError'`, and leaves the value unchanged (verified by testing). The message is `<property name>: the system refused (…)`, with the reason the system gave in the parentheses. For example, writing `videoZoomFactor` without the lock puts `*** -[AVCaptureDevice setVideoZoomFactor:] May not be called without first successfully gaining exclusive ownership of the device using -lockForConfiguration:` in the parentheses (verified by testing).
 - Writing again after giving the lock back throws again (verified by testing).
-- When the right can't be obtained (for example, another app is using the camera), `lockForConfiguration()` throws `Error`. This case is **not verified on a device**.
+- When the right can't be obtained (for example, another app is using the camera), `lockForConfiguration()` throws an [`NSError`](ns-error.md) whose `domain` and `code` are the system's original values. This case is **not verified on a device**.
 - [`rampToVideoZoomFactor()`](av-capture-device/ramptovideozoomfactor.md) and [`cancelVideoZoomRamp()`](av-capture-device/cancelvideozoomramp.md) don't throw when called without the lock (verified by testing).
 - Reading these properties doesn't need the lock.
 
@@ -183,7 +183,7 @@ console.log(front === null ? 'No front camera' : front.position);
 | `[AVCaptureDevice requestAccessForMediaType:AVMediaTypeVideo completionHandler:…]` | `await AVCaptureDevice.requestAccessForMediaType('video')` |
 | `[AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo]` | `AVCaptureDevice.defaultDeviceWithMediaType('video')` |
 | `[AVCaptureDevice defaultDeviceWithDeviceType:AVCaptureDeviceTypeBuiltInWideAngleCamera mediaType:AVMediaTypeVideo position:AVCaptureDevicePositionFront]` | `AVCaptureDevice.defaultDeviceWithDeviceType('builtInWideAngleCamera', { mediaType: 'video', position: 'front' })` |
-| `[device lockForConfiguration:&error]`, which returns `NO` on failure | `device.lockForConfiguration()`, which throws `Error` on failure |
+| `[device lockForConfiguration:&error]`, which returns `NO` on failure | `device.lockForConfiguration()`, which throws an `NSError` on failure, with `error`'s original `domain` and `code` |
 | `device.torchMode = AVCaptureTorchModeOn` | `device.torchMode = 'on'` |
 | `device.torchAvailable` | `device.isTorchAvailable` |
 | `[device rampToVideoZoomFactor:2 withRate:4]` | `device.rampToVideoZoomFactor(2, { withRate: 4 })` |

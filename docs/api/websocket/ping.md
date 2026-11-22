@@ -23,7 +23,7 @@ ping()
 
 Promise。收到服务器的回应后兑现为 `true`。
 
-连接不通时 Promise 被拒绝，错误对象的 `name` 是 `NetworkError`，`message` 是系统的错误描述。**连接不通时的拒绝，以及要等多久才拒绝，未在模拟器验证。**
+连接不通时 Promise 被拒绝，拒绝的是一个 [`DOMException`](../dom-exception.md)，`name` 是 `NetworkError`，`message` 是系统的错误描述，系统给的原值在 `cause` 上（一个 [`NSError`](../ns-error.md)）。**连接不通时的拒绝，以及要等多久才拒绝，未在模拟器验证。**
 
 ### 异常
 

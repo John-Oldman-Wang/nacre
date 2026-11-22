@@ -24,7 +24,7 @@ A string of 36 characters: 32 lowercase hexadecimal characters and 4 hyphens, li
 
 **`OperationError`**
 
-The system's random source failed: `the system random source failed`. This is an `Error` object whose `name` is set to `OperationError`.
+The system's random source failed: `the system random source failed`. This is a [`DOMException`](../dom-exception.md) whose `name` is `OperationError`.
 
 ## Examples
 

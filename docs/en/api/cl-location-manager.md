@@ -13,7 +13,7 @@ The location group has four types, each with its own page:
 - `CLLocationManager`: this page.
 - [`CLLocation`](cl-location.md): a location. Latitude and longitude, altitude, the accuracy of each quantity, speed, direction of travel, and when the location was measured.
 - [`CLLocationCoordinate2D`](cl-location-coordinate-2d.md): latitude and longitude, in degrees.
-- [`CLLocationError`](cl-location-error.md): the `Error` you get when location fails.
+- [`CLLocationError`](cl-location-error.md): the error you get when location fails, a [`DOMException`](dom-exception.md) or an [`NSError`](ns-error.md).
 
 This group covers only "while using the app" location: getting the location while the app is in the foreground and the user is using it.
 
@@ -238,7 +238,7 @@ For more patterns, see the guide [Getting the user's location](../guides/get-loc
 | `locationManager:didUpdateLocations:` | `locationupdate` event, `e.locations` |
 | `locationManager:didFailWithError:` | `locationerror` event, `e.error` |
 | `locationManagerDidChangeAuthorization:` | `authorizationchange` event |
-| `error.code == kCLErrorDenied` | `error.name === 'NotAllowedError'` |
+| `error.code == kCLErrorDenied` | `error.name === 'NotAllowedError'`; the system's `NSError` is in `error.cause` |
 
 ## See also
 

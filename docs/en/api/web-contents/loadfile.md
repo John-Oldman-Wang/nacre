@@ -39,8 +39,8 @@ A string for the part of the URL after `#`. The leading `#` is optional. Optiona
 | Case | Result |
 | --- | --- |
 | `filePath` is an empty string | Rejects with `TypeError`: `loadFile: the path is empty` |
-| The file doesn't exist | Rejects with an error whose `name` is `'NetworkError'` and `code` is `-1100`; `did-fail-load` fires at the same time |
-| The path is a directory | Rejects with an error whose `name` is `'Error'` and `code` is `102`; `did-fail-load` fires at the same time |
+| The file doesn't exist | Rejects with a [`DOMException`](../dom-exception.md) whose `name` is `'NetworkError'`; `cause.code` is `-1100`, and `did-fail-load` fires at the same time |
+| The path is a directory | Rejects with a [`DOMException`](../dom-exception.md) whose `name` is `'OperationError'`; the system's original values are on `cause` (`cause.code` is `102`); `did-fail-load` fires at the same time. That the rejection is an `OperationError` is **not verified on a device** |
 
 > **Note:** The last case (and loading a file that can't be displayed, such as an archive, with `loadURL`) takes more than 4 seconds to report the failure on iOS 27; on iOS 26 it is immediate.
 

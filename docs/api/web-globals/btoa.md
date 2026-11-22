@@ -25,7 +25,7 @@ Base64 字符串。只含 `A–Z`、`a–z`、`0–9`、`+`、`/`，结尾用 `=
 
 ### 异常
 
-**`Error`**，`name` 是 `InvalidCharacterError`
+**[`DOMException`](../dom-exception.md)**，`name` 是 `InvalidCharacterError`，`code` 是 5
 
 字符串里有编码大于 255 的字符（汉字、表情）：`btoa: the string contains characters outside of the Latin1 range (code points above 0xFF). To encode arbitrary text, convert it to UTF-8 bytes with TextEncoder first`
 
@@ -50,7 +50,7 @@ console.log(btoa('hello'));
 
 ## 和 Web 的差别
 
-浏览器抛出的是 `DOMException`，这里是 `Error`，`name` 相同（`InvalidCharacterError`）。按 `err.name` 判断的代码照常工作，按 `instanceof DOMException` 判断的不行，这里没有 `DOMException` 这个类。
+和 Web 相同。
 
 ## 参见
 

@@ -25,7 +25,11 @@ None (`undefined`).
 
 **`TypeError`**
 
-- The system refuses the group of changes: the message includes the reason the system gave. Which changes get refused, and what happens when you call it without calling `beginConfiguration()` first, are **not verified on a device**.
+- The system refuses the group of changes for a reason that isn't one of the two below. Which changes get refused, and what happens when you call it without calling `beginConfiguration()` first, are **not verified on a device**.
+
+**`RangeError`, [`DOMException`](../dom-exception.md)**
+
+When the system refuses, the exception depends on the system's reason: `RangeError` when the system says a value is out of range, a `DOMException` whose `name` is `'InvalidStateError'` when it says the current state doesn't allow it, and `TypeError` otherwise. The message is `commitConfiguration: the system refused (…)`, with the reason the system gave in the parentheses. This comes from the code and is **not verified on a device**.
 
 Calling `beginConfiguration()` and then `commitConfiguration()` doesn't throw (verified by testing).
 

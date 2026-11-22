@@ -24,7 +24,7 @@ crypto.randomUUID()
 
 **`OperationError`**
 
-系统的随机源失败：`the system random source failed`。这是 `name` 被设成 `OperationError` 的 `Error` 对象。
+系统的随机源失败：`the system random source failed`。这是一个 [`DOMException`](../dom-exception.md)，`name` 是 `OperationError`。
 
 ## 示例
 

@@ -25,7 +25,7 @@ A Base64 string. It contains only `A–Z`, `a–z`, `0–9`, `+`, and `/`, padde
 
 ### Exceptions
 
-**`Error`**, with `name` set to `InvalidCharacterError`
+**[`DOMException`](../dom-exception.md)**, with `name` set to `InvalidCharacterError` and `code` set to 5
 
 The string contains characters with codes above 255 (Chinese characters, emoji): `btoa: the string contains characters outside of the Latin1 range (code points above 0xFF). To encode arbitrary text, convert it to UTF-8 bytes with TextEncoder first`
 
@@ -50,7 +50,7 @@ console.log(btoa('hello'));
 
 ## Differences from the web
 
-Browsers throw a `DOMException`; here it is an `Error` with the same `name` (`InvalidCharacterError`). Code that checks `err.name` works as usual; code that checks `instanceof DOMException` doesn't, because there is no `DOMException` class here.
+Same as on the web.
 
 ## See also
 

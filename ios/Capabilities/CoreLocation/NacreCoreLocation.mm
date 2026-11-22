@@ -181,7 +181,7 @@ bool MetersFromJS(id value, NSString* key, NSDictionary<NSString*, NSNumber*>* n
 // 上层给好用的分类（name），底层把 NSError 的 code 和 domain 原样交出去——
 // 和文件读写、钥匙串同一个分工
 NSString* LocationErrorName(NSError* error) {
-  if (![error.domain isEqualToString:kCLErrorDomain]) return @"CLError";
+  if (![error.domain isEqualToString:kCLErrorDomain]) return @"NSError";
   switch ((CLError)error.code) {
     case kCLErrorDenied:
       return @"NotAllowedError";
@@ -190,7 +190,7 @@ NSString* LocationErrorName(NSError* error) {
     case kCLErrorNetwork:
       return @"NetworkError";
     default:
-      return @"CLError";
+      return @"NSError";
   }
 }
 

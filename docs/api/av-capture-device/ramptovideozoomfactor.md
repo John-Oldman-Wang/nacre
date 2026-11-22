@@ -34,7 +34,11 @@ rampToVideoZoomFactor(factor, { withRate })
 - 没有 `withRate`：`rampToVideoZoomFactor needs options.withRate`（实测）。
 - `factor` 转不出有限数：`rampToVideoZoomFactor must be a finite number, got …`。
 - `withRate` 转不出有限数：`withRate must be a finite number, got …`。
-- 系统拒绝这个倍数：信息里带系统给的原因。什么样的值会被拒绝**未在真机验证**。
+- 系统拒绝这个倍数，而且系统给的原因不属于下面两种。什么样的值会被拒绝**未在真机验证**。
+
+**`RangeError`、[`DOMException`](../dom-exception.md)**
+
+系统拒绝时，抛哪一种照系统的原因分：系统说超出范围的是 `RangeError`，说现在的状态做不了的是 `DOMException`，`name` 是 `'InvalidStateError'`，别的是 `TypeError`。信息是 `rampToVideoZoomFactor: the system refused (…)`，括号里是系统给的原因。这一条来自代码，**未在真机验证**。
 
 ## 说明
 

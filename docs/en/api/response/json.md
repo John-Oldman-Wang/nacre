@@ -35,7 +35,7 @@ The content isn't valid JSON. A response without a body gives an empty string, w
 - [`body`](body.md) has a reader: `Body is locked: response.body has a reader`.
 - The network drops mid-download: `message` starts with `Network request failed: `.
 
-**An `Error` whose `name` is `'AbortError'`**
+**A [`DOMException`](../dom-exception.md) whose `name` is `'AbortError'`**
 
 The request is canceled mid-download, or `AbortSignal.timeout()` runs out.
 

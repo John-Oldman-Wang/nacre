@@ -207,7 +207,8 @@ manager.addEventListener('locationerror', (e) => {
   } else if (e.error.name === 'LocationUnknownError') {
     console.log('暂时定不出位置，系统会接着试');
   } else {
-    console.log('定位出错', e.error.name, e.error.code);
+    const system = e.error instanceof NSError ? e.error : e.error.cause;
+    console.log('定位出错', e.error.name, system?.domain, system?.code);
   }
 });
 ```

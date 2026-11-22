@@ -224,13 +224,13 @@ async function readMaybe() {
     if (e.name === 'NotFoundError') {
       console.log('The file does not exist');
     } else {
-      console.log('Other error:', e.name, e.code);
+      console.log('Other error:', e.name, e.cause?.domain, e.cause?.code);
     }
   }
 }
 ```
 
-**Result**: When the file does not exist, prints `The file does not exist`.
+**Result**: When the file does not exist, prints `The file does not exist`. Other errors print the category, the system's error domain, and the error code.
 
 For all values of `name`, see [What you get on error](../api/filesystem.md#what-you-get-on-failure). Do not use `message` for decisions; it changes with the system language.
 

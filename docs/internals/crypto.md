@@ -24,9 +24,9 @@
 
 这个上限在 Web 里的来由是防止一次调用耗尽熵池、卡住页面，对我们并不成立（`SecRandomCopyBytes` 没有这个问题）。照搬的理由只有一条：**库是按这个上限写的**。放宽它不会让任何现有代码受益，收紧或者改掉报错的名字则会让按 Web 行为写的 `try / catch` 失效。
 
-## 错误是改了名字的 `Error`
+## 错误是 `DOMException`
 
-Web 抛的是 `DOMException`（`QuotaExceededError`、`TypeMismatchError`）。我们没有这个类，照 `fetch` 的 `AbortError` 的做法：`new Error(message)` 再把 `name` 改掉。按 `err.name` 判断的代码照常工作，按 `instanceof DOMException` 判断的不行。
+和 Web 一样抛 `DOMException`（`QuotaExceededError`、`TypeMismatchError`、`OperationError`）。2026-11-22 之前没有这个类，是 `new Error(message)` 再改 `name`，见[报错](errors.md)。
 
 ## `randomUUID()` 在 JS 里拼
 

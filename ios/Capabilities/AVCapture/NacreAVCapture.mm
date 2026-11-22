@@ -228,13 +228,21 @@ static bool RequireVideo(id mediaType, NSString* what, std::string* error) {
   return false;
 }
 
-// 系统抛出来的异常 → 一句给 JS 的话：成员名加系统给的原因，不猜是什么原因。
+// 系统抛出来的异常 → 给 JS 的错：成员名加系统给的原因，不猜是什么原因。
 // 没锁就写、没有手电筒写 torchMode、摄像头不支持的对焦方式，系统抛的都是 NSGenericException，
-// 按异常名分不开；系统的原因里自己会说清楚（没锁时它说要先 lockForConfiguration，实测）
+// 按异常名分不开；系统的原因里自己会说清楚（没锁时它说要先 lockForConfiguration，实测）。
+// 抛哪个类按异常名：
+//   NSRangeException    → RangeError（变焦超出范围，实测）
+//   NSGenericException  → DOMException InvalidStateError（现在这个状态做不了）
+//   其余                → TypeError（NSInvalidArgumentException 就是参数不对）
 static std::string Refusal(NSString* what, NSException* e) {
-  return [NSString stringWithFormat:@"%@: the system refused (%@)", what,
-                                    e.reason ?: e.name]
-      .UTF8String;
+  NSString* message = [NSString stringWithFormat:@"%@: the system refused (%@)", what,
+                                                 e.reason ?: e.name];
+  if ([e.name isEqualToString:NSRangeException]) return NacreNamedError(@"RangeError", message);
+  if ([e.name isEqualToString:NSGenericException]) {
+    return NacreNamedError(@"InvalidStateError", message);
+  }
+  return message.UTF8String;
 }
 
 static NSDictionary* PointJSON(CGPoint p) { return @{@"x": @(p.x), @"y": @(p.y)}; }
@@ -766,13 +774,15 @@ static bool AVCaptureCall(id object, NSString* sel, const NacreArgs& args, std::
   }
   if ([object isKindOfClass:AVCaptureDevice.class]) {
     AVCaptureDevice* device = (AVCaptureDevice*)object;
-    // 拿不到时给 JS 一句话（JS 那边抛 Error，不是 TypeError：参数没有错）
+    // 拿不到时把系统的 NSError 交给 JS（JS 那边抛 NSError，不是 TypeError：参数没有错）
     if ([sel isEqualToString:@"lockForConfiguration"]) {
       NSError* failure = nil;
       if ([device lockForConfiguration:&failure]) {
         *out = "null";
       } else {
-        *out = EncodeJSON(failure.localizedDescription ?: @"lockForConfiguration failed");
+        *out = EncodeJSON(@{@"message" : failure.localizedDescription ?: @"lockForConfiguration failed",
+                            @"domain" : failure.domain ?: @"",
+                            @"code" : @(failure.code)});
       }
       return true;
     }

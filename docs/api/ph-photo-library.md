@@ -57,15 +57,15 @@ Illegal constructor: PHPhotoLibrary is created by the runtime, not by new
 
 ## 错误
 
-[`performChanges()`](ph-photo-library/performchanges.md) 和 [`requestAuthorizationForAccessLevel()`](ph-photo-library/requestauthorizationforaccesslevel.md) 的 Promise 被拒绝时得到一个 `Error`，类型定义里叫 `PHPhotoLibraryError`。上面多两个字段：`code`（`number`）和 `domain`（`string`），是系统给的错误码和错误域。
+[`performChanges()`](ph-photo-library/performchanges.md) 和 [`requestAuthorizationForAccessLevel()`](ph-photo-library/requestauthorizationforaccesslevel.md) 的 Promise 被拒绝时得到的错误，类型定义里叫 `PHPhotoLibraryError`。按 `name` 分三种：
 
-| `name` | 什么时候 |
-| --- | --- |
-| `NotAllowedError` | 用户没同意，或者被系统限制了 |
-| `InvalidStateError` | 工程里没写 `NSPhotoLibraryAddUsageDescription`。用 CLI 生成的工程不会出现，生成时就拦住了 |
-| `PhotosError` | 别的失败，比如存储空间不够。具体原因看 `message` 和 `code` |
+| `name` | 什么时候 | 是哪种错误 |
+| --- | --- | --- |
+| `NotAllowedError` | 用户没同意，或者被系统限制了 | [`DOMException`](dom-exception.md)。系统给的原值在 `cause` 上，是一个 [`NSError`](ns-error.md)，`cause.domain`、`cause.code` 是系统的错误域和错误码 |
+| `InvalidStateError` | 工程里没写 `NSPhotoLibraryAddUsageDescription`。用 CLI 生成的工程不会出现，生成时就拦住了 | `DOMException`，同上 |
+| `NSError` | 别的失败，比如存储空间不够。具体原因看 `message` 和 `code` | [`NSError`](ns-error.md)。`domain`、`code` 是它自己的字段，是系统的错误域和错误码 |
 
-各种情况下的 `code` 和 `domain` **未在模拟器验证**。
+各种情况下系统的错误域和错误码**未在模拟器验证**。
 
 ## 示例
 

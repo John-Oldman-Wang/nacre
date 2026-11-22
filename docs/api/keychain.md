@@ -99,14 +99,14 @@ npm install @nacrejs/keychain
 
 ## 出错时得到什么
 
-操作失败时 Promise 被拒绝，拒绝的值是一个 `Error` 对象（类型定义里叫 `KeychainError`），多带两个属性：
+操作失败时 Promise 被拒绝，拒绝的值是一个 [`DOMException`](dom-exception.md)（类型定义里叫 `KeychainError`）。参数的类型不对时当场抛 `TypeError`，见各方法的页面。
 
 | 属性 | 类型 | 含义 |
 | --- | --- | --- |
 | `name` | `string` | 错误的类别，取值见下表。用它判断出了什么错 |
 | `message` | `string` | 说明文字 |
-| `code` | `number` | 系统的错误码原值（`OSStatus`）。`accessible` 取值不认识时是 `0` |
-| `domain` | `string` | `'NSOSStatusErrorDomain'`。`accessible` 取值不认识时是空字符串 |
+| `code` | `number` | `name` 对应的 Web 老数字码，见 [`DOMException`](dom-exception.md#运行时给出的名字) |
+| `cause` | [`NSError`](ns-error.md) 或 `undefined` | 系统给的原值：`cause.domain` 是 `'NSOSStatusErrorDomain'`，`cause.code` 是系统的错误码（`OSStatus`）。`accessible` 取值不认识时没有 `cause`（照代码，**未在真机验证**） |
 
 | `name` | 什么时候 |
 | --- | --- |
@@ -114,7 +114,7 @@ npm install @nacrejs/keychain
 | `'SecurityError'` | App 缺少访问钥匙串所需的权限声明 |
 | `'TypeMismatchError'` | 参数不对，包括 `accessible` 写了不认识的值 |
 | `'InvalidModificationError'` | 条目冲突 |
-| `'KeychainError'` | 以上都不是。这时用 `code` 区分 |
+| `'OperationError'` | 以上都不是。这时用 `cause.code` 区分 |
 
 这张表里只有「`accessible` 写了不认识的值得到 `'TypeMismatchError'`」在模拟器验证过，其余各行来自代码里的对应关系，**未在模拟器验证**。
 
@@ -165,7 +165,7 @@ main().catch((err) => {
 | `kSecAttrAccessibleAlways`、`kSecAttrAccessibleAlwaysThisDeviceOnly` | 没有。iOS 12 起已废弃 |
 | `kSecClassGenericPassword` 的 `kSecAttrService` | 固定为 App 的包名（bundle identifier） |
 | `kSecAttrAccount` | `key` |
-| `OSStatus` | Promise 被拒绝，`err.code` 是原值 |
+| `OSStatus` | Promise 被拒绝，拒绝的是 `DOMException`，`err.cause.code` 是原值 |
 
 ## 参见
 

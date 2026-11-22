@@ -34,7 +34,7 @@ status: partial
 
 ## 出错时抛出什么
 
-`QuotaExceededError`、`TypeMismatchError`、`OperationError` 抛出的是 `Error` 对象，用 `err.name` 区分是哪一种。参数不是类型数组时抛的是 `TypeError`。
+`QuotaExceededError`、`TypeMismatchError`、`OperationError` 抛出的是 [`DOMException`](dom-exception.md)，用 `err.name` 区分是哪一种。参数不是类型数组时抛的是 `TypeError`。
 
 ## 示例
 
@@ -61,7 +61,6 @@ console.log(token);
 
 | 情况 | 浏览器 | 这里 |
 | --- | --- | --- |
-| 出错时抛出的对象 | `DOMException` | `Error`，`name` 相同（`QuotaExceededError`、`TypeMismatchError`）。按 `err.name` 判断的代码照常工作，按 `instanceof DOMException` 判断的不行，这里没有 `DOMException` 这个类 |
 | `crypto.subtle` | 有 | 没有 |
 
 ## 参见

@@ -67,7 +67,6 @@ main();
 
 ## 和 Web 的差别
 
-- 没有 `DOMException`。默认的 `reason` 是 `name` 为 `'AbortError'` 的 `Error`，超时的 `reason` 是 `name` 为 `'TimeoutError'` 的 `Error`。
 - 请求进行中被取消时，`fetch()` 抛出 `AbortError`，不是 `signal.reason`。
 - 没有 `AbortSignal.any()`，没有 `onabort` 属性。
 

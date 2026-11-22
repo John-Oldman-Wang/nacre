@@ -27,7 +27,7 @@ None (`undefined`).
 
 **`InvalidStateError`**
 
-An `Error` whose `name` is `'InvalidStateError'`. Thrown when called after dispatch has ended:
+A [`DOMException`](../dom-exception.md) whose `name` is `'InvalidStateError'` and whose `code` is 11 (measured to be a `DOMException`). Thrown when called after dispatch has ended:
 
 ```
 waitUntil must be called while the push event is being dispatched

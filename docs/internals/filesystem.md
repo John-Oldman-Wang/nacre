@@ -108,7 +108,9 @@ void RejectCall(int call_id, const std::string& name, const std::string& message
 
 `detail_json` 里的键原样挂到 `Error` 上。带默认值，所以 `fetch` 那些现有调用点一个字没动。
 
-这样**上层给好用的分类（`err.name` 是 `DOMException` 的标准名字），底层不丢事实（`err.code` / `err.domain`）**——两层 API 的分工落到错误上。映射只覆盖了 Cocoa 文件错误里的 7 组，剩下几十个落进 `FileError`，没有逃生口的话 JS 侧就彻底分不出来了。
+这样**上层给好用的分类（`err.name` 是 `DOMException` 的标准名字），底层不丢事实**——两层 API 的分工落到错误上。映射只覆盖了 Cocoa 文件错误里的 7 组，剩下几十个落进兜底的名字，没有原值的话 JS 侧就彻底分不出来了。
+
+2026-11-22 起，错误是真的 `DOMException`，原值不再挂在错误本身（`DOMException` 自带的 `code` 是 Web 的老数字码，会撞），改成 `cause` 上的一个 `NSError`（`cause.code` / `cause.domain`）；兜底的名字从 `FileError` 改成 `OperationError`。引擎这边 `detail_json` 也不再原样挂键，而是交给建错误的工厂，见[报错](errors.md)。
 
 实测读一个不存在的文件：
 

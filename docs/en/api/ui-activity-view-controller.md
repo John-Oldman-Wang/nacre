@@ -146,7 +146,7 @@ For more techniques, see the guide [Sharing content](../guides/share.md).
 | `sheet.excludedActivityTypes = @[UIActivityTypePrint, UIActivityTypeAirDrop]` | `sheet.excludedActivityTypes = ['print', 'airDrop']` |
 | `sheet.excludedActivitySectionTypes = UIActivitySectionTypesPeopleSuggestions` | `sheet.excludedActivitySectionTypes = ['peopleSuggestions']` |
 | `sheet.allowsProminentActivity = NO` | `sheet.allowsProminentActivity = false` |
-| `sheet.completionWithItemsHandler = ^(UIActivityType type, BOOL completed, NSArray *items, NSError *error) { … }` | `sheet.addEventListener('complete', (e) => { … })`<br>Of the callback's four parameters, `type`, `completed`, and `error` are the event object's `activityType`, `completed`, and `activityError` |
+| `sheet.completionWithItemsHandler = ^(UIActivityType type, BOOL completed, NSArray *items, NSError *error) { … }` | `sheet.addEventListener('complete', (e) => { … })`<br>Of the callback's four parameters, `type`, `completed`, and `error` are the event object's `activityType`, `completed`, and `activityError`. `activityError` is an [`NSError`](ns-error.md) |
 | `[self presentViewController:sheet animated:YES completion:nil]` | `page.presentViewController(sheet, { animated: true })` |
 
 ## See also

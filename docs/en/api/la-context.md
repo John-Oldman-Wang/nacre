@@ -126,13 +126,13 @@ These are two kinds of error and behave differently:
 | Situation | Behavior |
 | --- | --- |
 | Invalid arguments: an unrecognized policy, no `localizedReason`, or `localizedReason` is an empty string | `evaluatePolicy()` throws `TypeError` on the spot, returns no Promise, and the system UI does not appear |
-| Failed authentication: the user canceled, was not recognized, or the device cannot authenticate right now | The returned Promise rejects with an `Error` carrying `name`, `code`, and `domain` |
+| Failed authentication: the user canceled, was not recognized, or the device cannot authenticate right now | The returned Promise rejects with an [`NSError`](ns-error.md) carrying `name`, `code`, and `domain` |
 
 The Promise never fulfills with `false`. Fulfilling means success.
 
 ## Reasons authentication failed
 
-When the Promise from `evaluatePolicy()` rejects, it rejects with an `Error` that has three extra fields. `canEvaluatePolicyError()` returns the same kind of object. In the type definitions it is called `LAError`.
+When the Promise from `evaluatePolicy()` rejects, it rejects with an [`NSError`](ns-error.md). `canEvaluatePolicyError()` returns the same kind of object. In the type definitions it is called `LAError`; there is no global `LAError`, so to check the type, write `err instanceof NSError`.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -156,7 +156,7 @@ Values of `name`. The "Meaning" column comes from the iOS headers; only `Invalid
 | `'BiometryLockoutError'` | -8 | Too many biometric failures caused a lockout; the passcode must be entered once to recover | Authenticate again with `'deviceOwnerAuthentication'` |
 | `'InvalidContextError'` | -10 | `invalidate()` has been called on this object | Create a new `LAContext` |
 | `'NotInteractiveError'` | -1004 | UI needs to be shown, but `interactionNotAllowed` is `true` | See [`interactionNotAllowed`](la-context/interactionnotallowed.md) |
-| `'LAError'` | Other | A reason not listed above | Look at `code` and `message` |
+| `'NSError'` | Other | A reason not listed above | Look at `code` and `message` |
 
 ## Examples
 
@@ -233,7 +233,7 @@ For more patterns, see the guide [Confirming identity with Face ID](../guides/fa
 | The return value of `[context canEvaluatePolicy:policy error:&error]` | `context.canEvaluatePolicy(policy)` |
 | The `error` of `[context canEvaluatePolicy:policy error:&error]` | `context.canEvaluatePolicyError(policy)`: `null` when authentication is possible, otherwise that error |
 | `[context evaluatePolicy:policy localizedReason:reason reply:^(BOOL success, NSError *error) { … }]` | `await context.evaluatePolicy(policy, { localizedReason: reason })` |
-| `success == NO` and `error` in `reply` | The Promise rejects; `err.code` is `error.code`, `err.domain` is `error.domain`, and `err.message` is `error.localizedDescription` |
+| `success == NO` and `error` in `reply` | The Promise rejects with an `NSError`; `err.code` is `error.code`, `err.domain` is `error.domain`, and `err.message` is `error.localizedDescription` |
 | `[context invalidate]` | `context.invalidate()` |
 | `context.biometryType` | `context.biometryType` |
 | `LABiometryTypeNone` / `TouchID` / `FaceID` / `OpticID` | `'none'` / `'touchID'` / `'faceID'` / `'opticID'` |

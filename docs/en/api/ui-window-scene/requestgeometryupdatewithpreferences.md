@@ -27,7 +27,7 @@ A `Promise<void>`.
 | --- | --- |
 | The current orientation is already one of the ones you want | Fulfilled immediately |
 | The system allows it and starts rotating | Fulfilled once the orientation has actually changed, that is, after [`geometrychange`](geometrychange-event.md). About 0.5 seconds on the iPhone Air simulator (iOS 27.2) |
-| The system doesn't allow it (the requested orientations aren't among those the app or the view controller allows) | Rejected. The error's `message` is the reason the system gives, such as `None of the requested orientations are supported by the view controller. …`, and its `code` is the system's error code |
+| The system doesn't allow it (the requested orientations aren't among those the app or the view controller allows) | Rejected with an [`NSError`](../ns-error.md): its `name` is `'NSError'`, its `message` is the reason the system gives, such as `None of the requested orientations are supported by the view controller. …`, and its `domain` and `code` are the system's error domain and error code |
 
 All of the above are tested.
 
@@ -62,7 +62,7 @@ application.addEventListener('sceneconnect', async (e) => {
 
 ## Corresponding iOS API
 
-`-[UIWindowScene requestGeometryUpdateWithPreferences:errorHandler:]`. The native method has no success callback; the Promise fulfills at the same point as the web's `screen.orientation.lock()`.
+`-[UIWindowScene requestGeometryUpdateWithPreferences:errorHandler:]`. The native method has no success callback; the Promise fulfills at the same point as the web's `screen.orientation.lock()`. The `NSError` passed to `errorHandler` is the value the Promise rejects with.
 
 ## See also
 

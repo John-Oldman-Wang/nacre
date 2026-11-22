@@ -27,7 +27,7 @@ requestGeometryUpdateWithPreferences(preferences)
 | --- | --- |
 | 现在的方向已经在想要的里面 | 当场兑现 |
 | 系统允许，开始转 | 方向真的变过去之后兑现，也就是 [`geometrychange`](geometrychange-event.md) 之后。在 iPhone Air 模拟器（iOS 27.2）上约 0.5 秒 |
-| 系统不允许（想要的方向不在 App 或页面允许的里面） | 拒绝。错误的 `message` 是系统给的原因，比如 `None of the requested orientations are supported by the view controller. …`，`code` 是系统的错误码 |
+| 系统不允许（想要的方向不在 App 或页面允许的里面） | 拒绝，拒绝的是一个 [`NSError`](../ns-error.md)：`name` 是 `'NSError'`，`message` 是系统给的原因，比如 `None of the requested orientations are supported by the view controller. …`，`domain` 和 `code` 是系统的错误域和错误码 |
 
 以上都是实测。
 
@@ -62,7 +62,7 @@ application.addEventListener('sceneconnect', async (e) => {
 
 ## 对应的 iOS API
 
-`-[UIWindowScene requestGeometryUpdateWithPreferences:errorHandler:]`。原生没有「成功」的回调，这里的兑现时机照 Web 的 `screen.orientation.lock()`。
+`-[UIWindowScene requestGeometryUpdateWithPreferences:errorHandler:]`。原生没有「成功」的回调，这里的兑现时机照 Web 的 `screen.orientation.lock()`。`errorHandler` 收到的 `NSError` 是 Promise 拒绝的值。
 
 ## 参见
 

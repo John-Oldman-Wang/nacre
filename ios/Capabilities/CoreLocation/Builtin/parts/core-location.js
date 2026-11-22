@@ -95,14 +95,10 @@
   });
   const toLocation = (fields) => (fields == null ? null : new CLLocation(kFromSystem, fields));
 
-  // 定位的错误。上层给好用的分类（name），底层不丢事实（code / domain 是
-  // NSError 的原值）——和 Promise 拒绝时的 Error 一个形状
+  // 定位的错误。和 Promise 拒绝时同一个工厂建：Web 上有的名字是 DOMException，
+  // 系统的原值在 cause 上；iOS 特有的是 NSError
   function toError(fields) {
-    const error = new Error(fields.message);
-    error.name = fields.name;
-    error.code = fields.code;
-    error.domain = fields.domain;
-    return error;
+    return ctx.makeError(fields.name, fields.message, fields);
   }
 
   // 事件带的字段过桥时是普通对象，在这里换成上面的类型

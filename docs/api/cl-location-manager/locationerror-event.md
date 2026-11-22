@@ -19,7 +19,7 @@ manager.addEventListener('locationerror', (event) => { })
 
 **`error`**
 
-[`CLLocationError`](../cl-location-error.md)。`name` 是错误的分类，`code` 和 `domain` 是系统给的原值。
+[`CLLocationError`](../cl-location-error.md)，是 [`DOMException`](../dom-exception.md) 或 [`NSError`](../ns-error.md)。`name` 是错误的分类。系统给的错误码和错误域：`NSError` 是它自己的 `code` 和 `domain`，`DOMException` 在 `cause` 上。
 
 事件不能取消。`target` 是这个 `manager`。
 
@@ -41,13 +41,14 @@ manager.addEventListener('locationerror', (e) => {
     manager.stopUpdatingLocation();
     console.log('没有权限，停止定位');
   } else {
-    console.log('定位出错', e.error.name, e.error.code);
+    const system = e.error instanceof NSError ? e.error : e.error.cause;
+    console.log('定位出错', e.error.name, system?.domain, system?.code);
   }
 });
 manager.startUpdatingLocation();
 ```
 
-**效果**（未在模拟器验证）：没有授权时输出 `没有权限，停止定位`；别的错误输出错误的名字和错误码。
+**效果**（未在模拟器验证）：没有授权时输出 `没有权限，停止定位`；别的错误输出错误的名字、系统的错误域和错误码。
 
 ## 对应的 iOS API
 

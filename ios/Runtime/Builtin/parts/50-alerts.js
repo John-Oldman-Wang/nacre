@@ -175,9 +175,7 @@
     defineField(event, 'completed', result.completed);
     let failure = null;
     if (result.activityError !== null) {
-      failure = new Error(result.activityError.message);
-      defineField(failure, 'code', result.activityError.code);
-      defineField(failure, 'domain', result.activityError.domain);
+      failure = ctx.makeError('NSError', result.activityError.message, result.activityError);
     }
     defineField(event, 'activityError', failure);
   }

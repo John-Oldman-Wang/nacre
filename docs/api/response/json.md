@@ -35,7 +35,7 @@ json()
 - [`body`](body.md) 上有读取器：`Body is locked: response.body has a reader`。
 - 下载中途网络中断：`message` 以 `Network request failed: ` 开头。
 
-**`name` 是 `'AbortError'` 的 `Error`**
+**[`DOMException`](../dom-exception.md)，`name` 是 `'AbortError'`**
 
 下载中途请求被取消，或者 `AbortSignal.timeout()` 到了时间。
 

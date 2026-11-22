@@ -166,12 +166,12 @@ async function savePin() {
     await kc.set('pin', '1234', { accessible: 'whenPasscodeSetThisDeviceOnly' });
   } catch (err) {
     const e = /** @type {KeychainError} */ (err);
-    console.log('写入失败:', e.name, e.code);
+    console.log('写入失败:', e.name, e.cause?.code);
   }
 }
 ```
 
-**结果**：设备设置了锁屏密码时写入成功，不输出。没设置时 Promise 被拒绝，输出错误的类别和错误码（**未在模拟器验证**：验收用的模拟器上这个级别写入成功）。各种 `name` 的含义见[出错时得到什么](../api/keychain.md#出错时得到什么)。
+**结果**：设备设置了锁屏密码时写入成功，不输出。没设置时 Promise 被拒绝，输出错误的类别和系统的错误码（**未在模拟器验证**：验收用的模拟器上这个级别写入成功）。各种 `name` 的含义见[出错时得到什么](../api/keychain.md#出错时得到什么)。
 
 ## 参见
 

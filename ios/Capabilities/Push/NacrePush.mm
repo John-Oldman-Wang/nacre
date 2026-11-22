@@ -92,7 +92,11 @@ NacreAsyncResult* Failure(NSString* name, NSString* message) {
   NSArray<NacreAsyncDone>* waiting = [self.pending copy];
   [self.pending removeAllObjects];
   for (NacreAsyncDone done in waiting) {
-    done(Failure(@"Error", error.localizedDescription ?: @"registration failed"));
+    // 映射不到 Web 的哪个名字：上层的兜底是 OperationError，系统的原值进 cause
+    NacreAsyncResult* r = Failure(@"OperationError", error.localizedDescription ?: @"registration failed");
+    r.errorCode = error.code;
+    r.errorDomain = error.domain ?: @"";
+    done(r);
   }
 }
 

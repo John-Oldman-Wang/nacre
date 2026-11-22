@@ -28,7 +28,7 @@ unlockForConfiguration()
 ## 说明
 
 - 交还之后，已经写进去的设置保持不变：手电筒开着的还开着，变焦倍数不变。
-- 交还之后再写手电筒、变焦、对焦这几个属性，抛 `TypeError`（实测）。要再改，再调一次 `lockForConfiguration()`。
+- 交还之后再写手电筒、变焦、对焦这几个属性，抛 `DOMException`，`name` 是 `'InvalidStateError'`（实测）。要再改，再调一次 `lockForConfiguration()`。
 - 没有锁着时调它会怎样，**未在真机验证**。
 
 ## 示例

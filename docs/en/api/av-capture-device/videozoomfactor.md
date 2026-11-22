@@ -22,8 +22,8 @@ A number, in multiples (×).
 
 ### Invalid values
 
-- Writing without the lock: throws `TypeError`, and the value doesn't change (verified by testing). The message is `videoZoomFactor: the system refused (…)`; the parentheses hold the reason the system gave, which says to lock first (`-lockForConfiguration:`).
-- Outside the writable range: throws `TypeError` (verified by testing), with the reason the system gave in the message.
+- Writing without the lock: throws a [`DOMException`](../dom-exception.md) whose `name` is `'InvalidStateError'`, and the value doesn't change (verified by testing). The message is `videoZoomFactor: the system refused (…)`; the parentheses hold the reason the system gave, which says to lock first (`-lockForConfiguration:`).
+- Outside the writable range: throws `RangeError`, and the value doesn't change (verified by testing). The message is `videoZoomFactor: the system refused (…)`, with the reason the system gave in the parentheses.
 - Can't be converted to a finite number: throws `TypeError`, for example `videoZoomFactor must be a finite number, got "abc"`.
 
 ## Examples
@@ -46,7 +46,7 @@ if (device !== null) {
 
 ## Corresponding iOS API
 
-`AVCaptureDevice.videoZoomFactor`. In ObjC, writing without the lock throws `NSGenericException`; here it's `TypeError`.
+`AVCaptureDevice.videoZoomFactor`. In ObjC, writing without the lock throws `NSGenericException`; here it throws a `DOMException` whose `name` is `'InvalidStateError'`.
 
 ## See also
 

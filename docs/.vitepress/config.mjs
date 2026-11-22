@@ -282,6 +282,8 @@ function sidebar(lang) {
             api('Event', 'event'),
             api('ErrorEvent', 'error-event'),
             api('PromiseRejectionEvent', 'promise-rejection-event'),
+            api('DOMException', 'dom-exception'),
+            api('NSError', 'ns-error'),
             api('OpenURLEvent', 'open-url-event'),
             api('application.nativeModules', 'native-modules'),
             api('NativeModule', 'native-module'),

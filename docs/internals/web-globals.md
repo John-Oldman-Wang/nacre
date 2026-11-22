@@ -29,7 +29,7 @@ jitless。这个运行时只有解释器，逐字节的循环在 JS 里比 C++ �
 
 它们小到可以写在 JS 里，但同样是逐字节的循环，而且 Base64 的输入常常很大（图片、文件）。放 C++ 的代价只是 `TextCodec.cpp` 里多七十行。
 
-JS 这一侧留了一件事：**抛带名字的 `Error`**。原生那边不合法时返回 `undefined`，JS 据此抛 `InvalidCharacterError`。在 C++ 里建一个改了 `name` 的 `Error` 也做得到（`structuredClone` 就是这么做的，因为抛的时机在 V8 的序列化内部，回不到 JS），但能在 JS 里建的就在 JS 里建，和 `crypto` 一致。
+JS 这一侧留了一件事：**抛 `DOMException`**。原生那边不合法时返回 `undefined`，JS 据此抛 `InvalidCharacterError`。`DOMException` 是内置脚本定义的，C++ 不认识它；`structuredClone` 抛的时机在 V8 的序列化内部，回不到 JS，所以由内置脚本把建它的函数传进去，见下面。
 
 ## TextEncoder：V8 自己的 UTF-8 写出
 
@@ -113,7 +113,7 @@ V8 有 `String::NewFromUtf8`，它也把非法的序列换成 U+FFFD。没用它
 
 V8 留给宿主的事通过一个委托（`ValueSerializer::Delegate`）来问，我们补了三件：
 
-**1. 「不能克隆」时抛什么。** 标准说 `DataCloneError`（一个 `DOMException`）。我们没有那个类，抛 `name` 是 `DataCloneError` 的 `Error`。信息用 V8 给的原文（`#<WeakMap> could not be cloned.`）。
+**1. 「不能克隆」时抛什么。** 标准说 `DataCloneError`（一个 `DOMException`）。内置脚本把建它的函数作为第三个参数传给 `native.structuredClone`，委托的 `ThrowDataCloneError` 调它；没传时退回 `name` 是 `DataCloneError` 的 `Error`。信息用 V8 给的原文（`#<WeakMap> could not be cloned.`）。2026-11-22 之前没有 `DOMException`，一直是后一种，见[报错](errors.md)。
 
 **2. 哪些普通对象其实不能克隆。** 这是最要紧的一件。原生对象的包装、结构体、`Event`、`URL`，在 V8 眼里全是普通的 JS 对象——包装对象没有内部字段（见[包装机制](wrapper.md)），V8 默认的判断（有没有内部字段）认不出它们。不拦的话 `structuredClone(view)` 会返回一个丢了原型和句柄的空对象，**而且不报错**。
 
@@ -162,7 +162,6 @@ V8 留给宿主的事通过一个委托（`ValueSerializer::Delegate`）来问�
 | | Web | 这里 | 为什么 |
 | --- | --- | --- | --- |
 | `TextDecoder` 的编码 | 几十种 | 只有 UTF-8，别的抛 `RangeError` | 别的编码各要一张表。网络和文件现在基本都是 UTF-8 |
-| 出错时抛的对象 | `DOMException` | 改了 `name` 的 `Error` | 没有 `DOMException` 这个类，和 `crypto`、`fetch` 一致 |
 | `transfer` | 转移 | 抛 `DataCloneError` | 见上 |
 | `SharedArrayBuffer` | 共用内存 | 抛 `DataCloneError` | 见上 |
 | `Blob` | 可以克隆 | 抛 `DataCloneError` | 它是原生对象的包装。要做的话得在 `WriteHostObject` 里认出它、另建一个指向同一份数据的 `Blob` |

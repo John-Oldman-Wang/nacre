@@ -14,8 +14,8 @@ Any value.
 - Read-only; assigning to it throws `TypeError`.
 - `undefined` before aborting.
 - When a reason was given with [`controller.abort(reason)`](../abort-controller/abort.md) or [`AbortSignal.abort(reason)`](abort.md), it is that value.
-- When no reason was given, it is an `Error` whose `name` is `'AbortError'` and whose `message` is `The operation was aborted`.
-- When [`AbortSignal.timeout()`](timeout.md) expires, it is an `Error` whose `name` is `'TimeoutError'` and whose `message` is `The operation timed out`.
+- When no reason was given, it is a [`DOMException`](../dom-exception.md) whose `name` is `'AbortError'`, whose `code` is 20, and whose `message` is `The operation was aborted`.
+- When [`AbortSignal.timeout()`](timeout.md) expires, it is a `DOMException` whose `name` is `'TimeoutError'`, whose `code` is 23, and whose `message` is `The operation timed out` (measured).
 - On aborting, the [`abort`](abort-event.md) event fires, and it doesn't change afterward.
 
 ## Examples
@@ -24,14 +24,14 @@ Any value.
 const controller = new AbortController();
 controller.abort();
 const reason = controller.signal.reason;
-console.log(reason instanceof Error ? reason.name : reason);
+console.log(reason instanceof DOMException ? reason.name + ' ' + reason.code : reason);
 ```
 
-**Result**: Prints `AbortError`.
+**Result**: Prints `AbortError 20`.
 
 ## Differences from the web
 
-The default reason is an `Error`, not a `DOMException`.
+Same as the web.
 
 ## See also
 

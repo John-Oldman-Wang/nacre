@@ -41,7 +41,7 @@ Not cancelable.
 
 ## When it fires
 
-- When a load the app started fails, at the same time as the `loadURL()` Promise is rejected; both carry the same information.
+- When a load the app started fails, at the same time as the `loadURL()` Promise is rejected; both carry the same information: `errorCode` is the same number as `cause.code` on the rejection error (measured).
 - When a load caused by the user tapping a link fails, it also fires.
 - A server returning 404 or 500 **is not a failure** and doesn't fire it.
 

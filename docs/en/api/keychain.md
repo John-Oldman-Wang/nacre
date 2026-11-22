@@ -99,14 +99,14 @@ Keychain operations run one after another in call order. Calling `set` twice on 
 
 ## What you get on error
 
-When an operation fails, the Promise rejects with an `Error` object (called `KeychainError` in the type definitions) that carries two extra properties:
+When an operation fails, the Promise rejects with a [`DOMException`](dom-exception.md) (called `KeychainError` in the type definitions). An argument of the wrong type throws `TypeError` on the spot; see each method's page.
 
 | Property | Type | Meaning |
 | --- | --- | --- |
 | `name` | `string` | The error category; values in the table below. Use it to tell what went wrong |
 | `message` | `string` | A description |
-| `code` | `number` | The system's raw error code (`OSStatus`). `0` when the `accessible` value isn't recognized |
-| `domain` | `string` | `'NSOSStatusErrorDomain'`. An empty string when the `accessible` value isn't recognized |
+| `code` | `number` | The legacy web numeric code for `name`; see [`DOMException`](dom-exception.md#names-the-runtime-gives) |
+| `cause` | [`NSError`](ns-error.md) or `undefined` | The system's original error: `cause.domain` is `'NSOSStatusErrorDomain'`, and `cause.code` is the system's error code (`OSStatus`). There is no `cause` when the `accessible` value isn't recognized (from the code; **not verified on a device**) |
 
 | `name` | When |
 | --- | --- |
@@ -114,7 +114,7 @@ When an operation fails, the Promise rejects with an `Error` object (called `Key
 | `'SecurityError'` | The app lacks the entitlement needed to access the keychain |
 | `'TypeMismatchError'` | Invalid arguments, including an unrecognized `accessible` value |
 | `'InvalidModificationError'` | An item conflict |
-| `'KeychainError'` | None of the above. Use `code` to tell them apart |
+| `'OperationError'` | None of the above. Use `cause.code` to tell them apart |
 
 Only the row "an unrecognized `accessible` value gives `'TypeMismatchError'`" has been verified in the simulator; the other rows come from the mapping in the code and are **not verified in the simulator**.
 
@@ -165,7 +165,7 @@ This code hasn't been run as a whole in the simulator. Every API it uses has bee
 | `kSecAttrAccessibleAlways`, `kSecAttrAccessibleAlwaysThisDeviceOnly` | None. Deprecated since iOS 12 |
 | `kSecAttrService` of `kSecClassGenericPassword` | Fixed to the app's bundle identifier |
 | `kSecAttrAccount` | `key` |
-| `OSStatus` | The Promise rejects; `err.code` is the raw value |
+| `OSStatus` | The Promise rejects with a `DOMException`; `err.cause.code` is the raw value |
 
 ## See also
 

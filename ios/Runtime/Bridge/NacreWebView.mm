@@ -80,7 +80,7 @@ static void RejectLoadWithError(NacreAsyncDone done, NSError* error) {
   BOOL network = [error.domain isEqualToString:NSURLErrorDomain];
   NSString* name = (network && error.code == NSURLErrorCancelled) ? @"AbortError"
                    : network                                      ? @"NetworkError"
-                                                                  : @"Error";
+                                                                  : @"OperationError";
   RejectLoad(done, name, error.localizedDescription ?: @"the page failed to load",
              error.code, error.domain);
 }
@@ -555,7 +555,7 @@ static BOOL OnlyFragmentDiffers(NSString* target, NSString* current) {
 - (void)webViewWebContentProcessDidTerminate:(WKWebView*)webView {
   self.crashed = YES;
   [self rejectPendingExcept:nil
-                       name:@"Error"
+                       name:@"OperationError"
                     message:@"the page's process is gone"];
   [self failAllInvokes:@"the page's process is gone"];
   [self emit:@"render-process-gone" payload:nil];
@@ -866,7 +866,7 @@ bool WebViewCallAsync(id object, const std::string& name, const std::string& arg
                       : [webView loadRequest:[NSURLRequest requestWithURL:url]];
   }
   if (navigation == nil) {
-    RejectLoad(done, @"Error", @"the page refused to start loading", 0, @"");
+    RejectLoad(done, @"OperationError", @"the page refused to start loading", 0, @"");
     return true;
   }
   contents.apiNavigationPending = YES;

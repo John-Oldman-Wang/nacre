@@ -18,7 +18,7 @@ abort(reason)
 
 **`reason`**
 
-The reason for cancellation, any value; optional. It becomes [`signal.reason`](../abort-signal/reason.md). When omitted, `signal.reason` is an `Error` whose `name` is `'AbortError'` and whose `message` is `The operation was aborted`.
+The reason for cancellation, any value; optional. It becomes [`signal.reason`](../abort-signal/reason.md). When omitted, `signal.reason` is a [`DOMException`](../dom-exception.md) whose `name` is `'AbortError'`, whose `code` is 20, and whose `message` is `The operation was aborted`.
 
 ### Return value
 
@@ -48,7 +48,6 @@ console.log(controller.signal.aborted, controller.signal.reason);
 
 ## Differences from the web
 
-- When `reason` is omitted, `reason` is an `Error` whose `name` is `'AbortError'`. On the web it is a `DOMException`.
 - When a request is canceled while in progress, `fetch()` throws a new `AbortError`, not `reason`.
 
 ## See also

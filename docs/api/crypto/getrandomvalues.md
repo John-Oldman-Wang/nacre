@@ -45,7 +45,7 @@ crypto.getRandomValues(array)
 
 系统的随机源失败：`the system random source failed`。验收过程中没有出现过这个错误。
 
-`QuotaExceededError`、`TypeMismatchError`、`OperationError` 是 `name` 被设成这几个值的 `Error` 对象，用 `err.name` 区分。
+`QuotaExceededError`、`TypeMismatchError`、`OperationError` 是 [`DOMException`](../dom-exception.md)，用 `err.name` 区分。它们的 `code` 依次是 22、17、0。
 
 ## 示例
 
@@ -69,7 +69,7 @@ console.log(token);
 try {
   crypto.getRandomValues(new Uint8Array(65537));
 } catch (err) {
-  console.log(/** @type {Error} */ (err).name);
+  console.log(/** @type {DOMException} */ (err).name);
 }
 ```
 
@@ -77,8 +77,7 @@ try {
 
 ## 和 Web 的差别
 
-- 出错时抛出的是 `Error`，不是 `DOMException`。`name` 相同，按 `err.name` 判断的代码照常工作；这里没有 `DOMException` 这个类。
-- 其余和 Web 相同。
+和 Web 相同。
 
 ## 参见
 

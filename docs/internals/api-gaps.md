@@ -1345,7 +1345,6 @@
 | 拷贝时把 `ArrayBuffer` 转移过去而不是复制 | `structuredClone()` 的 `transfer` | 未实现 |
 | 深拷贝 `Blob` | `structuredClone(blob)` | 未实现 |
 | 边读数据流边解码 | `TextDecoderStream` | 未实现。用 `decode()` 的 `stream` 选项逐段解码 |
-| 判断异常是不是 `DOMException` | `DOMException` 类 | 未实现。用 `err.name` 判断 |
 
 ## `WebSocket`
 

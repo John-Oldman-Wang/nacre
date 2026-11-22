@@ -16,6 +16,8 @@ async function rejects(label, fn, expectedName) {
     assert(label, '没有 reject', '以 ' + expectedName + ' reject');
   } catch (err) {
     assert(label, /** @type {any} */ (err).name, expectedName);
+    // 含义 Web 上有的都是 DOMException；TypeError 还是 TypeError
+    if (expectedName !== 'TypeError') assert(label + '：是 DOMException', err instanceof DOMException, true);
   }
 }
 

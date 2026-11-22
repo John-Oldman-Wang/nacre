@@ -18,7 +18,7 @@ abort(reason)
 
 **`reason`**
 
-取消的原因，任意值，可选。它会成为 [`signal.reason`](../abort-signal/reason.md)。不给时，`signal.reason` 是一个 `name` 为 `'AbortError'`、`message` 为 `The operation was aborted` 的 `Error`。
+取消的原因，任意值，可选。它会成为 [`signal.reason`](../abort-signal/reason.md)。不给时，`signal.reason` 是一个 [`DOMException`](../dom-exception.md)，`name` 是 `'AbortError'`，`code` 是 20，`message` 是 `The operation was aborted`。
 
 ### 返回值
 
@@ -48,7 +48,6 @@ console.log(controller.signal.aborted, controller.signal.reason);
 
 ## 和 Web 的差别
 
-- 不给 `reason` 时，`reason` 是 `name` 为 `'AbortError'` 的 `Error`。Web 里是 `DOMException`。
 - 请求进行中被取消时，`fetch()` 抛出新的 `AbortError`，不是 `reason`。
 
 ## 参见

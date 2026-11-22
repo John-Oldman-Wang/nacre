@@ -46,6 +46,8 @@ API 分两类：
 | [`Event`](event.md) | **`Event`** 表示一次事件：发生了什么（事件名）、派发给了谁、能不能取消。 |
 | [`ErrorEvent`](error-event.md) | **`ErrorEvent`** 表示一次没被捕获的异常。 |
 | [`PromiseRejectionEvent`](promise-rejection-event.md) | **`PromiseRejectionEvent`** 表示一次没有被处理的 Promise 拒绝。 |
+| [`DOMException`](dom-exception.md) | **`DOMException`** 表示一个按名字分类的错误。 |
+| [`NSError`](ns-error.md) | **`NSError`** 表示 iOS 系统给出的一个错误。 |
 | [`OpenURLEvent`](open-url-event.md) | **`OpenURLEvent`** 表示一次「本 App 被一条链接打开」。 |
 | [`application.nativeModules`](native-modules.md) | **`application.nativeModules`** 表示登记进这个 App 的全部原生模块。 |
 | [`NativeModule`](native-module.md) | **`NativeModule`** 表示一个登记进 App 的原生模块：一段用 ObjC 或 Swift 写的代码，按一个名字提供一组方法和一组事件。 |
@@ -270,7 +272,7 @@ API 分两类：
 | [`CLLocationManager`](cl-location-manager.md) | **`CLLocationManager`** 表示 App 向系统要位置的一个入口。 |
 | [`CLLocation`](cl-location.md) | **`CLLocation`** 表示系统量到的一个位置：经纬度、海拔、各个量的误差、速度、移动方向，以及这个位置是什么时候量的。 |
 | [`CLLocationCoordinate2D`](cl-location-coordinate-2d.md) | **`CLLocationCoordinate2D`** 表示地球上一个点的经纬度，单位是度。 |
-| [`CLLocationError`](cl-location-error.md) | **`CLLocationError`** 是定位出错时得到的 `Error` 对象。 |
+| [`CLLocationError`](cl-location-error.md) | **`CLLocationError`** 是定位出错时得到的错误。 |
 | [`UNUserNotificationCenter`](un-user-notification-center.md) | **`UNUserNotificationCenter`** 表示这个 App 和系统的通知功能之间的入口，整个 App 只有一个。 |
 | [`UNNotificationRequest`](un-notification-request.md) | **`UNNotificationRequest`** 表示一条要发的通知：标识、内容、什么时候送达。 |
 | [`UNNotificationContent`](un-notification-content.md) | **`UNNotificationContent`** 表示一条通知只读的内容：从请求的 `content` 读出来的，包括已经送达的通知和远程推送的通知里的。 |

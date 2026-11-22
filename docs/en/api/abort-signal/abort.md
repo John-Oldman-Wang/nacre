@@ -18,7 +18,7 @@ AbortSignal.abort(reason)
 
 **`reason`**
 
-The reason for aborting, any value, optional. If not given, it is an `Error` whose `name` is `'AbortError'` and whose `message` is `The operation was aborted`.
+The reason for aborting, any value, optional. If not given, it is a [`DOMException`](../dom-exception.md) whose `name` is `'AbortError'`, whose `code` is 20, and whose `message` is `The operation was aborted`.
 
 ### Return value
 
@@ -49,7 +49,7 @@ main();
 
 ## Differences from the web
 
-When `reason` isn't given, it is an `Error` whose `name` is `'AbortError'`. On the web it is a `DOMException`.
+Same as the web.
 
 ## See also
 

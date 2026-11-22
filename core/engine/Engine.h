@@ -11,6 +11,11 @@
 
 namespace nacre {
 
+// 宿主往 error 里写的那句话默认抛 TypeError。要抛别的类，开头写上这个标记：
+//   "\x01RangeError\x01超出范围的说明"、"\x01InvalidStateError\x01……"
+// 引擎把名字和说明交给内置脚本建错误（规则见 core/builtin/parts/05-dom-exception.js）
+inline constexpr char kNamedErrorMarker = '\x01';
+
 enum class LogLevel { Debug, Log, Info, Warn, Error };
 
 // 引擎需要宿主（iOS 层）提供的能力
@@ -306,9 +311,10 @@ class Engine {
   void SettleBytes(int call_id, void* data, size_t byte_length,
                    void (*deleter)(void* data, size_t length, void* info),
                    void* deleter_info);
-  // 拒绝。name 是错误类型（'TypeError' / 'AbortError' …），JS 侧据此建对应的 Error。
-  // detail_json 是一个对象，它的键会原样挂到 Error 上——留给映射盖不住的那部分
-  // 事实（文件错误的 code / domain 就是这么交出去的）。给空串表示没有。
+  // 拒绝。name 是错误类型（'TypeError' / 'AbortError' …），内置脚本据此建对应的类
+  // （TypeError、DOMException，或者平台的错误）。detail_json 是系统给的原值
+  // {"domain": …, "code": …}，平台建成它自己的错误（iOS 是 NSError）：Web 上
+  // 有的名字挂在 cause 上，别的名字就是那个错误本身。给空串表示没有。
   void RejectCall(int call_id, const std::string& name, const std::string& message,
                   const std::string& detail_json = "");
 

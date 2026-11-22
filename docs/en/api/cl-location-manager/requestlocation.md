@@ -29,11 +29,11 @@ When the Promise is rejected, you get a [`CLLocationError`](../cl-location-error
 
 | `name` | When |
 | --- | --- |
-| `'NotAllowedError'` | The authorization status isn't `'authorizedWhenInUse'` or `'authorizedAlways'`. Rejected immediately, with no prompt and no waiting. `code` is 1 and `domain` is `'kCLErrorDomain'` |
+| `'NotAllowedError'` | The authorization status isn't `'authorizedWhenInUse'` or `'authorizedAlways'`. Rejected immediately, with no prompt and no waiting. `cause.code` is 1 and `cause.domain` is `'kCLErrorDomain'` |
 | `'InvalidStateError'` | This `manager` is continuously updating |
 | `'AbortError'` | `startUpdatingLocation()` or `stopUpdatingLocation()` was called before it settled |
 | `'LocationUnknownError'` | The system can't determine the location. This is what happens in the simulator when no location is set. **Not verified in the simulator** |
-| `'NetworkError'`, `'CLError'` | Other errors reported by the system; `code` is the system's error code. **Not verified in the simulator** |
+| `'NetworkError'`, `'NSError'` | Other errors reported by the system. For `'NetworkError'` the system's error code is in `cause.code`; for `'NSError'` it is in `code`. **Not verified in the simulator** |
 
 The `message` of `'NotAllowedError'`: when authorization hasn't been requested yet, `requestLocation: location authorization has not been requested yet; call requestWhenInUseAuthorization() first`; for other statuses, something like `requestLocation: location access is denied`, where the last word is the current status.
 

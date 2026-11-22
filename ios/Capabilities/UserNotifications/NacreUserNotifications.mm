@@ -484,7 +484,7 @@ NSString* ErrorName(NSError* error) {
       error.code == UNErrorCodeNotificationsNotAllowed) {
     return @"NotAllowedError";
   }
-  return @"UNError";
+  return @"NSError";
 }
 
 NacreAsyncResult* Failure(NSString* name, NSString* message, NSInteger code,

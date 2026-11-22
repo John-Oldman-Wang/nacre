@@ -25,8 +25,8 @@ native: AVCaptureDevice.torchMode
 
 ### 写错时
 
-- 没锁就写：抛 `TypeError`，值不变（实测）。信息是 `torchMode: the system refused (…)`，括号里是系统给的原因，说的是要先锁（`-lockForConfiguration:`）。
-- 摄像头没有手电筒（[`hasTorch`](hastorch.md) 是 `false`）或者不支持这个取值：系统拒绝，抛 `TypeError`，信息里带系统给的原因。**未在真机验证。**
+- 没锁就写：抛 [`DOMException`](../dom-exception.md)，`name` 是 `'InvalidStateError'`，值不变（实测）。信息是 `torchMode: the system refused (…)`，括号里是系统给的原因，说的是要先锁（`-lockForConfiguration:`）。
+- 摄像头没有手电筒（[`hasTorch`](hastorch.md) 是 `false`）或者不支持这个取值：系统拒绝，抛 `DOMException`，`name` 是 `'InvalidStateError'`，信息里带系统给的原因。**未在真机验证。**
 - 写入表里没有的值：不抛异常，控制台输出一条警告，列出全部可用的值，`torchMode` 保持原来的值（实测）。
 
 ## 示例
@@ -48,7 +48,7 @@ if (device !== null && device.hasTorch) {
 
 ## 对应的 iOS API
 
-`AVCaptureDevice.torchMode`。`AVCaptureTorchModeOn` 写成 `'on'`，其余同理。ObjC 里没锁就写抛 `NSGenericException`，这里是 `TypeError`。
+`AVCaptureDevice.torchMode`。`AVCaptureTorchModeOn` 写成 `'on'`，其余同理。ObjC 里没锁就写抛 `NSGenericException`，这里抛 `DOMException`，`name` 是 `'InvalidStateError'`。
 
 ## 参见
 

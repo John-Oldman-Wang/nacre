@@ -46,6 +46,8 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 | [Event](event.md) | **`Event`** represents an event: what happened (the event name), whom it was dispatched to, and whether it can be canceled. |
 | [ErrorEvent](error-event.md) | **`ErrorEvent`** represents an uncaught exception. |
 | [PromiseRejectionEvent](promise-rejection-event.md) | **`PromiseRejectionEvent`** represents a Promise rejection that wasn't handled. |
+| [`DOMException`](dom-exception.md) | **`DOMException`** represents an error classified by name. |
+| [`NSError`](ns-error.md) | **`NSError`** represents an error given by iOS. |
 | [OpenURLEvent](open-url-event.md) | **`OpenURLEvent`** represents one occurrence of "this app was opened by a URL". |
 | [`application.nativeModules`](native-modules.md) | **`application.nativeModules`** represents all native modules registered in this app. |
 | [NativeModule](native-module.md) | **`NativeModule`** represents a native module registered in the app: a piece of code written in ObjC or Swift that provides a set of methods and a set of events under a name. |
@@ -270,7 +272,7 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 | [`CLLocationManager`](cl-location-manager.md) | **`CLLocationManager`** represents an entry point through which the app asks the system for location. |
 | [`CLLocation`](cl-location.md) | **`CLLocation`** represents a location measured by the system: latitude and longitude, altitude, the error of each measurement, speed, direction of movement, and when the location was measured. |
 | [`CLLocationCoordinate2D`](cl-location-coordinate-2d.md) | **`CLLocationCoordinate2D`** represents the latitude and longitude of a point on Earth, in degrees. |
-| [`CLLocationError`](cl-location-error.md) | **`CLLocationError`** is the `Error` object you get when location fails. |
+| [`CLLocationError`](cl-location-error.md) | **`CLLocationError`** is the error you get when location fails. |
 | [`UNUserNotificationCenter`](un-user-notification-center.md) | **`UNUserNotificationCenter`** represents the entry point between this app and the system's notification features; there is only one per app. |
 | [`UNNotificationRequest`](un-notification-request.md) | **`UNNotificationRequest`** represents a notification to be sent: an identifier, the content, and when to deliver it. |
 | [`UNNotificationContent`](un-notification-content.md) | **`UNNotificationContent`** represents the read-only content of a notification, read from a request's `content`, including those of delivered notifications and remote push notifications. |

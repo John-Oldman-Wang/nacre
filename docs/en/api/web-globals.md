@@ -46,7 +46,7 @@ The conversion uses UTF-8. The number of bytes a character takes isn't fixed, so
 
 ## The two Base64 functions work on bytes, not text
 
-`btoa()` takes a string, but it treats each character as one byte (0–255). When the string contains Chinese characters or emoji, `btoa()` throws, with `name` set to `InvalidCharacterError`.
+`btoa()` takes a string, but it treats each character as one byte (0–255). When the string contains Chinese characters or emoji, `btoa()` throws a [`DOMException`](dom-exception.md) with `name` set to `InvalidCharacterError`.
 
 To encode arbitrary text as Base64, first convert it to bytes with `TextEncoder`; see [Encoding text as Base64](../guides/text-and-bytes.md#encoding-text-as-base64).
 
@@ -71,7 +71,7 @@ console.log(binary.length, again[2]);
 
 ## Values that can't be deep-copied
 
-`structuredClone()` copies data. The following aren't data; passing them throws, with `name` set to `DataCloneError`:
+`structuredClone()` copies data. The following aren't data; passing them throws a `DOMException` with `name` set to `DataCloneError`:
 
 - Functions and `Symbol`s.
 - Native objects: `UIView`, `UIColor`, `UIImage`, `Blob`, and instances of every other native class.
@@ -122,7 +122,6 @@ The names, parameters, and return values of the three functions are the same as 
 
 | Situation | Browser | Here |
 | --- | --- | --- |
-| The object thrown on error by `btoa`, `atob`, and `structuredClone` | `DOMException` | `Error`, with the same `name` (`InvalidCharacterError`, `DataCloneError`). Code that checks `err.name` works as usual; code that checks `instanceof DOMException` doesn't, because there is no `DOMException` class here |
 | `structuredClone(value, { transfer: [buffer] })` | Transfers `buffer` to the copy; the original can't be used anymore | Throws `DataCloneError`. Without `transfer`, `buffer` is copied |
 | `structuredClone(new SharedArrayBuffer(8))` | The copy and the original share the same memory | Throws `DataCloneError` |
 | `structuredClone(new Blob(['x']))` | Works | Throws `DataCloneError` |

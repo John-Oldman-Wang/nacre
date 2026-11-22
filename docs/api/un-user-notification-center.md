@@ -144,18 +144,12 @@ Illegal constructor: UNUserNotificationCenter is created by the runtime, not by 
 
 ## 错误
 
-返回 Promise 的方法被拒绝时，给的是一个 `Error`（类型定义里叫 `UNError`），多三个字段：
+返回 Promise 的方法被拒绝时，给的错误类型定义里叫 `UNError`。按 `name` 分两种：
 
-| 字段 | 含义 |
-| --- | --- |
-| `name` | 分类，见下表 |
-| `code` | 系统的错误码（整数） |
-| `domain` | 系统的错误域，通知的错误是 `'UNErrorDomain'` |
-
-| `name` | 含义 |
-| --- | --- |
-| `'NotAllowedError'` | 用户没有允许这个 App 发通知（`code` 是 1） |
-| `'UNError'` | 系统报告的其他错误，看 `code`。Apple 的头文件里列出的有 1400（触发器算不出下一次的时刻）、1401（通知没有内容）、1600（角标的数无效） |
+| `name` | 含义 | 是哪种错误 |
+| --- | --- | --- |
+| `'NotAllowedError'` | 用户没有允许这个 App 发通知 | [`DOMException`](dom-exception.md)。系统给的原值在 `cause` 上，是一个 [`NSError`](ns-error.md)：`cause.domain` 是 `'UNErrorDomain'`，`cause.code` 是 1 |
+| `'NSError'` | 系统报告的其他错误，看 `code`。Apple 的头文件里列出的有 1400（触发器算不出下一次的时刻）、1401（通知没有内容）、1600（角标的数无效） | [`NSError`](ns-error.md)。`code` 是系统的错误码，`domain` 是系统的错误域，通知的错误是 `'UNErrorDomain'` |
 
 哪种情况下系统报哪个错误码，**未在模拟器验证**。
 
@@ -264,7 +258,7 @@ application.addEventListener('sceneconnect', (e) => {
 | `userNotificationCenter:willPresentNotification:withCompletionHandler:` | `notification` 事件，`event.notification` |
 | 在上面那个方法里调 `completionHandler(UNNotificationPresentationOptionBanner \| UNNotificationPresentationOptionSound)` | 预先设 `center.foregroundPresentationOptions = ['banner', 'sound']` |
 | `userNotificationCenter:didReceiveNotificationResponse:withCompletionHandler:` | `notificationclick` 事件，`event.response` |
-| `error.code == UNErrorCodeNotificationsNotAllowed` | `error.name === 'NotAllowedError'` |
+| `error.code == UNErrorCodeNotificationsNotAllowed` | `error.name === 'NotAllowedError'`，系统的 `NSError` 在 `error.cause` 上 |
 
 ## 参见
 

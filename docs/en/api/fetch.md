@@ -76,7 +76,7 @@ The names in the `fetch` group of APIs are the same as on the web. The differenc
 | `init.mode`, `init.credentials`, `init.cache`, `init.redirect` | Not available; writing them has no effect |
 | CORS preflight, same-origin policy | None; any URL can be requested |
 | Headers such as `Host` and `Cookie` can't be set | All can be set |
-| Cancellation throws `signal.reason`, a `DOMException` by default | Throws an `Error` whose `name` is `'AbortError'`. There is no `DOMException` class |
+| Cancellation throws `signal.reason`, a `DOMException` by default | Throws a new [`DOMException`](dom-exception.md) whose `name` is `'AbortError'`, not `signal.reason` |
 | After `AbortSignal.timeout()` runs out, `fetch()` throws `TimeoutError` | Throws `AbortError` |
 | `res.statusText` | Always the empty string on responses from `fetch()` |
 | `res.text()` decodes using the encoding the response declares, replacing invalid bytes with the replacement character | Always decodes as UTF-8; gives an empty string when invalid |

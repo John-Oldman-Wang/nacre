@@ -38,11 +38,11 @@ interface LAEvaluatePolicyOptions {
  * 认证没通过时 `evaluatePolicy()` 拒绝的 `Error`；`canEvaluatePolicyError()`
  * 返回的也是它。
  *
- * `name` 说是哪一种；`code` 是系统的 `LAError` 原值，`domain` 是
+ * 是 `NSError`：`name` 说是哪一种；`code` 是系统的 `LAError` 原值，`domain` 是
  * `'com.apple.LocalAuthentication'`。
  */
-interface LAError extends Error {
-  name:
+interface LAError extends NSError {
+  readonly name:
     /** 用户没能通过认证（比如几次都没认出来）。 */
     | 'AuthenticationFailedError'
     /** 用户点了取消。 */
@@ -66,9 +66,7 @@ interface LAError extends Error {
     /** 需要出界面，而 `interactionNotAllowed` 是 `true`。 */
     | 'NotInteractiveError'
     /** 上面没列到的。看 `code`。 */
-    | 'LAError';
-  code: number;
-  domain: string;
+    | 'NSError';
 }
 
 /**

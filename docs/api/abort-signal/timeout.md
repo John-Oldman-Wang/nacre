@@ -21,7 +21,7 @@ AbortSignal.timeout(ms)
 
 ### 返回值
 
-新的 `AbortSignal`。到时间时取消，[`reason`](reason.md) 是一个 `name` 为 `'TimeoutError'`、`message` 为 `The operation timed out` 的 `Error`。
+新的 `AbortSignal`。到时间时取消，[`reason`](reason.md) 是一个 [`DOMException`](../dom-exception.md)，`name` 是 `'TimeoutError'`，`code` 是 23，`message` 是 `The operation timed out`（实测）。
 
 ### 异常
 
@@ -51,7 +51,6 @@ main();
 ## 和 Web 的差别
 
 - 到时间后 `fetch()` 抛出 `AbortError`。Web 里抛出 `TimeoutError`。
-- `reason` 是 `name` 为 `'TimeoutError'` 的 `Error`。Web 里是 `DOMException`。
 - `ms` 转换结果不是数时按 0 处理。Web 里抛 `TypeError`。**来自代码，未在模拟器验证。**
 
 ## 参见

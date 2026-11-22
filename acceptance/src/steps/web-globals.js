@@ -313,6 +313,7 @@ export function stepWebGlobals(ctx) {
     const error = failure(() => btoa('你'));
     assert('btoa 抛的是 Error 的实例', error instanceof Error, true);
     assert('btoa 抛的错 name 是 InvalidCharacterError', error.name, 'InvalidCharacterError');
+    assert('btoa 抛的是 DOMException，code 5', error instanceof DOMException && error.code, 5);
   }
   const decodedBase64 = (/** @type {string} */ text) => units(atob(text));
   literal('atob：四个字符三个字节', () => atob('YWJj'), 'abc');
@@ -343,6 +344,7 @@ export function stepWebGlobals(ctx) {
     const error = failure(() => atob('!'));
     assert('atob 抛的是 Error 的实例', error instanceof Error, true);
     assert('atob 抛的错 name 是 InvalidCharacterError', error.name, 'InvalidCharacterError');
+    assert('atob 抛的是 DOMException', error instanceof DOMException, true);
   }
   literal('0 到 255 每个字节值编了再解，原样回来', () => {
     let all = '';
@@ -544,6 +546,7 @@ export function stepWebGlobals(ctx) {
     const error = failure(() => structuredClone(() => {}));
     assert('DataCloneError 是 Error 的实例', error instanceof Error, true);
     assert('DataCloneError 的 name', error.name, 'DataCloneError');
+    assert('DataCloneError 是 DOMException', error instanceof DOMException, true);
     assert('DataCloneError 的信息里说了不能克隆', error.message.includes('could not be cloned'), true);
   }
   // 运行时自己的对象：原生对象的包装、结构体、事件、网络那几个类

@@ -39,6 +39,7 @@ The top level is the place for things that don't involve the interface: reading 
 - Networking: `fetch`, `URL`, `WebSocket`
 - [Text, bytes, and deep copies](web-globals.md): `TextEncoder`, `TextDecoder`, `btoa`, `atob`, `structuredClone`
 - Events: `EventTarget`, `addEventListener()`
+- Errors: [`DOMException`](dom-exception.md), [`NSError`](ns-error.md)
 - iOS native classes: `UIView`, `UIButton`, `UILabel`, and so on, using their original names
 
 The only native classes available are those listed in the [API overview](README.md). iOS classes not listed don't exist in JS; reading their names throws `ReferenceError`.

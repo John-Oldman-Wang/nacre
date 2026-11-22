@@ -18,7 +18,7 @@ status: partial
 
 [`AVCaptureDeviceInput()`](av-capture-device-input/constructor.md)
 
-把一个摄像头包成会话的输入。没有授权时抛 `Error`。
+把一个摄像头包成会话的输入。没有授权时抛 [`NSError`](ns-error.md)。
 
 ## 实例属性
 
@@ -58,7 +58,7 @@ if (camera !== null) {
 
 | ObjC | JS |
 | --- | --- |
-| `[AVCaptureDeviceInput deviceInputWithDevice:device error:&error]`，失败时返回 `nil` | `new AVCaptureDeviceInput(device)`，失败时抛 `Error` |
+| `[AVCaptureDeviceInput deviceInputWithDevice:device error:&error]`，失败时返回 `nil` | `new AVCaptureDeviceInput(device)`，失败时抛 `NSError`，`domain` 是空串、`code` 是 0，系统给的原因在 `message` 里 |
 | `input.device` | `input.device` |
 
 ## 参见

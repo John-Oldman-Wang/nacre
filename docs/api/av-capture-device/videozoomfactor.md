@@ -22,8 +22,8 @@ native: AVCaptureDevice.videoZoomFactor
 
 ### 写错时
 
-- 没锁就写：抛 `TypeError`，值不变（实测）。信息是 `videoZoomFactor: the system refused (…)`，括号里是系统给的原因，说的是要先锁（`-lockForConfiguration:`）。
-- 超出能写的范围：抛 `TypeError`（实测），信息里带系统给的原因。
+- 没锁就写：抛 [`DOMException`](../dom-exception.md)，`name` 是 `'InvalidStateError'`，值不变（实测）。信息是 `videoZoomFactor: the system refused (…)`，括号里是系统给的原因，说的是要先锁（`-lockForConfiguration:`）。
+- 超出能写的范围：抛 `RangeError`，值不变（实测）。信息是 `videoZoomFactor: the system refused (…)`，括号里是系统给的原因。
 - 转不出有限数：抛 `TypeError`，比如 `videoZoomFactor must be a finite number, got "abc"`。
 
 ## 示例
@@ -46,7 +46,7 @@ if (device !== null) {
 
 ## 对应的 iOS API
 
-`AVCaptureDevice.videoZoomFactor`。ObjC 里没锁就写抛 `NSGenericException`，这里是 `TypeError`。
+`AVCaptureDevice.videoZoomFactor`。ObjC 里没锁就写抛 `NSGenericException`，这里抛 `DOMException`，`name` 是 `'InvalidStateError'`。
 
 ## 参见
 

@@ -76,7 +76,7 @@ load().catch((err) => {
 | `init.mode`、`init.credentials`、`init.cache`、`init.redirect` | 没有，写了不起作用 |
 | CORS 预检、同源策略 | 没有，可以请求任何地址 |
 | 不允许设置 `Host`、`Cookie` 等请求头 | 都可以设置 |
-| 取消时抛出 `signal.reason`，默认是 `DOMException` | 抛出 `name` 为 `'AbortError'` 的 `Error`。没有 `DOMException` 这个类 |
+| 取消时抛出 `signal.reason`，默认是 `DOMException` | 抛出一个新的 [`DOMException`](dom-exception.md)，`name` 是 `'AbortError'`，不是 `signal.reason` |
 | `AbortSignal.timeout()` 到时间后 `fetch()` 抛出 `TimeoutError` | 抛出 `AbortError` |
 | `res.statusText` | `fetch()` 得到的响应上永远是空串 |
 | `res.text()` 按响应声明的编码解码，不合法的字节换成替换字符 | 一律按 UTF-8 解码，不合法时得到空串 |

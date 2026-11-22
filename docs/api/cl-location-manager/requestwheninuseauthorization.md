@@ -31,7 +31,7 @@ Promise 被拒绝时得到 [`CLLocationError`](../cl-location-error.md)：
 | --- | --- |
 | `'InvalidStateError'` | Info.plist 里没有 `NSLocationWhenInUseUsageDescription`。用 Nacre 的命令行工具生成的工程不会出现这种情况，它在生成时就检查了 |
 | `'InvalidStateError'` | App 在后台。系统只在用户正在用 App 时才问 |
-| `'CLError'` | 系统报告提示框没有展示给用户。**未在模拟器验证** |
+| `'NSError'` | 系统报告提示框没有展示给用户。**未在模拟器验证** |
 
 两种 `'InvalidStateError'` 的 `message`：
 

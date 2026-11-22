@@ -120,9 +120,7 @@
       const refused = nativeCall(scene, 'requestGeometryUpdateWithPreferences:', [preferences]);
       if (refused !== null) {
         scene.removeEventListener('geometrychange', onChange);
-        const error = /** @type {Error & { code?: number }} */ (new Error(refused.message));
-        error.code = refused.code;
-        reject(error);
+        reject(ctx.makeError('NSError', refused.message, refused));
       }
     });
   });

@@ -22,7 +22,7 @@ UIKit 是一对调用：`beginBackgroundTaskWithName:expirationHandler:` 拿一�
 
 过期的 block 是系统在调用里执行、执行完就要把号交回去的，所以用 `NacreCallBlock` 当场调回 JS：JS 在里面中止 `signal`（`abort` 事件的监听器跟着同步跑），回到原生之后马上 `endBackgroundTask:`，不等 work 的 Promise。这和[事件能不能取消](events.md)里「系统这一刻正在做一件 JS 要跟着做的事，当场派发」是同一类。
 
-`signal.reason` 是名字为 `TimeoutError` 的 `Error`。Web 上是 `DOMException`，我们没有那个类，和 `AbortSignal.timeout()` 的做法一致。
+`signal.reason` 是 `DOMException` `TimeoutError`，和 `AbortSignal.timeout()` 一致（2026-11-22 之前是改了名字的 `Error`，见[报错](errors.md)）。
 
 ## 原生只做三件事，走类方法的通道
 

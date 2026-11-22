@@ -29,11 +29,11 @@ Promise 被拒绝时得到 [`CLLocationError`](../cl-location-error.md)：
 
 | `name` | 什么时候 |
 | --- | --- |
-| `'NotAllowedError'` | 授权状态不是 `'authorizedWhenInUse'` 或 `'authorizedAlways'`。当场拒绝，不弹提示框，不等待。`code` 是 1，`domain` 是 `'kCLErrorDomain'` |
+| `'NotAllowedError'` | 授权状态不是 `'authorizedWhenInUse'` 或 `'authorizedAlways'`。当场拒绝，不弹提示框，不等待。`cause.code` 是 1，`cause.domain` 是 `'kCLErrorDomain'` |
 | `'InvalidStateError'` | 这个 `manager` 正在连续更新 |
 | `'AbortError'` | 结算之前调了 `startUpdatingLocation()` 或 `stopUpdatingLocation()` |
 | `'LocationUnknownError'` | 系统定不出位置。模拟器上没有设位置时就是这样。**未在模拟器验证** |
-| `'NetworkError'`、`'CLError'` | 系统报告的其他错误，`code` 是系统的错误码。**未在模拟器验证** |
+| `'NetworkError'`、`'NSError'` | 系统报告的其他错误。`'NetworkError'` 的系统错误码在 `cause.code`，`'NSError'` 的在 `code`。**未在模拟器验证** |
 
 `'NotAllowedError'` 的 `message`：还没申请过时是 `requestLocation: location authorization has not been requested yet; call requestWhenInUseAuthorization() first`；其他状态是 `requestLocation: location access is denied` 这样，最后一个词是当前的状态。
 

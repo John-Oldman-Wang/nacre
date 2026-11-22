@@ -34,7 +34,11 @@ None (`undefined`). The method returns right away, and the zoom happens over the
 - `withRate` is missing: `rampToVideoZoomFactor needs options.withRate` (verified by testing).
 - `factor` can't be converted to a finite number: `rampToVideoZoomFactor must be a finite number, got …`.
 - `withRate` can't be converted to a finite number: `withRate must be a finite number, got …`.
-- The system refuses the factor: the message includes the reason the system gave. Which values are refused is **not verified on a device**.
+- The system refuses the factor for a reason that isn't one of the two below. Which values are refused is **not verified on a device**.
+
+**`RangeError`, [`DOMException`](../dom-exception.md)**
+
+When the system refuses, the exception depends on the system's reason: `RangeError` when the system says a value is out of range, a `DOMException` whose `name` is `'InvalidStateError'` when it says the current state doesn't allow it, and `TypeError` otherwise. The message is `rampToVideoZoomFactor: the system refused (…)`, with the reason the system gave in the parentheses. This comes from the code and is **not verified on a device**.
 
 ## Description
 

@@ -172,8 +172,8 @@ declare interface UIActivityViewControllerCompletionEvent extends Event {
   readonly activityType: UIActivityType | (string & {}) | null;
   /** `true`：选的动作做完了。`false`：没做，包括用户直接把面板关掉。 */
   readonly completed: boolean;
-  /** 动作失败时的错误，带 `code` 和 `domain`；没有就是 `null`。 */
-  readonly activityError: (Error & { readonly code: number; readonly domain: string }) | null;
+  /** 动作失败时系统给的错误，`code` 和 `domain` 是原值；没有就是 `null`。 */
+  readonly activityError: NSError | null;
 }
 
 /**

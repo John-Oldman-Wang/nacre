@@ -194,6 +194,14 @@ NSString* JoinEnumNames(NSDictionary<NSString*, NSNumber*>* table);
 
 /// 枚举写错时的报错文案，把可选值列全
 std::string EnumError(NSString* what, id _Nullable given, NSString* choices);
+
+/// 同步报错（往 error 里写的那句话）默认抛 TypeError。要抛别的类，用它包一下：
+///   *error = NacreNamedError(@"RangeError", message);
+///   *error = NacreNamedError(@"InvalidStateError", message);   // DOMException
+/// 开头的 \x01 是引擎认的标记（core/engine/Engine.h 的 kNamedErrorMarker）
+static inline std::string NacreNamedError(NSString* name, NSString* message) {
+  return std::string(1, '\x01') + name.UTF8String + '\x01' + message.UTF8String;
+}
 // ---- 能力域的注册 ----
 //
 // 分发链原来是一串写死的 if：每个能力域一个函数，按顺序问「认不认领」。

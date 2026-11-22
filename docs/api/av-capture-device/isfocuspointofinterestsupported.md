@@ -12,7 +12,7 @@ native: AVCaptureDevice.focusPointOfInterestSupported
 布尔值。
 
 - `true`：支持。iPhone 14 的后置摄像头是 `true`（实测）。
-- `false`：不支持。这时写 `focusPointOfInterest` 会被系统拒绝，抛 `TypeError`（**未在真机验证**）。
+- `false`：不支持。这时写 `focusPointOfInterest` 会被系统拒绝，抛 `DOMException`，`name` 是 `'InvalidStateError'`（**未在真机验证**）。
 - 只读。给它赋值抛 `TypeError`。
 - 一个摄像头的这个值不会变，所以没有变化事件。
 

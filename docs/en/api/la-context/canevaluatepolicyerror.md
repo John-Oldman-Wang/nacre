@@ -24,7 +24,7 @@ The policy, `'deviceOwnerAuthenticationWithBiometrics'` or `'deviceOwnerAuthenti
 ### Return value
 
 - `null` when [`canEvaluatePolicy()`](canevaluatepolicy.md) returns `true`.
-- When it returns `false`, an `Error` object, a new one on each call. It is the same kind that `evaluatePolicy()` rejects with when authentication fails, carrying `name`, `message`, `code`, and `domain`; see [Reasons authentication failed](../la-context.md#reasons-authentication-failed). `message` is the system's explanation, such as `Biometry is not enrolled.`; `domain` is always `'com.apple.LocalAuthentication'`.
+- When it returns `false`, an [`NSError`](../ns-error.md), a new one on each call. It is the same kind that `evaluatePolicy()` rejects with when authentication fails, carrying `name`, `message`, `code`, and `domain`; see [Reasons authentication failed](../la-context.md#reasons-authentication-failed). `message` is the system's explanation, such as `Biometry is not enrolled.`; `domain` is always `'com.apple.LocalAuthentication'`.
 
 In this case `name` is one of the following:
 

@@ -83,9 +83,7 @@
       static timeout(ms) {
         const s = makeSignal();
         setTimeout(() => {
-          const err = new Error('The operation timed out');
-          err.name = 'TimeoutError';
-          abortSignal(s, err);
+          abortSignal(s, new ctx.DOMException('The operation timed out', 'TimeoutError'));
         }, Number(ms) || 0);
         return s;
       }
@@ -101,9 +99,7 @@
     if (signal[kAborted]) return;   // 只中止一次
     signal[kAborted] = true;
     if (reason === undefined) {
-      const err = new Error('The operation was aborted');
-      err.name = 'AbortError';   // Web 用 DOMException，我们没有那个类
-      signal[kReason] = err;
+      signal[kReason] = new ctx.DOMException('The operation was aborted', 'AbortError');
     } else {
       signal[kReason] = reason;
     }
@@ -160,9 +156,7 @@
   const reading = new Set();
 
   function abortError() {
-    const err = new Error('The operation was aborted');
-    err.name = 'AbortError';   // Web 用 DOMException，我们没有那个类
-    return err;
+    return new ctx.DOMException('The operation was aborted', 'AbortError');
   }
 
   // blob：自己构造的 Request / Response 的内容（没有内容时不建状态，kBody 是 null）。

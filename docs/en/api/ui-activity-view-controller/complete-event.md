@@ -21,7 +21,7 @@ Its type is `UIActivityViewControllerCompletionEvent`. The listener callback's p
 | --- | --- | --- |
 | `completed` | `boolean` | `true`: the action the user chose is done. `false`: it wasn't done, including when the user simply closed the share sheet |
 | `activityType` | `string \| null` | The destination the user chose: one of the [names of system actions](../ui-activity-view-controller.md#names-of-system-actions), or a third-party extension's own identifier (a dotted string). `null` if closed without choosing |
-| `activityError` | `Error \| null` | The error when the action failed; `message` is the system's description, plus `code` (a number) and `domain` (a string). `null` if there was no error |
+| `activityError` | [`NSError`](../ns-error.md) `\| null` | The error the system gave when the action failed. Its `name` is `'NSError'`, `message` is the system's description, and `domain` and `code` are the system's error domain and error code. `null` if there was no error |
 
 - `type` is `'complete'` and `target` is the share sheet.
 - Not cancelable; `preventDefault()` has no effect.

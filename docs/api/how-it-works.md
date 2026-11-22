@@ -39,6 +39,7 @@ application.addEventListener('sceneconnect', (e) => {
 - 网络：`fetch`、`URL`、`WebSocket`
 - [文字、字节和深拷贝](web-globals.md)：`TextEncoder`、`TextDecoder`、`btoa`、`atob`、`structuredClone`
 - 事件：`EventTarget`、`addEventListener()`
+- 错误：[`DOMException`](dom-exception.md)、[`NSError`](ns-error.md)
 - iOS 的原生类：`UIView`、`UIButton`、`UILabel` 等，直接用原名
 
 能用的原生类只有 [API 总览](README.md)里列出的那些。没列出的 iOS 类在 JS 里不存在，读它的名字会抛 `ReferenceError`。

@@ -246,13 +246,14 @@ export function stepWebView(ctx) {
     catch (err) { failure = err; }
     assert('域名解析不了：Promise 拒绝', failure instanceof Error, true);
     assert('拒绝的错误 name 是 NetworkError', failure && failure.name, 'NetworkError');
-    assert('错误上有系统的 domain', failure && failure.domain, 'NSURLErrorDomain');
-    console.log('  实测：域名解析不了的 code = ' + (failure && failure.code) +
+    assert('拒绝的是 DOMException', failure instanceof DOMException, true);
+    assert('系统的 domain 在 cause 上', failure && failure.cause && failure.cause.domain, 'NSURLErrorDomain');
+    console.log('  实测：域名解析不了的 code = ' + (failure && failure.cause && failure.cause.code) +
                 '，message = ' + (failure && failure.message));
     assert('同时收到一次 did-fail-load', failures.length, 1);
     if (failures.length > 0) {
       assert('did-fail-load 的 errorCode 和拒绝的 code 是同一个数',
-             failures[0].errorCode, failure && failure.code);
+             failures[0].errorCode, failure && failure.cause && failure.cause.code);
       assert('validatedURL 是失败的那个地址',
              failures[0].validatedURL, 'https://nacre-does-not-exist.invalid/');
       assert('isMainFrame 是 true', failures[0].isMainFrame, true);
@@ -275,7 +276,8 @@ export function stepWebView(ctx) {
     let stopError = null;
     try { await stopped; } catch (err) { stopError = err; }
     assert('stop() 停掉的加载：拒绝，AbortError', stopError && stopError.name, 'AbortError');
-    assert('被停掉的 code 是 -999', stopError && stopError.code, -999);
+    assert('被停掉的是 DOMException', stopError instanceof DOMException, true);
+    assert('被停掉的 cause.code 是 -999', stopError && stopError.cause && stopError.cause.code, -999);
     await sleep(200);
     console.log('  实测：被 stop() 停掉时 did-fail-load 来了 ' + failures.length + ' 次' +
                 (failures.length > 0 ? '，errorCode = ' + failures[0].errorCode : ''));
@@ -591,7 +593,8 @@ export function stepWebView(ctx) {
     let missing = null;
     try { await localContents.loadFile('JS/assets/web/nope.html'); } catch (err) { missing = err; }
     assert('文件不存在：拒绝，NetworkError', missing && missing.name, 'NetworkError');
-    assert('文件不存在：code 是 -1100', missing && missing.code, -1100);
+    assert('文件不存在：是 DOMException', missing instanceof DOMException, true);
+    assert('文件不存在：cause.code 是 -1100', missing && missing.cause && missing.cause.code, -1100);
     assert('文件不存在：同时派发 did-fail-load', localFailures.join(','), '-1100');
     assert('路径是空串：拒绝，TypeError', await outcome(localContents.loadFile('')), 'TypeError');
 

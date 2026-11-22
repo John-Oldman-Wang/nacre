@@ -25,8 +25,8 @@ A string, one of these three:
 
 ### Invalid values
 
-- Writing without the lock: throws `TypeError`, and the value doesn't change (verified by testing). The message is `autoFocusRangeRestriction: the system refused (…)`; the parentheses hold the reason the system gave, which says to lock first (`-lockForConfiguration:`).
-- The camera doesn't support restricting the range: the system refuses, and it throws `TypeError` with the reason the system gave. **Not verified on a device.** The rear camera of an iPhone 14 supports it (verified by testing).
+- Writing without the lock: throws a [`DOMException`](../dom-exception.md) whose `name` is `'InvalidStateError'`, and the value doesn't change (verified by testing). The message is `autoFocusRangeRestriction: the system refused (…)`; the parentheses hold the reason the system gave, which says to lock first (`-lockForConfiguration:`).
+- The camera doesn't support restricting the range: the system refuses, and it throws a `DOMException` whose `name` is `'InvalidStateError'`, with the reason the system gave in the message. **Not verified on a device.** The rear camera of an iPhone 14 supports it (verified by testing).
 - Writing a value not in the table doesn't throw: a warning listing all valid values is printed to the console, and the value doesn't change (verified by testing).
 
 ## Examples
@@ -48,7 +48,7 @@ if (device !== null) {
 
 ## Corresponding iOS API
 
-`AVCaptureDevice.autoFocusRangeRestriction`. `AVCaptureAutoFocusRangeRestrictionNear` is written as `'near'`, and so on. In ObjC you ask `autoFocusRangeRestrictionSupported` before writing; here, writing throws `TypeError` when the camera doesn't support it.
+`AVCaptureDevice.autoFocusRangeRestriction`. `AVCaptureAutoFocusRangeRestrictionNear` is written as `'near'`, and so on. In ObjC you ask `autoFocusRangeRestrictionSupported` before writing; here, writing throws a `DOMException` whose `name` is `'InvalidStateError'` when the camera doesn't support it.
 
 ## See also
 

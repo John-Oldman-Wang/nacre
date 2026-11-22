@@ -82,11 +82,7 @@
     canEvaluatePolicyError(policy) {
       const fields = nativeCall(this, 'canEvaluatePolicyError:', [policy]);
       if (fields == null) return null;
-      const error = new Error(fields.message);
-      error.name = fields.name;
-      error.code = fields.code;
-      error.domain = fields.domain;
-      return error;
+      return ctx.makeError(fields.name, fields.message, fields);
     }
 
     // evaluatePolicy:localizedReason:reply:。reply 是 block，所以是 Promise：

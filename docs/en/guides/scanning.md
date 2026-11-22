@@ -163,7 +163,7 @@ cameraAccess().then((status) => {
 Two things to know:
 
 - The alert appears even without asking first: calling `new AVCaptureDeviceInput(camera)` before the user has been asked shows the same alert at that moment (verified by testing). Asking first lets you know the result before connecting the camera.
-- Without permission, `new AVCaptureDeviceInput(camera)` throws `Error` (verified by testing). So confirm permission first, then create the input.
+- Without permission, `new AVCaptureDeviceInput(camera)` throws an [`NSError`](../api/ns-error.md) (verified by testing). So confirm permission first, then create the input.
 
 ## Only recognize codes inside a frame
 
@@ -372,8 +372,8 @@ torchButton.addEventListener('click', () => {
 **Effect**: Tap "Flashlight" and the flashlight turns on; tap again and it turns off. Whether the flashlight actually lights up is **not verified on a device**; reading and writing `torchMode` is verified by testing.
 
 - [`hasTorch`](../api/av-capture-device/hastorch.md) is whether there is a flashlight; it is `true` for the rear camera of an iPhone 14 (verified by testing). [`isTorchAvailable`](../api/av-capture-device/istorchavailable.md) is whether it can be used right now.
-- Writing `torchMode` without locking throws `TypeError` and leaves the value unchanged (verified by testing).
-- When the lock can't be taken (for example, another app is using the camera), `lockForConfiguration()` throws `Error`; this case is **not verified on a device**. `finally` makes sure the lock is released even if an error occurs while changing settings.
+- Writing `torchMode` without locking throws a [`DOMException`](../api/dom-exception.md) whose `name` is `'InvalidStateError'`, and leaves the value unchanged (verified by testing).
+- When the lock can't be taken (for example, another app is using the camera), `lockForConfiguration()` throws an [`NSError`](../api/ns-error.md); this case is **not verified on a device**. `finally` makes sure the lock is released even if an error occurs while changing settings.
 
 ## Focus faster on nearby codes
 
@@ -397,7 +397,7 @@ if (camera !== null) {
 **Effect**: The console prints `near continuousAutoFocus` (verified by testing: written and read back on the rear camera of an iPhone 14). Whether focusing actually gets faster is **not verified on a device**.
 
 - Focus is `'continuousAutoFocus'` (always autofocusing) by default (verified by testing). It's written above so that it changes back after another focus mode was used.
-- When the camera doesn't support restricting the focus range, writing `autoFocusRangeRestriction` throws `TypeError`. This case is **not verified on a device**.
+- When the camera doesn't support restricting the focus range, writing `autoFocusRangeRestriction` throws a `DOMException` whose `name` is `'InvalidStateError'`. This case is **not verified on a device**.
 
 ## Zoom in
 
@@ -418,7 +418,7 @@ if (camera !== null) {
 
 **Effect**: The console prints `2` (verified by testing: written and read back). Whether the picture zooms to 2× is **not verified on a device**.
 
-- The factor must be between [`minAvailableVideoZoomFactor`](../api/av-capture-device/minavailablevideozoomfactor.md) and [`maxAvailableVideoZoomFactor`](../api/av-capture-device/maxavailablevideozoomfactor.md). On the rear camera of an iPhone 14 it's 1 to 123.75 (verified by testing). Out of range throws `TypeError` (verified by testing).
+- The factor must be between [`minAvailableVideoZoomFactor`](../api/av-capture-device/minavailablevideozoomfactor.md) and [`maxAvailableVideoZoomFactor`](../api/av-capture-device/maxavailablevideozoomfactor.md). On the rear camera of an iPhone 14 it's 1 to 123.75 (verified by testing). Out of range throws `RangeError` (verified by testing).
 - To zoom in gradually instead of jumping, use [`rampToVideoZoomFactor()`](../api/av-capture-device/ramptovideozoomfactor.md).
 
 ## When the session is interrupted

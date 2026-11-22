@@ -103,10 +103,12 @@
     get position() { requireNative(this, 'position'); return nativeGet(this, 'position'); }
 
     // ---- 改设置的权利 ----
-    // 拿不到不是参数错了，抛 Error
+    // 拿不到不是参数错了，抛系统给的 NSError
     lockForConfiguration() {
       const failure = nativeCall(this, 'lockForConfiguration', []);
-      if (failure !== null) throw new Error('lockForConfiguration failed: ' + failure);
+      if (failure !== null) {
+        throw ctx.makeError('NSError', 'lockForConfiguration failed: ' + failure.message, failure);
+      }
     }
     unlockForConfiguration() { nativeCall(this, 'unlockForConfiguration', []); }
 
@@ -182,11 +184,13 @@
         throw new TypeError('AVCaptureDeviceInput needs an AVCaptureDevice, got ' + describeValue(device));
       }
       super();
-      // 参数是对的，系统还是建不出来（没有授权、摄像头被占着）：不是参数的错，抛 Error
+      // 参数是对的，系统还是建不出来（没有授权、摄像头被占着）：不是参数的错，抛 NSError。
+      // 构造的通道只带得回一句话，domain 和 code 带不回来
       try {
         constructNative(this, new.target, 'AVCaptureDeviceInput', [device]);
       } catch (err) {
-        throw new Error('cannot open this camera: ' + (err instanceof Error ? err.message : String(err)));
+        throw ctx.makeError('NSError',
+                            'cannot open this camera: ' + (err instanceof Error ? err.message : String(err)));
       }
       own(this, 'device', device);
     }

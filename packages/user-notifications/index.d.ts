@@ -359,18 +359,15 @@ declare class UNNotificationResponse {
 }
 
 /**
- * 通知出错时的 `Error`：这个类上返回 Promise 的方法拒绝时给的。
+ * 通知出错时的错误：这个类上返回 Promise 的方法拒绝时给的。
  *
- * - `'NotAllowedError'` —— 用户没有允许这个 App 发通知
- * - `'UNError'` —— 系统给的别的错误，看 `code`
+ * - `'NotAllowedError'` —— 用户没有允许这个 App 发通知。是 `DOMException`，
+ *   系统的原值在 `cause`（一个 `NSError`，`domain` 是 `'UNErrorDomain'`）上
+ * - `'NSError'` —— 系统给的别的错误。是 `NSError`，看 `code`
  */
-interface UNError extends Error {
-  name: 'NotAllowedError' | 'UNError';
-  /** `NSError.code` 的原值。 */
-  code: number;
-  /** `NSError.domain` 的原值，系统给的通知错误是 `'UNErrorDomain'`。 */
-  domain: string;
-}
+type UNError =
+  | (DOMException & { readonly name: 'NotAllowedError'; readonly cause?: NSError })
+  | (NSError & { readonly name: 'NSError' });
 
 /** `notification` 的事件对象。 */
 declare interface UNNotificationPresentEvent extends Event {

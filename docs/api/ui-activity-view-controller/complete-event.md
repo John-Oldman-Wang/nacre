@@ -21,7 +21,7 @@ sheet.addEventListener('complete', (event) => { })
 | --- | --- | --- |
 | `completed` | `boolean` | `true`：用户选的动作做完了。`false`：没做，包括用户直接把面板关掉 |
 | `activityType` | `string \| null` | 用户选的去处：[系统动作的名字](../ui-activity-view-controller.md#系统动作的名字)，或者第三方扩展自己的标识符（一个带点的字符串）。没选就关掉了是 `null` |
-| `activityError` | `Error \| null` | 动作失败时的错误，`message` 是系统给的说明，另外带 `code`（数字）和 `domain`（字符串）。没有错误是 `null` |
+| `activityError` | [`NSError`](../ns-error.md) `\| null` | 动作失败时系统给的错误。`name` 是 `'NSError'`，`message` 是系统给的说明，`domain` 和 `code` 是系统的错误域和错误码。没有错误是 `null` |
 
 - `type` 是 `'complete'`，`target` 是这个面板。
 - 不能取消，`preventDefault()` 不起作用。

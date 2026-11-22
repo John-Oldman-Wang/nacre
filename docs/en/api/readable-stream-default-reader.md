@@ -37,7 +37,7 @@ Creates a reader for a stream; same effect as `stream.getReader()`.
 
 | Case | Result |
 | --- | --- |
-| The request is canceled by `AbortController`, or `AbortSignal.timeout()` runs out | The pending `read()` and all later ones reject with an `Error` whose `name` is `'AbortError'`; `closed` also rejects with it. This holds even when all the content has arrived but hasn't been read yet |
+| The request is canceled by `AbortController`, or `AbortSignal.timeout()` runs out | The pending `read()` and all later ones reject with a [`DOMException`](dom-exception.md) whose `name` is `'AbortError'`; `closed` also rejects with it. This holds even when all the content has arrived but hasn't been read yet |
 | The network drops mid-download | `read()` rejects with `TypeError`, whose `message` starts with `Network request failed: `; `closed` also rejects with it. Content that arrived before the drop but hasn't been read is no longer given |
 | `read()` or `cancel()` is called after `releaseLock()` | The returned `Promise` rejects with `TypeError`; `closed` also rejects with `TypeError` |
 | `releaseLock()` is called while a `read()` is pending | That `read()` rejects with `TypeError`. The chunk it was going to read isn't lost; the next reader reads it |

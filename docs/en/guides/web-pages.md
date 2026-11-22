@@ -90,14 +90,15 @@ To show a loading indicator, use the pair [`did-start-loading`](../api/web-conte
 
 ## Handling load failures
 
-When loading fails, the Promise returned by `loadURL` is rejected, and the [`did-fail-load`](../api/web-contents/did-fail-load-event.md) event fires. Both carry the same information. Use the Promise when you only care about the load you started yourself; listen for the event when you also want to handle failures from loads caused by the user tapping links.
+When loading fails, the Promise returned by `loadURL` is rejected, and the [`did-fail-load`](../api/web-contents/did-fail-load-event.md) event fires. Both carry the same information. The rejection is a [`DOMException`](../api/dom-exception.md) whose `name` is `'NetworkError'` or `'AbortError'`; the system's error code is on its `cause` (an [`NSError`](../api/ns-error.md)) and is the same number as the event's `errorCode`. Use the Promise when you only care about the load you started yourself; listen for the event when you also want to handle failures from loads caused by the user tapping links.
 
 ```js
 try {
   await contents.loadURL('https://no-such-host.invalid/');
 } catch (err) {
-  const failure = /** @type {Error & { code: number }} */ (err);
-  console.log(failure.name, failure.code);
+  const failure = /** @type {DOMException} */ (err);
+  const systemCode = failure.cause instanceof NSError ? failure.cause.code : null;
+  console.log(failure.name, systemCode);
 }
 ```
 
@@ -156,7 +157,10 @@ contents.reload();
 ```js
 const loading = contents.loadURL('https://example.com/big');
 contents.stop();
-loading.catch((err) => console.log(err.name, err.code));
+loading.catch((err) => {
+  const systemCode = err.cause instanceof NSError ? err.cause.code : null;
+  console.log(err.name, systemCode);
+});
 ```
 
 **Effect**
@@ -251,7 +255,7 @@ await contents.loadFile('JS/web/help.html', { query: { topic: 'fees' }, hash: 'r
 - It displays without a network connection. Stylesheets, scripts, and images next to the page, referenced with relative paths, load normally.
 - The console logs an address that starts with `file:///` and ends with `/JS/web/help.html`.
 - On the second load, `location.search` in the page is `?topic=fees` and `location.hash` is `#refund`.
-- When the file doesn't exist, the Promise is rejected with `NetworkError`, and `code` is `-1100`.
+- When the file doesn't exist, the Promise is rejected with `NetworkError`, and `cause.code` is `-1100`.
 
 > **Note:** In local web pages, `<script type="module">` doesn't run, and `fetch` can't read local files. Pages that use these (such as Vite's default build output) can't be loaded this way; see [Limitations of local web pages](../api/web-contents.md#limits-of-local-web-pages).
 

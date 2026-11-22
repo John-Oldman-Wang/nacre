@@ -39,8 +39,8 @@ loadFile(filePath, { query, search, hash })
 | 情况 | 结果 |
 | --- | --- |
 | `filePath` 是空串 | 以 `TypeError` 拒绝：`loadFile: the path is empty` |
-| 文件不存在 | 以 `name` 为 `'NetworkError'` 的错误拒绝，`code` 是 `-1100`，同时派发 `did-fail-load` |
-| 路径是一个目录 | 以 `name` 为 `'Error'` 的错误拒绝，`code` 是 `102`，同时派发 `did-fail-load` |
+| 文件不存在 | 以 [`DOMException`](../dom-exception.md) 拒绝，`name` 是 `'NetworkError'`，`cause.code` 是 `-1100`，同时派发 `did-fail-load` |
+| 路径是一个目录 | 以 `name` 为 `'OperationError'` 的 [`DOMException`](../dom-exception.md) 拒绝，系统的原值在 `cause` 上（`cause.code` 是 `102`），同时派发 `did-fail-load`。拒绝的是 `OperationError` 这一点**未在真机验证** |
 
 > **注意**：最后一种情况（以及用 `loadURL` 加载一个不能显示的文件，比如压缩包）在 iOS 27 上要等 4 秒多才报失败，iOS 26 上是立刻。
 

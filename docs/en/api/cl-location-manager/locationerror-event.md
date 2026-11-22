@@ -19,7 +19,7 @@ manager.addEventListener('locationerror', (event) => { })
 
 **`error`**
 
-A [`CLLocationError`](../cl-location-error.md). `name` is the error category; `code` and `domain` are the raw values from the system.
+A [`CLLocationError`](../cl-location-error.md), which is a [`DOMException`](../dom-exception.md) or an [`NSError`](../ns-error.md). `name` is the error category. The system's error code and error domain are the `NSError`'s own `code` and `domain`, or in `cause` for a `DOMException`.
 
 Not cancelable. `target` is the `manager`.
 
@@ -41,13 +41,14 @@ manager.addEventListener('locationerror', (e) => {
     manager.stopUpdatingLocation();
     console.log('No permission, stopping location');
   } else {
-    console.log('Location error', e.error.name, e.error.code);
+    const system = e.error instanceof NSError ? e.error : e.error.cause;
+    console.log('Location error', e.error.name, system?.domain, system?.code);
   }
 });
 manager.startUpdatingLocation();
 ```
 
-**Effect** (not verified in the simulator): without authorization, prints `No permission, stopping location`; for other errors, prints the error's name and code.
+**Effect** (not verified in the simulator): without authorization, prints `No permission, stopping location`; for other errors, prints the error's name and the system's error domain and error code.
 
 ## Corresponding iOS API
 

@@ -151,7 +151,7 @@ export async function stepPageOverrides(ctx) {
   root.supportedInterfaceOrientations = ['portrait'];
   const refused = await outcome(scene.requestGeometryUpdateWithPreferences(
     new UIWindowSceneGeometryPreferencesIOS(['landscapeRight'])));
-  assert('根页面只允许竖屏时请求横屏：拒绝', refused.startsWith('Error: '), true);
+  assert('根页面只允许竖屏时请求横屏：拒绝，是系统给的 NSError', refused.startsWith('NSError: '), true);
   assert('拒绝的原因是页面不支持', refused.includes('supported by the view controller'), true);
 
   // 放开之后转过去

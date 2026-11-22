@@ -163,7 +163,7 @@ cameraAccess().then((status) => {
 两点要知道：
 
 - 不先申请也会弹框：还没问过用户就 `new AVCaptureDeviceInput(camera)`，系统在这一刻弹出同一个提示框（实测）。先申请的好处是在接摄像头之前就知道结果。
-- 没有授权时 `new AVCaptureDeviceInput(camera)` 抛 `Error`（实测）。所以先确认授权，再建输入。
+- 没有授权时 `new AVCaptureDeviceInput(camera)` 抛 [`NSError`](../api/ns-error.md)（实测）。所以先确认授权，再建输入。
 
 ## 只认框里的码
 
@@ -372,8 +372,8 @@ torchButton.addEventListener('click', () => {
 **效果**：点「手电筒」，手电筒亮起；再点一下，熄灭。手电筒真的亮灭**未在真机验证**；`torchMode` 的读写是实测的。
 
 - [`hasTorch`](../api/av-capture-device/hastorch.md) 是有没有手电筒，iPhone 14 的后置摄像头是 `true`（实测）。[`isTorchAvailable`](../api/av-capture-device/istorchavailable.md) 是现在能不能用。
-- 没锁就写 `torchMode`，抛 `TypeError`，值不变（实测）。
-- 锁不住时（比如摄像头被别的 App 占着）`lockForConfiguration()` 抛 `Error`，这种情况**未在真机验证**。`finally` 保证改的时候出错也会交还。
+- 没锁就写 `torchMode`，抛 [`DOMException`](../api/dom-exception.md)，`name` 是 `'InvalidStateError'`，值不变（实测）。
+- 锁不住时（比如摄像头被别的 App 占着）`lockForConfiguration()` 抛 [`NSError`](../api/ns-error.md)，这种情况**未在真机验证**。`finally` 保证改的时候出错也会交还。
 
 ## 近处的码对焦更快
 
@@ -397,7 +397,7 @@ if (camera !== null) {
 **效果**：控制台输出 `near continuousAutoFocus`（实测在 iPhone 14 的后置摄像头上写得进、读得回）。对焦是不是因此变快**未在真机验证**。
 
 - 对焦默认就是 `'continuousAutoFocus'`（一直自动对焦）（实测）。上面写一次是为了换了别的对焦方式之后能改回来。
-- 摄像头不支持限制对焦范围时，写 `autoFocusRangeRestriction` 抛 `TypeError`。这种情况**未在真机验证**。
+- 摄像头不支持限制对焦范围时，写 `autoFocusRangeRestriction` 抛 `DOMException`，`name` 是 `'InvalidStateError'`。这种情况**未在真机验证**。
 
 ## 放大画面
 
@@ -418,7 +418,7 @@ if (camera !== null) {
 
 **效果**：控制台输出 `2`（实测写得进、读得回）。画面放大到 2 倍**未在真机验证**。
 
-- 倍数要在 [`minAvailableVideoZoomFactor`](../api/av-capture-device/minavailablevideozoomfactor.md) 和 [`maxAvailableVideoZoomFactor`](../api/av-capture-device/maxavailablevideozoomfactor.md) 之间。iPhone 14 的后置摄像头上实测是 1 到 123.75。超出范围抛 `TypeError`（实测）。
+- 倍数要在 [`minAvailableVideoZoomFactor`](../api/av-capture-device/minavailablevideozoomfactor.md) 和 [`maxAvailableVideoZoomFactor`](../api/av-capture-device/maxavailablevideozoomfactor.md) 之间。iPhone 14 的后置摄像头上实测是 1 到 123.75。超出范围抛 `RangeError`（实测）。
 - 想让画面慢慢放大而不是一下子跳过去，用 [`rampToVideoZoomFactor()`](../api/av-capture-device/ramptovideozoomfactor.md)。
 
 ## 被打断时

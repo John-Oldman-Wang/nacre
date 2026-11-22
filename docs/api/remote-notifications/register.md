@@ -28,7 +28,7 @@ register()
 - 同时调用几次，系统只注册一次，几个 Promise 兑现成同一个结果（实测）。
 - 每次重新安装 App，拿到的令牌都不一样（实测）。
 
-**拒绝**时给的是一个 `Error`，`message` 是系统给的原因，跟着手机的语言。最常见的是签名用的描述文件里没有推送能力，中文系统上实测的原文是：
+**拒绝**时给的是 `name` 为 `'OperationError'` 的 [`DOMException`](../dom-exception.md)，`message` 是系统给的原因，跟着手机的语言；系统的原值在 `cause`（一个 [`NSError`](../ns-error.md)）上。最常见的是签名用的描述文件里没有推送能力，中文系统上实测的原文是：
 
 ```
 未找到应用程序的“aps-environment”的授权字符串

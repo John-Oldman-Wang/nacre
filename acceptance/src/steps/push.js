@@ -39,8 +39,10 @@ export async function stepPush(ctx) {
   assert('远程推送：isRegistered 是布尔', typeof rn.isRegistered, 'boolean');
 
   /** @param {Promise<string>} p */
-  const settle = (p) => p.then((value) => ({ ok: true, value }),
-                                (err) => ({ ok: false, value: err instanceof Error ? err.message : String(err) }));
+  const settle = (p) => p.then((value) => ({ ok: true, value, kind: '' }),
+                                (err) => ({ ok: false, value: err instanceof Error ? err.message : String(err),
+                                            kind: (err instanceof DOMException ? 'DOMException ' : '') +
+                                                  (err instanceof Error ? err.name : '') }));
 
   // ---- 真的注册：结果取决于签名用的描述文件有没有推送的权限，只打印 ----
   // 每调一次 register()，系统都会稍后回一次（真的令牌或者失败）。下面凡是用测试
@@ -49,9 +51,12 @@ export async function stepPush(ctx) {
     settle(rn.register()),
     new Promise((resolve) => setTimeout(() => resolve(null), 10000)),
   ]);
-  const realResult = /** @type {{ ok: boolean, value: string } | null} */ (real);
+  const realResult = /** @type {{ ok: boolean, value: string, kind: string } | null} */ (real);
   console.log('  · 实测：真的调 register() —— ' + (realResult === null ? '10 秒内没有结果'
     : realResult.ok ? '兑现，令牌 ' + realResult.value.length / 2 + ' 字节' : '拒绝：' + realResult.value));
+  if (realResult !== null && !realResult.ok) {
+    assert('远程推送：系统拒绝注册时是 DOMException OperationError', realResult.kind, 'DOMException OperationError');
+  }
   if (realResult !== null && realResult.ok) {
     assert('远程推送：真的拿到的令牌是小写十六进制', /^[0-9a-f]+$/.test(realResult.value), true);
     assert('远程推送：真的拿到令牌之后 token 就是它', rn.token, realResult.value);
@@ -143,6 +148,11 @@ export async function stepPush(ctx) {
   assert('远程推送：push 事件不可取消', event !== null && event.cancelable, false);
   assert('远程推送：派发完之后再调 waitUntil 抛 InvalidStateError',
          thrown(() => { if (event !== null) event.waitUntil(Promise.resolve()); }), 'InvalidStateError');
+  {
+    let late = null;
+    try { if (event !== null) event.waitUntil(Promise.resolve()); } catch (err) { late = err; }
+    assert('远程推送：waitUntil 抛的是 DOMException', late instanceof DOMException, true);
+  }
   mode = 'reject';
   assert('远程推送：waitUntil 的 Promise 拒绝，告诉系统失败了',
          await example.callAsync('simulateSilentPush', { aps: { 'content-available': 1 } }), 'failed');

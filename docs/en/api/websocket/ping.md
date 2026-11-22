@@ -23,7 +23,7 @@ None.
 
 A Promise. Fulfills with `true` when the server's reply arrives.
 
-If the connection is not alive, the Promise is rejected; the error object's `name` is `NetworkError` and its `message` is the system's error description. **The rejection when the connection is not alive, and how long it takes to reject, are not verified in the simulator.**
+If the connection is not alive, the Promise is rejected with a [`DOMException`](../dom-exception.md) whose `name` is `NetworkError` and whose `message` is the system's error description; the system's original error is on `cause` (an [`NSError`](../ns-error.md)). **The rejection when the connection is not alive, and how long it takes to reject, are not verified in the simulator.**
 
 ### Exceptions
 

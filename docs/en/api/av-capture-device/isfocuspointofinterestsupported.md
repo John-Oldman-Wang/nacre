@@ -12,7 +12,7 @@ The **`isFocusPointOfInterestSupported`** property indicates whether this camera
 A boolean.
 
 - `true`: supported. The rear camera of an iPhone 14 is `true` (verified by testing).
-- `false`: not supported. Writing `focusPointOfInterest` is then refused by the system and throws `TypeError` (**not verified on a device**).
+- `false`: not supported. Writing `focusPointOfInterest` is then refused by the system and throws a `DOMException` whose `name` is `'InvalidStateError'` (**not verified on a device**).
 - Read-only. Assigning to it throws `TypeError`.
 - This value never changes for a given camera, so there is no change event.
 

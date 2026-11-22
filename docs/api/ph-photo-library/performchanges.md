@@ -26,7 +26,7 @@ performChanges({ creationRequestForAssetFromImage })
 - 没问过用户时先弹权限提示框，用户同意之后再存。
 - 用户拒绝过之后不再弹提示框，Promise 直接被拒绝。
 
-Promise 被拒绝时得到一个 `Error`，`name` 是 `NotAllowedError`、`InvalidStateError` 或 `PhotosError`，带 `code` 和 `domain`，见[错误](../ph-photo-library.md#错误)。
+Promise 被拒绝时，`name` 是 `NotAllowedError` 或 `InvalidStateError` 的是 [`DOMException`](../dom-exception.md)，别的失败是 [`NSError`](../ns-error.md)（`name` 是 `'NSError'`），见[错误](../ph-photo-library.md#错误)。
 
 存图的结果**未在模拟器验证**。
 

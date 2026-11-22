@@ -180,17 +180,18 @@ export async function stepAvCapture(ctx) {
   assert('摄像头：最大变焦只读',
          thrown(() => { /** @type {any} */ (device).maxAvailableVideoZoomFactor = 2; }), 'TypeError');
 
-  assert('没锁：写 torchMode 抛 TypeError', thrown(() => { device.torchMode = 'off'; }), 'TypeError');
-  assert('没锁：写 videoZoomFactor 抛 TypeError', thrown(() => { device.videoZoomFactor = 1; }), 'TypeError');
+  assert('没锁：写 torchMode 抛 InvalidStateError', thrown(() => { device.torchMode = 'off'; }), 'InvalidStateError');
+  assert('没锁：写 videoZoomFactor 抛 InvalidStateError', thrown(() => { device.videoZoomFactor = 1; }), 'InvalidStateError');
+  assert('没锁：抛的是 DOMException', (() => { try { device.videoZoomFactor = 1; } catch (err) { return err instanceof DOMException; } return false; })(), true);
   const unlockedMessage = messageOf(() => { device.videoZoomFactor = 1; });
   console.log('  · 实测：没锁时的报错 ' + unlockedMessage);
   assert('没锁：报错是「系统拒绝」加系统给的原因', REFUSED.test(unlockedMessage), true);
-  assert('没锁：写 focusMode 抛 TypeError',
-         thrown(() => { device.focusMode = 'continuousAutoFocus'; }), 'TypeError');
-  assert('没锁：写 focusPointOfInterest 抛 TypeError',
-         thrown(() => { device.focusPointOfInterest = { x: 0.5, y: 0.5 }; }), 'TypeError');
-  assert('没锁：写 autoFocusRangeRestriction 抛 TypeError',
-         thrown(() => { device.autoFocusRangeRestriction = 'none'; }), 'TypeError');
+  assert('没锁：写 focusMode 抛 InvalidStateError',
+         thrown(() => { device.focusMode = 'continuousAutoFocus'; }), 'InvalidStateError');
+  assert('没锁：写 focusPointOfInterest 抛 InvalidStateError',
+         thrown(() => { device.focusPointOfInterest = { x: 0.5, y: 0.5 }; }), 'InvalidStateError');
+  assert('没锁：写 autoFocusRangeRestriction 抛 InvalidStateError',
+         thrown(() => { device.autoFocusRangeRestriction = 'none'; }), 'InvalidStateError');
   // 头文件说没锁会抛，实测系统不拦（iPhone 14，iOS 27.2，授权前后都量过）：照系统的事实，
   // 我们这边也不拦
   assert('没锁：rampToVideoZoomFactor 系统不拦，不抛',
@@ -333,7 +334,7 @@ export async function stepAvCapture(ctx) {
     assert('锁：变焦写 2 读回来', device.videoZoomFactor, 2);
     device.videoZoomFactor = /** @type {any} */ ('1.5');
     assert('锁：变焦写字符串 1.5 按数转', device.videoZoomFactor, 1.5);
-    assert('锁：变焦超出范围抛 TypeError', thrown(() => { device.videoZoomFactor = 100000; }), 'TypeError');
+    assert('锁：变焦超出范围抛 RangeError', thrown(() => { device.videoZoomFactor = 100000; }), 'RangeError');
     const rangeMessage = messageOf(() => { device.videoZoomFactor = 100000; });
     console.log('  · 实测：变焦超出范围的报错 ' + rangeMessage);
     assert('锁：变焦超出范围的报错是「系统拒绝」加系统给的原因', REFUSED.test(rangeMessage), true);
@@ -371,7 +372,7 @@ export async function stepAvCapture(ctx) {
   } finally {
     device.unlockForConfiguration();
   }
-  assert('锁：交还之后再写又抛 TypeError', thrown(() => { device.videoZoomFactor = 1; }), 'TypeError');
+  assert('锁：交还之后再写又抛 InvalidStateError', thrown(() => { device.videoZoomFactor = 1; }), 'InvalidStateError');
 
   // ---- 接上摄像头 ----
   const input = new AVCaptureDeviceInput(device);

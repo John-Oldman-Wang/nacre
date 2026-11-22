@@ -30,9 +30,9 @@ A new `AVCaptureDeviceInput`. Its [`device`](device.md) is the camera that was p
 - `device` is not an `AVCaptureDevice` (`null`, a string, another native object): `AVCaptureDeviceInput needs an AVCaptureDevice, got …`.
 - Subclassing it: `class Mine extends AVCaptureDeviceInput {}` throws on `new Mine()`, with a message starting with `Illegal constructor`.
 
-**`Error`**
+**[`NSError`](../ns-error.md)**
 
-The argument is valid, but the system can't open this camera: `cannot open this camera: …`, followed by the reason the system gives. Verified by testing: this is thrown when the user has denied camera access. Whether it's thrown when another app is using the camera is **not verified on a device**.
+The argument is valid, but the system can't open this camera: `cannot open this camera: …`, followed by the reason the system gives. The `name` is `'NSError'`, `domain` is an empty string, and `code` is 0: the system's reason is only in `message`. Verified by testing: this is thrown when the user has denied camera access. Whether it's thrown when another app is using the camera is **not verified on a device**.
 
 ## Description
 
@@ -55,7 +55,7 @@ if (camera !== null && AVCaptureDevice.authorizationStatusForMediaType('video') 
 
 ## Corresponding iOS API
 
-`+[AVCaptureDeviceInput deviceInputWithDevice:error:]`. In ObjC it returns `nil` and fills in `error` on failure; here it throws `Error` instead.
+`+[AVCaptureDeviceInput deviceInputWithDevice:error:]`. In ObjC it returns `nil` and fills in `error` on failure; here it throws an `NSError` instead, with the system's reason in `message`, an empty `domain`, and a `code` of 0.
 
 ## See also
 

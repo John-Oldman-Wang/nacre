@@ -146,7 +146,7 @@ application.addEventListener('sceneconnect', (e) => {
 | `sheet.excludedActivityTypes = @[UIActivityTypePrint, UIActivityTypeAirDrop]` | `sheet.excludedActivityTypes = ['print', 'airDrop']` |
 | `sheet.excludedActivitySectionTypes = UIActivitySectionTypesPeopleSuggestions` | `sheet.excludedActivitySectionTypes = ['peopleSuggestions']` |
 | `sheet.allowsProminentActivity = NO` | `sheet.allowsProminentActivity = false` |
-| `sheet.completionWithItemsHandler = ^(UIActivityType type, BOOL completed, NSArray *items, NSError *error) { … }` | `sheet.addEventListener('complete', (e) => { … })`<br>回调的四个参数里，`type`、`completed`、`error` 是事件对象的 `activityType`、`completed`、`activityError` |
+| `sheet.completionWithItemsHandler = ^(UIActivityType type, BOOL completed, NSArray *items, NSError *error) { … }` | `sheet.addEventListener('complete', (e) => { … })`<br>回调的四个参数里，`type`、`completed`、`error` 是事件对象的 `activityType`、`completed`、`activityError`。`activityError` 是一个 [`NSError`](ns-error.md) |
 | `[self presentViewController:sheet animated:YES completion:nil]` | `page.presentViewController(sheet, { animated: true })` |
 
 ## 参见

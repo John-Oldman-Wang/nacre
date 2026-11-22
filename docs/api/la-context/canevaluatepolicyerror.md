@@ -24,7 +24,7 @@ canEvaluatePolicyError(policy)
 ### 返回值
 
 - [`canEvaluatePolicy()`](canevaluatepolicy.md) 返回 `true` 的时候是 `null`。
-- 返回 `false` 的时候是一个 `Error` 对象，每次调用得到一个新的。它和 `evaluatePolicy()` 没通过时拒绝的是同一种，带 `name`、`message`、`code`、`domain`，见[认证没通过的原因](../la-context.md#认证没通过的原因)。`message` 是系统给的说明，比如 `Biometry is not enrolled.`；`domain` 固定是 `'com.apple.LocalAuthentication'`。
+- 返回 `false` 的时候是一个 [`NSError`](../ns-error.md)，每次调用得到一个新的。它和 `evaluatePolicy()` 没通过时拒绝的是同一种，带 `name`、`message`、`code`、`domain`，见[认证没通过的原因](../la-context.md#认证没通过的原因)。`message` 是系统给的说明，比如 `Biometry is not enrolled.`；`domain` 固定是 `'com.apple.LocalAuthentication'`。
 
 这时 `name` 是下面几种之一：
 

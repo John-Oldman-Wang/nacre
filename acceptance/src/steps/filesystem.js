@@ -18,6 +18,8 @@ async function rejects(label, fn, expectedName) {
   } catch (err) {
     const e = /** @type {any} */ (err);
     assert(label, e.name, expectedName);
+    // 含义 Web 上有的都是 DOMException；TypeError 还是 TypeError
+    if (expectedName !== 'TypeError') assert(label + '：是 DOMException', e instanceof DOMException, true);
   }
 }
 
@@ -102,9 +104,12 @@ export function stepFileSystem() {
       await fs.readText(base + '/没有这个.txt');
     } catch (err) {
       const e = /** @type {any} */ (err);
-      assert('错误带 code 逃生口', typeof e.code, 'number');
-      assert('错误带 domain 逃生口', e.domain, 'NSCocoaErrorDomain');
-      console.log('  实测：读不存在的文件 code = ' + e.code + '，message = ' +
+      assert('错误是 DOMException', e instanceof DOMException, true);
+      assert('错误的 code 是 Web 的老数字码 8', e.code, 8);
+      assert('系统的原值在 cause 上：domain', e.cause && e.cause.domain, 'NSCocoaErrorDomain');
+      assert('系统的原值在 cause 上：code 是数', typeof (e.cause && e.cause.code), 'number');
+      assert('错误自己不再挂 domain', 'domain' in e, false);
+      console.log('  实测：读不存在的文件 cause.code = ' + (e.cause && e.cause.code) + '，message = ' +
                   String(e.message).slice(0, 40) + '…');
     }
 

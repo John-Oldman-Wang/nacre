@@ -30,13 +30,13 @@ How large a single message can be is **not verified in the simulator**.
 
 A Promise. Fulfills with `true` once the message has been handed to the network to send. It does not wait for the server to acknowledge it: fulfillment does not mean the server has received it.
 
-When the Promise is rejected, the error object's `name` tells the reason:
+When the Promise is rejected, it rejects with a [`DOMException`](../dom-exception.md) whose `name` tells the reason:
 
 | `name` | `message` | When |
 | --- | --- | --- |
 | `InvalidStateError` | `send: the socket is not open` | The connection is not open: it is still connecting, closing, or has ended |
 | `InvalidStateError` | `send: expects a string or a Blob` | `data` is not one of the types in the table above |
-| `NetworkError` | The system's error description | A network error occurred while sending |
+| `NetworkError` | The system's error description | A network error occurred while sending. The system's original error is on `cause`, an [`NSError`](../ns-error.md). **Not verified on a device** |
 
 ### Exceptions
 
