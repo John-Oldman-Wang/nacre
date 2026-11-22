@@ -1,6 +1,6 @@
 {
   "name": "@nacrejs/example-module",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "type": "module",
   "description": "一个示例原生模块：用 Swift 写、只用 Nacre 公开的接口。它同时是验收用的模块",
@@ -18,7 +18,7 @@
   },
   "types": "./index.d.ts",
   "peerDependencies": {
-    "@nacrejs/ios": "0.0.1",
-    "@nacrejs/types": "0.0.1"
+    "@nacrejs/ios": "0.0.2",
+    "@nacrejs/types": "0.0.2"
   }
 }

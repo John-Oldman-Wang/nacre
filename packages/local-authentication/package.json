@@ -1,6 +1,6 @@
 {
   "name": "@nacrejs/local-authentication",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Nacre 的面容 ID / 触控 ID 认证能力：LAContext。装了才有",
   "license": "FSL-1.1-MIT",
   "repository": {
@@ -15,8 +15,8 @@
     "NacreLocalAuthentication.xcframework"
   ],
   "peerDependencies": {
-    "@nacrejs/ios": "0.0.1",
-    "@nacrejs/types": "0.0.1"
+    "@nacrejs/ios": "0.0.2",
+    "@nacrejs/types": "0.0.2"
   },
   "publishConfig": {
     "access": "public",

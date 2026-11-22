@@ -98,12 +98,12 @@ targets:
         # Info.plist 让 Xcode 自己生成，不往运行时目录里放生成物——
         # 这个目录是交付面，里面的东西都会被用户拿到
         GENERATE_INFOPLIST_FILE: YES
-        MARKETING_VERSION: "0.0.1"
+        MARKETING_VERSION: "0.0.2"
         CURRENT_PROJECT_VERSION: "1"
         # 完整的版本号，带 beta 这类后缀。MARKETING_VERSION 进 Info.plist，只能是三段
         # 数字，分不出 beta.1 和 beta.2。这个编进运行时，启动日志第一行打出来。
         # 由 scripts/release.mjs version 改，不要手改
-        NACRE_VERSION: "0.0.1"
+        NACRE_VERSION: "0.0.2"
         GCC_PREPROCESSOR_DEFINITIONS: ["$(inherited)", 'NACRE_VERSION=\"$(NACRE_VERSION)\"']
         # 运行时里有一个 Swift 文件（Bridge/NacreIntlNumber.swift）：按地区格式化
         # 要用 Foundation 的 FormatStyle，而它只有 Swift 能调。那个类是内部
@@ -170,7 +170,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: nacre.keychain
         GENERATE_INFOPLIST_FILE: YES
-        MARKETING_VERSION: "0.0.1"
+        MARKETING_VERSION: "0.0.2"
         CURRENT_PROJECT_VERSION: "1"
         # 和核心一致：两边共用 std::string 和 NativeObjectRef
         CLANG_CXX_LANGUAGE_STANDARD: c++20
@@ -203,7 +203,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: nacre.app-tracking-transparency
         GENERATE_INFOPLIST_FILE: YES
-        MARKETING_VERSION: "0.0.1"
+        MARKETING_VERSION: "0.0.2"
         CURRENT_PROJECT_VERSION: "1"
         # 和核心一致：两边共用 std::string 和 NativeObjectRef
         CLANG_CXX_LANGUAGE_STANDARD: c++20
@@ -234,7 +234,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: nacre.local-authentication
         GENERATE_INFOPLIST_FILE: YES
-        MARKETING_VERSION: "0.0.1"
+        MARKETING_VERSION: "0.0.2"
         CURRENT_PROJECT_VERSION: "1"
         CLANG_CXX_LANGUAGE_STANDARD: c++20
         CLANG_CXX_LIBRARY: libc++
@@ -266,7 +266,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: nacre.camera
         GENERATE_INFOPLIST_FILE: YES
-        MARKETING_VERSION: "0.0.1"
+        MARKETING_VERSION: "0.0.2"
         CURRENT_PROJECT_VERSION: "1"
         # 和核心一致：两边共用 std::string 和 NativeObjectRef
         CLANG_CXX_LANGUAGE_STANDARD: c++20
@@ -297,7 +297,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: nacre.photos
         GENERATE_INFOPLIST_FILE: YES
-        MARKETING_VERSION: "0.0.1"
+        MARKETING_VERSION: "0.0.2"
         CURRENT_PROJECT_VERSION: "1"
         CLANG_CXX_LANGUAGE_STANDARD: c++20
         CLANG_CXX_LIBRARY: libc++
@@ -333,7 +333,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: nacre.contacts
         GENERATE_INFOPLIST_FILE: YES
-        MARKETING_VERSION: "0.0.1"
+        MARKETING_VERSION: "0.0.2"
         CURRENT_PROJECT_VERSION: "1"
         # 和核心一致：两边共用 std::string 和 NativeObjectRef
         CLANG_CXX_LANGUAGE_STANDARD: c++20
@@ -368,7 +368,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: nacre.corelocation
         GENERATE_INFOPLIST_FILE: YES
-        MARKETING_VERSION: "0.0.1"
+        MARKETING_VERSION: "0.0.2"
         CURRENT_PROJECT_VERSION: "1"
         # 和核心一致：两边共用 std::string 和 NativeObjectRef
         CLANG_CXX_LANGUAGE_STANDARD: c++20
@@ -399,7 +399,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: nacre.example-module
         GENERATE_INFOPLIST_FILE: YES
-        MARKETING_VERSION: "0.0.1"
+        MARKETING_VERSION: "0.0.2"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.0"
         # Swift 没有 +load。运行时靠 framework 的主类找到模块：这个类遵守
@@ -434,7 +434,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: nacre.user-notifications
         GENERATE_INFOPLIST_FILE: YES
-        MARKETING_VERSION: "0.0.1"
+        MARKETING_VERSION: "0.0.2"
         CURRENT_PROJECT_VERSION: "1"
         # 和核心一致：两边共用 std::string 和 NativeObjectRef
         CLANG_CXX_LANGUAGE_STANDARD: c++20
@@ -467,7 +467,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: nacre.push
         GENERATE_INFOPLIST_FILE: YES
-        MARKETING_VERSION: "0.0.1"
+        MARKETING_VERSION: "0.0.2"
         CURRENT_PROJECT_VERSION: "1"
         # 和核心一致：两边共用 std::string 和 NativeObjectRef
         CLANG_CXX_LANGUAGE_STANDARD: c++20
@@ -501,7 +501,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: nacre.avcapture
         GENERATE_INFOPLIST_FILE: YES
-        MARKETING_VERSION: "0.0.1"
+        MARKETING_VERSION: "0.0.2"
         CURRENT_PROJECT_VERSION: "1"
         # 和核心一致：两边共用 std::string 和 NativeObjectRef
         CLANG_CXX_LANGUAGE_STANDARD: c++20
