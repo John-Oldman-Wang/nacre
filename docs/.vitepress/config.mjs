@@ -559,6 +559,9 @@ export default defineConfig({
   // GitHub Pages 的项目站点挂在 /<仓库名>/ 下
   base: '/nacre/',
 
+  // 站点图标和 logo 在 docs/public/ 下；head 里的地址不会自动加 base，要自己写上
+  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/nacre/favicon.svg' }]],
+
   // 每个目录的 README.md 当那个目录的首页，GitHub 上照常能看
   // 指南里有几处链接指向文档目录之外的仓库文件（比如 packages/ios/ 的说明）。
   // 它们在 GitHub 上点得开，在站点上没有对应页面，构建时不当成死链。
@@ -595,7 +598,7 @@ export default defineConfig({
     root: {
       label: 'English',
       lang: 'en-US',
-      description: 'A JavaScript runtime for iOS apps',
+      description: 'Write native apps in JavaScript',
       themeConfig: {
         nav: [
           { text: 'Guides', link: '/guides/', activeMatch: '^/guides/' },
@@ -610,7 +613,7 @@ export default defineConfig({
       label: '简体中文',
       lang: 'zh-CN',
       link: '/zh/',
-      description: 'App 端的 JavaScript 运行时',
+      description: '用 JavaScript 写原生 App',
       themeConfig: {
         nav: [
           { text: '指南', link: '/zh/guides/', activeMatch: '^/zh/guides/' },
@@ -630,6 +633,8 @@ export default defineConfig({
   },
 
   themeConfig: {
+    // 顶栏的 logo：花括号包着一颗珍珠。深色模式用浅色括号的那份
+    logo: { light: '/logo.svg', dark: '/logo-dark.svg' },
     search: {
       provider: 'local',
       options: {

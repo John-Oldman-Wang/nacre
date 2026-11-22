@@ -1,7 +1,8 @@
-# 每个 PR 上跑的检查。分两段：
+# 每个 PR 上跑的检查。分三段：
 #   static  不用编译的：类型检查、各组用例、文档链接。在 Linux 上跑——Mac 的机器
 #           常常排不上（第一次开 PR 时两个任务都因为分不到机器被取消了），
 #           这一段不该被它拖住
+#   docs    把文档站建一遍，只建不部署。也在 Linux 上
 #   build   三边核对；用 Xcode 26 把运行时和能力包从源码编出来，再照用户的走法
 #           演练一遍。只能在 Mac 上跑
 #
@@ -55,6 +56,24 @@ jobs:
         run: >-
           perl -ne 'if (/\$[A-Za-z_][A-Za-z0-9_]*[^\x00-\x7F]/) { print "::error file=$ARGV,line=$.::\$变量 后面紧跟中文字符，改成 \${变量}\n"; $bad = 1 }
           close ARGV if eof; END { exit($bad ? 1 : 0) }' ios/scripts/*.sh scripts/*.sh
+
+  # 把文档站建一遍，只建不部署（部署在 docs.yml，合并到 main 才跑）。
+  # 链接在 static 里已经核对过；这里查的是 Markdown 之外的东西：首页的组件、
+  # 构建时统计数字的那段代码、主题的配置。单独一个任务，不拖慢 static
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+      - name: 建文档站
+        working-directory: docs
+        run: |
+          npm ci
+          npm run build
 
   build:
     runs-on: macos-26
