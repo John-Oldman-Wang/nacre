@@ -271,7 +271,7 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 | 数据 | 本地存储 `application.storage`、文件读写 `application.fileSystem`（含只读的 `assets`：项目的 `assets/` 在包里的位置）、`NSBundle` |
 | 网页 | `WebView`、`webContents`、`session` |
 | 按地区格式化 | `Intl.NumberFormat`、`Intl.DateTimeFormat`，以及数字和日期的 `toLocale*String`（排序还没做）；`NSLocale`：用户的首选语言和地区 |
-| 小而无代价的 | `crypto`（随机数、UUID）、`UIDevice`、剪贴板、触感反馈 |
+| 小而无代价的 | `crypto`（随机数、UUID）、`UIDevice`、剪贴板、触感反馈、`BarcodeDetector`（从一张图里认码） |
 
 **单独的包**（钥匙串是第一个，也是「能力包长什么样」的样板；中间六个是 2026-11-16 并行做的）：
 
@@ -286,6 +286,7 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 | `@nacrejs/contacts` | `CNContactPickerViewController`、`CNContact`：让用户选联系人 | 不要权限文案（只用系统的选择器）。做成包是因为它带进来两个系统框架，而且万一上传时被要求补文案，改的是包的清单 | 已做 |
 | `@nacrejs/user-notifications` | `UNUserNotificationCenter` 一组：本地通知、授权、通知到了和被点了两个事件、角标 | 不要权限文案也不要 entitlement。做成包是因为它一加载就把自己装成通知中心的委托，不发通知的 App 不该带着。远程推送的注册在 `@nacrejs/push` | 已做 |
 | `@nacrejs/push` | `application.remoteNotifications`：注册远程推送、设备令牌、静默推送（`push` 事件） | 用户的工程要带 `aps-environment`，签名要用开着推送能力的描述文件 | 已做 |
+| `@nacrejs/av-capture` | AVFoundation 的拍摄那一组：会话、摄像头、取景图层、元数据输出（实时扫码）。不接系统的扫码页面（`DataScannerViewController`），扫描界面由 JS 自己画 | 用户要写 `NSCameraUsageDescription` | 已做 |
 
 WebView 留在核心：它不需要用户声明任何东西，拆了的净收益约等于零，见[能力包](internals/capabilities.md#拆不拆量过的代价)。
 
@@ -580,7 +581,7 @@ Commit message 格式：
 | 网络和数据 | `crypto.subtle`；排最后的：`Blob.slice`、剪贴板的图片和网址和多条内容、`rejectionhandled` 事件 |
 | 网页 | 让本地网页用上模块脚本和 `fetch` 的自定义协议 |
 | 无障碍 | 读屏的自定义操作、「读屏开没开」的状态和变化、让读屏念一句话 |
-| 系统能力（做成包） | 通用链接、Apple 登录：都能写，卡在验证上，要显式包名的描述文件，通用链接还要真实域名；扫码（相机的实时取景）；应用内购买（先不做） |
+| 系统能力（做成包） | 通用链接、Apple 登录：都能写，卡在验证上，要显式包名的描述文件，通用链接还要真实域名；应用内购买（先不做） |
 
 ### 发布之后接着做的
 
@@ -601,7 +602,8 @@ Commit message 格式：
 | 真机上没验到的 | 富文本双线和虚线的样子；流式响应和 `Request` 的 `signal` 取消（手机连不到 Mac 上的测试服务）；通用链接；原生模块随包带第三方 framework；真的从服务器发到手机上的远程推送（2026-11-21 试过：真令牌拿到了，推送 Apple 收下了，但送达记录一直是「设备不在线」，换热点、重启手机都一样，手机没连上测试环境的推送服务器；能看见的和静默的都没送到过），静默推送在后台唤醒 App；面容 ID 被锁定、设备不支持、没设密码几种情况；定位里海拔有效的那一支；相机的大部分行为 |
 | 要在屏幕上点的 | 多行输入框里点链接（`linkclick`）；定位、通知、跟踪授权的申请；发通知、收到、点击；选图、存图、拍照、选联系人；弹窗的按钮和分享完成；搜索框的四个按钮事件；列表的选中；左滑返回中途取消、把卡片拖走 |
 | 要真实键盘的 | 两种输入框的 `beforeinput`，单行的 `beforeclear`、`beforereturn`；输入时的 `selectionchange`；输入法组字期间的选区 |
-| 要人看的 | `shadowPath` 画出来的阴影；开着旁白时各属性念出来的样子；富文本的五行；动图是不是在动；标签栏、毛玻璃、手势几组在屏幕上的样子 |
+| 要人看的 | 扫码的取景画面在图层里的样子、手电筒真的亮、平滑变焦；`shadowPath` 画出来的阴影；开着旁白时各属性念出来的样子；富文本的五行；动图是不是在动；标签栏、毛玻璃、手势几组在屏幕上的样子 |
+| 触发不了的 | 扫码会话被打断（`interrupt` / `interruptend`，要来电或者别的 App 抢摄像头）、`runtimeerror` |
 | 要切到后台的 | 后台任务：切到后台之后继续跑、快到时间时 `signal` 中止、系统一开始就不给时间的情况；`backgroundTimeRemaining` 在后台的读数 |
 | 图标和启动屏 | 2 倍屏的机型；Icon Composer 和 Xcode 实际存出来的 `.icon`、storyboard（只验了手写的）；桌面切到深色、着色样式时图标的样子；启动屏的图多大会整屏变黑，只在一台模拟器上量过 |
 | 取色控件和补上的成员 | `system-controls` 和 `view-additions` 两个域（2026-11-18 用 bindgen 出的初稿）：读写往返和一批实际用法验过，但补上去的 23 个方法里在模拟器上调过的只有 `setZoomScale` 和 `zoomToRect`；设了之后屏幕上的效果一个都没看；`UIColorWell` 点开取色面板看过了，在面板里选一个颜色之后 `selectedColor` 变没变、`change` 来没来没验 |

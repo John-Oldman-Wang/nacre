@@ -8,6 +8,7 @@
 /// <reference types="@nacrejs/core-location" />
 /// <reference types="@nacrejs/user-notifications" />
 /// <reference types="@nacrejs/push" />
+/// <reference types="@nacrejs/av-capture" />
 //
 // 这个 App 的入口。它同时是 Nacre 的**第一个客户**和**验收用例**：
 // 每接一块能力，就在 steps/ 下加一段，跑一次模拟器看断言全不全过。
@@ -88,6 +89,8 @@ import { stepDragTarget } from './steps/drag-target.js';
 import { stepGestureDelegate } from './steps/gesture-delegate.js';
 import { stepNetwork } from './steps/network.js';
 import { stepPush } from './steps/push.js';
+import { stepAvCapture } from './steps/av-capture.js';
+import { stepBarcodeDetector } from './steps/barcode-detector.js';
 import { stepUpperLayer } from './steps/upper-layer.js';
 import { stepAccessibility } from './steps/accessibility.js';
 import { stepShadowPath } from './steps/shadow-path.js';
@@ -298,6 +301,8 @@ application.addEventListener('sceneconnect', (e) => {
     ['stepGestureDelegate', () => Promise.resolve(ctx.webViewDone).then(() => stepGestureDelegate(ctx))],
     ['stepNetwork', () => stepNetwork(ctx)],
     ['stepPush', () => stepPush(ctx)],
+    ['stepAvCapture', () => stepAvCapture(ctx)],
+    ['stepBarcodeDetector', () => stepBarcodeDetector(ctx)],
     ['stepUpperLayer', () => stepUpperLayer(ctx)],
     ['stepAccessibility', () => stepAccessibility(ctx)],
     ['stepShadowPath', () => stepShadowPath(ctx)],

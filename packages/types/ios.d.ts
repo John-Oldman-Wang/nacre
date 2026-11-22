@@ -59,3 +59,4 @@
 /// <reference path="./ios/shadow-path.d.ts" />
 /// <reference path="./ios/background-task.d.ts" />
 /// <reference path="./ios/text-view-should.d.ts" />
+/// <reference path="./ios/barcode-detector.d.ts" />

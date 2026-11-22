@@ -134,6 +134,7 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 | [`UIFont`](ui-font.md) | **`UIFont`** represents a font. |
 | [`UIImage`](ui-image.md) | **`UIImage`** represents an image. |
 | [`UIImageView`](ui-image-view.md) | **`UIImageView`** represents a view that displays an image, called an image view. |
+| [`BarcodeDetector`](barcode-detector.md) | **`BarcodeDetector`** represents a detector that finds barcodes in an image. |
 | [`UIColor`](ui-color.md) | **`UIColor`** represents a color. |
 | [`UITraitCollection`](ui-trait-collection.md) | **`UITraitCollection`** represents a set of values describing the environment the UI is currently in: whether it's dark or light, how many pixels 1 pt covers on the screen, which level the user set the system text size to, and so on. |
 | [`NSAttributedString`](ns-attributed-string.md) | **`NSAttributedString`** represents styled text, called an attributed string: a string plus a set of attributes on each range. |
@@ -285,6 +286,15 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 | [`RemoteNotifications`](remote-notifications.md) | **`RemoteNotifications`** represents this app's remote notifications: registering with Apple's push service, getting this device's token, and receiving silent pushes. |
 | [`PushEvent`](push-event.md) | **`PushEvent`** represents a silent push that has arrived. |
 | [`UIImagePickerController`](ui-image-picker-controller.md) | **`UIImagePickerController`** represents the system's camera interface. |
+| [`AVCaptureSession`](av-capture-session.md) | **`AVCaptureSession`** represents a capture: it delivers the picture from a camera to the outputs and preview layers attached to it. |
+| [`AVCaptureDevice`](av-capture-device.md) | **`AVCaptureDevice`** represents a camera on the phone. |
+| [`AVCaptureInput`](av-capture-input.md) | **`AVCaptureInput`** represents an input of an `AVCaptureSession`: where the picture comes from. |
+| [`AVCaptureDeviceInput`](av-capture-device-input.md) | **`AVCaptureDeviceInput`** represents an input that connects a camera to an `AVCaptureSession`. |
+| [`AVCaptureOutput`](av-capture-output.md) | **`AVCaptureOutput`** represents an output of an `AVCaptureSession`: the session hands the picture to it for processing. |
+| [`AVCaptureMetadataOutput`](av-capture-metadata-output.md) | **`AVCaptureMetadataOutput`** represents an output that recognizes codes, faces, and similar things in the captured picture. |
+| [`AVMetadataObject`](av-metadata-object.md) | **`AVMetadataObject`** represents one thing that an `AVCaptureMetadataOutput` recognized in a frame. |
+| [`AVMetadataMachineReadableCodeObject`](av-metadata-machine-readable-code-object.md) | **`AVMetadataMachineReadableCodeObject`** represents a code recognized in the captured picture, such as a QR code or a product barcode. |
+| [`AVCaptureVideoPreviewLayer`](av-capture-video-preview-layer.md) | **`AVCaptureVideoPreviewLayer`** represents a layer that shows the camera's captured picture, called a preview layer. |
 | [`PHPickerViewController`](photos.md) | **`PHPickerViewController`** represents the system's photo picker. |
 | [`PHPickerConfiguration`](ph-picker-configuration.md) | **`PHPickerConfiguration`** represents the configuration of the photo picker: how many items can be selected at most, which types are shown, how selection works, and what the picker looks like. |
 | [`PHPickerFilter`](ph-picker-filter.md) | **`PHPickerFilter`** represents which kinds of items a photo picker shows, for example only images, only videos, or images without screenshots. |

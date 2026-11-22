@@ -12,6 +12,7 @@
   },
   "devDependencies": {
     "@nacrejs/app-tracking-transparency": "file:../packages/app-tracking-transparency",
+    "@nacrejs/av-capture": "file:../packages/av-capture",
     "@nacrejs/camera": "file:../packages/camera",
     "@nacrejs/cli": "file:../packages/cli",
     "@nacrejs/contacts": "file:../packages/contacts",

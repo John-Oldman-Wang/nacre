@@ -134,6 +134,7 @@ API 分两类：
 | [`UIFont`](ui-font.md) | **`UIFont`** 表示一个字体。 |
 | [`UIImage`](ui-image.md) | **`UIImage`** 表示一张图片。 |
 | [`UIImageView`](ui-image-view.md) | **`UIImageView`** 表示显示图片的视图，称为图片视图。 |
+| [`BarcodeDetector`](barcode-detector.md) | **`BarcodeDetector`** 表示在一张图片里找条码的检测器。 |
 | [`UIColor`](ui-color.md) | **`UIColor`** 表示一个颜色。 |
 | [`UITraitCollection`](ui-trait-collection.md) | **`UITraitCollection`** 表示界面当前所处环境的一组值：现在是深色还是浅色，屏幕上 1 pt 对应几个像素，用户把系统的文字大小设到了哪一档，等等。 |
 | [`NSAttributedString`](ns-attributed-string.md) | **`NSAttributedString`** 表示一段带样式的文字，称为富文本：一个字符串，加上每一段上的一组属性。 |
@@ -285,6 +286,15 @@ API 分两类：
 | [`RemoteNotifications`](remote-notifications.md) | **`RemoteNotifications`** 表示这个 App 的远程推送：向 Apple 的推送服务注册、拿到这台设备的令牌，以及收到静默推送。 |
 | [`PushEvent`](push-event.md) | **`PushEvent`** 表示一条到达的静默推送。 |
 | [`UIImagePickerController`](ui-image-picker-controller.md) | **`UIImagePickerController`** 表示系统的拍照界面。 |
+| [`AVCaptureSession`](av-capture-session.md) | **`AVCaptureSession`** 表示一次取景：它把摄像头送来的画面交给加在它上面的输出和取景图层。 |
+| [`AVCaptureDevice`](av-capture-device.md) | **`AVCaptureDevice`** 表示手机上的一个摄像头。 |
+| [`AVCaptureInput`](av-capture-input.md) | **`AVCaptureInput`** 表示 `AVCaptureSession` 的一个输入：画面从哪里来。 |
+| [`AVCaptureDeviceInput`](av-capture-device-input.md) | **`AVCaptureDeviceInput`** 表示把一个摄像头接进 `AVCaptureSession` 的输入。 |
+| [`AVCaptureOutput`](av-capture-output.md) | **`AVCaptureOutput`** 表示 `AVCaptureSession` 的一个输出：会话把画面交给它处理。 |
+| [`AVCaptureMetadataOutput`](av-capture-metadata-output.md) | **`AVCaptureMetadataOutput`** 表示从取景画面里识别码、人脸这类东西的输出。 |
+| [`AVMetadataObject`](av-metadata-object.md) | **`AVMetadataObject`** 表示 `AVCaptureMetadataOutput` 在一帧画面里认到的一样东西。 |
+| [`AVMetadataMachineReadableCodeObject`](av-metadata-machine-readable-code-object.md) | **`AVMetadataMachineReadableCodeObject`** 表示在取景画面里认到的一个码：二维码、商品条码这类。 |
+| [`AVCaptureVideoPreviewLayer`](av-capture-video-preview-layer.md) | **`AVCaptureVideoPreviewLayer`** 表示显示摄像头取景画面的图层，称为取景图层。 |
 | [`PHPickerViewController`](photos.md) | **`PHPickerViewController`** 表示系统的选图界面。 |
 | [`PHPickerConfiguration`](ph-picker-configuration.md) | **`PHPickerConfiguration`** 表示选图界面的配置：最多选几项、显示哪些类型、选中的方式、界面的样子。 |
 | [`PHPickerFilter`](ph-picker-filter.md) | **`PHPickerFilter`** 表示选图界面里显示哪些类型，比如只显示图片、只显示视频、图片里去掉截屏。 |

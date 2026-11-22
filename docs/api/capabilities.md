@@ -21,6 +21,7 @@ Nacre 的 API 分成两部分：**核心**和**能力包**。
 | `@nacrejs/user-notifications` | `UNUserNotificationCenter`：发本地通知，得知通知到了、被点了 | 不用写 | [通知](un-user-notification-center.md) |
 | `@nacrejs/push` | `application.remoteNotifications`：注册远程推送、拿设备令牌、收到静默推送 | `ios.entitlements` 里的 `aps-environment` | [远程推送](remote-notifications.md) |
 | `@nacrejs/camera` | `UIImagePickerController`：用系统的界面拍照 | `NSCameraUsageDescription` | [拍照](ui-image-picker-controller.md) |
+| `@nacrejs/av-capture` | `AVCaptureSession`、`AVCaptureDevice`、`AVCaptureMetadataOutput`、`AVCaptureVideoPreviewLayer`：在页面上显示摄像头的画面，实时认二维码、条码和人脸 | `NSCameraUsageDescription` | [取景和扫码](av-capture-session.md) |
 | `@nacrejs/photos` | `PHPickerViewController` 选图，`PHPhotoLibrary` 把图存进相册 | `NSPhotoLibraryAddUsageDescription` | [相册](photos.md) |
 | `@nacrejs/contacts` | `CNContactPickerViewController`、`CNContact`：让用户选联系人 | 不用写 | [通讯录选择器](contacts.md) |
 | `@nacrejs/app-tracking-transparency` | `ATTrackingManager`、`ASIdentifierManager`：跟踪授权和广告标识 | `NSUserTrackingUsageDescription` | [跟踪授权和广告标识](app-tracking-transparency.md) |

@@ -88,6 +88,8 @@ targets:
       - sdk: Security.framework
       # 网络状态（application.network）：nw_path_monitor
       - sdk: Network.framework
+      # 识别图片里的条码（BarcodeDetector）：VNDetectBarcodesRequest
+      - sdk: Vision.framework
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: nacre.runtime
@@ -464,6 +466,40 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: nacre.push
+        GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: "0.0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        # 和核心一致：两边共用 std::string 和 NativeObjectRef
+        CLANG_CXX_LANGUAGE_STANDARD: c++20
+        CLANG_CXX_LIBRARY: libc++
+        OTHER_CPLUSPLUSFLAGS: ["$(inherited)", "-fno-rtti"]
+        OTHER_LDFLAGS: ["$(inherited)", "-lc++"]
+
+  # 相机取景和扫码：AVCaptureSession 一组。形状和 NacreCamera 一样。
+  # 项目要在 Info.plist 里写 NSCameraUsageDescription，所以它是一个能力包。
+  NacreAVCapture:
+    type: framework
+    platform: iOS
+    sources:
+      - path: Capabilities/AVCapture
+        excludes:
+          - "Builtin/**"
+      # 它自己的 JS：AVCaptureSession、AVCaptureDevice 这几个类
+      - path: Capabilities/AVCapture/Builtin
+        type: folder
+        buildPhase: resources
+    dependencies:
+      # 只链不嵌：两个 framework 都由宿主 App 嵌进去
+      - target: Nacre
+        embed: false
+      - sdk: AVFoundation.framework
+      # 取景图层是 CALayer；码的四个角是 CGPoint 的字典，要 CoreGraphics 的函数解开
+      - sdk: QuartzCore.framework
+      - sdk: CoreGraphics.framework
+      - sdk: UIKit.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: nacre.avcapture
         GENERATE_INFOPLIST_FILE: YES
         MARKETING_VERSION: "0.0.1"
         CURRENT_PROJECT_VERSION: "1"
