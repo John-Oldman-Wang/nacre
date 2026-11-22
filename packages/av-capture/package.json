@@ -1,6 +1,6 @@
 {
   "name": "@nacrejs/av-capture",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Nacre 的相机取景和扫码：AVCaptureSession、摄像头、识别画面里的码和人脸。装了才有这些类",
   "license": "FSL-1.1-MIT",
   "repository": {
@@ -15,8 +15,8 @@
     "NacreAVCapture.xcframework"
   ],
   "peerDependencies": {
-    "@nacrejs/ios": "0.0.1",
-    "@nacrejs/types": "0.0.1"
+    "@nacrejs/ios": "0.0.2",
+    "@nacrejs/types": "0.0.2"
   },
   "publishConfig": {
     "access": "public",

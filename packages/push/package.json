@@ -1,6 +1,6 @@
 {
   "name": "@nacrejs/push",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Nacre 的远程推送：向 Apple 注册、拿设备令牌，静默推送。装了才有 application.remoteNotifications",
   "license": "FSL-1.1-MIT",
   "repository": {
@@ -15,8 +15,8 @@
     "NacrePush.xcframework"
   ],
   "peerDependencies": {
-    "@nacrejs/ios": "0.0.1",
-    "@nacrejs/types": "0.0.1"
+    "@nacrejs/ios": "0.0.2",
+    "@nacrejs/types": "0.0.2"
   },
   "publishConfig": {
     "access": "public",

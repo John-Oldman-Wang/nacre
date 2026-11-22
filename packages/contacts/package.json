@@ -1,6 +1,6 @@
 {
   "name": "@nacrejs/contacts",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Nacre 的通讯录选择器：让用户从通讯录里选联系人，不需要通讯录权限。装了才有 CNContactPickerViewController",
   "license": "FSL-1.1-MIT",
   "repository": {
@@ -15,8 +15,8 @@
     "NacreContacts.xcframework"
   ],
   "peerDependencies": {
-    "@nacrejs/ios": "0.0.1",
-    "@nacrejs/types": "0.0.1"
+    "@nacrejs/ios": "0.0.2",
+    "@nacrejs/types": "0.0.2"
   },
   "publishConfig": {
     "access": "public",
