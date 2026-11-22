@@ -2,6 +2,12 @@
 //
 // 剪贴板。
 
+/** 剪贴板上每个事件名对应的事件对象。 */
+interface UIPasteboardEventMap {
+  /** 剪贴板的内容变了。 */
+  'change': Event;
+}
+
 /**
  * 系统剪贴板。不能 `new`，用 `UIPasteboard.generalPasteboard`。
  *
@@ -16,12 +22,15 @@ declare class UIPasteboard extends NSObject {
   /** 整个系统共用的那个剪贴板。 */
   static readonly generalPasteboard: UIPasteboard;
 
-  addEventListener(
-    type: 'change',
-    callback: EventListener | null,
+  addEventListener<K extends keyof UIPasteboardEventMap>(
+    type: K,
+    callback: ((event: UIPasteboardEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
   ): void;
-  removeEventListener(type: 'change', callback: EventListener | null): void;
+  removeEventListener<K extends keyof UIPasteboardEventMap>(
+    type: K,
+    callback: ((event: UIPasteboardEventMap[K]) => void) | null,
+  ): void;
 
   /**
    * 剪贴板里的文字。没有文字时是 `null`。

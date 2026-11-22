@@ -432,7 +432,8 @@ NacreSubscribed CoreLocationSubscribe(id object, NSString* type, BOOL on, std::s
     [list addObject:nacre_bridge::LocationToJSON(location)];
   }
   nacre_bridge::NacreEmitEventWithJSON(manager, "CLLocationManager", @"locationupdate",
-                                       nacre_bridge::JSONText(@{@"locations": list}));
+                                       nacre_bridge::JSONText(@{@"locations": list}),
+                                       "CLLocationUpdateEvent");
 }
 
 - (void)locationManager:(CLLocationManager*)manager didFailWithError:(NSError*)error {
@@ -457,7 +458,7 @@ NacreSubscribed CoreLocationSubscribe(id object, NSString* type, BOOL on, std::s
     @"domain": error.domain ?: @"",
   };
   nacre_bridge::NacreEmitEventWithJSON(manager, "CLLocationManager", @"locationerror",
-                                       nacre_bridge::JSONText(fields));
+                                       nacre_bridge::JSONText(fields), "CLLocationErrorEvent");
 }
 
 // 授权状态或者精度的授权变了；建好对象之后系统也会先调一次。

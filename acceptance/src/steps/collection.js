@@ -432,6 +432,7 @@ export function stepCollection(ctx) {
     assert('beforedisplay 带 indexPath，是 NSIndexPath', displayEvent !== null &&
            /** @type {UICollectionViewItemEvent} */ (displayEvent).indexPath instanceof NSIndexPath, true);
     assert('beforedisplay 不能取消', displayEvent !== null && /** @type {Event} */ (displayEvent).cancelable, false);
+    assert('beforedisplay 是 UICollectionViewItemEvent', displayEvent instanceof UICollectionViewItemEvent, true);
 
     // ===================================================================
     // 7. 改数据：删两项、头上插一项、改一项的内容

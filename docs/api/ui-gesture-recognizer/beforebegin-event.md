@@ -15,14 +15,14 @@ addEventListener('beforebegin', (event) => { })
 
 ## 事件对象
 
-事件对象的类型是 `UIGestureRecognizerEvent`，除了 `type` 和 `target`（这个识别器），还带两个只读字段：
+[`UIGestureRecognizerEvent`](../ui-gesture-recognizer-event.md)。除了 `type` 和 `target`（这个识别器），还带两个只读字段：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `location` | [`CGPoint`](../cg-point.md) 或 `null` | 这一刻手势的位置，在识别器所在视图的坐标系里，单位 [pt](../units.md)。多根手指时是它们的中心点 |
-| `numberOfTouches` | 数 | 这一刻参与手势的手指个数 |
+| [`location`](../ui-gesture-recognizer-event/location.md) | [`CGPoint`](../cg-point.md) 或 `null` | 这一刻手势的位置，在识别器所在视图的坐标系里，单位 [pt](../units.md)。多根手指时是它们的中心点 |
+| [`numberOfTouches`](../ui-gesture-recognizer-event/numberoftouches.md) | 数 | 这一刻参与手势的手指个数 |
 
-回调参数的类型声明是 `Event`，读这两个字段要转一下类型，见示例。
+拖动、捏合、旋转识别器的 `beforebegin` 也是这个类：手势还没开始，没有移动的距离、缩放的倍数这些值。
 
 可以取消：`event.cancelable` 是 `true`。调了 `preventDefault()`，这一次手势不开始，识别器不派发 [`began`](began-event.md)、[`ended`](ended-event.md) 这些事件。
 
@@ -51,7 +51,7 @@ beforebegin is only available on gesture recognizers you create: this one belong
 const sheet = new UIView();
 const pan = new UIPanGestureRecognizer();
 pan.addEventListener('beforebegin', (event) => {
-  const { location } = /** @type {UIGestureRecognizerEvent} */ (event);
+  const { location } = event;
   if (location === null || location.y > 44) event.preventDefault();
 });
 sheet.addGestureRecognizer(pan);

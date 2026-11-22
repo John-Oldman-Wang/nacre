@@ -388,15 +388,10 @@
     }
   });
 
-  // 列表的四个事件带的 indexPath 过桥时是 { section, item }，换成 NSIndexPath。
-  // itemselect 这个名字标签栏控制器也在用（它带的是页面，不走这张表）
-  const withPath = (fields) => (
-    fields !== null && typeof fields === 'object' && fields.indexPath != null
-      ? { indexPath: toPath(fields.indexPath) }
-      : fields);
-  for (const type of ['itemselect', 'itemdeselect', 'beforedisplay', 'displayend']) {
-    eventFieldConverters.set(type, withPath);
-  }
+  // 列表的四个事件（UICollectionViewItemEvent）带的 indexPath 过桥时是
+  // { section, item }，换成 NSIndexPath
+  eventFieldConverters.set('UICollectionViewItemEvent', (fields) => (
+    fields.indexPath != null ? { indexPath: toPath(fields.indexPath) } : fields));
 
   // ---- 快照 ----
   defineNativeClass('NSDiffableDataSourceSnapshot',

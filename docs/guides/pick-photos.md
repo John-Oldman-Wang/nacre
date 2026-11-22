@@ -50,7 +50,7 @@ application.addEventListener('sceneconnect', (e) => {
     // 2. 建选择器，监听「选完了」
     const picker = new PHPickerViewController(config);
     picker.addEventListener('pick', async (event) => {
-      const { results } = /** @type {PHPickerViewControllerFinishEvent} */ (event);
+      const { results } = event;
 
       // 3. 选图界面不会自己关，先关掉
       picker.dismissViewController({ animated: true });
@@ -150,7 +150,7 @@ multiConfig.selection = 'ordered';     // 按选的先后编号
 
 const multiPicker = new PHPickerViewController(multiConfig);
 multiPicker.addEventListener('pick', async (event) => {
-  const { results } = /** @type {PHPickerViewControllerFinishEvent} */ (event);
+  const { results } = event;
   multiPicker.dismissViewController({ animated: true });
   const images = await Promise.all(
     results.map((item) => item.itemProvider.loadObjectOfClass(UIImage)));

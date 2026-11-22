@@ -43,7 +43,7 @@ status: partial
 const card = new UIView();
 const tap = new UITapGestureRecognizer();
 tap.addEventListener('ended', (e) => {
-  const { location } = /** @type {UIGestureRecognizerEvent} */ (e);
+  const { location } = e;
   if (location !== null) {
     console.log('点在', location.x, location.y);
   }

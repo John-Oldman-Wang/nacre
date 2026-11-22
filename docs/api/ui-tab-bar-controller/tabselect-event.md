@@ -15,13 +15,11 @@ tabs.addEventListener('tabselect', (event) => { })
 
 ## 事件对象
 
-`UITabBarControllerEvent`，多一个字段：
+[`UITabBarControllerEvent`](../ui-tab-bar-controller-event.md)，多一个字段：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `viewController` | `UIViewController` | 被点中的页面 |
-
-监听回调的参数类型是 `Event`，要读 `viewController` 先转一下类型，写法见示例。
+| [`viewController`](../ui-tab-bar-controller-event/viewcontroller.md) | `UIViewController` | 被点中的页面 |
 
 不能取消。派发时切换已经完成，不能用它阻止用户切换。
 
@@ -36,8 +34,7 @@ tabs.addEventListener('tabselect', (event) => { })
 
 ```js
 const tabs = new UITabBarController();
-tabs.addEventListener('tabselect', (e) => {
-  const event = /** @type {UITabBarControllerEvent} */ (e);
+tabs.addEventListener('tabselect', (event) => {
   console.log(event.type, event.target === tabs, event.viewController === tabs.selectedViewController);
 });
 ```

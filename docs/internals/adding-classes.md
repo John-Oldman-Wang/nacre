@@ -139,13 +139,15 @@ static bool SwitchConstruct(const std::string& className, const NacreArgs& args,
 
 ```objc
 nacre_bridge::NacreEmitEvent(object, "UIPasteboard", @"change");
-nacre_bridge::NacreEmitEventWithJSON(recognizer, "UITapGestureRecognizer", @"ended", json);
-nacre_bridge::NacreEmitEventWithObject(view, "UIView", @"traitchange", previous, "UITraitCollection");
+nacre_bridge::NacreEmitEventWithJSON(recognizer, "UITapGestureRecognizer", @"ended", json,
+                                     "UIGestureRecognizerEvent");
+nacre_bridge::NacreEmitEventWithObject(view, "UIView", @"traitchange", previous, "UITraitCollection",
+                                       "UITraitChangeEvent");
 ```
 
-第二个参数是「这个对象还没有包装时，用哪个 JS 类包它」。
+第二个参数是「这个对象还没有包装时，用哪个 JS 类包它」。带负载的最后一个参数是**事件类**：事件对象用哪个类建（2026-11-22 起，见[事件类](events.md#事件类一种字段组合是一个类2026-11-22)）。新的字段组合就在域自己的 part 里用 `ctx.defineEventClass` 定义一个类，类型里同步写 `declare class` 和这个类的事件表；`check-api.sh` 核对原生写到的类名 JS 里都有。
 
-`NacreEmitEventWithJSON` 带的 JSON 是一个对象时，**它的每个键都成为事件对象上的一个只读字段**，JS 那一侧不用写任何东西；值正好是 `{ "x": …, "y": … }` 的转成 `CGPoint`。事件要带什么的判据是「回头读不到」：事件延后一轮才派发，那时对象上的状态可能已经变了（手势的位移、动画跑没跑完）。读得到的不要带。
+`NacreEmitEventWithJSON` 带的 JSON 是一个对象时，**它的每个键都是那个事件类的一个字段**（作为 `init` 交给构造函数）；值正好是 `{ "x": …, "y": … }` 的转成 `CGPoint`。要换成别的类型的，按事件类登记 `ctx.eventFieldConverters`。事件要带什么的判据是「回头读不到」：事件延后一轮才派发，那时对象上的状态可能已经变了（手势的位移、动画跑没跑完）。读得到的不要带。
 
 系统要求当场答复的场合用另外三个，**不延后**，见[同步回调](events.md#m1b同步回调系统问js-当场答)：
 

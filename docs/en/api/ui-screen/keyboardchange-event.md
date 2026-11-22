@@ -15,13 +15,13 @@ screen.addEventListener('keyboardchange', (event) => { })
 
 ## Event object
 
-`UIScreenKeyboardEvent`. Besides `type` and `target` (this screen), it carries three read-only fields:
+[`UIScreenKeyboardEvent`](../ui-screen-keyboard-event.md). Besides `type` and `target` (this screen), it carries three read-only fields:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `frame` | [`CGRect`](../cg-rect.md) | Where the keyboard is when the animation ends, in screen coordinates, in pt. The keyboard's height is `frame.height` |
-| `previousFrame` | [`CGRect`](../cg-rect.md) | Where the keyboard is when the animation starts |
-| `duration` | number | How long the keyboard animation lasts, in seconds |
+| [`frame`](../ui-screen-keyboard-event/frame.md) | [`CGRect`](../cg-rect.md) | Where the keyboard is when the animation ends, in screen coordinates, in pt. The keyboard's height is `frame.height` |
+| [`previousFrame`](../ui-screen-keyboard-event/previousframe.md) | [`CGRect`](../cg-rect.md) | Where the keyboard is when the animation starts |
+| [`duration`](../ui-screen-keyboard-event/duration.md) | number | How long the keyboard animation lasts, in seconds |
 
 Not cancelable. On iPhone the app fills the whole screen, so screen coordinates are the same as coordinates in the window.
 
@@ -43,8 +43,7 @@ const bar = new UIView();
 bar.frame = new CGRect(0, 800, 390, 56);
 page.view.addSubview(bar);
 const screen = /** @type {UIWindowScene} */ (application.scenes[0]).screen;
-screen.addEventListener('keyboardchange', (e) => {
-  const event = /** @type {UIScreenKeyboardEvent} */ (e);
+screen.addEventListener('keyboardchange', (event) => {
   const top = Math.min(event.frame.y, screen.bounds.height);
   bar.frame = new CGRect(0, top - 56, 390, 56);
 });

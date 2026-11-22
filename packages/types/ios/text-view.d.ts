@@ -32,7 +32,16 @@ type NSRangeLike = NSRange | { location: number; length: number };
  */
 type UITextViewEventType = 'focus' | 'blur' | 'input' | 'selectionchange';
 
-type TextViewEventName = UITextViewEventType | ScrollEventName;
+/**
+ * 多行输入框上每个事件名对应的事件对象：滚动视图的那些，加上自己的四个。
+ * 系统当场来问的四个（`beforeinput` 这些）在 text-view-should.d.ts 里合并进来。
+ */
+interface UITextViewEventMap extends UIScrollViewEventMap {
+  'focus': Event;
+  'blur': Event;
+  'input': Event;
+  'selectionchange': Event;
+}
 
 /**
  * 文字排在哪一块区域里。不能构造——每个 `UITextView` 自带一个，从
@@ -127,9 +136,16 @@ declare class UITextView extends UIScrollView {
   /** 没配过是 `null`。 */
   textContentType: UITextContentType | null;
 
-  addEventListener(
-    type: TextViewEventName,
-    callback: EventListener | null,
+  addEventListener<K extends keyof UITextViewEventMap>(
+    type: K,
+    callback: ((event: UITextViewEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
   ): void;
+  /** 别的名字当自定义事件：`dispatchEvent` 是公开 API，JS 可以派发自己的事件。 */
+  addEventListener(type: string, callback: EventListener | null, options?: AddEventListenerOptions): void;
+  removeEventListener<K extends keyof UITextViewEventMap>(
+    type: K,
+    callback: ((event: UITextViewEventMap[K]) => void) | null,
+  ): void;
+  removeEventListener(type: string, callback: EventListener | null): void;
 }

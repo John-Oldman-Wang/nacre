@@ -104,14 +104,13 @@ status: partial
 
 ## 触点位置
 
-`touch` 开头的九个事件，事件对象的类型是 `UIControlTouchEvent`，比普通的 `Event` 多两个只读字段：
+`touch` 开头的九个事件，事件对象是 [`UIControlTouchEvent`](ui-control-touch-event.md)，比普通的 `Event` 多两个只读字段：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `location` | [`CGPoint`](structs.md) 或 `null` | 手指的位置，在**这个控件自己的坐标系**里，单位 [pt](units.md)。没有真实触摸时是 `null` |
-| `tapCount` | 数 | 连击次数，单位是次。没有真实触摸时是 0 |
+| [`location`](ui-control-touch-event/location.md) | [`CGPoint`](structs.md) 或 `null` | 手指的位置，在**这个控件自己的坐标系**里，单位 [pt](units.md)。没有真实触摸时是 `null` |
+| [`tapCount`](ui-control-touch-event/tapcount.md) | 数 | 连击次数，单位是次。没有真实触摸时是 0 |
 
-- 回调参数的类型声明是 `Event`。要读这两个字段，用 `/** @type {UIControlTouchEvent} */ (e)` 转一下类型。
 - [`sendActionsForControlEvents()`](ui-control/sendactionsforcontrolevents.md) 派发的事件没有对应的触摸：`location` 是 `null`，`tapCount` 是 0。`null` 和 `(0, 0)` 不同，`(0, 0)` 是控件左上角，是一个真实存在的位置。
 - 这两个值只能从事件对象上读。回调执行时触摸可能已经结束，控件上没有保存触摸的位置。要把位置换算到别的视图的坐标系，用 [`UIView`](ui-view.md) 的 `convertPoint()`。
 - 其余七个事件的对象上没有这两个字段，读它们得到 `undefined`，`'location' in e` 是 `false`。`focus`、`input`、`blur`、`return` 是文字输入的事件，和触点无关；`change`、`click`、`menuaction` 不一定来自触摸，代码调用 `sendActionsForControlEvents()` 也会派发它们。

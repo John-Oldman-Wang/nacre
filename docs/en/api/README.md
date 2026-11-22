@@ -46,9 +46,11 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 | [Event](event.md) | **`Event`** represents an event: what happened (the event name), whom it was dispatched to, and whether it can be canceled. |
 | [ErrorEvent](error-event.md) | **`ErrorEvent`** represents an uncaught exception. |
 | [PromiseRejectionEvent](promise-rejection-event.md) | **`PromiseRejectionEvent`** represents a Promise rejection that wasn't handled. |
+| [`CustomEvent`](custom-event.md) | **`CustomEvent`** represents an event that carries a piece of custom data. |
 | [`DOMException`](dom-exception.md) | **`DOMException`** represents an error classified by name. |
 | [`NSError`](ns-error.md) | **`NSError`** represents an error given by iOS. |
 | [OpenURLEvent](open-url-event.md) | **`OpenURLEvent`** represents one occurrence of "this app was opened by a URL". |
+| [`SceneEvent`](scene-event.md) | **`SceneEvent`** represents a scene connecting or disconnecting. |
 | [`application.nativeModules`](native-modules.md) | **`application.nativeModules`** represents all native modules registered in this app. |
 | [NativeModule](native-module.md) | **`NativeModule`** represents a native module registered in the app: a piece of code written in ObjC or Swift that provides a set of methods and a set of events under a name. |
 
@@ -57,22 +59,27 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 | Page | Description |
 | --- | --- |
 | [`UIWindowScene`](ui-window-scene.md) | **`UIWindowScene`** represents one instance of the App's UI, called a scene. |
+| [`UIWindowSceneGeometryChangeEvent`](ui-window-scene-geometry-change-event.md) | **`UIWindowSceneGeometryChangeEvent`** represents a change in a scene's geometry, for example the phone being rotated. |
 | [`UIWindowSceneGeometry`](ui-window-scene-geometry.md) | **`UIWindowSceneGeometry`** represents a scene's geometry at a given moment: the interface orientation and whether the orientation is locked. |
 | [`UIWindowSceneGeometryPreferencesIOS`](ui-window-scene-geometry-preferences-ios.md) | **`UIWindowSceneGeometryPreferencesIOS`** represents the preferences for a rotation request: which orientations you want. |
 | [`UIStatusBarManager`](ui-status-bar-manager.md) | **`UIStatusBarManager`** represents how a scene's status bar looks at the moment. |
 | [`UISceneSession`](ui-scene-session.md) | **`UISceneSession`** represents a scene's session: the scene's persistent identity. |
 | [`UIWindow`](ui-window.md) | **`UIWindow`** represents a window: the outermost view that hosts the interface in a scene. |
 | [`UIViewController`](ui-view-controller.md) | **`UIViewController`** represents the manager of one screen of content, called a view controller. |
+| [`UIViewControllerAppearanceEvent`](ui-view-controller-appearance-event.md) | **`UIViewControllerAppearanceEvent`** represents a view controller about to appear, having appeared, about to disappear, or having disappeared. |
 | [`UINavigationController`](ui-navigation-controller.md) | **`UINavigationController`** represents a stack of view controllers, called a navigation controller. |
+| [`UINavigationControllerEvent`](ui-navigation-controller-event.md) | **`UINavigationControllerEvent`** represents a navigation controller about to show, or having shown, a page. |
 | [`UINavigationItem`](ui-navigation-item.md) | **`UINavigationItem`** represents a view controller's configuration for the navigation bar: the title in the center, the subtitle, the text on the next view controller's back button, and which buttons are on the left and right. |
 | [`UIBarItem`](ui-bar-item.md) | **`UIBarItem`** represents the shared part of an item on a navigation bar or tab bar: text, icon, whether it can be tapped, and a tag number. |
 | [`UIBarButtonItem`](ui-bar-button-item.md) | **`UIBarButtonItem`** represents a button on the navigation bar. |
 | [`UITabBarController`](ui-tab-bar-controller.md) | **`UITabBarController`** represents an interface with a tab bar, called a tab bar controller. |
+| [`UITabBarControllerEvent`](ui-tab-bar-controller-event.md) | **`UITabBarControllerEvent`** represents the user selecting a page on the tab bar. |
 | [`UITabBar`](ui-tab-bar.md) | **`UITabBar`** represents the row of tabs at the bottom of the screen in a tab bar controller. |
 | [`UITabBarItem`](ui-tab-bar-item.md) | **`UITabBarItem`** represents one tab in the bottom tab bar: the icon, the text below the icon, and the badge in the top-right corner. |
 | [`UIAlertController`](ui-alert-controller.md) | **`UIAlertController`** represents a system alert: a title, a message, and some buttons. |
 | [`UIAlertAction`](ui-alert-action.md) | **`UIAlertAction`** represents a button on a system alert. |
 | [`UIActivityViewController`](ui-activity-view-controller.md) | **`UIActivityViewController`** represents the system share sheet. |
+| [`UIActivityViewControllerCompletionEvent`](ui-activity-view-controller-completion-event.md) | **`UIActivityViewControllerCompletionEvent`** represents the system share sheet finishing, with what the user chose and whether it was done. |
 
 ### Views and layout
 
@@ -88,6 +95,7 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 | [`UIKeyboardLayoutGuide`](ui-keyboard-layout-guide.md) | **`UIKeyboardLayoutGuide`** represents a layout guide for the area the keyboard occupies. |
 | [`UIStackView`](ui-stack-view.md) | **`UIStackView`** represents a stack view, a container that arranges the subviews you put in it into a row or a column along one direction and automatically positions and sizes each of them. |
 | [`UIScrollView`](ui-scroll-view.md) | **`UIScrollView`** represents a view that can scroll, called a scroll view. |
+| [`UIScrollViewDragEndEvent`](ui-scroll-view-drag-end-event.md) | **`UIScrollViewDragEndEvent`** represents the moment the user lifts the finger after dragging a scroll view. |
 | [`UIVisualEffectView`](ui-visual-effect-view.md) | **`UIVisualEffectView`** represents an area with an effect. |
 | [`UIVisualEffect`](ui-visual-effect.md) | **`UIVisualEffect`** represents a visual effect. |
 | [`UIBlurEffect`](ui-blur-effect.md) | **`UIBlurEffect`** represents a blur effect: it blurs what is behind a visual effect view and covers it with a translucent layer of color. |
@@ -117,6 +125,7 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 | Page | Description |
 | --- | --- |
 | [`UICollectionView`](ui-collection-view.md) | **`UICollectionView`** represents a scrollable list. |
+| [`UICollectionViewItemEvent`](ui-collection-view-item-event.md) | **`UICollectionViewItemEvent`** represents something that happened to one item in a list: it was selected, deselected, is about to be displayed, or is no longer displayed. |
 | [`UICollectionViewDiffableDataSource`](ui-collection-view-diffable-data-source.md) | **`UICollectionViewDiffableDataSource`** represents a list's data source: it decides which items a `UICollectionView` shows and what each item looks like. |
 | [`NSDiffableDataSourceSnapshot`](ns-diffable-data-source-snapshot.md) | **`NSDiffableDataSourceSnapshot`** represents an inventory of a list's data: which sections there are, which items are in each section, and in what order. |
 | [`NSIndexPath`](ns-index-path.md) | **`NSIndexPath`** represents the position of an item in a list: item number `item` in section number `section`, both counted from 0. |
@@ -139,6 +148,7 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 | [`BarcodeDetector`](barcode-detector.md) | **`BarcodeDetector`** represents a detector that finds barcodes in an image. |
 | [`UIColor`](ui-color.md) | **`UIColor`** represents a color. |
 | [`UITraitCollection`](ui-trait-collection.md) | **`UITraitCollection`** represents a set of values describing the environment the UI is currently in: whether it's dark or light, how many pixels 1 pt covers on the screen, which level the user set the system text size to, and so on. |
+| [`UITraitChangeEvent`](ui-trait-change-event.md) | **`UITraitChangeEvent`** represents a change in the set of values describing the UI's environment, such as dark mode being turned on or off, or the text size setting. |
 | [`NSAttributedString`](ns-attributed-string.md) | **`NSAttributedString`** represents styled text, called an attributed string: a string plus a set of attributes on each range. |
 | [`NSMutableAttributedString`](ns-mutable-attributed-string.md) | **`NSMutableAttributedString`** represents a mutable attributed string: you can add attributes to a range, remove attributes, and append, insert, replace, and delete text. |
 | [`NSParagraphStyle`](ns-paragraph-style.md) | **`NSParagraphStyle`** represents a set of paragraph styles: alignment, line spacing, paragraph spacing, indentation, and line breaking. |
@@ -151,6 +161,7 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 | Page | Description |
 | --- | --- |
 | [`UIControl`](ui-control.md) | **`UIControl`** represents a control: a view that receives touches and turns the course of a touch into a set of "control events" that it fires. |
+| [`UIControlTouchEvent`](ui-control-touch-event.md) | **`UIControlTouchEvent`** represents a touch event on a control: a finger going down, moving, lifting, or being interrupted. |
 | [`UIButton`](ui-button.md) | **`UIButton`** represents a button: a tappable area on screen that displays a title, an image, or both. |
 | [`UISwitch`](ui-switch.md) | **`UISwitch`** represents a switch: a round thumb on a short track, off when the thumb is on the left and on when it is on the right. |
 | [`UISlider`](ui-slider.md) | **`UISlider`** represents a slider: a horizontal track with a round thumb that the user drags to pick a number within a range. |
@@ -161,6 +172,8 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 | [`UIColorWell`](system-controls.md) | **`UIColorWell`** represents a color well: a small round button showing the current color. |
 | [`UITextField`](ui-text-field.md) | **`UITextField`** represents a single-line text field. |
 | [`UITextView`](ui-text-view.md) | **`UITextView`** represents an area where the user can type multiple lines of text. |
+| [`UITextBeforeInputEvent`](ui-text-before-input-event.md) | **`UITextBeforeInputEvent`** represents one change the user is making to the content of a text input, before the change takes effect. |
+| [`UITextViewLinkClickEvent`](ui-text-view-link-click-event.md) | **`UITextViewLinkClickEvent`** represents the user tapping a link in multiline text, before the system opens it. |
 | [`NSTextContainer`](ns-text-container.md) | **`NSTextContainer`** represents the area where text is laid out in a `UITextView`: how much space each line leaves on the left and right, how many lines at most, and what to do when a line doesn't fit. |
 | [`UISearchBar`](ui-search-bar.md) | **`UISearchBar`** represents a search bar: a single-line text field with a magnifying-glass icon and a clear button at its right end. |
 
@@ -169,11 +182,15 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 | Page | Description |
 | --- | --- |
 | [`UIGestureRecognizer`](ui-gesture-recognizer.md) | **`UIGestureRecognizer`** represents a gesture recognizer: an object attached to a view that watches the touches on that view and fires events when it recognizes a certain gesture. |
+| [`UIGestureRecognizerEvent`](ui-gesture-recognizer-event.md) | **`UIGestureRecognizerEvent`** represents an event of a gesture recognizer: a gesture about to begin, beginning, changing, ending, or being canceled. |
 | [`UITapGestureRecognizer`](ui-tap-gesture-recognizer.md) | **`UITapGestureRecognizer`** represents a tap recognizer: it recognizes the gesture when a finger goes down and lifts quickly. |
 | [`UILongPressGestureRecognizer`](ui-long-press-gesture-recognizer.md) | **`UILongPressGestureRecognizer`** represents a long-press recognizer: it recognizes the gesture when a finger stays down without moving for a period of time, 0.5 seconds by default. |
 | [`UIPanGestureRecognizer`](ui-pan-gesture-recognizer.md) | **`UIPanGestureRecognizer`** represents a pan (drag) recognizer: it recognizes the gesture when a finger touches down and moves. |
+| [`UIPanGestureRecognizerEvent`](ui-pan-gesture-recognizer-event.md) | **`UIPanGestureRecognizerEvent`** represents an event of a pan gesture: beginning, moving, ending, or being canceled. |
 | [`UIPinchGestureRecognizer`](ui-pinch-gesture-recognizer.md) | **`UIPinchGestureRecognizer`** represents a pinch gesture recognizer: it recognizes two fingers spreading apart or pinching together. |
+| [`UIPinchGestureRecognizerEvent`](ui-pinch-gesture-recognizer-event.md) | **`UIPinchGestureRecognizerEvent`** represents an event of a pinch gesture: beginning, changing, ending, or being canceled. |
 | [`UIRotationGestureRecognizer`](ui-rotation-gesture-recognizer.md) | **`UIRotationGestureRecognizer`** represents a rotation recognizer: it recognizes the gesture when two fingers turn around each other. |
+| [`UIRotationGestureRecognizerEvent`](ui-rotation-gesture-recognizer-event.md) | **`UIRotationGestureRecognizerEvent`** represents an event of a rotation gesture: beginning, changing, ending, or being canceled. |
 | [`UISwipeGestureRecognizer`](ui-swipe-gesture-recognizer.md) | **`UISwipeGestureRecognizer`** represents a swipe recognizer: it recognizes the gesture when a finger moves quickly across the screen in a given direction. |
 | [`UIScreenEdgePanGestureRecognizer`](ui-screen-edge-pan-gesture-recognizer.md) | **`UIScreenEdgePanGestureRecognizer`** represents a screen-edge pan gesture recognizer: it only recognizes drags that start at the edge of the screen and move inward. |
 
@@ -186,6 +203,7 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 | [`CAShapeLayer`](ca-shape-layer.md) | **`CAShapeLayer`** represents a shape layer: it draws a path (`UIBezierPath`). |
 | [`UIBezierPath`](ui-bezier-path.md) | **`UIBezierPath`** represents a path: a geometric shape made of connected line segments, curve segments, and arcs. |
 | [`CAAnimation`](ca-animation.md) | **`CAAnimation`** represents an animation applied to a layer: over a period of time, it changes one of the layer's properties (opacity, position, corner radius, color, path, and so on) continuously from one value to another. |
+| [`CAAnimationEvent`](ca-animation-event.md) | **`CAAnimationEvent`** represents an animation that has stopped: it played to the end, or was removed partway. |
 | [`CAPropertyAnimation`](ca-property-animation.md) | **`CAPropertyAnimation`** represents an animation that changes one property of a layer. |
 | [`CABasicAnimation`](ca-basic-animation.md) | **`CABasicAnimation`** represents an animation that changes one property of a layer from one value to another. |
 | [`CAKeyframeAnimation`](ca-keyframe-animation.md) | **`CAKeyframeAnimation`** represents an animation that makes one of a layer's properties pass through several values in turn, or that moves a layer along a path. |
@@ -194,6 +212,7 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 | [`CAMediaTimingFunction`](ca-media-timing-function.md) | **`CAMediaTimingFunction`** represents a timing function. |
 | [`CATransaction`](ca-transaction.md) | **`CATransaction`** represents a transaction: a group of layer changes handed to the system together. |
 | [`CADisplayLink`](ca-display-link.md) | **`CADisplayLink`** represents a timer synchronized with screen refreshes. |
+| [`CADisplayLinkEvent`](ca-display-link-event.md) | **`CADisplayLinkEvent`** represents one frame of screen refresh. |
 | [`NSRunLoop`](ns-run-loop.md) | **`NSRunLoop`** represents a thread's event loop. |
 
 ### Networking
@@ -212,6 +231,8 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 | [`URL`](url.md) | **`URL`** represents a parsed address. |
 | [`URLSearchParams`](url-search-params.md) | **`URLSearchParams`** represents the query parameters after the `?` in a URL. |
 | [WebSocket](websocket.md) | **`WebSocket`** represents a persistent connection between the app and a server. |
+| [`MessageEvent`](message-event.md) | **`MessageEvent`** represents a message that was received. |
+| [`CloseEvent`](close-event.md) | **`CloseEvent`** represents a connection that has ended. |
 | [`application.network`](network.md) | **`application.network`** represents the device's network status at this moment: whether it is connected to a network, which kind of network it uses, and whether that network is metered. |
 
 ### Web content
@@ -220,6 +241,13 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 | --- | --- |
 | [WebView](web-view.md) | **`WebView`** represents a view that displays a web page. |
 | [WebContents](web-contents.md) | **`WebContents`** represents the web page inside a `WebView`. |
+| [`WebContentsWillNavigateEvent`](web-contents-will-navigate-event.md) | **`WebContentsWillNavigateEvent`** represents a navigation the web page started itself, before the navigation begins. |
+| [`WebContentsDidNavigateEvent`](web-contents-did-navigate-event.md) | **`WebContentsDidNavigateEvent`** represents the web page moving to a new URL. |
+| [`WebContentsDidFailLoadEvent`](web-contents-did-fail-load-event.md) | **`WebContentsDidFailLoadEvent`** represents a web page that failed to load. |
+| [`WebContentsIpcMessageEvent`](web-contents-ipc-message-event.md) | **`WebContentsIpcMessageEvent`** represents a message the web page sent through the message channel. |
+| [`WebContentsPreloadErrorEvent`](web-contents-preload-error-event.md) | **`WebContentsPreloadErrorEvent`** represents an exception thrown while the preload script was running. |
+| [`WebContentsPageTitleUpdatedEvent`](web-contents-page-title-updated-event.md) | **`WebContentsPageTitleUpdatedEvent`** represents a change of the web page's title. |
+| [`WebContentsConsoleMessageEvent`](web-contents-console-message-event.md) | **`WebContentsConsoleMessageEvent`** represents a log message the web page wrote to `console`. |
 | [NavigationHistory](navigation-history.md) | **`NavigationHistory`** represents a web page's back and forward navigation: whether it can go back or forward, and going back or forward one page. |
 | [WebContentsIPC](web-contents-ipc.md) | **`WebContentsIPC`** represents the app's end of a web page's request-response channel. |
 | [`ipcRenderer`](ipc-renderer.md) | **`ipcRenderer`** represents the web page's end of the message channel: the page uses it to send messages to the app, ask the app for results, and receive messages from the app. |
@@ -256,6 +284,7 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 | --- | --- |
 | [`UIDevice`](ui-device.md) | **`UIDevice`** represents the device the app is running on. |
 | [`UIScreen`](ui-screen.md) | **`UIScreen`** represents a screen: its size, pixel density, brightness, refresh rate, and whether it is being recorded right now. |
+| [`UIScreenKeyboardEvent`](ui-screen-keyboard-event.md) | **`UIScreenKeyboardEvent`** represents the on-screen keyboard appearing, hiding, or changing its position or size. |
 | [`UIScreenMode`](ui-screen-mode.md) | **`UIScreenMode`** represents one display mode of a screen: a resolution and a pixel shape. |
 | [`UIPasteboard`](ui-pasteboard.md) | **`UIPasteboard`** represents the system clipboard. |
 | [`UIFeedbackGenerator`](ui-feedback-generator.md) | **`UIFeedbackGenerator`** represents a haptic feedback generator. |
@@ -270,10 +299,14 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 | [`application.keychain`](keychain.md) | **`application.keychain`** represents the app's items in the keychain. |
 | [`LAContext`](la-context.md) | **`LAContext`** represents one authentication that confirms "the person holding the phone right now is its owner". |
 | [`CLLocationManager`](cl-location-manager.md) | **`CLLocationManager`** represents an entry point through which the app asks the system for location. |
+| [`CLLocationUpdateEvent`](cl-location-update-event.md) | **`CLLocationUpdateEvent`** represents the system reporting new locations. |
+| [`CLLocationErrorEvent`](cl-location-error-event.md) | **`CLLocationErrorEvent`** represents a location error. |
 | [`CLLocation`](cl-location.md) | **`CLLocation`** represents a location measured by the system: latitude and longitude, altitude, the error of each measurement, speed, direction of movement, and when the location was measured. |
 | [`CLLocationCoordinate2D`](cl-location-coordinate-2d.md) | **`CLLocationCoordinate2D`** represents the latitude and longitude of a point on Earth, in degrees. |
 | [`CLLocationError`](cl-location-error.md) | **`CLLocationError`** is the error you get when location fails. |
 | [`UNUserNotificationCenter`](un-user-notification-center.md) | **`UNUserNotificationCenter`** represents the entry point between this app and the system's notification features; there is only one per app. |
+| [`UNNotificationPresentEvent`](un-notification-present-event.md) | **`UNNotificationPresentEvent`** represents a notification arriving while the app is in the foreground. |
+| [`UNNotificationResponseEvent`](un-notification-response-event.md) | **`UNNotificationResponseEvent`** represents the user tapping a notification. |
 | [`UNNotificationRequest`](un-notification-request.md) | **`UNNotificationRequest`** represents a notification to be sent: an identifier, the content, and when to deliver it. |
 | [`UNNotificationContent`](un-notification-content.md) | **`UNNotificationContent`** represents the read-only content of a notification, read from a request's `content`, including those of delivered notifications and remote push notifications. |
 | [`UNMutableNotificationContent`](un-mutable-notification-content.md) | **`UNMutableNotificationContent`** represents the content of a notification you write yourself: title, subtitle, body, badge, sound, group identifier, and data that travels with the notification. |
@@ -288,22 +321,30 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 | [`RemoteNotifications`](remote-notifications.md) | **`RemoteNotifications`** represents this app's remote notifications: registering with Apple's push service, getting this device's token, and receiving silent pushes. |
 | [`PushEvent`](push-event.md) | **`PushEvent`** represents a silent push that has arrived. |
 | [`UIImagePickerController`](ui-image-picker-controller.md) | **`UIImagePickerController`** represents the system's camera interface. |
+| [`UIImagePickerControllerMediaEvent`](ui-image-picker-controller-media-event.md) | **`UIImagePickerControllerMediaEvent`** represents the user taking a photo in the system camera screen. |
 | [`AVCaptureSession`](av-capture-session.md) | **`AVCaptureSession`** represents a capture: it delivers the picture from a camera to the outputs and preview layers attached to it. |
+| [`AVCaptureSessionInterruptEvent`](av-capture-session-interrupt-event.md) | **`AVCaptureSessionInterruptEvent`** represents the system interrupting a capture session. |
+| [`AVCaptureSessionRuntimeErrorEvent`](av-capture-session-runtime-error-event.md) | **`AVCaptureSessionRuntimeErrorEvent`** represents an error during capture. |
 | [`AVCaptureDevice`](av-capture-device.md) | **`AVCaptureDevice`** represents a camera on the phone. |
 | [`AVCaptureInput`](av-capture-input.md) | **`AVCaptureInput`** represents an input of an `AVCaptureSession`: where the picture comes from. |
 | [`AVCaptureDeviceInput`](av-capture-device-input.md) | **`AVCaptureDeviceInput`** represents an input that connects a camera to an `AVCaptureSession`. |
 | [`AVCaptureOutput`](av-capture-output.md) | **`AVCaptureOutput`** represents an output of an `AVCaptureSession`: the session hands the picture to it for processing. |
 | [`AVCaptureMetadataOutput`](av-capture-metadata-output.md) | **`AVCaptureMetadataOutput`** represents an output that recognizes codes, faces, and similar things in the captured picture. |
+| [`AVCaptureMetadataOutputDetectEvent`](av-capture-metadata-output-detect-event.md) | **`AVCaptureMetadataOutputDetectEvent`** represents one frame of the camera feed in which what you look for, such as a QR code, was recognized. |
 | [`AVMetadataObject`](av-metadata-object.md) | **`AVMetadataObject`** represents one thing that an `AVCaptureMetadataOutput` recognized in a frame. |
 | [`AVMetadataMachineReadableCodeObject`](av-metadata-machine-readable-code-object.md) | **`AVMetadataMachineReadableCodeObject`** represents a code recognized in the captured picture, such as a QR code or a product barcode. |
 | [`AVCaptureVideoPreviewLayer`](av-capture-video-preview-layer.md) | **`AVCaptureVideoPreviewLayer`** represents a layer that shows the camera's captured picture, called a preview layer. |
 | [`PHPickerViewController`](photos.md) | **`PHPickerViewController`** represents the system's photo picker. |
+| [`PHPickerViewControllerFinishEvent`](ph-picker-view-controller-finish-event.md) | **`PHPickerViewControllerFinishEvent`** represents the user finishing a choice in the system photo picker, or tapping Cancel. |
 | [`PHPickerConfiguration`](ph-picker-configuration.md) | **`PHPickerConfiguration`** represents the configuration of the photo picker: how many items can be selected at most, which types are shown, how selection works, and what the picker looks like. |
 | [`PHPickerFilter`](ph-picker-filter.md) | **`PHPickerFilter`** represents which kinds of items a photo picker shows, for example only images, only videos, or images without screenshots. |
 | [`PHPickerResult`](ph-picker-result.md) | **`PHPickerResult`** represents one item the user picked in the photo picker. |
 | [`NSItemProvider`](ns-item-provider.md) | **`NSItemProvider`** represents a provider for one item of content. |
 | [`PHPhotoLibrary`](ph-photo-library.md) | **`PHPhotoLibrary`** represents the system photo library. |
 | [`CNContactPickerViewController`](contacts.md) | **`CNContactPickerViewController`** represents the system's contact picker. |
+| [`CNContactPickerContactEvent`](cn-contact-picker-contact-event.md) | **`CNContactPickerContactEvent`** represents the user tapping a contact in the system contact picker. |
+| [`CNContactPickerContactsEvent`](cn-contact-picker-contacts-event.md) | **`CNContactPickerContactsEvent`** represents the user checking several contacts in the system contact picker and tapping Done. |
+| [`CNContactPickerContactPropertyEvent`](cn-contact-picker-contact-property-event.md) | **`CNContactPickerContactPropertyEvent`** represents the user tapping one item, such as a phone number, in a contact's details in the system contact picker. |
 | [`CNContact`](cn-contact.md) | **`CNContact`** represents a contact in the address book: name, company, phone numbers, email addresses. |
 | [`CNLabeledValue`](cn-labeled-value.md) | **`CNLabeledValue`** represents one phone number or one email address of a contact, together with its label. |
 | [`CNPhoneNumber`](cn-phone-number.md) | **`CNPhoneNumber`** represents a phone number. |
@@ -318,4 +359,4 @@ Grouped by purpose, in the same order as the sidebar on the left. Each class pag
 
 **Available**: the complete ES standard library, and a fairly recent version of it — `Iterator` (iterator helpers), `DisposableStack` / `AsyncDisposableStack` / `SuppressedError` (explicit resource management), `Float16Array`, `Atomics`, `SharedArrayBuffer`, `WeakRef`, and `FinalizationRegistry` are all there. `Promise` and the microtask queue work normally. `eval` and `new Function` are available as usual.
 
-**Non-standard globals** installed by the runtime: `console`, `EventTarget` / `Event` (and `ErrorEvent`, `PromiseRejectionEvent`), `application`, and the native classes and struct classes listed above.
+**Non-standard globals** installed by the runtime: `console`, `EventTarget` / `Event` (and its subclasses; see [Events with fields](event.md#events-with-fields)), `application`, and the native classes and struct classes listed above.

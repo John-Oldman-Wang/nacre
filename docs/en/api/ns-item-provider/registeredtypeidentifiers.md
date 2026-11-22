@@ -20,7 +20,7 @@ An array of strings. Each value is a [uniform type identifier](../ns-item-provid
 ```js
 const picker = new PHPickerViewController(new PHPickerConfiguration());
 picker.addEventListener('pick', (event) => {
-  const { results } = /** @type {PHPickerViewControllerFinishEvent} */ (event);
+  const { results } = event;
   for (const result of results) {
     console.log(result.itemProvider.registeredTypeIdentifiers.join(', '));
   }

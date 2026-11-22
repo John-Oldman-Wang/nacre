@@ -16,17 +16,27 @@ Both kinds of source use it: custom schemes (`myapp://…`) and universal links 
 
 [`OpenURLEvent()`](open-url-event/constructor.md)
 
-Construct one yourself to simulate an open in tests.
+Construct one yourself and fire it on `application` with [`dispatchEvent()`](event-target/dispatchevent.md) to simulate an open in tests. `url` and `scene` are required.
 
 ## Instance properties
 
-Also inherits properties from [`Event`](event.md). For `openurl` fired by the runtime, `cancelable` is `false`.
+Also inherits properties from [`Event`](event.md). The properties below are read-only; assigning to them throws `TypeError`.
 
 | Property | Description |
 | --- | --- |
 | [`url`](open-url-event/url.md) <small>read-only</small> | The full URL from the system, as is |
 | [`scene`](open-url-event/scene.md) <small>read-only</small> | Which scene the system handed this URL to |
 | [`sourceApplication`](open-url-event/sourceapplication.md) <small>read-only</small> | The bundle ID of the source app |
+
+These properties live on the prototype, not on the event object itself: `Object.keys(event)` and `{ ...event }` don't include them, so read them one by one. See [Events with fields](event.md#events-with-fields).
+
+## Events that use this class
+
+| Object | Events |
+| --- | --- |
+| [`application`](application.md) | [`openurl`](application/openurl-event.md) |
+
+It can't be canceled: `cancelable` is `false`, and `preventDefault()` has no effect.
 
 ## Examples
 

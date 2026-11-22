@@ -17,7 +17,7 @@ application.remoteNotifications.addEventListener('push', (event) => { })
 
 [`PushEvent`](../push-event.md)，一个 `Event`，多一个字段和一个方法：
 
-**`data`**
+**[`data`](../push-event/data.md)**
 
 推送的内容：服务器发来的整个 JSON 对象，包括 `aps`。见 [`data`](../push-event/data.md)。
 

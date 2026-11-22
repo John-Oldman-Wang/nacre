@@ -63,14 +63,14 @@ const contents = web.webContents;
 contents.addEventListener('ipc-message', (e) => {
   if (e.channel === 'share') console.log('网页要分享', e.args[0]);
 });
-contents.ipc.handle('get-user', () => ({ name: 'Jack' }));
+contents.ipc.handle('get-user', () => ({ name: 'Alice' }));
 contents.addEventListener('did-finish-load', () => contents.send('theme', 'dark'));
 ```
 
 **效果**
 
 - 网页调 `app.share(42)` 时，App 的控制台输出 `网页要分享 42`。
-- 网页里 `await app.getUser()` 得到 `{ name: 'Jack' }`。
+- 网页里 `await app.getUser()` 得到 `{ name: 'Alice' }`。
 - 网页加载完后，`<html>` 上多了 `data-theme="dark"`。
 
 预加载脚本的代码在网页里执行，上面那段不参与类型检查。

@@ -15,9 +15,9 @@ picker.addEventListener('contactsselect', (event) => { })
 
 ## 事件对象
 
-`Event`，多一个字段：
+[`CNContactPickerContactsEvent`](../cn-contact-picker-contacts-event.md)，多一个只读字段：
 
-**`contacts`**
+**[`contacts`](../cn-contact-picker-contacts-event/contacts.md)**
 
 用户勾选的联系人，[`CNContact`](../cn-contact.md) 的数组。一个都没勾就点「完成」时是不是空数组，没有验证。
 

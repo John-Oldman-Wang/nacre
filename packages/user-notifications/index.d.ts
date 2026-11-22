@@ -89,6 +89,12 @@ type UNShowPreviewsSetting = 'always' | 'whenAuthenticated' | 'never';
 type UNUserNotificationCenterEventType =
   | 'notification' | 'notificationclick';
 
+/** 通知中心上每个事件名对应的事件对象。 */
+interface UNUserNotificationCenterEventMap {
+  'notification': UNNotificationPresentEvent;
+  'notificationclick': UNNotificationResponseEvent;
+}
+
 /**
  * 这个 App 的通知设置在某一刻的样子。
  *
@@ -370,13 +376,15 @@ type UNError =
   | (NSError & { readonly name: 'NSError' });
 
 /** `notification` 的事件对象。 */
-declare interface UNNotificationPresentEvent extends Event {
+declare class UNNotificationPresentEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<UNNotificationPresentEvent, 'notification'>>);
   /** 刚到的那一条。 */
   readonly notification: UNNotification;
 }
 
 /** `notificationclick` 的事件对象。 */
-declare interface UNNotificationResponseEvent extends Event {
+declare class UNNotificationResponseEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<UNNotificationResponseEvent, 'response'>>);
   readonly response: UNNotificationResponse;
 }
 
@@ -459,29 +467,13 @@ declare class UNUserNotificationCenter extends NSObject {
    */
   foregroundPresentationOptions: UNNotificationPresentationOptions[];
 
-  addEventListener(
-    type: 'notification',
-    callback: EventListener<UNNotificationPresentEvent> | null,
+  addEventListener<K extends keyof UNUserNotificationCenterEventMap>(
+    type: K,
+    callback: ((event: UNUserNotificationCenterEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
   ): void;
-  addEventListener(
-    type: 'notificationclick',
-    callback: EventListener<UNNotificationResponseEvent> | null,
-    options?: AddEventListenerOptions,
+  removeEventListener<K extends keyof UNUserNotificationCenterEventMap>(
+    type: K,
+    callback: ((event: UNUserNotificationCenterEventMap[K]) => void) | null,
   ): void;
-  /** 事件名是一个变量（两个之一）时走这一条，事件对象按最宽的 `Event` 给。 */
-  addEventListener(
-    type: UNUserNotificationCenterEventType,
-    callback: EventListener | null,
-    options?: AddEventListenerOptions,
-  ): void;
-  removeEventListener(
-    type: 'notification',
-    callback: EventListener<UNNotificationPresentEvent> | null,
-  ): void;
-  removeEventListener(
-    type: 'notificationclick',
-    callback: EventListener<UNNotificationResponseEvent> | null,
-  ): void;
-  removeEventListener(type: UNUserNotificationCenterEventType, callback: EventListener | null): void;
 }

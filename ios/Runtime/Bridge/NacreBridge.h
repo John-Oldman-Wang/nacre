@@ -30,15 +30,16 @@
 @class WKWebView;
 @class WKWebsiteDataStore;
 typedef void (^NacreWebSocketEmit)(id task, NSString* type, NSString* json,
-                                   NacreBlob* blob);
+                                   NacreBlob* blob, const char* eventClass);
 
 // 网页的事件出口，同一个路子。json 为 nil 表示没有负载
-typedef void (^NacreWebContentsEmit)(id contents, NSString* type, NSString* json);
+typedef void (^NacreWebContentsEmit)(id contents, NSString* type, NSString* json,
+                                     const char* eventClass);
 // 能被取消的网页事件的出口：派发完之后用 answer 把「监听器取消了没有」
 // 交回来。**answer 必须恰好被调一次**——它后面连着系统的一个回调，那个
 // 回调不答，WebKit 会抛异常
 typedef void (^NacreWebContentsAsk)(id contents, NSString* type, NSString* json,
-                                    void (^answer)(BOOL prevented));
+                                    const char* eventClass, void (^answer)(BOOL prevented));
 
 // 所以自己给一个单例当包装表里的那个原生指针。
 // CADisplayLink 的 trampoline。
@@ -667,7 +668,8 @@ NacreSubscribed NacreDomainSubscribe(id object, NSString* type, BOOL on, std::st
 /// 事件出口的另一头：NacreRuntime 启动时把自己的派发塞进来，登记进来的域
 /// 调 NacreEmitEvent… 时走到这里。json 和 payload 最多给一个。
 typedef void (^NacreEventSink)(id object, const char* className, NSString* type,
-                               NSString* json, id payload, const char* payloadClass);
+                               NSString* json, id payload, const char* payloadClass,
+                               const char* eventClass);
 void NacreSetEventSink(NacreEventSink sink);
 
 /// 同步回调的另一头，同样由 NacreRuntime 启动时塞进来。
@@ -675,13 +677,14 @@ void NacreSetEventSink(NacreEventSink sink);
 /// 返回值总是 NO。
 /// call：调一段 JS 登记过的代码；later 为 YES 时延后一轮。
 typedef BOOL (^NacreSyncAsk)(id object, const char* className, NSString* type,
-                             NSString* json, BOOL cancelable);
+                             NSString* json, BOOL cancelable, const char* eventClass);
 typedef void (^NacreBlockCall)(NSInteger blockId, NSString* argsJSON, BOOL later);
 void NacreSetSyncSinks(NacreSyncAsk ask, NacreBlockCall call);
 /// 「当场要一个值」的那一头：当场派发，派发完把事件上 field 的值编成 JSON 文本
 /// 交回来；没有答案时是 nil。见 NacreExtension.h 的 NacreEmitEventForAnswer
 typedef NSString* _Nullable (^NacreAnswerAsk)(id object, const char* className, NSString* type,
-                                              NSString* json, NSString* field);
+                                              NSString* json, NSString* field,
+                                              const char* eventClass);
 void NacreSetAnswerSink(NacreAnswerAsk ask);
 
 // ---- 被链接打开 ----

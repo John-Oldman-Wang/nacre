@@ -15,9 +15,9 @@ manager.addEventListener('locationerror', (event) => { })
 
 ## 事件对象
 
-`CLLocationErrorEvent`，多出一个字段：
+[`CLLocationErrorEvent`](../cl-location-error-event.md)，多出一个字段：
 
-**`error`**
+**[`error`](../cl-location-error-event/error.md)**
 
 [`CLLocationError`](../cl-location-error.md)，是 [`DOMException`](../dom-exception.md) 或 [`NSError`](../ns-error.md)。`name` 是错误的分类。系统给的错误码和错误域：`NSError` 是它自己的 `code` 和 `domain`，`DOMException` 在 `cause` 上。
 

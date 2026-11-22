@@ -113,7 +113,7 @@ example.call('echo', { at: when.getTime(), tags: Array.from(tags) });
 ## 听事件和不再听
 
 ```js
-/** @param {NativeModuleEvent} e */
+/** @param {CustomEvent} e */
 const onTick = (e) => {
   console.log('tick', e.detail);
 };

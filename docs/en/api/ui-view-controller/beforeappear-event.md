@@ -15,13 +15,11 @@ page.addEventListener('beforeappear', (event) => { })
 
 ## Event object
 
-`UIViewControllerAppearanceEvent`. Besides `type` and `target` (this view controller), it has one more read-only field:
+[`UIViewControllerAppearanceEvent`](../ui-view-controller-appearance-event.md). Besides `type` and `target` (this view controller), it has one more read-only field:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `animated` | `boolean` | Whether this appearance has a transition animation |
-
-In the type definitions, the callback receives a plain `Event`. To read `animated`, annotate it as `UIViewControllerAppearanceEvent`, as shown in the example.
+| [`animated`](../ui-view-controller-appearance-event/animated.md) | `boolean` | Whether this appearance has a transition animation |
 
 Not cancelable.
 
@@ -38,7 +36,7 @@ Every time the view controller's view is about to appear, not only the first tim
 ```js
 const page = new UIViewController();
 page.addEventListener('beforeappear', (event) => {
-  const { animated } = /** @type {UIViewControllerAppearanceEvent} */ (event);
+  const { animated } = event;
   console.log('About to appear, animated: ' + animated);
 });
 ```

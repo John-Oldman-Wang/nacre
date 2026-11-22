@@ -15,15 +15,11 @@ session.addEventListener('runtimeerror', (event) => { })
 
 ## 事件对象
 
-`AVCaptureSessionRuntimeErrorEvent`，多出两个字段：
+[`AVCaptureSessionRuntimeErrorEvent`](../av-capture-session-runtime-error-event.md)，多出一个字段：
 
-**`message`**
+**[`error`](../av-capture-session-runtime-error-event/error.md)**
 
-字符串，系统给的出错说明，按系统语言。
-
-**`code`**
-
-数，系统给的错误码。
+系统给的错误，一个 [`NSError`](../ns-error.md)：`message` 是系统给的说明，按系统语言；`domain` 和 `code` 是系统的错误域和错误码。
 
 `target` 是这个会话。不能取消，`preventDefault()` 不起作用。
 
@@ -40,15 +36,15 @@ session.addEventListener('runtimeerror', (event) => { })
 ```js
 const session = new AVCaptureSession();
 session.addEventListener('runtimeerror', (e) => {
-  console.log('取景出错', e.code, e.message);
+  console.log('取景出错', e.error.domain, e.error.code, e.error.message);
 });
 ```
 
-**效果**（**未在真机验证**）：出错时输出错误码和系统给的说明。
+**效果**（**未在真机验证**）：出错时输出错误域、错误码和系统给的说明。
 
 ## 对应的 iOS API
 
-通知 `AVCaptureSessionRuntimeErrorNotification`。`userInfo[AVCaptureSessionErrorKey]` 是一个 `NSError`，它的 `localizedDescription` 是 `e.message`，`code` 是 `e.code`。
+通知 `AVCaptureSessionRuntimeErrorNotification`。`userInfo[AVCaptureSessionErrorKey]` 是 `e.error`。
 
 ## 参见
 

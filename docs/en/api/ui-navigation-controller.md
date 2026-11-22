@@ -154,8 +154,7 @@ application.addEventListener('sceneconnect', (e) => {
     nav.pushViewController(detail, { animated: true });
   });
 
-  nav.addEventListener('show', (ev) => {
-    const event = /** @type {Event & { viewController: UIViewController }} */ (ev);
+  nav.addEventListener('show', (event) => {
     console.log('Now showing', event.viewController.title, ', stack has', nav.viewControllers.length, 'view controllers');
   });
 });

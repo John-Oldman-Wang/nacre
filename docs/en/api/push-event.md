@@ -16,11 +16,13 @@ It belongs to the `@nacrejs/push` package; for installation, see [`RemoteNotific
 
 ## Constructor
 
-When a silent push arrives, the runtime creates it and dispatches it to `push` listeners. You can also create one yourself with `new PushEvent('push', { data })` and dispatch it to try your listeners.
+[`PushEvent()`](push-event/constructor.md)
+
+When a silent push arrives, the runtime creates it and dispatches it to `push` listeners. App code can also create one itself and dispatch it to try a listener.
 
 ## Instance properties
 
-It also inherits the properties of [`Event`](event.md). `cancelable` is `false` (measured).
+It also inherits the properties of [`Event`](event.md). `data` is read-only; assigning to it throws `TypeError`. It lives on the prototype, not on the event object itself, so `Object.keys(event)` doesn't include it; see [Events with fields](event.md#events-with-fields).
 
 | Property | Description |
 | --- | --- |
@@ -31,6 +33,14 @@ It also inherits the properties of [`Event`](event.md). `cancelable` is `false` 
 | Method | Description |
 | --- | --- |
 | [`waitUntil()`](push-event/waituntil.md) | Makes the system wait for a Promise to settle, and answers the system with its result |
+
+## Events that use this class
+
+| Object | Events |
+| --- | --- |
+| [`RemoteNotifications`](remote-notifications.md) | [`push`](remote-notifications/push-event.md) |
+
+It can't be canceled: `cancelable` is `false` (measured).
 
 ## The result the system receives
 

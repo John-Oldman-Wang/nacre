@@ -11,15 +11,12 @@
     EventTarget,
     PromiseRejectionEvent,
     define,
-    defineField,
     disown,
     nativeClassObject,
     internalEventHandlers,
     own,
     ownAll,
     ownOne,
-    toText,
-    toTextOrNull,
     native,
   } = ctx;
 
@@ -114,12 +111,12 @@
     } else if (type === 'unhandledrejection') {
       event = new PromiseRejectionEvent(type, Object.assign({ cancelable: true }, payload));
     } else {
-      // 原生通知派发的事件：运行时刻意延后一轮执行，派发方早已返回，所以不可取消
-      event = new Event(type);
-      // payload 里的字段原样挂到事件上，比如 sceneconnect 的 event.scene
-      if (payload != null) {
-        for (const key of Object.keys(payload)) defineField(event, key, payload[key]);
-      }
+      // 原生通知派发的事件：运行时刻意延后一轮执行，派发方早已返回，所以不可取消。
+      // 带着场景的两个（sceneconnect / scenedisconnect）是 SceneEvent
+      const SceneEvent = ctx.eventClasses.get('SceneEvent');
+      event = payload != null && 'scene' in payload
+        ? new SceneEvent(type, { scene: payload.scene })
+        : new Event(type);
       // 场景的包装由 application 兜着：它是永久的，而场景的包装一旦被回收，
       // 后面派发给这个场景的事件就落到一个新包装上，监听器全丢。
       const scene = payload == null ? null : payload.scene;
@@ -133,26 +130,22 @@
   // ---------- 被链接打开：openurl ----------
   // 别的 App 或者一条链接打开了这个 App。系统是交给某个场景的，事件挂在
   // application 上（单场景的 App 占绝大多数，挂在一处好写），带着是哪个场景。
-  class OpenURLEvent extends Event {
-    constructor(type, options) {
-      const o = options == null ? {} : options;
-      super(type, o);
-      // url 和 scene 必填：没有地址、不知道是哪个场景的「被打开」没有意义。
-      // 监听器里 e.scene 因此不用判空
-      if (o.url === undefined || o.url === null) {
-        throw new TypeError("Failed to construct 'OpenURLEvent': url is required");
-      }
-      if (!(o.scene instanceof UIWindowScene)) {
-        throw new TypeError("Failed to construct 'OpenURLEvent': scene must be a UIWindowScene");
-      }
-      // 系统给的完整地址，原样，不解析
-      defineField(this, 'url', toText(o.url));
-      defineField(this, 'scene', o.scene);
-      // 来源 App 的包名。系统不给的时候是 null；通用链接没有这一项
-      defineField(this, 'sourceApplication', toTextOrNull(o.sourceApplication));
-    }
-  }
-  define(globalThis, 'OpenURLEvent', OpenURLEvent);
+  //
+  // url：系统给的完整地址，原样，不解析。sourceApplication：来源 App 的包名，系统
+  // 不给的时候是 null，通用链接没有这一项。
+  // url 和 scene 必填：没有地址、不知道是哪个场景的「被打开」没有意义。
+  // 监听器里 e.scene 因此不用判空
+  const OpenURLEvent = ctx.defineEventClass('OpenURLEvent', Event,
+    { url: ['string', ''], scene: ['UIWindowScene?', null], sourceApplication: ['string?', null] }, {
+      check(o) {
+        if (o.url === undefined || o.url === null) {
+          throw new TypeError("Failed to construct 'OpenURLEvent': url is required");
+        }
+        if (!(o.scene instanceof UIWindowScene)) {
+          throw new TypeError("Failed to construct 'OpenURLEvent': scene must be a UIWindowScene");
+        }
+      },
+    });
 
   // 原生把每个地址作为内部事件 @openurl 派发在它的场景上（NacreOpenURL.mm），
   // 这里转成 application 的 openurl。原生已经延后过了，所以不可取消

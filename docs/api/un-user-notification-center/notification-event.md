@@ -15,9 +15,9 @@ center.addEventListener('notification', (event) => { })
 
 ## 事件对象
 
-`UNNotificationPresentEvent`，一个 `Event`，多一个字段：
+[`UNNotificationPresentEvent`](../un-notification-present-event.md)，一个 `Event`，多一个字段：
 
-**`notification`**
+**[`notification`](../un-notification-present-event/notification.md)**
 
 刚到的那一条，一个 [`UNNotification`](../un-notification.md)。
 

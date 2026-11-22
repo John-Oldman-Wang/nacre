@@ -15,9 +15,9 @@ output.addEventListener('detect', (event) => { })
 
 ## 事件对象
 
-`AVCaptureMetadataOutputDetectEvent`，多出一个字段：
+[`AVCaptureMetadataOutputDetectEvent`](../av-capture-metadata-output-detect-event.md)，多出一个字段：
 
-**`objects`**
+**[`objects`](../av-capture-metadata-output-detect-event/objects.md)**
 
 这一帧里认到的全部，一个数组，至少一个。数组和里面的对象都只读。
 

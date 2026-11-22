@@ -15,14 +15,14 @@ contents.addEventListener('console-message', (event) => {})
 
 ## 事件对象
 
-`WebContentsConsoleMessageEvent`，除 `type`、`target` 以外带四个字段：
+[`WebContentsConsoleMessageEvent`](../web-contents-console-message-event.md)，除 `type`、`target` 以外带四个字段：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `level` | 字符串 | `'info'`、`'warning'`、`'error'`、`'debug'` 之一 |
-| `message` | 字符串 | 日志的文字 |
-| `lineNumber` | 数 | 在第几行调的。拿不到时是 `0` |
-| `sourceId` | 字符串 | 在哪个文件调的：脚本文件的地址，或者网页自己的地址。拿不到时是空串 |
+| [`level`](../web-contents-console-message-event/level.md) | 字符串 | `'info'`、`'warning'`、`'error'`、`'debug'` 之一 |
+| [`message`](../web-contents-console-message-event/message.md) | 字符串 | 日志的文字 |
+| [`lineNumber`](../web-contents-console-message-event/linenumber.md) | 数 | 在第几行调的。拿不到时是 `0` |
+| [`sourceId`](../web-contents-console-message-event/sourceid.md) | 字符串 | 在哪个文件调的：脚本文件的地址，或者网页自己的地址。拿不到时是空串 |
 
 `target` 是这张网页的 `webContents`。不可取消。
 

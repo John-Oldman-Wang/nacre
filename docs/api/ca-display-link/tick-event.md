@@ -15,9 +15,9 @@ link.addEventListener('tick', (event) => { })
 
 ## 事件对象
 
-`CADisplayLinkEvent`，除 `type`、`target` 外带一个字段：
+[`CADisplayLinkEvent`](../ca-display-link-event.md)，除 `type`、`target` 外带一个字段：
 
-**`frame`**
+**[`frame`](../ca-display-link-event/frame.md)**
 
 这一帧的三个时间，单位都是**秒**：
 
@@ -28,8 +28,6 @@ link.addEventListener('tick', (event) => { })
 | `targetTimestamp` | 这一帧的内容将要显示到屏幕上的时刻，比 `timestamp` 晚 |
 
 这三个时刻只能用来互相求差。它们的起点和 `Date.now()` 不同，不能混在一起算。
-
-回调参数的类型声明是普通的 `Event`。读 `frame` 时要像下面的例子那样先转成 `CADisplayLinkEvent`。
 
 不能取消。
 
@@ -49,7 +47,7 @@ let last = 0;
 let x = 0;
 
 link.addEventListener('tick', (ev) => {
-  const frame = /** @type {CADisplayLinkEvent} */ (ev).frame;
+  const frame = ev.frame;
   const dt = last === 0 ? 0 : frame.timestamp - last;   // 距上一次回调过了多少秒
   last = frame.timestamp;
   x += speed * dt;

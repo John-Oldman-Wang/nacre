@@ -15,9 +15,9 @@ center.addEventListener('notificationclick', (event) => { })
 
 ## Event object
 
-`UNNotificationResponseEvent`, an `Event` with one extra field:
+[`UNNotificationResponseEvent`](../un-notification-response-event.md), an `Event` with one extra field:
 
-**`response`**
+**[`response`](../un-notification-response-event/response.md)**
 
 The user's action, a [`UNNotificationResponse`](../un-notification-response.md). `response.notification` is the notification tapped, and `response.notification.request.content.userInfo` is the data originally put in the content; use it to decide which view controller to open.
 

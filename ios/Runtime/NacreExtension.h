@@ -353,11 +353,16 @@ void NacreRegisterDomain(const NacreDomain& domain);
 // 「原生发生了什么，告诉 JS」。延后一轮派发，和核心里别的事件一致。
 // className 是没有现成包装时用哪个 JS 类包这个对象。
 // 三种负载：没有、一段 JSON 文本（事件对象上多出那几个字段）、一个原生对象。
+//
+// 带负载的事件给 eventClass：事件对象用哪个 JS 类建（'UIControlTouchEvent' 这样的
+// 名字，内置脚本用 ctx.defineEventClass 登记过的）。「哪个事件是哪个类」只在这里
+// 写一份。不给（nullptr）就是普通的 Event，负载带的字段挂不上去
 void NacreEmitEvent(id object, const char* className, NSString* type);
 void NacreEmitEventWithJSON(id object, const char* className, NSString* type,
-                            NSString* _Nullable json);
+                            NSString* _Nullable json, const char* _Nullable eventClass = nullptr);
 void NacreEmitEventWithObject(id object, const char* className, NSString* type,
-                              id _Nullable payload, const char* payloadClass);
+                              id _Nullable payload, const char* payloadClass,
+                              const char* _Nullable eventClass = nullptr);
 
 // ---- 同步回调：系统问、JS 当场答 ----
 //
@@ -373,14 +378,14 @@ void NacreEmitEventWithObject(id object, const char* className, NSString* type,
 // 引擎不在了，都返回 NO——也就是按「要」处理，默认行为照常发生。
 // json 是事件带的字段（一个 JSON 对象的文本），没有就传 nil。
 BOOL NacreEmitEventSync(id object, const char* className, NSString* type,
-                        NSString* _Nullable json);
+                        NSString* _Nullable json, const char* _Nullable eventClass = nullptr);
 
 // 「当场的通知」：系统不等答案，但这一刻正在做一件 JS 要跟着做的事。第一处是
 // 键盘：系统在键盘的动画里发通知，监听器这时候改的布局会跟着键盘一起动；
 // 延后一轮再改，动画已经过去了（真机实测）。当场派发一个**不可取消**的事件。
 // 只能在主线程调；不在主线程、引擎不在了，就不派发
 void NacreEmitEventNow(id object, const char* className, NSString* type,
-                       NSString* _Nullable json);
+                       NSString* _Nullable json, const char* _Nullable eventClass = nullptr);
 
 // 「当场要一个值」：系统不是问要不要，而是要一个值（滚动视图松手时问停在哪）。
 // 当场派发一个**不可取消**的事件，事件对象上 field 这个字段可写，初值是 json
@@ -388,7 +393,8 @@ void NacreEmitEventNow(id object, const char* className, NSString* type,
 // 改成了 JSON 表示不了的东西、抛了、引擎不在了、不在主线程，都返回 nil：调用方
 // 照系统原来的值做，同时要自己核一遍交回来的值的形状。只能在主线程调
 NSString* _Nullable NacreEmitEventForAnswer(id object, const char* className, NSString* type,
-                                            NSString* json, NSString* field);
+                                            NSString* json, NSString* field,
+                                            const char* _Nullable eventClass = nullptr);
 
 // 「当场执行的一段代码」类（UIKit 收一个 block、在调用里面就执行它）：
 // JS 侧把那段代码登记成一个号（内置脚本的 callWithBlock / registerBlock），

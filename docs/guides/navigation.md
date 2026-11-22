@@ -63,8 +63,7 @@ application.addEventListener('sceneconnect', (e) => {
   });
 
   // 4. 每次页面切换完成时得到通知。用户点返回、左滑返回也会走到这里
-  nav.addEventListener('show', (ev) => {
-    const event = /** @type {Event & { viewController: UIViewController }} */ (ev);
+  nav.addEventListener('show', (event) => {
     console.log('现在显示', event.viewController.title, '，栈里有', nav.viewControllers.length, '页');
   });
 });
@@ -248,8 +247,7 @@ nav.setNavigationBarHidden(false, { animated: true });
 [`beforeshow`](../api/ui-navigation-controller/beforeshow-event.md) 在切换开始时派发，事件对象的 `viewController` 是即将显示的页面。
 
 ```js
-nav.addEventListener('beforeshow', (ev) => {
-  const event = /** @type {Event & { viewController: UIViewController }} */ (ev);
+nav.addEventListener('beforeshow', (event) => {
   nav.setNavigationBarHidden(event.viewController === home, { animated: true });
 });
 ```

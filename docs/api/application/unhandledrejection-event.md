@@ -19,8 +19,8 @@ application.addEventListener('unhandledrejection', (event) => { })
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `reason` | `unknown` | 拒绝的原因 |
-| `promise` | `Promise` | 被拒绝的那个 Promise |
+| [`reason`](../promise-rejection-event/reason.md) | `unknown` | 拒绝的原因 |
+| [`promise`](../promise-rejection-event/promise.md) | `Promise` | 被拒绝的那个 Promise |
 
 `target` 是 `application`。`cancelable` 是 `true`：调 `preventDefault()` 的效果是运行时不再输出默认的错误日志。
 

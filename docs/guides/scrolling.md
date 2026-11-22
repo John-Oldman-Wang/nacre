@@ -248,8 +248,7 @@ scroller.addEventListener('dragend', () => {
 
 ```js
 const rowHeight = 80;
-scroller.addEventListener('beforedragend', (event) => {
-  const e = /** @type {UIScrollViewDragEndEvent} */ (event);
+scroller.addEventListener('beforedragend', (e) => {
   const y = Math.round(e.targetContentOffset.y / rowHeight) * rowHeight;
   e.targetContentOffset = new CGPoint(0, y);
 });

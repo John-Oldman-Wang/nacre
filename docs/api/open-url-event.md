@@ -16,17 +16,27 @@ status: partial
 
 [`OpenURLEvent()`](open-url-event/constructor.md)
 
-自己构造一个，用来在测试里模拟一次打开。
+自己构造一个，用 [`dispatchEvent()`](event-target/dispatchevent.md) 派发到 `application` 上，在测试里模拟一次打开。`url` 和 `scene` 必填。
 
 ## 实例属性
 
-还继承 [`Event`](event.md) 的属性。运行时派发的 `openurl`，`cancelable` 是 `false`。
+还继承 [`Event`](event.md) 的属性。下表的属性都是只读的，给它们赋值抛 `TypeError`。
 
 | 属性 | 说明 |
 | --- | --- |
 | [`url`](open-url-event/url.md) <small>只读</small> | 系统给的完整地址，原样 |
 | [`scene`](open-url-event/scene.md) <small>只读</small> | 系统把这个地址交给了哪个场景 |
 | [`sourceApplication`](open-url-event/sourceapplication.md) <small>只读</small> | 来源 App 的包名 |
+
+这些属性在原型上，不在事件对象自己身上：`Object.keys(event)` 和 `{ ...event }` 拿不到它们，要一个一个读。见[带字段的事件](event.md#带字段的事件)。
+
+## 哪些事件是这个类
+
+| 对象 | 事件 |
+| --- | --- |
+| [`application`](application.md) | [`openurl`](application/openurl-event.md) |
+
+不能取消：`cancelable` 是 `false`，`preventDefault()` 不起作用。
 
 ## 示例
 

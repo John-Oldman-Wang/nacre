@@ -15,9 +15,9 @@ session.addEventListener('interrupt', (event) => { })
 
 ## 事件对象
 
-`AVCaptureSessionInterruptEvent`，多出一个字段：
+[`AVCaptureSessionInterruptEvent`](../av-capture-session-interrupt-event.md)，多出一个字段：
 
-**`reason`**
+**[`reason`](../av-capture-session-interrupt-event/reason.md)**
 
 为什么被打断，字符串，下面六个之一；系统没说原因时是 `null`：
 

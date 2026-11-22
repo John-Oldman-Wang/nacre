@@ -476,6 +476,7 @@ export function stepCoreLocation(ctx) {
       group('locationupdate 事件', () => {
         assert('type', event.type, 'locationupdate');
         assert('target 是那个 manager', event.target === manager, true);
+        assert('是 CLLocationUpdateEvent', event instanceof CLLocationUpdateEvent, true);
         const locations = /** @type {CLLocationUpdateEvent} */ (event).locations;
         assert('locations 是数组，至少一个', Array.isArray(locations) && locations.length >= 1,
                true);

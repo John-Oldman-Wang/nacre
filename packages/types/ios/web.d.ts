@@ -74,7 +74,8 @@ type WebNavigationType =
  * });
  * ```
  */
-interface WebContentsWillNavigateEvent extends Event {
+declare class WebContentsWillNavigateEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<WebContentsWillNavigateEvent, 'url' | 'isMainFrame' | 'navigationType'>>);
   /** 要去的地址。 */
   readonly url: string;
   /** 总是 `true`：`<iframe>` 里的跳转不派发这个事件。 */
@@ -84,7 +85,8 @@ interface WebContentsWillNavigateEvent extends Event {
 }
 
 /** `did-fail-load` 事件。 */
-interface WebContentsDidFailLoadEvent extends Event {
+declare class WebContentsDidFailLoadEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<WebContentsDidFailLoadEvent, 'errorCode' | 'errorDescription' | 'validatedURL' | 'isMainFrame'>>);
   /**
    * 系统的错误码。常见的：`-999` 被停掉或被另一次导航顶掉，`-1003` 域名
    * 解析不了，`-1009` 没有网络，`-1001` 超时。
@@ -101,7 +103,8 @@ interface WebContentsDidFailLoadEvent extends Event {
 }
 
 /** `did-navigate` 事件：网页换了一个文档。 */
-interface WebContentsDidNavigateEvent extends Event {
+declare class WebContentsDidNavigateEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<WebContentsDidNavigateEvent, 'url' | 'httpResponseCode'>>);
   /** 新的地址。 */
   readonly url: string;
   /** HTTP 状态码。不是 HTTP 的导航（`data:`、`about:`）是 `-1`。 */
@@ -113,7 +116,8 @@ interface WebContentsDidNavigateEvent extends Event {
  *
  * 网页里的任何脚本都发得出这种消息，把它当成不可信的输入。
  */
-interface WebContentsIpcMessageEvent extends Event {
+declare class WebContentsIpcMessageEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<WebContentsIpcMessageEvent, 'channel' | 'args'>>);
   /** 频道名。 */
   readonly channel: string;
   /** 跟在频道名后面的那些参数。按 JSON 传过来的。 */
@@ -121,7 +125,8 @@ interface WebContentsIpcMessageEvent extends Event {
 }
 
 /** `preload-error` 事件：预加载脚本执行时抛了异常。 */
-interface WebContentsPreloadErrorEvent extends Event {
+declare class WebContentsPreloadErrorEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<WebContentsPreloadErrorEvent, 'preloadPath' | 'error'>>);
   /** 建 `WebView` 时给的那个路径。 */
   readonly preloadPath: string;
   /** 抛出来的错误。`message` 是网页那边 `String(error)` 的结果。 */
@@ -139,7 +144,7 @@ interface WebContentsIpcInvokeEvent {
  *
  * ```js
  * contents.ipc.handle('get-user', async (event, id) => {
- *   return { id, name: 'Jack' };
+ *   return { id, name: 'Alice' };
  * });
  * // 网页的预加载脚本里：const user = await ipcRenderer.invoke('get-user', 7)
  * ```
@@ -159,13 +164,15 @@ interface WebContentsIPC {
 }
 
 /** `page-title-updated` 事件。 */
-interface WebContentsPageTitleUpdatedEvent extends Event {
+declare class WebContentsPageTitleUpdatedEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<WebContentsPageTitleUpdatedEvent, 'title'>>);
   /** 新的标题。换页的瞬间会先变成空串。 */
   readonly title: string;
 }
 
 /** `console-message` 事件：网页调了 `console` 的方法，或者有异常没被捕获。 */
-interface WebContentsConsoleMessageEvent extends Event {
+declare class WebContentsConsoleMessageEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<WebContentsConsoleMessageEvent, 'level' | 'message' | 'lineNumber' | 'sourceId'>>);
   /** `'info'`（`log`、`info`）、`'warning'`、`'error'`（含没被捕获的异常）、`'debug'`。 */
   readonly level: 'info' | 'warning' | 'error' | 'debug';
   /** 参数用空格连起来的文字。 */
@@ -219,12 +226,12 @@ interface NavigationHistory {
 declare class WebContents extends EventTarget {
   private constructor();
 
-  addEventListener<K extends WebContentsEventType>(
+  addEventListener<K extends keyof WebContentsEventMap>(
     type: K,
     callback: ((event: WebContentsEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
   ): void;
-  removeEventListener<K extends WebContentsEventType>(
+  removeEventListener<K extends keyof WebContentsEventMap>(
     type: K,
     callback: ((event: WebContentsEventMap[K]) => void) | null,
   ): void;
@@ -404,6 +411,11 @@ interface CookieDetails {
   sameSite?: 'unspecified' | 'no_restriction' | 'lax' | 'strict';
 }
 
+/** cookie 上每个事件名对应的事件对象。 */
+interface CookiesEventMap {
+  'changed': Event;
+}
+
 /**
  * 一个分区的 cookie。从 `session.cookies` 拿，不能自己建。
  *
@@ -419,12 +431,15 @@ interface Cookies extends EventTarget {
    * `'changed'`：这个分区的 cookie 有变化（App 写的、网页写的、服务器写的
    * 都算）。事件上**没有**是哪一条——系统不说，收到之后自己重新 `get`。
    */
-  addEventListener(
-    type: 'changed',
-    callback: EventListener | null,
+  addEventListener<K extends keyof CookiesEventMap>(
+    type: K,
+    callback: ((event: CookiesEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
   ): void;
-  removeEventListener(type: 'changed', callback: EventListener | null): void;
+  removeEventListener<K extends keyof CookiesEventMap>(
+    type: K,
+    callback: ((event: CookiesEventMap[K]) => void) | null,
+  ): void;
   /** 读。条件都不给就是这个分区的全部 cookie。 */
   get(filter?: CookieFilter): Promise<Cookie[]>;
   /** 写一条。同名、同域名、同路径的会被盖掉。 */

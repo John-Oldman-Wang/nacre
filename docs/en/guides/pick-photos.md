@@ -50,7 +50,7 @@ application.addEventListener('sceneconnect', (e) => {
     // 2. Create the picker and listen for "done picking"
     const picker = new PHPickerViewController(config);
     picker.addEventListener('pick', async (event) => {
-      const { results } = /** @type {PHPickerViewControllerFinishEvent} */ (event);
+      const { results } = event;
 
       // 3. The photo picker doesn't dismiss itself, so dismiss it first
       picker.dismissViewController({ animated: true });
@@ -150,7 +150,7 @@ multiConfig.selection = 'ordered';     // numbered in the order picked
 
 const multiPicker = new PHPickerViewController(multiConfig);
 multiPicker.addEventListener('pick', async (event) => {
-  const { results } = /** @type {PHPickerViewControllerFinishEvent} */ (event);
+  const { results } = event;
   multiPicker.dismissViewController({ animated: true });
   const images = await Promise.all(
     results.map((item) => item.itemProvider.loadObjectOfClass(UIImage)));

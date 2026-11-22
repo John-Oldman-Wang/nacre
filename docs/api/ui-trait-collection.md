@@ -157,8 +157,7 @@ page.view.addEventListener('traitchange', () => {
 
 ```js
 const page = new UIViewController();
-page.view.addEventListener('traitchange', (e) => {
-  const event = /** @type {UITraitChangeEvent} */ (e);
+page.view.addEventListener('traitchange', (event) => {
   console.log(event.previousTraitCollection.userInterfaceStyle);   // 变之前
   console.log(page.view.traitCollection.userInterfaceStyle);       // 现在
 });

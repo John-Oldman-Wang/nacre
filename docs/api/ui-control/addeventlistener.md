@@ -20,11 +20,11 @@ addEventListener(type, callback, { once })
 
 事件名，字符串，区分大小写。系统会派发的是 16 个[控件事件](../ui-control.md#事件)和所有视图都有的 [`traitchange`](../ui-trait-collection.md)。
 
-别的名字不报错，当作自定义事件：只有自己用 `dispatchEvent()` 派发时才会触发。所以事件名拼错时没有任何提示，监听器只是永远不被调用。在控件不派发的事件上监听，比如在输入框上监听 `change`，也不报错，回调不会执行。
+别的名字不报错，当作自定义事件：只有自己用 `dispatchEvent()` 派发时才会触发。所以事件名拼错时运行时没有任何提示，监听器只是永远不被调用；开着类型检查时，拼错的事件名会报错。在控件不派发的事件上监听，比如在输入框上监听 `change`，也不报错，回调不会执行。
 
 **`callback`**
 
-回调函数，参数是事件对象，见[事件对象](#事件对象)。传 `null` 时什么都不做。
+回调函数，参数是事件对象，见[事件对象](#事件对象)。参数的类型按事件名定：`touch` 开头的九个事件是 [`UIControlTouchEvent`](../ui-control-touch-event.md)，不用转换类型。传 `null` 时什么都不做。
 
 **`options.once`**
 
@@ -54,8 +54,8 @@ addEventListener(type, callback, { once })
 | --- | --- | --- |
 | `type` | 字符串 | 事件名 |
 | `target` | 控件 | 派发事件的控件。`currentTarget` 和它相同 |
-| `location` | [`CGPoint`](../structs.md) 或 `null` | 只有 `touch` 开头的九个事件有，见[触点位置](../ui-control.md#触点位置) |
-| `tapCount` | 数 | 只有 `touch` 开头的九个事件有，见[触点位置](../ui-control.md#触点位置) |
+| `location` | [`CGPoint`](../structs.md) 或 `null` | 只有 `touch` 开头的九个事件有，见 [`UIControlTouchEvent`](../ui-control-touch-event.md) |
+| `tapCount` | 数 | 只有 `touch` 开头的九个事件有，见 [`UIControlTouchEvent`](../ui-control-touch-event.md) |
 | `cancelable` | 布尔 | 固定是 `false` |
 | `defaultPrevented` | 布尔 | 固定是 `false` |
 | `preventDefault()` | 方法 | 可以调用，没有效果 |

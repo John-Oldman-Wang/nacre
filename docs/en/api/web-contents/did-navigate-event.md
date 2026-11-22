@@ -15,12 +15,12 @@ contents.addEventListener('did-navigate', (event) => {})
 
 ## Event object
 
-`WebContentsDidNavigateEvent`. Besides `type` and `target`, it has two fields:
+[`WebContentsDidNavigateEvent`](../web-contents-did-navigate-event.md). Besides `type` and `target`, it has two fields:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `url` | string | The new URL |
-| `httpResponseCode` | number | The HTTP status code. `-1` for `data:`, `about:`, local files, and others that don't go through HTTP. Also `-1` when going back or forward to a previously loaded page: the server isn't requested again then |
+| [`url`](../web-contents-did-navigate-event/url.md) | string | The new URL |
+| [`httpResponseCode`](../web-contents-did-navigate-event/httpresponsecode.md) | number | The HTTP status code. `-1` for `data:`, `about:`, local files, and others that don't go through HTTP. Also `-1` when going back or forward to a previously loaded page: the server isn't requested again then |
 
 Not cancelable.
 

@@ -20,11 +20,11 @@ addEventListener(type, callback, { once })
 
 The event name, a string, case-sensitive. The events the system fires are the 16 [control events](../ui-control.md#events) and [`traitchange`](../ui-trait-collection.md), which every view has.
 
-Other names do not throw; they are treated as custom events and fire only when you dispatch them yourself with `dispatchEvent()`. So a misspelled event name gives no warning at all; the listener is simply never called. Listening for an event the control does not fire, such as `change` on a text field, does not throw either; the callback never runs.
+Other names do not throw; they are treated as custom events and fire only when you dispatch them yourself with `dispatchEvent()`. So a misspelled event name gives no warning at run time; the listener is simply never called. With type checking on, a misspelled event name is reported as an error. Listening for an event the control does not fire, such as `change` on a text field, does not throw either; the callback never runs.
 
 **`callback`**
 
-The callback function. Its argument is the event object; see [Event object](#event-object). Passing `null` does nothing.
+The callback function. Its argument is the event object; see [Event object](#event-object). The argument's type follows the event name: for the nine events starting with `touch` it is [`UIControlTouchEvent`](../ui-control-touch-event.md), with no type conversion needed. Passing `null` does nothing.
 
 **`options.once`**
 
@@ -54,8 +54,8 @@ None (`undefined`).
 | --- | --- | --- |
 | `type` | string | The event name |
 | `target` | control | The control that fired the event. `currentTarget` is the same |
-| `location` | [`CGPoint`](../structs.md) or `null` | Present only on the nine events starting with `touch`; see [Touch location](../ui-control.md#touch-location) |
-| `tapCount` | number | Present only on the nine events starting with `touch`; see [Touch location](../ui-control.md#touch-location) |
+| `location` | [`CGPoint`](../structs.md) or `null` | Present only on the nine events starting with `touch`; see [`UIControlTouchEvent`](../ui-control-touch-event.md) |
+| `tapCount` | number | Present only on the nine events starting with `touch`; see [`UIControlTouchEvent`](../ui-control-touch-event.md) |
 | `cancelable` | boolean | Always `false` |
 | `defaultPrevented` | boolean | Always `false` |
 | `preventDefault()` | method | Can be called; has no effect |

@@ -63,14 +63,14 @@ const contents = web.webContents;
 contents.addEventListener('ipc-message', (e) => {
   if (e.channel === 'share') console.log('The page wants to share', e.args[0]);
 });
-contents.ipc.handle('get-user', () => ({ name: 'Jack' }));
+contents.ipc.handle('get-user', () => ({ name: 'Alice' }));
 contents.addEventListener('did-finish-load', () => contents.send('theme', 'dark'));
 ```
 
 **Effect**
 
 - When the page calls `app.share(42)`, the app's console prints `The page wants to share 42`.
-- In the page, `await app.getUser()` gives `{ name: 'Jack' }`.
+- In the page, `await app.getUser()` gives `{ name: 'Alice' }`.
 - After the page finishes loading, `<html>` gains `data-theme="dark"`.
 
 The preload script's code runs in the web page, so the snippet above is not type-checked.

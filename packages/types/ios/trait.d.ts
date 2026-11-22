@@ -32,7 +32,8 @@ declare class UITraitCollection extends NSObject {
 }
 
 /** `traitchange` 事件。 */
-interface UITraitChangeEvent extends Event {
+declare class UITraitChangeEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<UITraitChangeEvent, 'previousTraitCollection'>>);
   /** 变化之前的那一组值。现在的值从 `event.target.traitCollection` 读。 */
   readonly previousTraitCollection: UITraitCollection;
 }

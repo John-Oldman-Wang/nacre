@@ -15,11 +15,11 @@ application.addEventListener('sceneconnect', (event) => { })
 
 ## Event object
 
-`Event`, with one extra read-only field:
+[`SceneEvent`](../scene-event.md), with one extra read-only field:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `scene` | [`UIWindowScene`](../ui-window-scene.md) | The scene the system just created |
+| [`scene`](../scene-event/scene.md) | [`UIWindowScene`](../ui-window-scene.md) | The scene the system just created |
 
 `target` is `application`. Not cancelable; `cancelable` is `false`.
 

@@ -63,8 +63,7 @@ application.addEventListener('sceneconnect', (e) => {
   });
 
   // 4. Get notified each time a transition finishes. Tapping back and swiping back also end up here
-  nav.addEventListener('show', (ev) => {
-    const event = /** @type {Event & { viewController: UIViewController }} */ (ev);
+  nav.addEventListener('show', (event) => {
     console.log('Now showing', event.viewController.title, ', stack has', nav.viewControllers.length, 'view controllers');
   });
 });
@@ -248,8 +247,7 @@ Once the navigation bar is hidden there is no back button. Whether swipe back st
 [`beforeshow`](../api/ui-navigation-controller/beforeshow-event.md) fires as the transition begins; the event object's `viewController` is the view controller about to be shown.
 
 ```js
-nav.addEventListener('beforeshow', (ev) => {
-  const event = /** @type {Event & { viewController: UIViewController }} */ (ev);
+nav.addEventListener('beforeshow', (event) => {
   nav.setNavigationBarHidden(event.viewController === home, { animated: true });
 });
 ```

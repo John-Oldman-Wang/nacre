@@ -15,9 +15,9 @@ animation.addEventListener('stop', (event) => { })
 
 ## Event object
 
-`CAAnimationEvent`, with one field besides `type` and `target`:
+[`CAAnimationEvent`](../ca-animation-event.md), with one field besides `type` and `target`:
 
-**`finished`**
+**[`finished`](../ca-animation-event/finished.md)**
 
 A boolean. `true` means it played to the end; `false` means it was removed partway, for example by calling the layer's `removeAnimationForKey()`. This fact is only available from the event; it cannot be read from the animation object.
 

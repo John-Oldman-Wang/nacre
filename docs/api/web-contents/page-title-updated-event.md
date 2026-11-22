@@ -15,11 +15,11 @@ contents.addEventListener('page-title-updated', (event) => {})
 
 ## 事件对象
 
-`WebContentsPageTitleUpdatedEvent`，除 `type`、`target` 以外带一个字段：
+[`WebContentsPageTitleUpdatedEvent`](../web-contents-page-title-updated-event.md)，除 `type`、`target` 以外带一个字段：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `title` | 字符串 | 新的标题 |
+| [`title`](../web-contents-page-title-updated-event/title.md) | 字符串 | 新的标题 |
 
 不可取消。
 

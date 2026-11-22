@@ -15,14 +15,14 @@ field.addEventListener('beforeinput', (event) => { })
 
 ## Event object
 
-`UITextFieldBeforeInputEvent`. `type` is `'beforeinput'` and `target` is this text field. Cancelable.
+[`UITextBeforeInputEvent`](../ui-text-before-input-event.md), shared by single-line and multiline inputs. `type` is `'beforeinput'` and `target` is this text field. Cancelable.
 
 It also carries two read-only fields describing which stretch the change intends to replace with what:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `range` | [`NSRange`](../ns-range.md) | The stretch to be replaced. `location` is the start and `length` is the length, both in UTF-16 code units, matching JS string indices |
-| `replacementString` | String | The text to put in its place |
+| [`range`](../ui-text-before-input-event/range.md) | [`NSRange`](../ns-range.md) | The stretch to be replaced. `location` is the start and `length` is the length, both in UTF-16 code units, matching JS string indices |
+| [`replacementString`](../ui-text-before-input-event/replacementstring.md) | String | The text to put in its place |
 
 What each of the three kinds of change looks like (from Apple's documentation, **not verified in the simulator**):
 

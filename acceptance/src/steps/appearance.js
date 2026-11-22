@@ -118,6 +118,8 @@ export function stepAppearance(ctx) {
     assert('事件的 target 是这个页面', events.length > 0 && events[0].target === sheet, true);
     assert('事件不能取消', events.length > 0 && events[0].cancelable, false);
     assert('不带动画呈现：animated 是 false', events.length > 0 && events[0].animated, false);
+    assert('出现的事件是 UIViewControllerAppearanceEvent',
+           events.length > 0 && events[0] instanceof UIViewControllerAppearanceEvent, true);
 
     // ===== 3. 自动聚焦：appear 里拿焦点，不用定时器 =====
     const field = new UITextField();

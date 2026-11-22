@@ -33,7 +33,7 @@ If you subclass it with `class X extends UIPanGestureRecognizer {}` and then cal
 const card = new UIView();
 const drag = new UIPanGestureRecognizer();
 drag.addEventListener('changed', (e) => {
-  const { translation } = /** @type {UIPanGestureRecognizerEvent} */ (e);
+  const { translation } = e;
   console.log(translation.x, translation.y);
 });
 card.addGestureRecognizer(drag);

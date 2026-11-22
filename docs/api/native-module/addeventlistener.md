@@ -40,15 +40,15 @@ addEventListener(type, callback[, options])
 
 ## 事件对象
 
-`Event`，多一个字段：
+[`CustomEvent`](../custom-event.md)，多一个只读字段 `detail`：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
 | `type` | 字符串 | 事件名 |
 | `target` | `NativeModule` | 发事件的模块 |
-| `detail` | 见[能传什么值](../native-module.md#能传什么值) | 原生给的数据。原生没给时是 `null` |
+| [`detail`](../custom-event/detail.md) | 见[能传什么值](../native-module.md#能传什么值) | 原生给的数据。原生没给时是 `null` |
 
-事件不能取消：`cancelable` 是 `false`，调 `preventDefault()` 没有作用。类型定义里事件对象叫 `NativeModuleEvent`。
+事件不能取消：`cancelable` 是 `false`，调 `preventDefault()` 没有作用。
 
 ## 说明
 

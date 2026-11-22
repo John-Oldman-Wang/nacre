@@ -256,9 +256,13 @@ class Engine {
   // 把事件派发给某个原生对象自己的 JS 包装（而不是 application）。
   // 场景的生命周期事件走这条路。
   void EmitObjectEvent(const NativeObjectRef& target, const std::string& type);
-  // 同上，外加一个原生对象作为负载（导航的 beforeshow / show 要带「哪个页面」）
+  // 同上，外加一个原生对象作为负载（导航的 beforeshow / show 要带「哪个页面」）。
+  //
+  // 带负载的这几个都有 event_class：事件对象用哪个类建（'UIControlTouchEvent'
+  // 这样的名字，内置脚本登记过的）。哪个事件是哪个类只在原生这边写一份。
+  // 给空串就是普通的 Event
   void EmitObjectEventWith(const NativeObjectRef& target, const std::string& type,
-                           const NativeObjectRef& payload);
+                           const NativeObjectRef& payload, const std::string& event_class = "");
   // 同上，但负载是一个 JSON 值而不是原生对象（动画的 stop 要带 finished）。
   // JS 侧的 sink 一视同仁：拿到什么就往事件上挂什么
   //
@@ -271,14 +275,16 @@ class Engine {
   // 来决定做不做默认动作时传 true（输入框的 beforeinput 一类，见下面的
   // 同步回调）。
   bool EmitObjectEventWithJSON(const NativeObjectRef& target, const std::string& type,
-                               const std::string& json, bool cancelable = false);
+                               const std::string& json, bool cancelable = false,
+                               const std::string& event_class = "");
 
   // 当场派发一个不可取消的事件，事件对象上 answer_field 这个字段**可写**；派发完
   // 把它的值编成 JSON 文本交回来。系统当场要一个值（不是「要不要」）时用，第一处
   // 是滚动视图松手时问停在哪。监听器没改、改成了 JSON 表示不了的东西、抛了、
   // 引擎出了岔子，都返回空串，调用方照系统原来的值做。
   std::string EmitObjectEventForAnswer(const NativeObjectRef& target, const std::string& type,
-                                       const std::string& json, const std::string& answer_field);
+                                       const std::string& json, const std::string& answer_field,
+                                       const std::string& event_class = "");
 
   // ---- 同步回调：系统问、JS 当场答 ----
   //

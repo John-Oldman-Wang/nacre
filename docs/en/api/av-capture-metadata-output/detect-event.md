@@ -15,9 +15,9 @@ output.addEventListener('detect', (event) => { })
 
 ## Event object
 
-`AVCaptureMetadataOutputDetectEvent`, with one extra field:
+[`AVCaptureMetadataOutputDetectEvent`](../av-capture-metadata-output-detect-event.md), with one extra field:
 
-**`objects`**
+**[`objects`](../av-capture-metadata-output-detect-event/objects.md)**
 
 Everything recognized in this frame, as an array with at least one item. The array and the objects in it are read-only.
 

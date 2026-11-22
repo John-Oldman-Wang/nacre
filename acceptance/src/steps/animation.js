@@ -258,8 +258,10 @@ export function stepAnimation(ctx) {
   quick.duration = 0.1;
   /** @type {string[]} */
   const log = [];
-  quick.addEventListener('start', () => { log.push('start'); });
-  quick.addEventListener('stop', (e) => { log.push('stop:' + e.finished); });
+  /** @type {string[]} */
+  const kinds = [];
+  quick.addEventListener('start', (e) => { log.push('start'); kinds.push('start:' + (e instanceof CAAnimationEvent)); });
+  quick.addEventListener('stop', (e) => { log.push('stop:' + e.finished); kinds.push('stop:' + (e instanceof CAAnimationEvent)); });
   host.addAnimation(quick, { forKey: 'quick' });
 
   const killed = CABasicAnimation.animationWithKeyPath('opacity');
@@ -287,6 +289,7 @@ export function stepAnimation(ctx) {
       assert('动画开始发了 start', log.includes('start'), true);
       assert('跑完了发 stop 且 finished 为真', log.includes('stop:true'), true);
       assert('被摘掉的 finished 为假', killedLog.join(','), 'stop:false');
+      assert('stop 是 CAAnimationEvent，不带字段的 start 是普通的 Event', kinds.join(','), 'start:false,stop:true');
     } else {
       console.log('  ! 8 秒内没等到动画事件（收到的是 [' + log + '] [' +
                   killedLog + ']），这一组未验证');

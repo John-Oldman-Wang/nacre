@@ -35,7 +35,7 @@ application.addEventListener('sceneconnect', (e) => {
   const link = new CADisplayLink();
   let start = 0;
   link.addEventListener('tick', (ev) => {
-    const frame = /** @type {CADisplayLinkEvent} */ (ev).frame;
+    const frame = ev.frame;
     if (start === 0) start = frame.timestamp;
 
     const t = (frame.timestamp - start) % 2;          // 秒，2 秒一个来回
@@ -60,7 +60,7 @@ application.addEventListener('sceneconnect', (e) => {
 const link = new CADisplayLink();
 
 link.addEventListener('tick', (ev) => {
-  const frame = /** @type {CADisplayLinkEvent} */ (ev).frame;
+  const frame = ev.frame;
   console.log('这一帧的时刻:', frame.timestamp);
 });
 
@@ -113,7 +113,7 @@ let last = 0;
 let x = 0;
 
 mover.addEventListener('tick', (ev) => {
-  const frame = /** @type {CADisplayLinkEvent} */ (ev).frame;
+  const frame = ev.frame;
   const dt = last === 0 ? 0 : frame.timestamp - last;   // 距上一次回调过了多少秒
   last = frame.timestamp;
   x += speed * dt;

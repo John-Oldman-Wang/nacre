@@ -15,11 +15,11 @@ scene.addEventListener('traitchange', (event) => { })
 
 ## Event object
 
-A `UITraitChangeEvent`. Besides `type` and `target` (this scene), it has one more read-only field:
+A [`UITraitChangeEvent`](../ui-trait-change-event.md). Besides `type` and `target` (this scene), it has one more read-only field:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `previousTraitCollection` | [`UITraitCollection`](../ui-trait-collection.md) | The set of values before the change. Read the current values from `event.target.traitCollection` |
+| [`previousTraitCollection`](../ui-trait-change-event/previoustraitcollection.md) | [`UITraitCollection`](../ui-trait-collection.md) | The set of values before the change. Read the current values from `event.target.traitCollection` |
 
 Not cancelable.
 
@@ -33,7 +33,7 @@ Fires when a value in the scene's [`traitCollection`](traitcollection.md) change
 application.addEventListener('sceneconnect', (e) => {
   const scene = e.scene;
   scene.addEventListener('traitchange', (ev) => {
-    const { previousTraitCollection } = /** @type {UITraitChangeEvent} */ (ev);
+    const { previousTraitCollection } = ev;
     console.log(previousTraitCollection.userInterfaceStyle, '→',
       scene.traitCollection.userInterfaceStyle);
   });

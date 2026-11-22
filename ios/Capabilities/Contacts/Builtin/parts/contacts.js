@@ -9,7 +9,6 @@
   const {
     Event,
     constructNative,
-    defineField,
     defineNativeClass,
     describeValue,
     finalCheck,
@@ -201,14 +200,15 @@
   });
 
   // 选中的东西是原生对象，原生那边用运行时内部的事件（@ 开头）带过来；
-  // 在这里建事件对象、挂上字段，再派发给监听器。
-  //
-  // 绕这一下是因为核心的事件汇入口给对象负载起字段名，靠的是一张按事件名
-  // 写死的表，新的事件名不在里面，而那个文件不归这个包改
+  // 在这里建事件对象，再派发给监听器。三种选中各是一个事件类
+  const eventClasses = {
+    contact: ctx.defineEventClass('CNContactPickerContactEvent', Event, { contact: ['CNContact?', null] }),
+    contacts: ctx.defineEventClass('CNContactPickerContactsEvent', Event, { contacts: ['array', () => []] }),
+    contactProperty: ctx.defineEventClass('CNContactPickerContactPropertyEvent', Event,
+                                          { contactProperty: ['CNContactProperty?', null] }),
+  };
   function dispatch(picker, type, field, value) {
-    const event = new Event(type);
-    defineField(event, field, value);
-    picker.dispatchEvent(event);
+    picker.dispatchEvent(new eventClasses[field](type, { [field]: value }));
   }
   internalEventHandlers.set('@contactpicker:contact', (picker, contact) => {
     dispatch(picker, 'contactselect', 'contact', contact);

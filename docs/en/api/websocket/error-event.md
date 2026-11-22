@@ -15,9 +15,9 @@ ws.addEventListener('error', (event) => { })
 
 ## Event object
 
-`WebSocketErrorEvent` in the type definitions. Cannot be canceled.
+[`ErrorEvent`](../error-event.md), carrying only `message`: `filename` is an empty string, `lineno` and `colno` are `0`, and `error` is `undefined`. Cannot be canceled.
 
-**`message`**
+**[`message`](../error-event/message.md)**
 
 A string: the error description given by the system. It is human-readable text in the language of the system settings; do not base decisions on it.
 
@@ -35,7 +35,7 @@ const ws = new WebSocket('wss://echo.websocket.org');
 let opened = false;
 ws.addEventListener('open', () => { opened = true; });
 ws.addEventListener('error', (e) => {
-  const reason = /** @type {WebSocketErrorEvent} */ (e).message;
+  const reason = e.message;
   console.log(opened ? 'Dropped' : 'Failed to connect', reason);
 });
 ```

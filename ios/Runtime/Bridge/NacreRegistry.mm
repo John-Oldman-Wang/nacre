@@ -328,7 +328,8 @@ void NacreSetSyncSinks(NacreSyncAsk ask, NacreBlockCall call) {
   BlockCall() = [call copy];
 }
 
-BOOL NacreEmitEventSync(id object, const char* className, NSString* type, NSString* json) {
+BOOL NacreEmitEventSync(id object, const char* className, NSString* type, NSString* json,
+                        const char* eventClass) {
   NacreSyncAsk ask = SyncAsk();
   // 不在主线程就不进 JS：JS 只在主线程上跑。按「要」处理并留一行日志
   if (ask == nil || !NSThread.isMainThread) {
@@ -336,30 +337,31 @@ BOOL NacreEmitEventSync(id object, const char* className, NSString* type, NSStri
         @"sync event \"%@\" dropped: not on the main thread", type]);
     return NO;
   }
-  return ask(object, className, type, json, YES);
+  return ask(object, className, type, json, YES, eventClass);
 }
 
 void NacreSetAnswerSink(NacreAnswerAsk ask) { AnswerAsk() = [ask copy]; }
 
 NSString* NacreEmitEventForAnswer(id object, const char* className, NSString* type,
-                                  NSString* json, NSString* field) {
+                                  NSString* json, NSString* field, const char* eventClass) {
   NacreAnswerAsk ask = AnswerAsk();
   if (ask == nil || !NSThread.isMainThread) {
     if (ask != nil) WriteRuntimeLog([NSString stringWithFormat:
         @"event \"%@\" dropped: not on the main thread", type]);
     return nil;
   }
-  return ask(object, className, type, json, field);
+  return ask(object, className, type, json, field, eventClass);
 }
 
-void NacreEmitEventNow(id object, const char* className, NSString* type, NSString* json) {
+void NacreEmitEventNow(id object, const char* className, NSString* type, NSString* json,
+                       const char* eventClass) {
   NacreSyncAsk ask = SyncAsk();
   if (ask == nil || !NSThread.isMainThread) {
     if (ask != nil) WriteRuntimeLog([NSString stringWithFormat:
         @"event \"%@\" dropped: not on the main thread", type]);
     return;
   }
-  ask(object, className, type, json, NO);
+  ask(object, className, type, json, NO, eventClass);
 }
 
 void NacreCallBlock(NSInteger blockId, NSString* argsJSON) {
@@ -382,19 +384,19 @@ void NacreSetEventSink(NacreEventSink sink) { EventSink() = [sink copy]; }
 
 void NacreEmitEvent(id object, const char* className, NSString* type) {
   NacreEventSink sink = EventSink();
-  if (sink != nil) sink(object, className, type, nil, nil, nullptr);
+  if (sink != nil) sink(object, className, type, nil, nil, nullptr, nullptr);
 }
 
 void NacreEmitEventWithJSON(id object, const char* className, NSString* type,
-                            NSString* json) {
+                            NSString* json, const char* eventClass) {
   NacreEventSink sink = EventSink();
-  if (sink != nil) sink(object, className, type, json ?: @"null", nil, nullptr);
+  if (sink != nil) sink(object, className, type, json ?: @"null", nil, nullptr, eventClass);
 }
 
 void NacreEmitEventWithObject(id object, const char* className, NSString* type,
-                              id payload, const char* payloadClass) {
+                              id payload, const char* payloadClass, const char* eventClass) {
   NacreEventSink sink = EventSink();
-  if (sink != nil) sink(object, className, type, nil, payload, payloadClass);
+  if (sink != nil) sink(object, className, type, nil, payload, payloadClass, eventClass);
 }
 
 void NacreRegisterAsyncMethodHandler(NacreAsyncMethodHandler handler) {

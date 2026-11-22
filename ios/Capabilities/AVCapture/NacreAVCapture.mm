@@ -340,11 +340,16 @@ static const void* kNacreSessionEventsKey = &kNacreSessionEventsKey;
 }
 
 - (void)emit:(NSString*)type json:(NSString*)json {
+  [self emit:type json:json eventClass:nullptr];
+}
+
+// eventClass：带字段的事件用哪个 JS 类建
+- (void)emit:(NSString*)type json:(NSString*)json eventClass:(const char*)eventClass {
   dispatch_async(dispatch_get_main_queue(), ^{
     AVCaptureSession* session = self.session;
     if (session == nil || ![self.wanted containsObject:type]) return;
     if (json != nil) {
-      nacre_bridge::NacreEmitEventWithJSON(session, "AVCaptureSession", type, json);
+      nacre_bridge::NacreEmitEventWithJSON(session, "AVCaptureSession", type, json, eventClass);
     } else {
       nacre_bridge::NacreEmitEvent(session, "AVCaptureSession", type);
     }
@@ -362,16 +367,23 @@ static const void* kNacreSessionEventsKey = &kNacreSessionEventsKey;
                              (AVCaptureSessionInterruptionReason)reason.integerValue)
                        : nil;
   NSDictionary* payload = @{@"reason": name ?: (id)NSNull.null};
-  [self emit:@"interrupt" json:@(nacre_bridge::EncodeJSON(payload).c_str())];
+  [self emit:@"interrupt"
+          json:@(nacre_bridge::EncodeJSON(payload).c_str())
+    eventClass:"AVCaptureSessionInterruptEvent"];
 }
 
 - (void)runtimeError:(NSNotification*)note {
   NSError* error = note.userInfo[AVCaptureSessionErrorKey];
+  // 系统的 NSError 原样交过去，JS 那边建成 NSError 挂在 error 上
+  const BOOL isError = [error isKindOfClass:NSError.class];
   NSDictionary* payload = @{
-    @"message": [error isKindOfClass:NSError.class] ? (error.localizedDescription ?: @"") : @"",
-    @"code": @([error isKindOfClass:NSError.class] ? error.code : 0),
+    @"message": isError ? (error.localizedDescription ?: @"") : @"",
+    @"domain": isError ? (error.domain ?: @"") : @"",
+    @"code": @(isError ? error.code : 0),
   };
-  [self emit:@"runtimeerror" json:@(nacre_bridge::EncodeJSON(payload).c_str())];
+  [self emit:@"runtimeerror"
+          json:@(nacre_bridge::EncodeJSON(payload).c_str())
+    eventClass:"AVCaptureSessionRuntimeErrorEvent"];
 }
 
 @end

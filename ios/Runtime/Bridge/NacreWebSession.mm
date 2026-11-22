@@ -27,7 +27,7 @@ static NacreWebContentsEmit g_sessionEmit = nil;
 // 系统只说「有变化」，不说是哪一条、是加了还是删了（Electron 的 changed
 // 事件带这些）。原样转出去：一个不带数据的通知，JS 自己重新读
 - (void)cookiesDidChangeInCookieStore:(WKHTTPCookieStore*)cookieStore {
-  if (g_sessionEmit != nil) g_sessionEmit(self, @"@cookies-changed", nil);
+  if (g_sessionEmit != nil) g_sessionEmit(self, @"@cookies-changed", nil, nullptr);
 }
 
 @end

@@ -15,14 +15,14 @@ addEventListener('beforebegin', (event) => { })
 
 ## Event object
 
-The event object's type is `UIGestureRecognizerEvent`. Besides `type` and `target` (this recognizer), it carries two read-only fields:
+[`UIGestureRecognizerEvent`](../ui-gesture-recognizer-event.md). Besides `type` and `target` (this recognizer), it carries two read-only fields:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `location` | [`CGPoint`](../cg-point.md) or `null` | The position of the gesture at this moment, in the coordinate system of the view the recognizer is attached to, in [pt](../units.md). With several fingers, it is their center point |
-| `numberOfTouches` | Number | The number of fingers taking part in the gesture at this moment |
+| [`location`](../ui-gesture-recognizer-event/location.md) | [`CGPoint`](../cg-point.md) or `null` | The position of the gesture at this moment, in the coordinate system of the view the recognizer is attached to, in [pt](../units.md). With several fingers, it is their center point |
+| [`numberOfTouches`](../ui-gesture-recognizer-event/numberoftouches.md) | Number | The number of fingers taking part in the gesture at this moment |
 
-The callback parameter is declared as `Event`; to read these fields, cast the type, as in the example.
+The `beforebegin` of the pan, pinch, and rotation recognizers is this class too: the gesture hasn't begun, so there is no distance moved, scale, or similar value yet.
 
 Cancelable: `event.cancelable` is `true`. If `preventDefault()` is called, the gesture does not begin this time, and the recognizer fires none of its events such as [`began`](began-event.md) and [`ended`](ended-event.md).
 
@@ -51,7 +51,7 @@ beforebegin is only available on gesture recognizers you create: this one belong
 const sheet = new UIView();
 const pan = new UIPanGestureRecognizer();
 pan.addEventListener('beforebegin', (event) => {
-  const { location } = /** @type {UIGestureRecognizerEvent} */ (event);
+  const { location } = event;
   if (location === null || location.y > 44) event.preventDefault();
 });
 sheet.addGestureRecognizer(pan);

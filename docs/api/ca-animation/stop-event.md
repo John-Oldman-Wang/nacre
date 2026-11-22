@@ -15,9 +15,9 @@ animation.addEventListener('stop', (event) => { })
 
 ## 事件对象
 
-`CAAnimationEvent`，除 `type`、`target` 外带一个字段：
+[`CAAnimationEvent`](../ca-animation-event.md)，除 `type`、`target` 外带一个字段：
 
-**`finished`**
+**[`finished`](../ca-animation-event/finished.md)**
 
 布尔。`true` 表示播放到了结尾；`false` 表示中途被移除，例如调了图层的 `removeAnimationForKey()`。这个事实只能从事件上得到，动画对象上读不出来。
 

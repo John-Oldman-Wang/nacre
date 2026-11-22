@@ -78,12 +78,21 @@ type UICollectionViewEventType =
   | 'itemselect' | 'itemdeselect' | 'beforedisplay' | 'displayend';
 
 /** 列表那四个事件的事件对象。 */
-declare interface UICollectionViewItemEvent extends Event {
+declare class UICollectionViewItemEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<UICollectionViewItemEvent, 'indexPath'>>);
   /**
    * 事件发生时这一项的位置。监听器是稍后执行的：这期间数据变了的话，这个
    * 位置上可能已经是另一项。
    */
   readonly indexPath: NSIndexPath;
+}
+
+/** 列表上每个事件名对应的事件对象：滚动视图的那些，加上自己的四个。 */
+interface UICollectionViewEventMap extends UIScrollViewEventMap {
+  'itemselect': UICollectionViewItemEvent;
+  'itemdeselect': UICollectionViewItemEvent;
+  'beforedisplay': UICollectionViewItemEvent;
+  'displayend': UICollectionViewItemEvent;
 }
 
 /** 决定单元格怎么排的对象的基类。不能构造。 */
@@ -272,21 +281,18 @@ declare class UICollectionView extends UIScrollView {
     options: { atScrollPosition: readonly UICollectionViewScrollPosition[]; animated?: boolean },
   ): void;
 
-  addEventListener(
-    type: UICollectionViewEventType,
-    callback: EventListener<UICollectionViewItemEvent> | null,
+  addEventListener<K extends keyof UICollectionViewEventMap>(
+    type: K,
+    callback: ((event: UICollectionViewEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
   ): void;
-  addEventListener(
-    type: ScrollEventName,
-    callback: EventListener | null,
-    options?: AddEventListenerOptions,
+  /** 别的名字当自定义事件：`dispatchEvent` 是公开 API，JS 可以派发自己的事件。 */
+  addEventListener(type: string, callback: EventListener | null, options?: AddEventListenerOptions): void;
+  removeEventListener<K extends keyof UICollectionViewEventMap>(
+    type: K,
+    callback: ((event: UICollectionViewEventMap[K]) => void) | null,
   ): void;
-  removeEventListener(
-    type: UICollectionViewEventType,
-    callback: EventListener<UICollectionViewItemEvent> | null,
-  ): void;
-  removeEventListener(type: ScrollEventName, callback: EventListener | null): void;
+  removeEventListener(type: string, callback: EventListener | null): void;
 }
 
 /**

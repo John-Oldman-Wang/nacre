@@ -15,13 +15,11 @@ nav.addEventListener('show', (event) => { })
 
 ## Event object
 
-`Event`, with one extra field:
+[`UINavigationControllerEvent`](../ui-navigation-controller-event.md), with one extra read-only field:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `viewController` | `UIViewController` | The view controller that has been shown |
-
-The type definitions don't yet have a type for this event object; annotate the `viewController` field yourself, as shown in the example.
+| [`viewController`](../ui-navigation-controller-event/viewcontroller.md) | `UIViewController` | The view controller that has been shown |
 
 Not cancelable.
 
@@ -37,8 +35,7 @@ Not cancelable.
 
 ```js
 const nav = new UINavigationController(new UIViewController());
-nav.addEventListener('show', (ev) => {
-  const event = /** @type {Event & { viewController: UIViewController }} */ (ev);
+nav.addEventListener('show', (event) => {
   console.log(event.type, event.target === nav, event.viewController === nav.topViewController);
 });
 ```

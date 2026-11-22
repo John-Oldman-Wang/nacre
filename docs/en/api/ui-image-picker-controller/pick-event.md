@@ -15,17 +15,16 @@ picker.addEventListener('pick', (event) => { })
 
 ## Event object
 
-`UIImagePickerControllerMediaEvent`, with three extra fields:
+[`UIImagePickerControllerMediaEvent`](../ui-image-picker-controller-media-event.md), with three extra fields:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `originalImage` | [`UIImage`](../ui-image.md) | The photo taken, uncropped |
-| `editedImage` | `UIImage` or `null` | The photo after the user cropped it. `null` when [`allowsEditing`](allowsediting.md) is off |
-| `cropRect` | [`CGRect`](../structs.md) or `null` | Which region of the original the user cropped. `null` when `allowsEditing` is off. The unit of the values is **not verified** |
+| [`originalImage`](../ui-image-picker-controller-media-event/originalimage.md) | [`UIImage`](../ui-image.md) | The photo taken, uncropped |
+| [`editedImage`](../ui-image-picker-controller-media-event/editedimage.md) | `UIImage` or `null` | The photo after the user cropped it. `null` when [`allowsEditing`](allowsediting.md) is off |
+| [`cropRect`](../ui-image-picker-controller-media-event/croprect.md) | [`CGRect`](../structs.md) or `null` | Which region of the original the user cropped. `null` when `allowsEditing` is off. The unit of the values is **not verified** |
 
 - `target` is this camera interface.
 - Not cancelable; `preventDefault()` has no effect.
-- The callback parameter's type is `Event`; to read these three fields, cast it to `UIImagePickerControllerMediaEvent`, as shown in the example.
 
 ## When it fires
 
@@ -41,7 +40,7 @@ The actual firing of this event is **not verified**: the simulator cannot take p
 ```js
 const picker = new UIImagePickerController();
 picker.addEventListener('pick', (event) => {
-  const { originalImage } = /** @type {UIImagePickerControllerMediaEvent} */ (event);
+  const { originalImage } = event;
   console.log('Took ' + originalImage.size.width + ' × ' + originalImage.size.height);
   picker.dismissViewController({ animated: true });
 });

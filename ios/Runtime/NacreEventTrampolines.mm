@@ -90,7 +90,8 @@ using namespace nacre_bridge;
   NSString* json = data != nil ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : nil;
   NSString* answer = nacre_bridge::NacreEmitEventForAnswer(scrollView, "UIScrollView",
                                                            @"beforedragend", json,
-                                                           @"targetContentOffset");
+                                                           @"targetContentOffset",
+                                                           "UIScrollViewDragEndEvent");
   if (answer == nil) return;
   id point = [NSJSONSerialization JSONObjectWithData:[answer dataUsingEncoding:NSUTF8StringEncoding]
                                              options:0 error:nil];
@@ -157,7 +158,8 @@ using namespace nacre_bridge;
   [self.runtime emitEvent:@"stop"
                      from:origin
                 className:AnimationClassName(origin)
-                     json:flag ? "true" : "false"];
+                     json:flag ? "true" : "false"
+               eventClass:"CAAnimationEvent"];
 }
 
 @end
@@ -182,7 +184,8 @@ using namespace nacre_bridge;
   [runtime emitEvent:@"tick"
                 from:link
            className:"CADisplayLink"
-                json:json.UTF8String];
+                json:json.UTF8String
+          eventClass:"CADisplayLinkEvent"];
 }
 @end
 
@@ -199,7 +202,8 @@ using namespace nacre_bridge;
                      from:nav
                 className:"UINavigationController"
                      with:vc
-             payloadClass:"UIViewController"];
+             payloadClass:"UIViewController"
+               eventClass:"UINavigationControllerEvent"];
 }
 
 - (void)navigationController:(UINavigationController*)navigationController
@@ -240,7 +244,8 @@ using namespace nacre_bridge;
                      from:tabBarController
                 className:"UITabBarController"
                      with:viewController
-             payloadClass:payloadClass];
+             payloadClass:payloadClass
+               eventClass:"UITabBarControllerEvent"];
 }
 
 @end

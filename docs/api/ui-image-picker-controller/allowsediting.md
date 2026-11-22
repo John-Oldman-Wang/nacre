@@ -27,8 +27,7 @@ native: UIImagePickerController.allowsEditing
 ```js
 const picker = new UIImagePickerController();
 picker.allowsEditing = true;
-picker.addEventListener('pick', (event) => {
-  const shot = /** @type {UIImagePickerControllerMediaEvent} */ (event);
+picker.addEventListener('pick', (shot) => {
   const image = shot.editedImage ?? shot.originalImage;
   console.log(image.size.width + ' × ' + image.size.height);
 });

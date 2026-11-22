@@ -58,10 +58,10 @@ App 这边：
 
 ```js
 const web = new WebView({ webPreferences: { preload: 'JS/web/preload.js' } });
-web.webContents.ipc.handle('get-user', () => ({ name: 'Jack' }));
+web.webContents.ipc.handle('get-user', () => ({ name: 'Alice' }));
 ```
 
-**效果**：网页里 `await app.getUser()` 得到 `{ name: 'Jack' }`。
+**效果**：网页里 `await app.getUser()` 得到 `{ name: 'Alice' }`。
 
 ## 和 Electron 的差别
 

@@ -65,6 +65,7 @@ export async function stepKeyboard(ctx) {
   } else {
     const e = shown.event;
     assert('keyboardshow：frame 是 CGRect', e.frame instanceof CGRect, true);
+    assert('keyboardshow：是 UIScreenKeyboardEvent', e instanceof UIScreenKeyboardEvent, true);
     assert('keyboardshow：键盘有高度', e.frame.height > 0, true);
     assert('keyboardshow：键盘的底边在屏幕底边', Math.round(e.frame.y + e.frame.height),
            Math.round(screen.bounds.height));

@@ -190,7 +190,7 @@ application.addEventListener('sceneconnect', (e) => {
 
     // 3. The user tapped "Use Photo": take the photo and dismiss the interface
     picker.addEventListener('pick', (event) => {
-      const { originalImage } = /** @type {UIImagePickerControllerMediaEvent} */ (event);
+      const { originalImage } = event;
       preview.image = originalImage;
       console.log('Took ' + originalImage.size.width + ' × ' + originalImage.size.height);
       picker.dismissViewController({ animated: true });

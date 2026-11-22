@@ -28,6 +28,11 @@ type UIAlertControllerSeverity = 'default' | 'critical';
 /** 弹窗按钮的事件名。只有一个：用户点了这个按钮。 */
 type UIAlertActionEventType = 'click';
 
+/** 弹窗按钮上每个事件名对应的事件对象。 */
+interface UIAlertActionEventMap {
+  'click': Event;
+}
+
 /**
  * 弹窗上的一个按钮。
  *
@@ -47,18 +52,29 @@ declare class UIAlertAction extends NSObject {
    * 建一个按钮。`title` 必须有（空串可以）；`style` 必填，写错抛 `TypeError`。
    */
   static actionWithTitle(title: string, options: { style: UIAlertActionStyle }): UIAlertAction;
-  addEventListener(
-    type: UIAlertActionEventType,
-    callback: EventListener | null,
+  addEventListener<K extends keyof UIAlertActionEventMap>(
+    type: K,
+    callback: ((event: UIAlertActionEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
   ): void;
-  removeEventListener(type: UIAlertActionEventType, callback: EventListener | null): void;
+  removeEventListener<K extends keyof UIAlertActionEventMap>(
+    type: K,
+    callback: ((event: UIAlertActionEventMap[K]) => void) | null,
+  ): void;
 
   /** 按钮上的字。 */
   readonly title: string;
   readonly style: UIAlertActionStyle;
   /** 默认 `true`。`false` 时按钮是灰的、点不动。 */
   isEnabled: boolean;
+}
+
+/**
+ * 弹窗上每个事件名对应的事件对象。页面的其余事件在弹窗上都不派发，只有继承来的
+ * `traitchange`。
+ */
+interface UIAlertControllerEventMap {
+  'traitchange': UITraitChangeEvent;
 }
 
 /**
@@ -95,10 +111,14 @@ declare class UIAlertController extends UIViewController {
    * 哪个按钮，在那个按钮（`UIAlertAction`）上监听 `click`。
    * 能监听的只有继承来的 `traitchange`。
    */
-  addEventListener(
-    type: 'traitchange',
-    callback: EventListener | null,
+  addEventListener<K extends keyof UIAlertControllerEventMap>(
+    type: K,
+    callback: ((event: UIAlertControllerEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
+  ): void;
+  removeEventListener<K extends keyof UIAlertControllerEventMap>(
+    type: K,
+    callback: ((event: UIAlertControllerEventMap[K]) => void) | null,
   ): void;
 
   /** 标题下面的说明文字。 */
@@ -154,17 +174,19 @@ type UIActivitySectionTypes = 'peopleSuggestions';
 type UIActivityViewControllerEventType = 'complete';
 
 /**
- * `complete` 事件带的数据。
- *
- * 回调参数的类型没有窄化（`EventTarget` 的基类签名不允许），要拿就转一下型：
- *
- * ```js
- * sheet.addEventListener('complete', (e) => {
- *   const { completed } = /** @type {UIActivityViewControllerCompletionEvent} *\/ (e);
- * });
- * ```
+ * 分享面板上每个事件名对应的事件对象：自己的 `complete`，加上页面的 `traitchange`
+ * 和模态的三个。页面出现和消失的四个在分享面板上不派发。
  */
-declare interface UIActivityViewControllerCompletionEvent extends Event {
+interface UIActivityViewControllerEventMap
+  extends Omit<UIViewControllerEventMap, UIViewControllerAppearanceEventType> {
+  'complete': UIActivityViewControllerCompletionEvent;
+}
+
+/**
+ * `complete` 事件带的数据。
+ */
+declare class UIActivityViewControllerCompletionEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<UIActivityViewControllerCompletionEvent, 'activityType' | 'completed' | 'activityError'>>);
   /**
    * 用户选了哪个动作。系统自带的是 `UIActivityType` 里的名字；第三方扩展是
    * 它自己的标识符；没选任何动作就关掉了是 `null`。
@@ -186,8 +208,7 @@ declare interface UIActivityViewControllerCompletionEvent extends Event {
  * ```js
  * const sheet = new UIActivityViewController(['看看这个', new URL('https://example.com')]);
  * sheet.addEventListener('complete', (e) => {
- *   const { completed } = /** @type {UIActivityViewControllerCompletionEvent} *\/ (e);
- *   console.log(completed ? '分享出去了' : '没分享');
+ *   console.log(e.completed ? '分享出去了' : '没分享');
  * });
  * vc.presentViewController(sheet, { animated: true });
  * ```
@@ -198,11 +219,18 @@ declare class UIActivityViewController extends UIViewController {
    * 别的东西抛 `TypeError`。
    */
   constructor(activityItems: ReadonlyArray<string | URL | UIImage>);
-  addEventListener(
-    type: UIActivityViewControllerEventType | UIPresentationEventType | (string & {}),
-    callback: EventListener | null,
+  addEventListener<K extends keyof UIActivityViewControllerEventMap>(
+    type: K,
+    callback: ((event: UIActivityViewControllerEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
   ): void;
+  /** 别的名字当自定义事件：`dispatchEvent` 是公开 API，JS 可以派发自己的事件。 */
+  addEventListener(type: string, callback: EventListener | null, options?: AddEventListenerOptions): void;
+  removeEventListener<K extends keyof UIActivityViewControllerEventMap>(
+    type: K,
+    callback: ((event: UIActivityViewControllerEventMap[K]) => void) | null,
+  ): void;
+  removeEventListener(type: string, callback: EventListener | null): void;
 
   /** 不想出现在面板里的系统动作。默认 `null`，一个都不排除。 */
   excludedActivityTypes: UIActivityType[] | null;

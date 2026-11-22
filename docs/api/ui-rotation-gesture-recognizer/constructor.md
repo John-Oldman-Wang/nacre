@@ -33,7 +33,7 @@ new UIRotationGestureRecognizer()
 const card = new UIView();
 const twist = new UIRotationGestureRecognizer();
 twist.addEventListener('changed', (e) => {
-  const { rotation } = /** @type {UIRotationGestureRecognizerEvent} */ (e);
+  const { rotation } = e;
   console.log(rotation);
 });
 card.addGestureRecognizer(twist);

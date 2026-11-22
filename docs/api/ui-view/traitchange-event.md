@@ -17,9 +17,9 @@ view.addEventListener('traitchange', (event) => { })
 
 ## 事件对象
 
-`UITraitChangeEvent`。除了 `type`、`target`，多一个字段：
+[`UITraitChangeEvent`](../ui-trait-change-event.md)。除了 `type`、`target`，多一个字段：
 
-**`previousTraitCollection`**
+**[`previousTraitCollection`](../ui-trait-change-event/previoustraitcollection.md)**
 
 [`UITraitCollection`](../ui-trait-collection.md)：变化之前的那组值。现在的值不在事件对象上，从 `event.target.traitCollection` 读，回调执行时它已经是新值。
 
@@ -40,8 +40,7 @@ view.addEventListener('traitchange', (event) => { })
 
 ```js
 const page = new UIViewController();
-page.view.addEventListener('traitchange', (e) => {
-  const event = /** @type {UITraitChangeEvent} */ (e);
+page.view.addEventListener('traitchange', (event) => {
   console.log(event.previousTraitCollection.userInterfaceStyle);
   console.log(page.view.traitCollection.userInterfaceStyle);
 });

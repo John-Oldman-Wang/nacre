@@ -97,7 +97,7 @@ Listen with `addEventListener()`.
 
 Rules shared by the four events:
 
-- The event object is `UICollectionViewItemEvent`, with one extra read-only field `indexPath` of type [`NSIndexPath`](ns-index-path.md).
+- The event object is [`UICollectionViewItemEvent`](ui-collection-view-item-event.md), with one extra read-only field `indexPath` of type [`NSIndexPath`](ns-index-path.md).
 - Not cancelable; `preventDefault()` has no effect.
 - The callback runs after the current round of code. `indexPath` is the position at the moment the event occurred; if the data changes before the callback runs, that position may now hold a different item or no item. To use an item over time, first convert it to an identifier with the data source's [`itemIdentifierForIndexPath()`](ui-collection-view-diffable-data-source/itemidentifierforindexpath.md).
 

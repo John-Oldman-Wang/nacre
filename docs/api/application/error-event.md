@@ -19,10 +19,10 @@ application.addEventListener('error', (event) => { })
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `message` | 字符串 | 错误的摘要文字，由引擎生成 |
-| `error` | `unknown` | 抛出来的那个值 |
-| `filename` | 字符串 | 出错的脚本名，例如 `'main.js'` |
-| `lineno` | 数字 | 出错的行号 |
+| [`message`](../error-event/message.md) | 字符串 | 错误的摘要文字，由引擎生成 |
+| [`error`](../error-event/error.md) | `unknown` | 抛出来的那个值 |
+| [`filename`](../error-event/filename.md) | 字符串 | 出错的脚本名，例如 `'main.js'` |
+| [`lineno`](../error-event/lineno.md) | 数字 | 出错的行号 |
 
 `target` 是 `application`。`cancelable` 是 `true`：调 `preventDefault()` 的效果是运行时不再输出默认的错误日志。
 

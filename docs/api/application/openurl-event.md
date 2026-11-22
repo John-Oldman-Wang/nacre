@@ -19,9 +19,9 @@ application.addEventListener('openurl', (event) => { })
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `url` | 字符串 | 系统给的完整地址，原样 |
-| `scene` | [`UIWindowScene`](../ui-window-scene.md) | 系统把这个地址交给了哪个场景 |
-| `sourceApplication` | 字符串或 `null` | 来源 App 的包名。系统不提供时是 `null` |
+| [`url`](../open-url-event/url.md) | 字符串 | 系统给的完整地址，原样 |
+| [`scene`](../open-url-event/scene.md) | [`UIWindowScene`](../ui-window-scene.md) | 系统把这个地址交给了哪个场景 |
+| [`sourceApplication`](../open-url-event/sourceapplication.md) | 字符串或 `null` | 来源 App 的包名。系统不提供时是 `null` |
 
 `target` 是 `application`。运行时派发的 `openurl`，`cancelable` 是 `false`。
 

@@ -114,7 +114,9 @@ export function stepDisplayLink(ctx) {
   /** @type {{ timestamp: number, duration: number, targetTimestamp: number }[]} */
   const frames = [];
   let start = 0;
+  let tickKind = '';
   link.addEventListener('tick', (e) => {
+    if (tickKind === '') tickKind = String(e instanceof CADisplayLinkEvent);
     const frame = /** @type {CADisplayLinkEvent} */ (e).frame;
     frames.push(frame);
     if (start === 0) start = frame.timestamp;
@@ -138,6 +140,7 @@ export function stepDisplayLink(ctx) {
 
     waitUntil('攒够几帧', () => frames.length >= 5, () => {
       assert('timestamp 递增', frames[1].timestamp > frames[0].timestamp, true);
+      assert('tick 是 CADisplayLinkEvent', tickKind, 'true');
       const span = frames[frames.length - 1].timestamp - frames[0].timestamp;
       console.log('  实测：' + frames.length + ' 帧 / ' + span.toFixed(3) + ' 秒 ≈ ' +
                   (span > 0 ? (frames.length / span).toFixed(1) : '?') +

@@ -15,13 +15,11 @@ tabs.addEventListener('tabselect', (event) => { })
 
 ## Event object
 
-`UITabBarControllerEvent`, with one extra field:
+[`UITabBarControllerEvent`](../ui-tab-bar-controller-event.md), with one extra field:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `viewController` | `UIViewController` | The view controller tapped |
-
-The listener callback's parameter type is `Event`; to read `viewController`, cast it first, as shown in the example.
+| [`viewController`](../ui-tab-bar-controller-event/viewcontroller.md) | `UIViewController` | The view controller tapped |
 
 Not cancelable. When it fires the switch has already happened; you cannot use it to prevent the user from switching.
 
@@ -36,8 +34,7 @@ Not cancelable. When it fires the switch has already happened; you cannot use it
 
 ```js
 const tabs = new UITabBarController();
-tabs.addEventListener('tabselect', (e) => {
-  const event = /** @type {UITabBarControllerEvent} */ (e);
+tabs.addEventListener('tabselect', (event) => {
   console.log(event.type, event.target === tabs, event.viewController === tabs.selectedViewController);
 });
 ```

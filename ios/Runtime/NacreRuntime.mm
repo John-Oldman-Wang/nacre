@@ -347,17 +347,22 @@ nacre::NativeObjectRef CreateBlob(
     };
     // 登记进来的域的事件出口（NacreEmitEvent…）。三种负载对上三个 emitEvent
     NacreSetEventSink(^(id object, const char* className, NSString* type, NSString* json,
-                        id payload, const char* payloadClass) {
+                        id payload, const char* payloadClass, const char* eventClass) {
       NacreRuntime* strongSelf = weakSelf;
       if (strongSelf == nil) return;
       if (json != nil) {
-        [strongSelf emitEvent:type from:object className:className json:json.UTF8String];
+        [strongSelf emitEvent:type
+                         from:object
+                    className:className
+                         json:json.UTF8String
+                   eventClass:eventClass];
       } else if (payloadClass != nullptr) {
         [strongSelf emitEvent:type
                          from:object
                     className:className
                          with:payload
-                 payloadClass:payloadClass];
+                 payloadClass:payloadClass
+                   eventClass:eventClass];
       } else {
         [strongSelf emitEvent:type from:object className:className then:nil];
       }
@@ -370,7 +375,8 @@ nacre::NativeObjectRef CreateBlob(
     // 原生回头问（嵌套）。平台投递的任务只在最外层处理——嵌套时外面那一层
     // 回去之后自己会处理
     NacreSetSyncSinks(
-        ^BOOL(id object, const char* className, NSString* type, NSString* json, BOOL cancelable) {
+        ^BOOL(id object, const char* className, NSString* type, NSString* json, BOOL cancelable,
+              const char* eventClass) {
           NacreRuntime* strongSelf = weakSelf;
           if (strongSelf == nil) return NO;
           auto engine = strongSelf->_engine;
@@ -378,7 +384,8 @@ nacre::NativeObjectRef CreateBlob(
           const bool nested = (*engine)->IsInJS();
           const bool prevented = (*engine)->EmitObjectEventWithJSON(
               {NacreKeep(object), className}, type.UTF8String,
-              json != nil ? json.UTF8String : "null", cancelable == YES);
+              json != nil ? json.UTF8String : "null", cancelable == YES,
+              eventClass != nullptr ? eventClass : "");
           if (!nested) (*engine)->PumpMessageLoop();
           return prevented ? YES : NO;
         },
@@ -401,7 +408,7 @@ nacre::NativeObjectRef CreateBlob(
         });
     // 「当场要一个值」：和上面的 ask 一样当场进 JS，只是交回来的是事件上一个字段的值
     NacreSetAnswerSink(^NSString*(id object, const char* className, NSString* type,
-                                  NSString* json, NSString* field) {
+                                  NSString* json, NSString* field, const char* eventClass) {
       NacreRuntime* strongSelf = weakSelf;
       if (strongSelf == nil) return nil;
       auto engine = strongSelf->_engine;
@@ -409,12 +416,14 @@ nacre::NativeObjectRef CreateBlob(
       const bool nested = (*engine)->IsInJS();
       const std::string answer = (*engine)->EmitObjectEventForAnswer(
           {NacreKeep(object), className}, type.UTF8String,
-          json != nil ? json.UTF8String : "null", field.UTF8String);
+          json != nil ? json.UTF8String : "null", field.UTF8String,
+          eventClass != nullptr ? eventClass : "");
       if (!nested) (*engine)->PumpMessageLoop();
       return answer.empty() ? nil : @(answer.c_str());
     });
     // WebSocket 的事件出口。那个文件不认识 NacreRuntime，所以在这里塞进去
-    WebSocketSetEmitter(^(id task, NSString* type, NSString* json, NacreBlob* blob) {
+    WebSocketSetEmitter(^(id task, NSString* type, NSString* json, NacreBlob* blob,
+                          const char* eventClass) {
       NacreRuntime* strongSelf = weakSelf;
       if (strongSelf == nil) return;
       if (blob != nil) {
@@ -422,33 +431,39 @@ nacre::NativeObjectRef CreateBlob(
                          from:task
                     className:"WebSocket"
                          with:blob
-                 payloadClass:"Blob"];
+                 payloadClass:"Blob"
+                   eventClass:eventClass];
       } else if (json != nil) {
-        [strongSelf emitEvent:type from:task className:"WebSocket" json:json.UTF8String];
+        [strongSelf emitEvent:type
+                         from:task
+                    className:"WebSocket"
+                         json:json.UTF8String
+                   eventClass:eventClass];
       } else {
         [strongSelf emitEvent:type from:task className:"WebSocket" then:nil];
       }
     });
     // 网页的事件出口，同上
-    WebViewSetEmitter(^(id contents, NSString* type, NSString* json) {
+    WebViewSetEmitter(^(id contents, NSString* type, NSString* json, const char* eventClass) {
       NacreRuntime* strongSelf = weakSelf;
       if (strongSelf == nil) return;
       if (json != nil) {
         [strongSelf emitEvent:type
                          from:contents
                     className:"WebContents"
-                         json:json.UTF8String];
+                         json:json.UTF8String
+                   eventClass:eventClass];
       } else {
         [strongSelf emitEvent:type from:contents className:"WebContents" then:nil];
       }
     });
     // Session 的事件出口（cookie 变了）。同一个路子
-    WebSessionSetEmitter(^(id session, NSString* type, NSString* json) {
+    WebSessionSetEmitter(^(id session, NSString* type, NSString* json, const char* eventClass) {
       [weakSelf emitEvent:type from:session className:"Session" then:nil];
     });
     // 能被取消的那一个（will-navigate）：派发完把「取消了没有」交回去。
     // 走 postToJS，所以 answer 一定会被调到；引擎不在了就按没取消算
-    WebViewSetAsker(^(id contents, NSString* type, NSString* json,
+    WebViewSetAsker(^(id contents, NSString* type, NSString* json, const char* eventClass,
                       void (^answer)(BOOL prevented)) {
       NacreRuntime* strongSelf = weakSelf;
       if (strongSelf == nil) {
@@ -458,11 +473,12 @@ nacre::NativeObjectRef CreateBlob(
       auto engine = strongSelf->_engine;
       std::string t = type.UTF8String;
       std::string payload = json.UTF8String ?: "null";
+      std::string eventCls = eventClass != nullptr ? eventClass : "";
       [strongSelf postToJS:^{
         BOOL prevented = NO;
         if (*engine) {
           prevented = (*engine)->EmitObjectEventWithJSON(
-              {NacreKeep(contents), "WebContents"}, t, payload);
+              {NacreKeep(contents), "WebContents"}, t, payload, false, eventCls);
         }
         answer(prevented);
       }];
@@ -1036,7 +1052,11 @@ nacre::NativeObjectRef CreateBlob(
                 @"{\"location\":{\"x\":%.6f,\"y\":%.6f},\"tapCount\":%ld}",
                 p.x, p.y, (long)touch.tapCount];
   }
-  [self emitEvent:type from:control className:"UIControl" json:json.UTF8String];
+  [self emitEvent:type
+             from:control
+        className:"UIControl"
+             json:json.UTF8String
+       eventClass:"UIControlTouchEvent"];
 }
 
 // 通用的「原生发生了什么，告诉 JS」。延后一轮，completion 在派发之后跑，
@@ -1059,15 +1079,17 @@ nacre::NativeObjectRef CreateBlob(
              from:(id)object
         className:(const char*)className
              with:(id)payload
-    payloadClass:(const char*)payloadClass {
+    payloadClass:(const char*)payloadClass
+      eventClass:(const char*)eventClass {
   auto engine = _engine;
   std::string t = type.UTF8String;
   std::string cls = className;
   std::string payloadCls = payloadClass;
+  std::string eventCls = eventClass != nullptr ? eventClass : "";
   [self postToJS:^{
     if (*engine) {
       (*engine)->EmitObjectEventWith({NacreKeep(object), cls}, t,
-                                     {NacreKeep(payload), payloadCls});
+                                     {NacreKeep(payload), payloadCls}, eventCls);
     }
   }];
 }
@@ -1077,14 +1099,16 @@ nacre::NativeObjectRef CreateBlob(
 - (void)emitEvent:(NSString*)type
              from:(id)object
         className:(const char*)className
-             json:(const std::string&)json {
+             json:(const std::string&)json
+       eventClass:(const char*)eventClass {
   auto engine = _engine;
   std::string t = type.UTF8String;
   std::string cls = className;
   std::string payload = json;
+  std::string eventCls = eventClass != nullptr ? eventClass : "";
   [self postToJS:^{
     if (*engine) {
-      (*engine)->EmitObjectEventWithJSON({NacreKeep(object), cls}, t, payload);
+      (*engine)->EmitObjectEventWithJSON({NacreKeep(object), cls}, t, payload, false, eventCls);
     }
   }];
 }
@@ -1129,7 +1153,8 @@ nacre::NativeObjectRef CreateBlob(
                      from:environment
                 className:cls
                      with:previous
-             payloadClass:"UITraitCollection"];
+             payloadClass:"UITraitCollection"
+               eventClass:"UITraitChangeEvent"];
     };
     if (TraitSetSubscription(object, @(type.c_str()), on, emit, error)) return true;
   }

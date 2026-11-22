@@ -15,11 +15,11 @@ application.addEventListener('scenedisconnect', (event) => { })
 
 ## Event object
 
-`Event`, with one extra read-only field:
+[`SceneEvent`](../scene-event.md), with one extra read-only field:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `scene` | [`UIWindowScene`](../ui-window-scene.md) | The scene being destroyed |
+| [`scene`](../scene-event/scene.md) | [`UIWindowScene`](../ui-window-scene.md) | The scene being destroyed |
 
 `target` is `application`. Not cancelable.
 

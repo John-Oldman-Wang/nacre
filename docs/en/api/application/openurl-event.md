@@ -19,9 +19,9 @@ application.addEventListener('openurl', (event) => { })
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `url` | string | The full address the system provided, unchanged |
-| `scene` | [`UIWindowScene`](../ui-window-scene.md) | The scene the system handed the address to |
-| `sourceApplication` | string or `null` | The bundle ID of the source app. `null` when the system doesn't provide it |
+| [`url`](../open-url-event/url.md) | string | The full address the system provided, unchanged |
+| [`scene`](../open-url-event/scene.md) | [`UIWindowScene`](../ui-window-scene.md) | The scene the system handed the address to |
+| [`sourceApplication`](../open-url-event/sourceapplication.md) | string or `null` | The bundle ID of the source app. `null` when the system doesn't provide it |
 
 `target` is `application`. For `openurl` events dispatched by the runtime, `cancelable` is `false`.
 

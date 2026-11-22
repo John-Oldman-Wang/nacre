@@ -15,11 +15,11 @@ contents.addEventListener('page-title-updated', (event) => {})
 
 ## Event object
 
-`WebContentsPageTitleUpdatedEvent`. Besides `type` and `target`, it has one field:
+[`WebContentsPageTitleUpdatedEvent`](../web-contents-page-title-updated-event.md). Besides `type` and `target`, it has one field:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `title` | string | The new title |
+| [`title`](../web-contents-page-title-updated-event/title.md) | string | The new title |
 
 Not cancelable.
 

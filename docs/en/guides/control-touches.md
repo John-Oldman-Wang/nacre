@@ -185,7 +185,7 @@ The nine events starting with `touch` carry the finger's position, in the contro
 
 ```js
 card.addEventListener('touchupinside', (e) => {
-  const { location, tapCount } = /** @type {UIControlTouchEvent} */ (e);
+  const { location, tapCount } = e;
   if (location !== null) {
     console.log(location.x, location.y, tapCount);
   }

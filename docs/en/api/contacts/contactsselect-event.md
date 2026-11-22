@@ -15,9 +15,9 @@ picker.addEventListener('contactsselect', (event) => { })
 
 ## Event object
 
-`Event`, with one extra field:
+[`CNContactPickerContactsEvent`](../cn-contact-picker-contacts-event.md), with one extra read-only field:
 
-**`contacts`**
+**[`contacts`](../cn-contact-picker-contacts-event/contacts.md)**
 
 The contacts the user checked, an array of [`CNContact`](../cn-contact.md). Whether it is an empty array when the user taps "Done" without checking any is not verified.
 

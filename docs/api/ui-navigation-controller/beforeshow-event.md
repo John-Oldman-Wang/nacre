@@ -15,13 +15,11 @@ nav.addEventListener('beforeshow', (event) => { })
 
 ## 事件对象
 
-`Event`，多一个字段：
+[`UINavigationControllerEvent`](../ui-navigation-controller-event.md)，多一个只读字段：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `viewController` | `UIViewController` | 即将显示的页面 |
-
-类型定义里还没有这个事件对象的类型，要自己标注 `viewController` 字段，写法见示例。
+| [`viewController`](../ui-navigation-controller-event/viewcontroller.md) | `UIViewController` | 即将显示的页面 |
 
 不能取消，不能用它阻止用户返回。
 
@@ -38,8 +36,7 @@ nav.addEventListener('beforeshow', (event) => { })
 ```js
 const home = new UIViewController();
 const nav = new UINavigationController(home);
-nav.addEventListener('beforeshow', (ev) => {
-  const event = /** @type {Event & { viewController: UIViewController }} */ (ev);
+nav.addEventListener('beforeshow', (event) => {
   nav.setNavigationBarHidden(event.viewController === home, { animated: true });
 });
 ```

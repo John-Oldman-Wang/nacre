@@ -15,14 +15,14 @@ contents.addEventListener('did-fail-load', (event) => {})
 
 ## Event object
 
-`WebContentsDidFailLoadEvent`. Besides `type` and `target`, it has four fields:
+[`WebContentsDidFailLoadEvent`](../web-contents-did-fail-load-event.md). Besides `type` and `target`, it has four fields:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `errorCode` | number | The system's error code; see below |
-| `errorDescription` | string | The description the system gives. Its language follows the system; it is only suitable for logging |
-| `validatedURL` | string | The URL that failed to load |
-| `isMainFrame` | boolean | Always `true`. Load failures of an `<iframe>` in the page don't fire this event |
+| [`errorCode`](../web-contents-did-fail-load-event/errorcode.md) | number | The system's error code; see below |
+| [`errorDescription`](../web-contents-did-fail-load-event/errordescription.md) | string | The description the system gives. Its language follows the system; it is only suitable for logging |
+| [`validatedURL`](../web-contents-did-fail-load-event/validatedurl.md) | string | The URL that failed to load |
+| [`isMainFrame`](../web-contents-did-fail-load-event/ismainframe.md) | boolean | Always `true`. Load failures of an `<iframe>` in the page don't fire this event |
 
 Common `errorCode` values:
 

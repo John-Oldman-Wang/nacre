@@ -599,6 +599,7 @@ interface ErrorEventInit extends EventInit {
   error?: unknown;
   filename?: string;
   lineno?: number;
+  colno?: number;
 }
 
 /**
@@ -675,6 +676,8 @@ declare class ErrorEvent extends Event {
   readonly error: unknown;
   readonly filename: string;
   readonly lineno: number;
+  /** 列号。运行时给出的都是 0。 */
+  readonly colno: number;
 }
 
 interface PromiseRejectionEventInit extends EventInit {
@@ -779,15 +782,32 @@ type ApplicationEventType =
   | 'error'
   | 'unhandledrejection';
 
-/**
- * 已知事件名给补全，自定义的也接受——dispatchEvent 是公开 API，JS 可以派发
- * 自己的事件。`string & {}` 是让编辑器仍然提示已知值的惯用写法。
- */
-type ApplicationEventName = ApplicationEventType | (string & {});
-
 /** sceneconnect / scenedisconnect 带的事件对象。 */
-interface SceneEvent extends Event {
+declare class SceneEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<SceneEvent, 'scene'>>);
   readonly scene: UIWindowScene;
+}
+
+/** application 上每个事件名对应的事件对象。`addEventListener` 按它给回调的参数定类型。 */
+interface ApplicationEventMap {
+  'active': Event;
+  'inactive': Event;
+  'foreground': Event;
+  'background': Event;
+  'beforeterminate': Event;
+  'sceneconnect': SceneEvent;
+  'scenedisconnect': SceneEvent;
+  'openurl': OpenURLEvent;
+  'memorywarning': Event;
+  'screenshot': Event;
+  'significanttimechange': Event;
+  'contentsizecategorychange': Event;
+  'localechange': Event;
+  'protecteddataavailable': Event;
+  'protecteddataunavailable': Event;
+  'backgroundrefreshstatuschange': Event;
+  'error': ErrorEvent;
+  'unhandledrejection': PromiseRejectionEvent;
 }
 
 // ---------------------------------------------------------------------------
@@ -840,10 +860,18 @@ interface NativeModuleError extends Error {
   readonly domain?: string;
 }
 
-/** 原生模块发来的事件。 */
-interface NativeModuleEvent extends Event {
-  /** 原生给的那份数据。没给就是 `null`。 */
-  readonly detail: NativeModuleValue;
+interface CustomEventInit<T = any> extends EventInit {
+  detail?: T;
+}
+
+/**
+ * 带一份自定义数据的事件（Web 标准）。原生模块发来的事件也是它，`detail` 是原生
+ * 给的那份数据，没给就是 `null`。
+ */
+declare class CustomEvent<T = any> extends Event {
+  constructor(type: string, init?: CustomEventInit<T>);
+  /** 不给是 `null`。 */
+  readonly detail: T;
 }
 
 /**
@@ -876,13 +904,17 @@ declare class NativeModule extends EventTarget {
    */
   callAsync(method: string, ...args: NativeModuleArgument[]): Promise<NativeModuleValue>;
 
-  /** 只能监听 `events` 里列的事件，别的名字抛 `TypeError`。 */
+  /**
+   * 原生发的是 `events` 里列的那些；别的名字不拒绝，当自定义事件（只有自己
+   * `dispatchEvent` 才会收到），`@` 开头的名字留给运行时，抛 `TypeError`。事件名由
+   * 各个模块自己定，所以没有事件表：事件对象都是 `CustomEvent`，`detail` 是原生给的那份数据。
+   */
   addEventListener(
     type: string,
-    callback: EventListener<NativeModuleEvent> | null,
+    callback: ((event: CustomEvent<NativeModuleValue>) => void) | null,
     options?: AddEventListenerOptions,
   ): void;
-  removeEventListener(type: string, callback: EventListener<NativeModuleEvent> | null): void;
+  removeEventListener(type: string, callback: ((event: CustomEvent<NativeModuleValue>) => void) | null): void;
 }
 
 /** 登记进来的原生模块。只有一个，就是 `application.nativeModules`。 */
@@ -953,31 +985,18 @@ declare class Application extends EventTarget {
    */
   openURL(url: string): Promise<boolean>;
 
-  addEventListener(
-    type: 'sceneconnect' | 'scenedisconnect',
-    callback: EventListener<SceneEvent> | null,
+  addEventListener<K extends keyof ApplicationEventMap>(
+    type: K,
+    callback: ((event: ApplicationEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
   ): void;
-  addEventListener(
-    type: 'openurl',
-    callback: EventListener<OpenURLEvent> | null,
-    options?: AddEventListenerOptions,
+  /** 自定义事件：`dispatchEvent` 是公开 API，JS 可以派发自己的事件。 */
+  addEventListener(type: string, callback: EventListener | null, options?: AddEventListenerOptions): void;
+  removeEventListener<K extends keyof ApplicationEventMap>(
+    type: K,
+    callback: ((event: ApplicationEventMap[K]) => void) | null,
   ): void;
-  addEventListener(
-    type: 'error',
-    callback: EventListener<ErrorEvent> | null,
-    options?: AddEventListenerOptions,
-  ): void;
-  addEventListener(
-    type: 'unhandledrejection',
-    callback: EventListener<PromiseRejectionEvent> | null,
-    options?: AddEventListenerOptions,
-  ): void;
-  addEventListener(
-    type: ApplicationEventName,
-    callback: EventListener | null,
-    options?: AddEventListenerOptions,
-  ): void;
+  removeEventListener(type: string, callback: EventListener | null): void;
 }
 
 /** App 实例的单例。 */
@@ -1003,34 +1022,57 @@ interface Console {
  */
 declare const console: Console;
 
-/**
- * WebSocket 的 `message` 事件。
- *
- * 和别的带负载的事件一样，回调参数的类型没有窄化，要拿就转一下型：
- *
- * ```js
- * ws.addEventListener('message', (e) => {
- *   const data = /** @type {WebSocketMessageEvent} *\/ (e).data;
- * });
- * ```
- */
-declare interface WebSocketMessageEvent extends Event {
-  /** 文本消息是字符串，二进制消息是 `Blob`（字节不进 V8 堆）。 */
-  readonly data: string | Blob;
+interface MessageEventInit<T = any> extends EventInit {
+  data?: T;
+  origin?: string;
+  lastEventId?: string;
+  source?: null;
+  ports?: never[];
 }
 
-/** WebSocket 的 `close` 事件。 */
-declare interface WebSocketCloseEvent extends Event {
-  /** 关闭码。正常关闭是 1000；连接异常断开是 1006。 */
+/**
+ * 收到一条消息（Web 标准）。WebSocket 的 `message` 事件是它：`data` 是文本消息的
+ * 字符串，或者二进制消息的 `Blob`（字节不进 V8 堆）；`origin` 是连接的地址的源。
+ */
+declare class MessageEvent<T = any> extends Event {
+  constructor(type: string, init?: MessageEventInit<T>);
+  /** 不给是 `null`。 */
+  readonly data: T;
+  /** 不给是空串。 */
+  readonly origin: string;
+  /** 不给是空串。 */
+  readonly lastEventId: string;
+  /** 运行时里总是 `null`。 */
+  readonly source: null;
+  /** 运行时里总是空数组（冻结的）。 */
+  readonly ports: readonly never[];
+}
+
+interface CloseEventInit extends EventInit {
+  code?: number;
+  reason?: string;
+  wasClean?: boolean;
+}
+
+/** 连接关了（Web 标准）。WebSocket 的 `close` 事件是它。 */
+declare class CloseEvent extends Event {
+  constructor(type: string, init?: CloseEventInit);
+  /** 关闭码。正常关闭是 1000；连接异常断开是 1006。不给是 0。 */
   readonly code: number;
+  /** 不给是空串。 */
   readonly reason: string;
-  /** 走完了关闭握手才是 `true`。连接断了是 `false`。 */
+  /** 走完了关闭握手才是 `true`。连接断了是 `false`。不给是 `false`。 */
   readonly wasClean: boolean;
 }
 
-/** WebSocket 的 `error` 事件。 */
-declare interface WebSocketErrorEvent extends Event {
-  readonly message: string;
+/** WebSocket 上每个事件名对应的事件对象。 */
+interface WebSocketEventMap {
+  'open': Event;
+  /** `data` 是文本消息的字符串，或者二进制消息的 `Blob`。 */
+  'message': MessageEvent<string | Blob>;
+  /** 只有 `message`：系统给的说明。 */
+  'error': ErrorEvent;
+  'close': CloseEvent;
 }
 
 /**
@@ -1042,7 +1084,7 @@ declare interface WebSocketErrorEvent extends Event {
  * });
  * ws.addEventListener('open', () => ws.send('subscribe'));
  * ws.addEventListener('message', (e) => {
- *   console.log(/** @type {WebSocketMessageEvent} *\/ (e).data);
+ *   console.log(e.data);
  * });
  * ws.close(1000, 'bye');
  * ```
@@ -1074,14 +1116,14 @@ declare class WebSocket extends EventTarget {
   static readonly CLOSING: number;
   static readonly CLOSED: number;
 
-  addEventListener(
-    type: 'open' | 'message' | 'error' | 'close',
-    callback: EventListener | null,
+  addEventListener<K extends keyof WebSocketEventMap>(
+    type: K,
+    callback: ((event: WebSocketEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
   ): void;
-  removeEventListener(
-    type: 'open' | 'message' | 'error' | 'close',
-    callback: EventListener | null,
+  removeEventListener<K extends keyof WebSocketEventMap>(
+    type: K,
+    callback: ((event: WebSocketEventMap[K]) => void) | null,
   ): void;
 
   /**

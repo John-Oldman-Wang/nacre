@@ -173,7 +173,7 @@ iOS 上设备静止时 `course` 是不是负数，没有实测。
 - `locations` 带。事件延后一轮派发，那时 `manager.location` 可能已经是更新的一个；一批里前面的几个之后再也读不到。
 - 授权状态不带。派发时从 manager 上读得到，读到的是那时的值。
 
-事件带的字段过桥时是普通对象，用核心给的 `eventFieldConverters` 换成 `CLLocation` 和 `Error`。这张表是按事件名登记的，不分类，所以名字要是别的域不会用的。
+事件带的字段过桥时是普通对象，用核心给的 `eventFieldConverters` 换成 `CLLocation` 和错误。这张表原来按事件名登记，不分类，所以名字要是别的域不会用的；2026-11-22 起按事件类（`CLLocationUpdateEvent`、`CLLocationErrorEvent`）登记，见[事件类](events.md#事件类一种字段组合是一个类2026-11-22)。
 
 ## 谁拿着 manager
 

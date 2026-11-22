@@ -35,7 +35,11 @@
 // 返回系统要的那个 BOOL：监听器没取消就是 YES
 - (BOOL)ask:(NSString*)type view:(UITextView*)view json:(NSString*)json {
   if (![self.types containsObject:type]) return YES;
-  return !nacre_bridge::NacreEmitEventSync(view, "UITextView", type, json);
+  // 带字段的两个各有自己的类；beforefocus、beforeblur 不带字段，是普通的 Event
+  const char* eventClass = [type isEqualToString:@"beforeinput"] ? "UITextBeforeInputEvent"
+                           : [type isEqualToString:@"linkclick"] ? "UITextViewLinkClickEvent"
+                                                                 : nullptr;
+  return !nacre_bridge::NacreEmitEventSync(view, "UITextView", type, json, eventClass);
 }
 
 - (BOOL)textViewShouldBeginEditing:(UITextView*)textView {

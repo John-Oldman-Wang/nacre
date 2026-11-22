@@ -15,15 +15,11 @@ session.addEventListener('runtimeerror', (event) => { })
 
 ## Event object
 
-`AVCaptureSessionRuntimeErrorEvent`, with two extra fields:
+[`AVCaptureSessionRuntimeErrorEvent`](../av-capture-session-runtime-error-event.md), with one extra field:
 
-**`message`**
+**[`error`](../av-capture-session-runtime-error-event/error.md)**
 
-A string: the system's description of the error, in the system language.
-
-**`code`**
-
-A number: the error code the system gave.
+The error the system gave, an [`NSError`](../ns-error.md): `message` is the system's description, in the system language; `domain` and `code` are the system's error domain and code.
 
 `target` is the session. Not cancelable; `preventDefault()` has no effect.
 
@@ -40,15 +36,15 @@ Whether this event actually fires, and in which situations errors occur, are **n
 ```js
 const session = new AVCaptureSession();
 session.addEventListener('runtimeerror', (e) => {
-  console.log('Capture error', e.code, e.message);
+  console.log('Capture error', e.error.domain, e.error.code, e.error.message);
 });
 ```
 
-**Effect** (**not verified on a device**): on an error, prints the error code and the system's description.
+**Effect** (**not verified on a device**): on an error, prints the error domain, the error code, and the system's description.
 
 ## Corresponding iOS API
 
-The notification `AVCaptureSessionRuntimeErrorNotification`. `userInfo[AVCaptureSessionErrorKey]` is an `NSError`; its `localizedDescription` is `e.message` and its `code` is `e.code`.
+The notification `AVCaptureSessionRuntimeErrorNotification`. `userInfo[AVCaptureSessionErrorKey]` is `e.error`.
 
 ## See also
 

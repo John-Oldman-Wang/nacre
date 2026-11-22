@@ -19,8 +19,8 @@ application.addEventListener('unhandledrejection', (event) => { })
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `reason` | `unknown` | The rejection reason |
-| `promise` | `Promise` | The Promise that was rejected |
+| [`reason`](../promise-rejection-event/reason.md) | `unknown` | The rejection reason |
+| [`promise`](../promise-rejection-event/promise.md) | `Promise` | The Promise that was rejected |
 
 `target` is `application`. `cancelable` is `true`: calling `preventDefault()` stops the runtime from printing the default error log.
 

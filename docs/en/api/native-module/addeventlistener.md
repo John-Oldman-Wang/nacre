@@ -40,15 +40,15 @@ None (`undefined`).
 
 ## Event object
 
-An `Event` with one extra field:
+A [`CustomEvent`](../custom-event.md), with one extra read-only field, `detail`:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `type` | String | The event name |
 | `target` | `NativeModule` | The module that fired the event |
-| `detail` | See [Values that can be passed](../native-module.md#values-that-can-be-passed) | The data provided by the native side. `null` when the native side provides none |
+| [`detail`](../custom-event/detail.md) | See [Values that can be passed](../native-module.md#values-that-can-be-passed) | The data provided by the native side. `null` when the native side provides none |
 
-The event can't be canceled: `cancelable` is `false`, and calling `preventDefault()` has no effect. In the type definitions the event object is called `NativeModuleEvent`.
+The event can't be canceled: `cancelable` is `false`, and calling `preventDefault()` has no effect.
 
 ## Description
 

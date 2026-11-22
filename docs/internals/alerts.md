@@ -102,6 +102,8 @@ iPhone Air 模拟器，iOS 27.2。量法是一个不带界面的命令行程序�
 
 这是一处要记下来的缺口：**登记进来的域没有办法给事件带一种新形状的数据。** 事件汇入口加一个通用的分支（负载是字典就把每个键挂上，网页的事件已经是这么做的）之后，这里的三步可以换成一句 `NacreEmitEventWithJSON`。
 
+2026-11-22 换掉了：事件做成类之后字段是只读的 getter，监听器挂不上字段了。现在原生直接用 `NacreEmitEventWithJSON` 把结果带在事件里，事件类是 `UIActivityViewControllerCompletionEvent`，系统的错误在 JS 那边建成 `NSError`。上面三步和 `nacre:takeCompletion` 都去掉了。见[事件类](events.md#事件类一种字段组合是一个类2026-11-22)。
+
 完成回调在构造时就装上，不等 JS 订阅：它天生是一次性的，而且内部的那个监听器从构造起就在。
 
 ## 所有权

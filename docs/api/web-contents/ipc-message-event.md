@@ -15,12 +15,12 @@ contents.addEventListener('ipc-message', (event) => {})
 
 ## 事件对象
 
-`WebContentsIpcMessageEvent`，除 `type`、`target` 以外带两个字段：
+[`WebContentsIpcMessageEvent`](../web-contents-ipc-message-event.md)，除 `type`、`target` 以外带两个字段：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `channel` | 字符串 | 频道名 |
-| `args` | 数组 | 跟在频道名后面的那些参数，按 JSON 传过来的 |
+| [`channel`](../web-contents-ipc-message-event/channel.md) | 字符串 | 频道名 |
+| [`args`](../web-contents-ipc-message-event/args.md) | 数组 | 跟在频道名后面的那些参数，按 JSON 传过来的 |
 
 `target` 是这张网页的 `webContents`。不可取消。
 

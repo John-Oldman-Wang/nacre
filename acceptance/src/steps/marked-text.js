@@ -74,7 +74,8 @@ export async function stepMarkedText(ctx) {
     /** @type {string[]} */
     const seen = [];
     const onInput = () => { inputs++; seen.push(show(input.markedTextRange)); };
-    input.addEventListener('input', onInput);
+    // 两个类的事件表不同，联合类型上调不了带事件表的 addEventListener，按 EventTarget 调
+    /** @type {EventTarget} */ (input).addEventListener('input', onInput);
 
     // input 延后一轮派发。真打字时每个键是单独的一轮，所以每一步都等它的 input
     // 到了再走下一步，不然监听器执行时下一步已经做完了
@@ -89,7 +90,7 @@ export async function stepMarkedText(ctx) {
     example.call('simulateMarkedText', null);
     assert(name + '：选完字（结束组字）之后是 null', input.markedTextRange, null);
     await wait(100);
-    input.removeEventListener('input', onInput);
+    /** @type {EventTarget} */ (input).removeEventListener('input', onInput);
     input.resignFirstResponder();
   };
 

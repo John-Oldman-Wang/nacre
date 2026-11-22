@@ -110,6 +110,7 @@ export async function stepWebAdditions(ctx) {
     const first = got[0];
     if (first !== undefined) {
       assert('事件是 Event', first instanceof Event, true);
+      assert('事件是 WebContentsConsoleMessageEvent', first instanceof WebContentsConsoleMessageEvent, true);
       assert('type 是 console-message', first.type, 'console-message');
       assert('不能取消', first.cancelable, false);
       assert('第一条的 level', first.level, 'info');

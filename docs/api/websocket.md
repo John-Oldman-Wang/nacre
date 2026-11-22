@@ -64,7 +64,7 @@ status: partial
 | [`error`](websocket/error-event.md) | 没连上，或者连接中途断开。之后一定跟着一个 `close` |
 | [`close`](websocket/close-event.md) | 连接结束。每条连接只派发一次 |
 
-四个事件都不能取消。监听别的名字不会报错：它被当成自定义事件，只有自己用 `dispatchEvent()` 派发时才会触发。
+`message` 的事件对象是 [`MessageEvent`](message-event.md)，`error` 的是 [`ErrorEvent`](error-event.md)，`close` 的是 [`CloseEvent`](close-event.md)，`open` 的是普通的 [`Event`](event.md)。四个事件都不能取消。监听别的名字不会报错：它被当成自定义事件，只有自己用 `dispatchEvent()` 派发时才会触发。
 
 事件的回调都排在当前这段代码结束之后执行（见[运行时怎么工作](how-it-works.md)），所以在 `new WebSocket()` 之后紧接着加监听器，不会错过事件。派发事件时还没有加监听器的，那个事件就丢失了，不会补发。
 
@@ -106,16 +106,16 @@ ws.addEventListener('open', () => {
 });
 
 ws.addEventListener('message', (e) => {
-  const data = /** @type {WebSocketMessageEvent} */ (e).data;
+  const data = e.data;
   console.log('收到', data);
   if (data === 'hello') ws.close(1000, 'bye');
 });
 
 ws.addEventListener('error', (e) => {
-  console.log('出错', /** @type {WebSocketErrorEvent} */ (e).message);
+  console.log('出错', e.message);
 });
 ws.addEventListener('close', (e) => {
-  const { code, wasClean } = /** @type {WebSocketCloseEvent} */ (e);
+  const { code, wasClean } = e;
   console.log('结束', code, wasClean);
 });
 ```
@@ -126,8 +126,6 @@ ws.addEventListener('close', (e) => {
 - 服务器把 `hello` 发回来，输出 `收到 hello`。这个服务在连上时可能先发一条自己的欢迎消息，那一条也会输出。
 - 关闭完成后输出 `结束 1000 true`。
 - 连不上时输出 `出错` 加一段系统的错误描述，然后输出 `结束 1006 false`。
-
-事件回调的参数类型是通用的 `Event`，要转一次类型才能读 `data`、`message`、`code` 这些字段，上面 `/** @type {...} */ (e)` 就是做这件事。
 
 这段代码没有作为一个整体在模拟器运行过。其中用到的每个 API 都在验收用例里对着同一个服务运行过。
 

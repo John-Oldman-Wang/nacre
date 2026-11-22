@@ -36,8 +36,7 @@ application.addEventListener('sceneconnect', (e) => {
 
     // 2. Check the result when the share sheet finishes
     sheet.addEventListener('complete', (event) => {
-      const { completed, activityType } =
-        /** @type {UIActivityViewControllerCompletionEvent} */ (event);
+      const { completed, activityType } = event;
       console.log(completed ? 'shared to ' + activityType : 'not shared');
     });
 
@@ -105,8 +104,7 @@ Again using the link-sharing share sheet `linkSheet`, listen for `complete` befo
 
 ```js
 const linkSheet = new UIActivityViewController([new URL('https://example.com')]);
-linkSheet.addEventListener('complete', (event) => {
-  const result = /** @type {UIActivityViewControllerCompletionEvent} */ (event);
+linkSheet.addEventListener('complete', (result) => {
   if (result.activityError !== null) {
     console.log('sharing failed: ' + result.activityError.message);
   } else if (result.completed) {
@@ -122,7 +120,7 @@ page.presentViewController(linkSheet, { animated: true });
 - When the action fails, it prints the error message.
 - When the user simply closes the share sheet, nothing is printed.
 
-The event object's type needs a cast to read these three fields, as shown above.
+The event object is a [`UIActivityViewControllerCompletionEvent`](../api/ui-activity-view-controller-completion-event.md); read the three fields directly.
 
 - **After `complete`, the app doesn't know whether what was shared reached the other party.** `completed` being `true` only means the action finished, for example the user tapped send in Messages' compose screen.
 - **Whether `complete` fires when the share sheet is closed by code is not verified in the simulator.** Put whatever needs to happen after [`dismissViewController()`](../api/ui-view-controller/dismissviewcontroller.md) right after that call, without relying on this event.

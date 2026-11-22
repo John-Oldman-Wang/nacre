@@ -15,11 +15,11 @@ scene.addEventListener('geometrychange', (event) => { })
 
 ## Event object
 
-`UIWindowSceneGeometryChangeEvent`. Besides `type` and `target` (this scene), it carries one read-only field:
+[`UIWindowSceneGeometryChangeEvent`](../ui-window-scene-geometry-change-event.md). Besides `type` and `target` (this scene), it carries one read-only field:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `previousInterfaceOrientation` | string | The orientation before the change. Read the current orientation from `scene.effectiveGeometry` |
+| [`previousInterfaceOrientation`](../ui-window-scene-geometry-change-event/previousinterfaceorientation.md) | string | The orientation before the change. Read the current orientation from `scene.effectiveGeometry` |
 
 Not cancelable.
 
@@ -34,8 +34,7 @@ Not cancelable.
 ```js
 application.addEventListener('sceneconnect', (e) => {
   const scene = e.scene;
-  scene.addEventListener('geometrychange', (event) => {
-    const change = /** @type {UIWindowSceneGeometryChangeEvent} */ (event);
+  scene.addEventListener('geometrychange', (change) => {
     console.log(change.previousInterfaceOrientation, '→', scene.effectiveGeometry.interfaceOrientation);
   });
 });

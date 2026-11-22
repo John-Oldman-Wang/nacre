@@ -244,9 +244,16 @@ declare class AVMetadataMachineReadableCodeObject extends AVMetadataObject {
 }
 
 /** `detect` 的事件对象。 */
-declare interface AVCaptureMetadataOutputDetectEvent extends Event {
+declare class AVCaptureMetadataOutputDetectEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<AVCaptureMetadataOutputDetectEvent, 'objects'>>);
   /** 这一帧里识别出的全部，至少一个。 */
   readonly objects: readonly AVMetadataObject[];
+}
+
+/** 元数据输出上每个事件名对应的事件对象。 */
+interface AVCaptureMetadataOutputEventMap {
+  /** 画面里有要找的东西。每一帧都会来，延后一轮派发，不可取消。 */
+  'detect': AVCaptureMetadataOutputDetectEvent;
 }
 
 /**
@@ -279,26 +286,46 @@ declare class AVCaptureMetadataOutput extends AVCaptureOutput {
   get rectOfInterest(): CGRect;
   set rectOfInterest(value: CGRectLike);
 
-  /** `detect`：画面里有要找的东西。每一帧都会来，延后一轮派发，不可取消。 */
-  addEventListener(type: 'detect', callback: EventListener<AVCaptureMetadataOutputDetectEvent> | null,
-                   options?: AddEventListenerOptions): void;
+  addEventListener<K extends keyof AVCaptureMetadataOutputEventMap>(
+    type: K,
+    callback: ((event: AVCaptureMetadataOutputEventMap[K]) => void) | null,
+    options?: AddEventListenerOptions,
+  ): void;
+  /** 别的名字当自定义事件：`dispatchEvent` 是公开 API，JS 可以派发自己的事件。 */
   addEventListener(type: string, callback: EventListener | null, options?: AddEventListenerOptions): void;
-  removeEventListener(type: 'detect', callback: EventListener<AVCaptureMetadataOutputDetectEvent> | null): void;
+  removeEventListener<K extends keyof AVCaptureMetadataOutputEventMap>(
+    type: K,
+    callback: ((event: AVCaptureMetadataOutputEventMap[K]) => void) | null,
+  ): void;
   removeEventListener(type: string, callback: EventListener | null): void;
 }
 
 /** `interrupt` 的事件对象。 */
-declare interface AVCaptureSessionInterruptEvent extends Event {
+declare class AVCaptureSessionInterruptEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<AVCaptureSessionInterruptEvent, 'reason'>>);
   /** 为什么被打断。系统没说时是 `null`。 */
   readonly reason: AVCaptureSessionInterruptionReason | null;
 }
 
 /** `runtimeerror` 的事件对象。 */
-declare interface AVCaptureSessionRuntimeErrorEvent extends Event {
-  /** 系统给的说明。 */
-  readonly message: string;
-  /** `NSError.code` 的原值。 */
-  readonly code: number;
+declare class AVCaptureSessionRuntimeErrorEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<AVCaptureSessionRuntimeErrorEvent, 'error'>>);
+  /** 系统给的错误：`message` 是说明，`code` 和 `domain` 是原值。 */
+  readonly error: NSError;
+}
+
+/** 会话上每个事件名对应的事件对象。 */
+interface AVCaptureSessionEventMap {
+  /** 开始取景了。 */
+  'start': Event;
+  /** 停了（包括系统自己停的）。 */
+  'stop': Event;
+  /** 被打断了。 */
+  'interrupt': AVCaptureSessionInterruptEvent;
+  /** 打断结束了。 */
+  'interruptend': Event;
+  /** 取景中出错了。 */
+  'runtimeerror': AVCaptureSessionRuntimeErrorEvent;
 }
 
 /**
@@ -346,18 +373,17 @@ declare class AVCaptureSession extends NSObject {
   /** 是不是被打断着（来电、App 到后台一类）。 */
   readonly isInterrupted: boolean;
 
-  /** `start`：开始取景了。`stop`：停了（包括系统自己停的）。`interruptend`：打断结束了。 */
-  addEventListener(type: 'start' | 'stop' | 'interruptend', callback: EventListener | null,
-                   options?: AddEventListenerOptions): void;
-  /** `interrupt`：被打断了。 */
-  addEventListener(type: 'interrupt', callback: EventListener<AVCaptureSessionInterruptEvent> | null,
-                   options?: AddEventListenerOptions): void;
-  /** `runtimeerror`：取景中出错了。 */
-  addEventListener(type: 'runtimeerror', callback: EventListener<AVCaptureSessionRuntimeErrorEvent> | null,
-                   options?: AddEventListenerOptions): void;
+  addEventListener<K extends keyof AVCaptureSessionEventMap>(
+    type: K,
+    callback: ((event: AVCaptureSessionEventMap[K]) => void) | null,
+    options?: AddEventListenerOptions,
+  ): void;
+  /** 别的名字当自定义事件：`dispatchEvent` 是公开 API，JS 可以派发自己的事件。 */
   addEventListener(type: string, callback: EventListener | null, options?: AddEventListenerOptions): void;
-  removeEventListener(type: 'interrupt', callback: EventListener<AVCaptureSessionInterruptEvent> | null): void;
-  removeEventListener(type: 'runtimeerror', callback: EventListener<AVCaptureSessionRuntimeErrorEvent> | null): void;
+  removeEventListener<K extends keyof AVCaptureSessionEventMap>(
+    type: K,
+    callback: ((event: AVCaptureSessionEventMap[K]) => void) | null,
+  ): void;
   removeEventListener(type: string, callback: EventListener | null): void;
 }
 

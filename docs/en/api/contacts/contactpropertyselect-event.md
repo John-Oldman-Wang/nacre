@@ -15,9 +15,9 @@ picker.addEventListener('contactpropertyselect', (event) => { })
 
 ## Event object
 
-`Event`, with one extra field:
+[`CNContactPickerContactPropertyEvent`](../cn-contact-picker-contact-property-event.md), with one extra read-only field:
 
-**`contactProperty`**
+**[`contactProperty`](../cn-contact-picker-contact-property-event/contactproperty.md)**
 
 The item the user picked, a [`CNContactProperty`](../cn-contact-property.md): which contact, which field, and which value.
 

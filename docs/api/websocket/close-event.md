@@ -15,17 +15,17 @@ ws.addEventListener('close', (event) => { })
 
 ## 事件对象
 
-类型定义里是 `WebSocketCloseEvent`。不能取消。
+[`CloseEvent`](../close-event.md)。不能取消。
 
-**`code`**
+**[`code`](../close-event/code.md)**
 
 数，关闭码，说明连接为什么结束。见下面的[关闭码](#关闭码)。
 
-**`reason`**
+**[`reason`](../close-event/reason.md)**
 
 字符串，对方给的说明。没有时是空字符串。
 
-**`wasClean`**
+**[`wasClean`](../close-event/wasclean.md)**
 
 布尔。`true` 表示双方按协议完成了关闭；`false` 表示连接异常结束。
 
@@ -52,7 +52,7 @@ ws.addEventListener('close', (event) => { })
 ```js
 const ws = new WebSocket('wss://echo.websocket.org');
 ws.addEventListener('close', (e) => {
-  const { code, reason, wasClean } = /** @type {WebSocketCloseEvent} */ (e);
+  const { code, reason, wasClean } = e;
   if (wasClean) {
     console.log('正常关闭', code, reason);
   } else {

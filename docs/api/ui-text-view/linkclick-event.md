@@ -17,14 +17,14 @@ input.addEventListener('linkclick', (event) => { })
 
 ## 事件对象
 
-`UITextViewLinkClickEvent`。`type` 是 `'linkclick'`，`target` 是这块多行输入。可以取消（实测）。
+[`UITextViewLinkClickEvent`](../ui-text-view-link-click-event.md)。`type` 是 `'linkclick'`，`target` 是这块多行输入。可以取消（实测）。
 
 另外带两个只读字段（实测）：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `url` | 字符串 | 链接的地址 |
-| `range` | [`NSRange`](../ns-range.md) | 链接在文字里的那一段。`location` 是起点，`length` 是长度，单位都是 UTF-16 码元，和 JS 字符串的下标一致 |
+| [`url`](../ui-text-view-link-click-event/url.md) | 字符串 | 链接的地址 |
+| [`range`](../ui-text-view-link-click-event/range.md) | [`NSRange`](../ns-range.md) | 链接在文字里的那一段。`location` 是起点，`length` 是长度，单位都是 UTF-16 码元，和 JS 字符串的下标一致 |
 
 ## 什么时候派发
 

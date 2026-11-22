@@ -22,7 +22,7 @@ The event name, a string.
 
 **`options.reason`**
 
-The rejection reason, any value, optional.
+The rejection reason, any value, optional. When not passed, it is `undefined`.
 
 **`options.promise`**
 
@@ -38,7 +38,11 @@ A new `PromiseRejectionEvent`.
 
 ### Exceptions
 
-Throws `TypeError` when no event name is passed, the same as [`Event()`](../event/constructor.md). **Not verified in the simulator.**
+**`TypeError`**
+
+- A field's value cannot be converted; see each parameter above.
+- No event name is passed: `Failed to construct 'PromiseRejectionEvent': 1 argument required, but only 0 present.`
+- It is called as a function, without `new`.
 
 ## Examples
 
@@ -47,7 +51,7 @@ const event = new PromiseRejectionEvent('unhandledrejection', { reason: 'Timed o
 console.log(event.reason, event.promise);
 ```
 
-**Result**: The console prints `Timed out undefined`. **Not verified in the simulator.**
+**Result**: The console prints `Timed out undefined`.
 
 ## Corresponding iOS API
 

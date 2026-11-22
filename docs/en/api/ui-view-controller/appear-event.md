@@ -15,7 +15,7 @@ page.addEventListener('appear', (event) => { })
 
 ## Event object
 
-`UIViewControllerAppearanceEvent`. Besides `type` and `target` (this view controller), it has one more read-only field, `animated` (`boolean`): whether this appearance has a transition animation. To read it, first annotate the event object as `UIViewControllerAppearanceEvent`; see [`beforeappear`](beforeappear-event.md) for how.
+[`UIViewControllerAppearanceEvent`](../ui-view-controller-appearance-event.md). Besides `type` and `target` (this view controller), it has one more read-only field, [`animated`](../ui-view-controller-appearance-event/animated.md) (`boolean`): whether this appearance has a transition animation.
 
 Not cancelable.
 

@@ -15,13 +15,11 @@ picker.addEventListener('pick', (event) => { })
 
 ## Event object
 
-An `Event`, with one extra field:
+[`PHPickerViewControllerFinishEvent`](../ph-picker-view-controller-finish-event.md), with one extra read-only field:
 
-**`results`**
+**[`results`](../ph-picker-view-controller-finish-event/results.md)**
 
 An array of [`PHPickerResult`](../ph-picker-result.md), read-only (frozen). An empty array when the user tapped Cancel. When `selection` is `'ordered'` or `'continuousAndOrdered'`, the items are in the order the user picked them.
-
-The listener receives a parameter of type `Event`; to read `results`, cast it once: `/** @type {PHPickerViewControllerFinishEvent} */ (event)`.
 
 Not cancelable. The callback runs in the next turn after the event occurs.
 
@@ -37,7 +35,7 @@ The photo picker can finish in three ways:
 
 - **The photo picker doesn't close itself.** After `pick` fires it is still on screen; call [`dismissViewController()`](../ui-view-controller/dismissviewcontroller.md) in the listener. What happens if you call `dismissViewController()` again on a picker that has already been dragged away is **not verified in the simulator**.
 - **When [`selection`](../ph-picker-configuration/selection.md) is `'continuous'` or `'continuousAndOrdered'`, it fires each time an item is selected or deselected**, with `results` holding everything selected at that moment. In these modes, don't close the picker in the listener.
-- A `pick` event you fire yourself with `dispatchEvent()` has no `results`.
+- To fire `pick` yourself to try a listener, build the event with [`new PHPickerViewControllerFinishEvent()`](../ph-picker-view-controller-finish-event/constructor.md); without `results`, it is an empty array. When you fire a plain `Event`, the listener reads `undefined` for `results`.
 
 ## Examples
 
@@ -45,7 +43,7 @@ The photo picker can finish in three ways:
 const page = new UIViewController();
 const picker = new PHPickerViewController(new PHPickerConfiguration());
 picker.addEventListener('pick', (event) => {
-  const { results } = /** @type {PHPickerViewControllerFinishEvent} */ (event);
+  const { results } = event;
   picker.dismissViewController({ animated: true });
   console.log(results.length === 0 ? 'Canceled' : 'Picked ' + results.length + ' item(s)');
 });

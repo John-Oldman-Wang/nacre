@@ -38,7 +38,7 @@ removeEventListener(type, callback)
 
 ```js
 const example = application.nativeModules.get('example');
-/** @param {NativeModuleEvent} e */
+/** @param {CustomEvent} e */
 const onTick = (e) => {
   console.log('tick', e.detail);
 };

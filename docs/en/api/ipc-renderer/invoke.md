@@ -58,10 +58,10 @@ On the app side:
 
 ```js
 const web = new WebView({ webPreferences: { preload: 'JS/web/preload.js' } });
-web.webContents.ipc.handle('get-user', () => ({ name: 'Jack' }));
+web.webContents.ipc.handle('get-user', () => ({ name: 'Alice' }));
 ```
 
-**Effect**: In the page, `await app.getUser()` gives `{ name: 'Jack' }`.
+**Effect**: In the page, `await app.getUser()` gives `{ name: 'Alice' }`.
 
 ## Differences from Electron
 

@@ -53,11 +53,14 @@ export function stepWebSocket(ctx) {
   ws.addEventListener('open', () => log.push('open'));
   ws.addEventListener('error', (e) => {
     log.push('error');
-    console.log('  ! WebSocket 出错：' +
-                /** @type {WebSocketErrorEvent} */ (e).message);
+    console.log('  ! WebSocket 出错（' + (e instanceof ErrorEvent ? 'ErrorEvent' : '不是 ErrorEvent') + '）：' +
+                /** @type {ErrorEvent} */ (e).message);
   });
+  /** @type {boolean[]} */
+  const messageKinds = [];
   ws.addEventListener('message', (e) => {
-    messages.push(/** @type {WebSocketMessageEvent} */ (e).data);
+    messageKinds.push(e instanceof MessageEvent);
+    messages.push(/** @type {MessageEvent} */ (e).data);
   });
   /** @type {any} */
   let closeEvent = null;
@@ -98,6 +101,7 @@ export function stepWebSocket(ctx) {
     ws.send(token).then(() => {
       waitUntil('文本回声', () => messages.some((m) => String(m).includes(token)), () => {
         assert('文本消息回来了', messages.some((m) => String(m).includes(token)), true);
+        assert('message 事件是 MessageEvent', messageKinds.every((k) => k), true);
         assert('文本消息是字符串', typeof messages.find(
             (m) => String(m).includes(token)), 'string');
 
@@ -158,6 +162,7 @@ export function stepWebSocket(ctx) {
       assert('收到 close 事件', log.includes('close'), true);
       assert('关完是 CLOSED', ws.readyState, WebSocket.CLOSED);
       assert('关闭码是我们给的', closeEvent.code, 1000);
+      assert('close 事件是 CloseEvent', closeEvent instanceof CloseEvent, true);
       assert('是干净关闭', closeEvent.wasClean, true);
       console.log('--- WebSocket：以上异步断言跑完 ---');
     });

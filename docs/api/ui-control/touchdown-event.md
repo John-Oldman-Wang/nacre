@@ -15,14 +15,12 @@ addEventListener('touchdown', (event) => { })
 
 ## 事件对象
 
-事件对象的类型是 [`UIControlTouchEvent`](../ui-control.md#触点位置)，除了 `type` 和 `target`，还带两个只读字段：
+[`UIControlTouchEvent`](../ui-control-touch-event.md)。除了 `type` 和 `target`，还带两个只读字段：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `location` | [`CGPoint`](../structs.md) 或 `null` | 手指的位置，在这个控件自己的坐标系里，单位 [pt](../units.md)。由 [`sendActionsForControlEvents()`](sendactionsforcontrolevents.md) 派发时是 `null` |
-| `tapCount` | 数 | 连击次数，单位是次。由 `sendActionsForControlEvents()` 派发时是 0 |
-
-回调参数的类型声明是 `Event`，读这两个字段要转成 `UIControlTouchEvent`，见示例。
+| [`location`](../ui-control-touch-event/location.md) | [`CGPoint`](../structs.md) 或 `null` | 手指的位置，在这个控件自己的坐标系里，单位 [pt](../units.md)。由 [`sendActionsForControlEvents()`](sendactionsforcontrolevents.md) 派发时是 `null` |
+| [`tapCount`](../ui-control-touch-event/tapcount.md) | 数 | 连击次数，单位是次。由 `sendActionsForControlEvents()` 派发时是 0 |
 
 不能取消：`cancelable` 是 `false`，`preventDefault()` 没有效果。
 
@@ -60,7 +58,7 @@ touchdown
 const card = new UIControl();
 card.backgroundColor = 'systemGreen';
 card.addEventListener('touchdown', (e) => {
-  const { location } = /** @type {UIControlTouchEvent} */ (e);
+  const { location } = e;
   card.alpha = 0.6;
   if (location !== null) {
     console.log('按在', location.x, location.y);

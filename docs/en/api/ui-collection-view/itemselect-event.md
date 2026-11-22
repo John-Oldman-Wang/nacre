@@ -15,11 +15,11 @@ list.addEventListener('itemselect', (event) => { })
 
 ## Event object
 
-`UICollectionViewItemEvent`. `type` is the event name, `target` is the list, and there's one extra read-only field:
+[`UICollectionViewItemEvent`](../ui-collection-view-item-event.md). `type` is the event name, `target` is the list, and there's one extra read-only field:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `indexPath` | [`NSIndexPath`](../ns-index-path.md) | The item's position at the moment the event occurred |
+| [`indexPath`](../ui-collection-view-item-event/indexpath.md) | [`NSIndexPath`](../ns-index-path.md) | The item's position at the moment the event occurred |
 
 Not cancelable; `preventDefault()` has no effect.
 

@@ -6,6 +6,12 @@
 // 视图
 // ---------------------------------------------------------------------------
 
+/** 视图上每个事件名对应的事件对象。`addEventListener` 按它给回调的参数定类型。 */
+interface UIViewEventMap {
+  /** 外观特征变了。 */
+  'traitchange': UITraitChangeEvent;
+}
+
 declare class UIView extends UIResponder {
   constructor();
 
@@ -232,9 +238,34 @@ declare class UIView extends UIResponder {
   constraintsAffectingLayoutForAxis(
     axis: UILayoutConstraintAxis,
   ): readonly NSLayoutConstraint[];
+
+  addEventListener<K extends keyof UIViewEventMap>(
+    type: K,
+    callback: ((event: UIViewEventMap[K]) => void) | null,
+    options?: AddEventListenerOptions,
+  ): void;
+  /** 别的名字当自定义事件：`dispatchEvent` 是公开 API，JS 可以派发自己的事件。 */
+  addEventListener(type: string, callback: EventListener | null, options?: AddEventListenerOptions): void;
+  removeEventListener<K extends keyof UIViewEventMap>(
+    type: K,
+    callback: ((event: UIViewEventMap[K]) => void) | null,
+  ): void;
+  removeEventListener(type: string, callback: EventListener | null): void;
 }
 
-type ScrollEventName = UIScrollViewEventType | (string & {});
+/** 滚动视图上每个事件名对应的事件对象。 */
+interface UIScrollViewEventMap extends UIViewEventMap {
+  'scroll': Event;
+  'dragbegin': Event;
+  /** 系统当场问停在哪：监听器改 `targetContentOffset`。 */
+  'beforedragend': UIScrollViewDragEndEvent;
+  'dragend': Event;
+  'deceleratebegin': Event;
+  'decelerateend': Event;
+  'scrollanimationend': Event;
+  'scrolltotop': Event;
+  'adjustedcontentinsetchange': Event;
+}
 
 /**
  * 用户拖动滚动视图时要不要收起键盘。
@@ -345,11 +376,18 @@ declare class UIScrollView extends UIView {
   /** 正在跑 `setContentOffset` 的动画。 */
   readonly isScrollAnimating: boolean;
 
-  addEventListener(
-    type: ScrollEventName,
-    callback: EventListener | null,
+  addEventListener<K extends keyof UIScrollViewEventMap>(
+    type: K,
+    callback: ((event: UIScrollViewEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
   ): void;
+  /** 别的名字当自定义事件：`dispatchEvent` 是公开 API，JS 可以派发自己的事件。 */
+  addEventListener(type: string, callback: EventListener | null, options?: AddEventListenerOptions): void;
+  removeEventListener<K extends keyof UIScrollViewEventMap>(
+    type: K,
+    callback: ((event: UIScrollViewEventMap[K]) => void) | null,
+  ): void;
+  removeEventListener(type: string, callback: EventListener | null): void;
 }
 
 /**
@@ -378,7 +416,13 @@ declare class UINavigationItem extends NSObject {
   rightBarButtonItems: readonly UIBarButtonItem[];
 }
 
-type NavEventName = UINavigationControllerEventType | (string & {});
+/** 导航控制器上每个事件名对应的事件对象。 */
+interface UINavigationControllerEventMap extends UIViewControllerEventMap {
+  /** 要显示哪一页。 */
+  'beforeshow': UINavigationControllerEvent;
+  /** 已经显示了哪一页。 */
+  'show': UINavigationControllerEvent;
+}
 
 /**
  * 页面栈。push 进去、pop 出来，返回按钮和边缘返回手势都是系统给的。
@@ -429,17 +473,30 @@ declare class UINavigationController extends UIViewController {
   /** 带动画地藏/显导航条。 */
   setNavigationBarHidden(hidden: boolean, options?: { animated?: boolean }): void;
 
-  addEventListener(
-    type: NavEventName,
-    callback: EventListener | null,
+  addEventListener<K extends keyof UINavigationControllerEventMap>(
+    type: K,
+    callback: ((event: UINavigationControllerEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
   ): void;
+  /** 别的名字当自定义事件：`dispatchEvent` 是公开 API，JS 可以派发自己的事件。 */
+  addEventListener(type: string, callback: EventListener | null, options?: AddEventListenerOptions): void;
+  removeEventListener<K extends keyof UINavigationControllerEventMap>(
+    type: K,
+    callback: ((event: UINavigationControllerEventMap[K]) => void) | null,
+  ): void;
+  removeEventListener(type: string, callback: EventListener | null): void;
 }
 
 /** 窗口上能监听的事件。对应 isKeyWindow 和 isHidden 的变化。 */
 type UIWindowEventType = 'becomekey' | 'resignkey' | 'becomevisible' | 'becomehidden';
 
-type WindowEventName = UIWindowEventType | (string & {});
+/** 窗口上每个事件名对应的事件对象。 */
+interface UIWindowEventMap extends UIViewEventMap {
+  'becomekey': Event;
+  'resignkey': Event;
+  'becomevisible': Event;
+  'becomehidden': Event;
+}
 
 /**
  * 视图树的根，必须绑定到一个场景。
@@ -464,11 +521,33 @@ declare class UIWindow extends UIView {
   makeKeyWindow(): void;
 
   /** 监听器要在 makeKeyAndVisible() 之前注册，否则事件已经发过了。 */
-  addEventListener(
-    type: WindowEventName,
-    callback: EventListener | null,
+  addEventListener<K extends keyof UIWindowEventMap>(
+    type: K,
+    callback: ((event: UIWindowEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
   ): void;
+  /** 别的名字当自定义事件：`dispatchEvent` 是公开 API，JS 可以派发自己的事件。 */
+  addEventListener(type: string, callback: EventListener | null, options?: AddEventListenerOptions): void;
+  removeEventListener<K extends keyof UIWindowEventMap>(
+    type: K,
+    callback: ((event: UIWindowEventMap[K]) => void) | null,
+  ): void;
+  removeEventListener(type: string, callback: EventListener | null): void;
+}
+
+/**
+ * 页面上每个事件名对应的事件对象。出现和消失的四个事件在 appearance.d.ts 里
+ * 合并进来。
+ */
+interface UIViewControllerEventMap {
+  /** 外观特征变了。 */
+  'traitchange': UITraitChangeEvent;
+  /** 被模态呈现时：用户开始往下拖。 */
+  'beforedismiss': Event;
+  /** 被模态呈现时：用户把它拖走了。 */
+  'dismiss': Event;
+  /** 被模态呈现时：`isModalInPresentation` 挡住了一次拖走。 */
+  'dismissattempt': Event;
 }
 
 /** 页面。可构造——它是我们造的，不是系统给的。 */
@@ -506,11 +585,18 @@ declare class UIViewController extends UIResponder {
    */
   isModalInPresentation: boolean;
 
-  addEventListener(
-    type: UIPresentationEventType | (string & {}),
-    callback: EventListener | null,
+  addEventListener<K extends keyof UIViewControllerEventMap>(
+    type: K,
+    callback: ((event: UIViewControllerEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
   ): void;
+  /** 别的名字当自定义事件：`dispatchEvent` 是公开 API，JS 可以派发自己的事件。 */
+  addEventListener(type: string, callback: EventListener | null, options?: AddEventListenerOptions): void;
+  removeEventListener<K extends keyof UIViewControllerEventMap>(
+    type: K,
+    callback: ((event: UIViewControllerEventMap[K]) => void) | null,
+  ): void;
+  removeEventListener(type: string, callback: EventListener | null): void;
   /** 它所在的导航控制器；不在栈上就是 `null`。 */
   readonly navigationController: UINavigationController | null;
   /** 容器父控制器（导航控制器就是一种容器）。 */
@@ -610,14 +696,24 @@ declare class UITabBar extends UIView {
   set unselectedItemTintColor(value: string | UIColor | null);
 }
 
+/** 导航控制器的 `beforeshow` 和 `show`：要显示、已经显示的那一页。 */
+declare class UINavigationControllerEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<UINavigationControllerEvent, 'viewController'>>);
+  readonly viewController: UIViewController;
+}
+
 /** `tabselect` 事件。 */
-interface UITabBarControllerEvent extends Event {
+declare class UITabBarControllerEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<UITabBarControllerEvent, 'viewController'>>);
   /** 用户点中的那一页。 */
   readonly viewController: UIViewController;
 }
 
-type TabEventName =
-  UITabBarControllerEventType | UIPresentationEventType | (string & {});
+/** tab 控制器上每个事件名对应的事件对象。 */
+interface UITabBarControllerEventMap extends UIViewControllerEventMap {
+  /** 用户点了某一格。 */
+  'tabselect': UITabBarControllerEvent;
+}
 
 /**
  * 底部标签栏。每个页面占一格，点哪一格显示哪一页。
@@ -658,15 +754,19 @@ declare class UITabBarController extends UIViewController {
   /** 内容滚动时 tab 条要不要收成一小条。默认 `'automatic'`。 */
   tabBarMinimizeBehavior: UITabBarMinimizeBehavior;
 
-  /**
-   * `tabselect`：用户点了某一格。事件对象上有 `viewController`。
-   * 被模态呈现时，也能监听 `beforedismiss` / `dismiss` / `dismissattempt`。
-   */
-  addEventListener(
-    type: TabEventName,
-    callback: EventListener | null,
+  /** `tabselect`：用户点了某一格。事件对象上有 `viewController`。被模态呈现时，也能监听 `beforedismiss` / `dismiss` / `dismissattempt`。 */
+  addEventListener<K extends keyof UITabBarControllerEventMap>(
+    type: K,
+    callback: ((event: UITabBarControllerEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
   ): void;
+  /** 别的名字当自定义事件：`dispatchEvent` 是公开 API，JS 可以派发自己的事件。 */
+  addEventListener(type: string, callback: EventListener | null, options?: AddEventListenerOptions): void;
+  removeEventListener<K extends keyof UITabBarControllerEventMap>(
+    type: K,
+    callback: ((event: UITabBarControllerEventMap[K]) => void) | null,
+  ): void;
+  removeEventListener(type: string, callback: EventListener | null): void;
 }
 
 // ---------------------------------------------------------------------------

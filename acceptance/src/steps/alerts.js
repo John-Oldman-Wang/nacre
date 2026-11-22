@@ -529,6 +529,8 @@ export function stepAlerts(ctx) {
       assert('complete：没有完成', got.completed, false);
       assert('complete：没有选任何动作', got.activityType, null);
       assert('complete：没有错误', got.activityError, null);
+      assert('complete：是 UIActivityViewControllerCompletionEvent',
+             got instanceof UIActivityViewControllerCompletionEvent, true);
     }
 
     // 持有边的 GC 回归

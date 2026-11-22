@@ -124,7 +124,8 @@ static void EmitGeometryChange(UIWindowScene* scene, UIWindowSceneGeometry* prev
   if (![objc_getAssociatedObject(scene, kNacreGeometrySubscribedKey) boolValue]) return;
   NSString* before = NameForPageInterfaceOrientation(previous.interfaceOrientation) ?: @"unknown";
   NacreEmitEventNow(scene, "UIWindowScene", @"geometrychange",
-                    @(EncodeJSON(@{@"previousInterfaceOrientation" : before}).c_str()));
+                    @(EncodeJSON(@{@"previousInterfaceOrientation" : before}).c_str()),
+                    "UIWindowSceneGeometryChangeEvent");
 }
 
 static NSMutableSet<Class>* PatchedDelegates(void) {

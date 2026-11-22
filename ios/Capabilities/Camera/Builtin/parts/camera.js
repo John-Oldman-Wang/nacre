@@ -9,7 +9,6 @@
   const {
     Event,
     constructNative,
-    defineField,
     defineNativeClass,
     internalEventHandlers,
     nativeCall,
@@ -99,15 +98,17 @@
   // 放开，再派发对外的事件。
   //
   // 字段名照系统给的 info 字典的键（UIImagePickerControllerOriginalImage…）
+  const UIImagePickerControllerMediaEvent = ctx.defineEventClass(
+    'UIImagePickerControllerMediaEvent', Event, {
+      originalImage: ['UIImage?', null], editedImage: ['UIImage?', null], cropRect: ['CGRect?', null],
+    });
   internalEventHandlers.set('@imagepicked', (picker, payload) => {
     const token = payload.token;
     const originalImage = nativeCallObject(picker, 'nacre:takeImage:', [token, 'original']);
     const editedImage = nativeCallObject(picker, 'nacre:takeImage:', [token, 'edited']);
     nativeCall(picker, 'nacre:dropResult:', [token]);
-    const event = new Event('pick');
-    defineField(event, 'originalImage', originalImage);
-    defineField(event, 'editedImage', editedImage);
-    defineField(event, 'cropRect', toRect(payload.cropRect));
-    picker.dispatchEvent(event);
+    picker.dispatchEvent(new UIImagePickerControllerMediaEvent('pick', {
+      originalImage, editedImage, cropRect: toRect(payload.cropRect),
+    }));
   });
 })

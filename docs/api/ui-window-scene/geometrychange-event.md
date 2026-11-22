@@ -15,11 +15,11 @@ scene.addEventListener('geometrychange', (event) => { })
 
 ## 事件对象
 
-`UIWindowSceneGeometryChangeEvent`。除 `type`、`target`（这个场景）以外带一个只读字段：
+[`UIWindowSceneGeometryChangeEvent`](../ui-window-scene-geometry-change-event.md)。除 `type`、`target`（这个场景）以外带一个只读字段：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `previousInterfaceOrientation` | 字符串 | 变化之前的方向。现在的方向读 `scene.effectiveGeometry` |
+| [`previousInterfaceOrientation`](../ui-window-scene-geometry-change-event/previousinterfaceorientation.md) | 字符串 | 变化之前的方向。现在的方向读 `scene.effectiveGeometry` |
 
 不能取消。
 
@@ -34,8 +34,7 @@ scene.addEventListener('geometrychange', (event) => { })
 ```js
 application.addEventListener('sceneconnect', (e) => {
   const scene = e.scene;
-  scene.addEventListener('geometrychange', (event) => {
-    const change = /** @type {UIWindowSceneGeometryChangeEvent} */ (event);
+  scene.addEventListener('geometrychange', (change) => {
     console.log(change.previousInterfaceOrientation, '→', scene.effectiveGeometry.interfaceOrientation);
   });
 });

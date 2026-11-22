@@ -43,6 +43,9 @@ A new `OpenURLEvent`.
 
 **`TypeError`**
 
+- A field's value cannot be converted; see each parameter above.
+- No event name is passed: `Failed to construct 'OpenURLEvent': 1 argument required, but only 0 present.`
+- It is called as a function, without `new`.
 - `url` is missing: `Failed to construct 'OpenURLEvent': url is required`.
 - `scene` is missing or is not a scene: `Failed to construct 'OpenURLEvent': scene must be a UIWindowScene`.
 

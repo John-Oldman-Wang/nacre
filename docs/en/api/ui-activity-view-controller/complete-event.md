@@ -15,13 +15,13 @@ sheet.addEventListener('complete', (event) => { })
 
 ## Event object
 
-Its type is `UIActivityViewControllerCompletionEvent`. The listener callback's parameter type is `Event`; to read the three fields below, cast the type first, as shown in [Examples](#examples).
+[`UIActivityViewControllerCompletionEvent`](../ui-activity-view-controller-completion-event.md), with three extra read-only fields:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `completed` | `boolean` | `true`: the action the user chose is done. `false`: it wasn't done, including when the user simply closed the share sheet |
-| `activityType` | `string \| null` | The destination the user chose: one of the [names of system actions](../ui-activity-view-controller.md#names-of-system-actions), or a third-party extension's own identifier (a dotted string). `null` if closed without choosing |
-| `activityError` | [`NSError`](../ns-error.md) `\| null` | The error the system gave when the action failed. Its `name` is `'NSError'`, `message` is the system's description, and `domain` and `code` are the system's error domain and error code. `null` if there was no error |
+| [`completed`](../ui-activity-view-controller-completion-event/completed.md) | `boolean` | `true`: the action the user chose is done. `false`: it wasn't done, including when the user simply closed the share sheet |
+| [`activityType`](../ui-activity-view-controller-completion-event/activitytype.md) | `string \| null` | The destination the user chose: one of the [names of system actions](../ui-activity-view-controller.md#names-of-system-actions), or a third-party extension's own identifier (a dotted string). `null` if closed without choosing |
+| [`activityError`](../ui-activity-view-controller-completion-event/activityerror.md) | [`NSError`](../ns-error.md) `\| null` | The error the system gave when the action failed. Its `name` is `'NSError'`, `message` is the system's description, and `domain` and `code` are the system's error domain and error code. `null` if there was no error |
 
 - `type` is `'complete'` and `target` is the share sheet.
 - Not cancelable; `preventDefault()` has no effect.
@@ -39,8 +39,7 @@ When this event fires and what the event object contains are both **not verified
 
 ```js
 const sheet = new UIActivityViewController([new URL('https://example.com')]);
-sheet.addEventListener('complete', (event) => {
-  const result = /** @type {UIActivityViewControllerCompletionEvent} */ (event);
+sheet.addEventListener('complete', (result) => {
   if (result.activityError !== null) {
     console.log('sharing failed: ' + result.activityError.message);
   } else if (result.completed) {

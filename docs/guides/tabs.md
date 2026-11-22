@@ -125,8 +125,7 @@ console.log(tabs.selectedViewController === profile);
 ## 知道用户切了标签
 
 ```js
-tabs.addEventListener('tabselect', (ev) => {
-  const event = /** @type {UITabBarControllerEvent} */ (ev);
+tabs.addEventListener('tabselect', (event) => {
   console.log(event.viewController === tabs.selectedViewController);
 });
 ```

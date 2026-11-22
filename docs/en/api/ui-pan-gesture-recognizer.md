@@ -67,7 +67,7 @@ drag.addEventListener('began', () => {
   start = card.center;
 });
 drag.addEventListener('changed', (e) => {
-  const { translation } = /** @type {UIPanGestureRecognizerEvent} */ (e);
+  const { translation } = e;
   card.center = new CGPoint(start.x + translation.x, start.y + translation.y);
 });
 card.addGestureRecognizer(drag);

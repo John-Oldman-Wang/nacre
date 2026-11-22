@@ -24,11 +24,13 @@
              from:(id)object
         className:(const char*)className
              with:(id)payload
-    payloadClass:(const char*)payloadClass;
+    payloadClass:(const char*)payloadClass
+      eventClass:(const char* _Nullable)eventClass;
 - (void)emitEvent:(NSString*)type
              from:(id)object
         className:(const char*)className
-             json:(const std::string&)json;
+             json:(const std::string&)json
+       eventClass:(const char* _Nullable)eventClass;
 - (nacre_bridge::NacreSubscribed)setSubscription:(id)object
                    type:(const std::string&)type
                      on:(BOOL)on

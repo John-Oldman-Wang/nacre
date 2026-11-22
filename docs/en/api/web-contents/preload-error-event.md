@@ -15,12 +15,12 @@ contents.addEventListener('preload-error', (event) => {})
 
 ## Event object
 
-`WebContentsPreloadErrorEvent`. Besides `type` and `target`, it has two fields:
+[`WebContentsPreloadErrorEvent`](../web-contents-preload-error-event.md). Besides `type` and `target`, it has two fields:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `preloadPath` | string | The preload script path given when the `WebView` was created |
-| `error` | `Error` | The error the preload script threw. `message` is the result of `String(error)` on the page side |
+| [`preloadPath`](../web-contents-preload-error-event/preloadpath.md) | string | The preload script path given when the `WebView` was created |
+| [`error`](../web-contents-preload-error-event/error.md) | `Error` | The error the preload script threw. `message` is the result of `String(error)` on the page side |
 
 Not cancelable.
 

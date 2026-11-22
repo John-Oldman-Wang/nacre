@@ -16,7 +16,7 @@
     RECT_FIELDS,
     constructNative,
     define,
-    defineField,
+    Event,
     defineNativeClass,
     describeValue,
     disown,
@@ -290,15 +290,23 @@
     return values;
   }
 
+  // ---------- 事件类 ----------
+  const AVCaptureMetadataOutputDetectEvent = ctx.defineEventClass(
+    'AVCaptureMetadataOutputDetectEvent', Event, { objects: ['frozenArray', () => Object.freeze([])] });
+  ctx.defineEventClass('AVCaptureSessionInterruptEvent', Event, { reason: ['string?', null] });
+  ctx.defineEventClass('AVCaptureSessionRuntimeErrorEvent', Event, { error: ['NSError?', null] });
+  // 会话出错：系统的 NSError 原样带过来，建成 NSError
+  ctx.eventFieldConverters.set('AVCaptureSessionRuntimeErrorEvent', (fields) => ({
+    error: ctx.makeError('NSError', fields.message, fields),
+  }));
+
   // 原生把一帧的批次作为内部事件 @detect 派发在输出上：建值、派发 detect。
   // 原生的通知，延后一轮派发，不可取消
   internalEventHandlers.set('@detect', (output, batch) => {
     if (batch === null || batch === undefined) return;
-    const objects = Object.freeze(valuesFrom(batch));
+    const objects = valuesFrom(batch);
     if (objects.length === 0) return;
-    const event = new Event('detect');
-    defineField(event, 'objects', objects);
-    output.dispatchEvent(event);
+    output.dispatchEvent(new AVCaptureMetadataOutputDetectEvent('detect', { objects }));
   });
 
   // ---------- 会话 ----------

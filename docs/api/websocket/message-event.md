@@ -15,9 +15,9 @@ ws.addEventListener('message', (event) => { })
 
 ## 事件对象
 
-类型定义里是 `WebSocketMessageEvent`。不能取消。回调参数的类型是通用的 `Event`，要读 `data` 先转一次类型，见下面的示例。
+[`MessageEvent`](../message-event.md)。不能取消。除了下面的 `data`，[`origin`](../message-event/origin.md) 是连接地址的源。
 
-**`data`**
+**[`data`](../message-event/data.md)**
 
 收到的内容：
 
@@ -35,7 +35,7 @@ ws.addEventListener('message', (event) => { })
 ```js
 const ws = new WebSocket('wss://echo.websocket.org');
 ws.addEventListener('message', async (e) => {
-  const data = /** @type {WebSocketMessageEvent} */ (e).data;
+  const data = e.data;
   if (typeof data === 'string') {
     console.log('文本', data);
   } else {
@@ -50,7 +50,6 @@ ws.addEventListener('message', async (e) => {
 ## 和 Web 的差别
 
 - 浏览器的二进制消息默认是 `Blob`，可以用 `binaryType` 改成 `ArrayBuffer`；这里总是 `Blob`，没有 `binaryType`。
-- 浏览器的事件对象是 `MessageEvent`，还带 `origin`、`lastEventId` 等字段；这里只带 `data`。
 - 没有 `onmessage` 属性，只能用 `addEventListener`。
 
 ## 参见

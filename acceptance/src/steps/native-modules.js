@@ -375,9 +375,9 @@ export function stepNativeModules(ctx) {
 async function asyncPart(mod, assert) {
   // ===================================================================
   // 9. 事件：延后一轮到、带的数据、先后
-  /** @type {NativeModuleEvent[]} */
+  /** @type {CustomEvent[]} */
   const ticks = [];
-  const onTickEvent = (/** @type {NativeModuleEvent} */ e) => { ticks.push(e); };
+  const onTickEvent = (/** @type {CustomEvent} */ e) => { ticks.push(e); };
   mod.addEventListener('tick', onTickEvent);
   mod.call('emit', 'tick', { n: 1, data: new Uint8Array([7, 8]), list: [true, null] });
   assert('事件不是当场到的（延后一轮）', ticks.length, 0);
@@ -386,6 +386,7 @@ async function asyncPart(mod, assert) {
     const e = ticks[0];
     const detail = /** @type {any} */ (e.detail);
     assert('事件对象是 Event', e instanceof Event, true);
+    assert('事件对象是 CustomEvent', e instanceof CustomEvent, true);
     assert('事件的 type', e.type, 'tick');
     assert('事件的 target 是模块对象', e.target === mod, true);
     assert('事件不可取消', e.cancelable, false);
@@ -407,7 +408,7 @@ async function asyncPart(mod, assert) {
   // 另一个事件名不串
   /** @type {unknown[]} */
   const datas = [];
-  const onData = (/** @type {NativeModuleEvent} */ e) => { datas.push(e.detail); };
+  const onData = (/** @type {CustomEvent} */ e) => { datas.push(e.detail); };
   mod.addEventListener('data', onData);
   ticks.length = 0;
   mod.call('emit', 'data', 'only-data');

@@ -81,7 +81,7 @@ card.addGestureRecognizer(press);
 
 ```js
 tap.addEventListener('ended', (e) => {
-  const { location } = /** @type {UIGestureRecognizerEvent} */ (e);
+  const { location } = e;
   if (location !== null) {
     console.log(location.x, location.y);
   }
@@ -92,7 +92,7 @@ tap.addEventListener('ended', (e) => {
 
 验收用例里核对过：点在视图内距左边 28 pt、距上边 28 pt 的位置，`location` 是 `(28, 28)`。
 
-回调的参数类型是 `Event`，要读 `location` 需要像上面这样转成 `UIGestureRecognizerEvent`。
+事件对象是 [`UIGestureRecognizerEvent`](../api/ui-gesture-recognizer-event.md)，`location` 直接读。
 
 ## 响应双击
 
@@ -170,7 +170,7 @@ card.addGestureRecognizer(touch);
 
 ```js
 press.addEventListener('changed', (e) => {
-  const { location } = /** @type {UIGestureRecognizerEvent} */ (e);
+  const { location } = e;
   if (location !== null) {
     console.log('移到', location.x, location.y);
   }
@@ -197,7 +197,7 @@ drag.addEventListener('began', () => {
   start = card.center;
 });
 drag.addEventListener('changed', (e) => {
-  const { translation } = /** @type {UIPanGestureRecognizerEvent} */ (e);
+  const { translation } = e;
   card.center = new CGPoint(start.x + translation.x, start.y + translation.y);
 });
 card.addGestureRecognizer(drag);
@@ -218,7 +218,7 @@ const drag = new UIPanGestureRecognizer();
 card.addGestureRecognizer(drag);
 
 drag.addEventListener('ended', (e) => {
-  const { velocity } = /** @type {UIPanGestureRecognizerEvent} */ (e);
+  const { velocity } = e;
   if (velocity.x > 500) {
     console.log('向右甩出去了');
   }
@@ -246,11 +246,11 @@ card.addGestureRecognizer(twoFingerDrag);
 const pinch = new UIPinchGestureRecognizer();
 let baseScale = 1;
 pinch.addEventListener('changed', (e) => {
-  const { scale } = /** @type {UIPinchGestureRecognizerEvent} */ (e);
+  const { scale } = e;
   card.transform = CGAffineTransform.scale(baseScale * scale);
 });
 pinch.addEventListener('ended', (e) => {
-  const { scale } = /** @type {UIPinchGestureRecognizerEvent} */ (e);
+  const { scale } = e;
   baseScale = baseScale * scale;
 });
 card.addGestureRecognizer(pinch);
@@ -268,11 +268,11 @@ card.addGestureRecognizer(pinch);
 const twist = new UIRotationGestureRecognizer();
 let baseAngle = 0;
 twist.addEventListener('changed', (e) => {
-  const { rotation } = /** @type {UIRotationGestureRecognizerEvent} */ (e);
+  const { rotation } = e;
   card.transform = CGAffineTransform.rotation(baseAngle + rotation);
 });
 twist.addEventListener('ended', (e) => {
-  const { rotation } = /** @type {UIRotationGestureRecognizerEvent} */ (e);
+  const { rotation } = e;
   baseAngle = baseAngle + rotation;
 });
 card.addGestureRecognizer(twist);
@@ -357,7 +357,7 @@ card.addSubview(badge);
 
 const cardTap = new UITapGestureRecognizer();
 cardTap.addEventListener('ended', (e) => {
-  const { location } = /** @type {UIGestureRecognizerEvent} */ (e);
+  const { location } = e;
   if (location === null) return;
   const hit = card.hitTest(location);
   console.log(hit === badge ? '点了方块' : '点了矩形的其他地方');
@@ -471,7 +471,7 @@ card.addGestureRecognizer(pan);
 ```js
 const handlePan = new UIPanGestureRecognizer();
 handlePan.addEventListener('beforebegin', (event) => {
-  const { location } = /** @type {UIGestureRecognizerEvent} */ (event);
+  const { location } = event;
   if (location === null || location.x > 40) event.preventDefault();
 });
 card.addGestureRecognizer(handlePan);

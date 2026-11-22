@@ -38,7 +38,8 @@ static void NacreAppearanceEmit(UIViewController* controller, NSString* type, BO
   }
   nacre_bridge::NacreEmitEventWithJSON(controller, className, type,
                                        animated ? @"{\"animated\":true}"
-                                                : @"{\"animated\":false}");
+                                                : @"{\"animated\":false}",
+                                       "UIViewControllerAppearanceEvent");
 }
 
 // 换上去的四个方法。交换之后，[self nacre_viewWillAppear:] 调到的是原来的实现

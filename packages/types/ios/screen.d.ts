@@ -19,13 +19,25 @@ type UIScreenEventType =
  * 键盘的三个事件：`keyboardshow`、`keyboardhide`、`keyboardchange`。
  * 当场派发：监听器在键盘的动画里执行，这时候改的布局跟着键盘一起动。不能取消。
  */
-interface UIScreenKeyboardEvent extends Event {
+declare class UIScreenKeyboardEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<UIScreenKeyboardEvent, 'frame' | 'previousFrame' | 'duration'>>);
   /** 动画结束时键盘的位置，屏幕坐标，单位 pt。键盘的高度是 `frame.height`。 */
   readonly frame: CGRect;
   /** 动画开始时键盘的位置。 */
   readonly previousFrame: CGRect;
   /** 键盘动画的时长，单位秒。 */
   readonly duration: number;
+}
+
+/** 屏幕上每个事件名对应的事件对象。 */
+interface UIScreenEventMap {
+  'brightnesschange': Event;
+  'modechange': Event;
+  'capturedchange': Event;
+  'referencedisplaymodestatuschange': Event;
+  'keyboardshow': UIScreenKeyboardEvent;
+  'keyboardhide': UIScreenKeyboardEvent;
+  'keyboardchange': UIScreenKeyboardEvent;
 }
 
 /**
@@ -76,12 +88,18 @@ declare class UIScreen extends NSObject {
   /** 把屏幕此刻的内容拍成一个视图。 */
   snapshotViewAfterScreenUpdates(afterUpdates: boolean): UIView;
 
-  addEventListener(
-    type: UIScreenEventType | (string & {}),
-    callback: EventListener | null,
-    options?: AddEventListenerOptions | boolean,
+  addEventListener<K extends keyof UIScreenEventMap>(
+    type: K,
+    callback: ((event: UIScreenEventMap[K]) => void) | null,
+    options?: AddEventListenerOptions,
   ): void;
-  removeEventListener(type: UIScreenEventType | (string & {}), callback: EventListener | null): void;
+  /** 别的名字当自定义事件：`dispatchEvent` 是公开 API，JS 可以派发自己的事件。 */
+  addEventListener(type: string, callback: EventListener | null, options?: AddEventListenerOptions): void;
+  removeEventListener<K extends keyof UIScreenEventMap>(
+    type: K,
+    callback: ((event: UIScreenEventMap[K]) => void) | null,
+  ): void;
+  removeEventListener(type: string, callback: EventListener | null): void;
 }
 
 /** 屏幕的一种显示模式。不能 `new`，从屏幕的 `availableModes`、`currentMode` 拿。 */

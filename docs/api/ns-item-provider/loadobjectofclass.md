@@ -46,7 +46,7 @@ Promise 被拒绝时，错误的 `name` 是：
 const picker = new PHPickerViewController(new PHPickerConfiguration());
 const imageView = new UIImageView();
 picker.addEventListener('pick', async (event) => {
-  const { results } = /** @type {PHPickerViewControllerFinishEvent} */ (event);
+  const { results } = event;
   picker.dismissViewController({ animated: true });
   if (results.length === 0) return;
   try {

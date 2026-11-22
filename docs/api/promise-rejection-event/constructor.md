@@ -22,7 +22,7 @@ new PromiseRejectionEvent(type, { reason, promise, cancelable })
 
 **`options.reason`**
 
-拒绝的原因，任意值，可选。
+拒绝的原因，任意值，可选。不传是 `undefined`。
 
 **`options.promise`**
 
@@ -38,7 +38,11 @@ new PromiseRejectionEvent(type, { reason, promise, cancelable })
 
 ### 异常
 
-没传事件名时抛 `TypeError`，和 [`Event()`](../event/constructor.md) 相同。**未在模拟器验证。**
+**`TypeError`**
+
+- 某个字段的值转换不了，见上面各个参数。
+- 没传事件名：`Failed to construct 'PromiseRejectionEvent': 1 argument required, but only 0 present.`
+- 不带 `new`，当成函数调用。
 
 ## 示例
 
@@ -47,7 +51,7 @@ const event = new PromiseRejectionEvent('unhandledrejection', { reason: '超时'
 console.log(event.reason, event.promise);
 ```
 
-**结果**：控制台输出 `超时 undefined`。**未在模拟器验证。**
+**结果**：控制台输出 `超时 undefined`。
 
 ## 对应的 iOS API
 

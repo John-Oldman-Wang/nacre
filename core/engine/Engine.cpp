@@ -627,6 +627,12 @@ struct Engine::Impl {
     return it == handle_to_ptr.end() ? nullptr : it->second;
   }
 
+  // 发事件时「用哪个类建」那个参数：空串交 undefined（普通的 Event）
+  v8::Local<v8::Value> EventClassArg(v8::Isolate* isolate, const std::string& event_class) {
+    if (event_class.empty()) return v8::Undefined(isolate);
+    return Utf8(isolate, event_class);
+  }
+
   static void NativeSetErrorFactory(const v8::FunctionCallbackInfo<v8::Value>& info) {
     Impl* self = From(info.GetIsolate());
     if (info.Length() > 0 && info[0]->IsFunction()) {
@@ -1615,7 +1621,8 @@ void Engine::EmitObjectEvent(const NativeObjectRef& target, const std::string& t
 }
 void Engine::EmitObjectEventWith(const NativeObjectRef& target,
                                  const std::string& type,
-                                 const NativeObjectRef& payload) {
+                                 const NativeObjectRef& payload,
+                                 const std::string& event_class) {
   v8::Isolate* isolate = impl_->isolate;
   v8::Isolate::Scope isolate_scope(isolate);
   v8::HandleScope handle_scope(isolate);
@@ -1629,13 +1636,15 @@ void Engine::EmitObjectEventWith(const NativeObjectRef& target,
   {
     v8::TryCatch try_catch(isolate);
     v8::Local<v8::Object> extra = impl_->WrapNative(ctx, payload);
+    // 第七个参数：事件对象用哪个类建（见 Engine.h）。第五、六个这条路上没有
     v8::Local<v8::Value> argv[] = {
         wrapper, Utf8(isolate, type),
         extra.IsEmpty() ? v8::Local<v8::Value>(v8::Undefined(isolate))
                         : v8::Local<v8::Value>(extra),
-        v8::Boolean::New(isolate, rebuilt)};
+        v8::Boolean::New(isolate, rebuilt), v8::Boolean::New(isolate, false),
+        v8::Undefined(isolate), impl_->EventClassArg(isolate, event_class)};
     if (impl_->object_event_sink.Get(isolate)
-            ->Call(ctx, ctx->Global(), 4, argv)
+            ->Call(ctx, ctx->Global(), 7, argv)
             .IsEmpty()) {
       impl_->ReportException(ctx, try_catch);
     }
@@ -1666,7 +1675,8 @@ void Engine::CallBlock(int block_id, const std::string& args_json) {
 
 bool Engine::EmitObjectEventWithJSON(const NativeObjectRef& target,
                                      const std::string& type,
-                                     const std::string& json, bool cancelable) {
+                                     const std::string& json, bool cancelable,
+                                     const std::string& event_class) {
   v8::Isolate* isolate = impl_->isolate;
   v8::Isolate::Scope isolate_scope(isolate);
   v8::HandleScope handle_scope(isolate);
@@ -1690,12 +1700,15 @@ bool Engine::EmitObjectEventWithJSON(const NativeObjectRef& target,
       extra = v8::Undefined(isolate);
     }
     // 第五个参数：这次派发是不是可取消的（原生当场等答复的那种）
+    // 第七个参数：事件对象用哪个类建
     v8::Local<v8::Value> argv[] = {wrapper, Utf8(isolate, type), extra,
                                    v8::Boolean::New(isolate, rebuilt),
-                                   v8::Boolean::New(isolate, cancelable)};
+                                   v8::Boolean::New(isolate, cancelable),
+                                   v8::Undefined(isolate),
+                                   impl_->EventClassArg(isolate, event_class)};
     v8::Local<v8::Value> result;
     if (impl_->object_event_sink.Get(isolate)
-            ->Call(ctx, ctx->Global(), 5, argv)
+            ->Call(ctx, ctx->Global(), 7, argv)
             .ToLocal(&result)) {
       // sink 返回 true 表示监听器取消了默认动作
       prevented = result->IsTrue();
@@ -1709,7 +1722,8 @@ bool Engine::EmitObjectEventWithJSON(const NativeObjectRef& target,
 
 std::string Engine::EmitObjectEventForAnswer(const NativeObjectRef& target,
                                              const std::string& type, const std::string& json,
-                                             const std::string& answer_field) {
+                                             const std::string& answer_field,
+                                             const std::string& event_class) {
   v8::Isolate* isolate = impl_->isolate;
   v8::Isolate::Scope isolate_scope(isolate);
   v8::HandleScope handle_scope(isolate);
@@ -1733,9 +1747,10 @@ std::string Engine::EmitObjectEventForAnswer(const NativeObjectRef& target,
     v8::Local<v8::Value> argv[] = {wrapper, Utf8(isolate, type), extra,
                                    v8::Boolean::New(isolate, rebuilt),
                                    v8::Boolean::New(isolate, false),
-                                   Utf8(isolate, answer_field)};
+                                   Utf8(isolate, answer_field),
+                                   impl_->EventClassArg(isolate, event_class)};
     v8::Local<v8::Value> result;
-    if (impl_->object_event_sink.Get(isolate)->Call(ctx, ctx->Global(), 6, argv).ToLocal(&result)) {
+    if (impl_->object_event_sink.Get(isolate)->Call(ctx, ctx->Global(), 7, argv).ToLocal(&result)) {
       v8::Local<v8::String> text;
       if (!result->IsUndefined() && !result->IsNull() &&
           v8::JSON::Stringify(ctx, result).ToLocal(&text)) {

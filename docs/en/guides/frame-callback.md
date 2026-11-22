@@ -35,7 +35,7 @@ application.addEventListener('sceneconnect', (e) => {
   const link = new CADisplayLink();
   let start = 0;
   link.addEventListener('tick', (ev) => {
-    const frame = /** @type {CADisplayLinkEvent} */ (ev).frame;
+    const frame = ev.frame;
     if (start === 0) start = frame.timestamp;
 
     const t = (frame.timestamp - start) % 2;          // seconds; one round trip every 2 seconds
@@ -60,7 +60,7 @@ This code hasn't been run in the simulator as a whole.
 const link = new CADisplayLink();
 
 link.addEventListener('tick', (ev) => {
-  const frame = /** @type {CADisplayLinkEvent} */ (ev).frame;
+  const frame = ev.frame;
   console.log('Frame time:', frame.timestamp);
 });
 
@@ -113,7 +113,7 @@ let last = 0;
 let x = 0;
 
 mover.addEventListener('tick', (ev) => {
-  const frame = /** @type {CADisplayLinkEvent} */ (ev).frame;
+  const frame = ev.frame;
   const dt = last === 0 ? 0 : frame.timestamp - last;   // seconds since the previous callback
   last = frame.timestamp;
   x += speed * dt;

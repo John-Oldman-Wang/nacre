@@ -82,6 +82,9 @@ export async function stepGestureDelegate(ctx) {
   assert('beforebegin：当场派发，target 是识别器', event !== null && event.target === pan, true);
   assert('beforebegin：可以取消', event !== null && event.cancelable, true);
   assert('beforebegin：带着触点个数', event !== null && typeof event.numberOfTouches === 'number', true);
+  assert('beforebegin：是 UIGestureRecognizerEvent', event instanceof UIGestureRecognizerEvent, true);
+  assert('beforebegin：拖动识别器上也只是基类，没有 translation',
+         event instanceof UIPanGestureRecognizerEvent, false);
   refuse = true;
   answer = ask(7101, null);
   assert('beforebegin：preventDefault 就不开始', answer !== null && answer.shouldBegin, false);

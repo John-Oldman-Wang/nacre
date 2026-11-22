@@ -15,9 +15,9 @@ manager.addEventListener('locationerror', (event) => { })
 
 ## Event object
 
-`CLLocationErrorEvent`, with one extra field:
+[`CLLocationErrorEvent`](../cl-location-error-event.md), with one extra field:
 
-**`error`**
+**[`error`](../cl-location-error-event/error.md)**
 
 A [`CLLocationError`](../cl-location-error.md), which is a [`DOMException`](../dom-exception.md) or an [`NSError`](../ns-error.md). `name` is the error category. The system's error code and error domain are the `NSError`'s own `code` and `domain`, or in `cause` for a `DOMException`.
 

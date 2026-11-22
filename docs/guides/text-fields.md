@@ -405,7 +405,7 @@ page.addEventListener('appear', () => {
 const dismiss = new UITapGestureRecognizer();
 dismiss.cancelsTouchesInView = false;   // 不取消视图自己正在处理的触摸
 dismiss.addEventListener('ended', (e) => {
-  const { location } = /** @type {UIGestureRecognizerEvent} */ (e);
+  const { location } = e;
   if (location === null) return;
   // 点在控件（输入框、按钮）或它们的子视图上：不收键盘
   for (let v = page.view.hitTest(location); v !== null; v = v.superview) {
@@ -659,7 +659,7 @@ submit.addEventListener('click', login);
 const dismissTap = new UITapGestureRecognizer();
 dismissTap.cancelsTouchesInView = false;
 dismissTap.addEventListener('ended', (e) => {
-  const { location } = /** @type {UIGestureRecognizerEvent} */ (e);
+  const { location } = e;
   if (location === null) return;
   for (let v = page.view.hitTest(location); v !== null; v = v.superview) {
     if (v instanceof UIControl) return;
@@ -733,8 +733,7 @@ field.bottomAnchor
 ```js
 application.addEventListener('sceneconnect', (e) => {
   const screen = e.scene.screen;
-  screen.addEventListener('keyboardchange', (event) => {
-    const keyboard = /** @type {UIScreenKeyboardEvent} */ (event);
+  screen.addEventListener('keyboardchange', (keyboard) => {
     const top = Math.min(keyboard.frame.y, screen.bounds.height);
     field.frame = new CGRect(16, top - 16 - 40, 358, 40);
   });

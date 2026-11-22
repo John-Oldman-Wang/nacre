@@ -168,6 +168,10 @@ export function stepControl(ctx) {
           // 给 null 不给 (0,0)——(0,0) 是合法坐标，和「没有触点」分不开
           assert('没有真实触点时 location 是 null', touched[0].location, null);
           assert('没有真实触点时 tapCount 是 0', touched[0].tapCount, 0);
+          assert('touchdown 是 UIControlTouchEvent', touched[0] instanceof UIControlTouchEvent, true);
+          assert('touchdown 的 location 不是实例自己的属性',
+                 Object.prototype.hasOwnProperty.call(touched[0], 'location'), false);
+          assert('change 不是 UIControlTouchEvent', plain[0] instanceof UIControlTouchEvent, false);
           assert('change 上根本没有 location 这个字段',
                  'location' in plain[0], false);
           assert('change 上也没有 tapCount', 'tapCount' in plain[0], false);

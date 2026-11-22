@@ -15,13 +15,13 @@ sheet.addEventListener('complete', (event) => { })
 
 ## 事件对象
 
-类型是 `UIActivityViewControllerCompletionEvent`。监听回调的参数类型是 `Event`，要读下面三个字段，先转一下类型，写法见[示例](#示例)。
+[`UIActivityViewControllerCompletionEvent`](../ui-activity-view-controller-completion-event.md)，多三个只读字段：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `completed` | `boolean` | `true`：用户选的动作做完了。`false`：没做，包括用户直接把面板关掉 |
-| `activityType` | `string \| null` | 用户选的去处：[系统动作的名字](../ui-activity-view-controller.md#系统动作的名字)，或者第三方扩展自己的标识符（一个带点的字符串）。没选就关掉了是 `null` |
-| `activityError` | [`NSError`](../ns-error.md) `\| null` | 动作失败时系统给的错误。`name` 是 `'NSError'`，`message` 是系统给的说明，`domain` 和 `code` 是系统的错误域和错误码。没有错误是 `null` |
+| [`completed`](../ui-activity-view-controller-completion-event/completed.md) | `boolean` | `true`：用户选的动作做完了。`false`：没做，包括用户直接把面板关掉 |
+| [`activityType`](../ui-activity-view-controller-completion-event/activitytype.md) | `string \| null` | 用户选的去处：[系统动作的名字](../ui-activity-view-controller.md#系统动作的名字)，或者第三方扩展自己的标识符（一个带点的字符串）。没选就关掉了是 `null` |
+| [`activityError`](../ui-activity-view-controller-completion-event/activityerror.md) | [`NSError`](../ns-error.md) `\| null` | 动作失败时系统给的错误。`name` 是 `'NSError'`，`message` 是系统给的说明，`domain` 和 `code` 是系统的错误域和错误码。没有错误是 `null` |
 
 - `type` 是 `'complete'`，`target` 是这个面板。
 - 不能取消，`preventDefault()` 不起作用。
@@ -39,8 +39,7 @@ sheet.addEventListener('complete', (event) => { })
 
 ```js
 const sheet = new UIActivityViewController([new URL('https://example.com')]);
-sheet.addEventListener('complete', (event) => {
-  const result = /** @type {UIActivityViewControllerCompletionEvent} */ (event);
+sheet.addEventListener('complete', (result) => {
   if (result.activityError !== null) {
     console.log('分享出错了：' + result.activityError.message);
   } else if (result.completed) {

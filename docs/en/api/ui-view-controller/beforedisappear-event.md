@@ -15,7 +15,7 @@ page.addEventListener('beforedisappear', (event) => { })
 
 ## Event object
 
-`UIViewControllerAppearanceEvent`. Besides `type` and `target` (this view controller), it has one more read-only field, `animated` (`boolean`): whether this disappearance has a transition animation. For how to read it, see [`beforeappear`](beforeappear-event.md).
+[`UIViewControllerAppearanceEvent`](../ui-view-controller-appearance-event.md). Besides `type` and `target` (this view controller), it has one more read-only field, [`animated`](../ui-view-controller-appearance-event/animated.md) (`boolean`): whether this disappearance has a transition animation.
 
 Not cancelable.
 

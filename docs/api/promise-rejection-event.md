@@ -14,16 +14,26 @@ status: partial
 
 [`PromiseRejectionEvent()`](promise-rejection-event/constructor.md)
 
-创建一个拒绝事件对象。运行时派发 `unhandledrejection` 时自己创建，App 的代码一般不用。
+创建一个拒绝事件对象。运行时派发 `unhandledrejection` 时自己创建；App 的代码可以用它建一个事件对象，用 [`dispatchEvent()`](event-target/dispatchevent.md) 派发出去，试一试监听器。
 
 ## 实例属性
 
-还继承 [`Event`](event.md) 的属性。运行时派发的 `unhandledrejection` 事件，`cancelable` 是 `true`。
+还继承 [`Event`](event.md) 的属性。下表的属性都是只读的，给它们赋值抛 `TypeError`。
 
 | 属性 | 说明 |
 | --- | --- |
 | [`reason`](promise-rejection-event/reason.md) <small>只读</small> | 拒绝的原因 |
 | [`promise`](promise-rejection-event/promise.md) <small>只读</small> | 被拒绝的那个 Promise |
+
+这些属性在原型上，不在事件对象自己身上：`Object.keys(event)` 和 `{ ...event }` 拿不到它们，要一个一个读。见[带字段的事件](event.md#带字段的事件)。
+
+## 哪些事件是这个类
+
+| 对象 | 事件 |
+| --- | --- |
+| [`application`](application.md) | [`unhandledrejection`](application/unhandledrejection-event.md) |
+
+可以取消：`cancelable` 是 `true`，调 `preventDefault()` 的效果是运行时不再输出默认的错误日志。
 
 ## 示例
 

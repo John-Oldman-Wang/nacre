@@ -11,7 +11,7 @@ native: ErrorEvent()
 
 ```
 new ErrorEvent(type)
-new ErrorEvent(type, { message, error, filename, lineno, cancelable })
+new ErrorEvent(type, { message, error, filename, lineno, colno, cancelable })
 ```
 
 ### 参数
@@ -20,9 +20,9 @@ new ErrorEvent(type, { message, error, filename, lineno, cancelable })
 
 事件名，字符串。
 
-**`options.message`**、**`options.error`**、**`options.filename`**、**`options.lineno`**
+**`options.message`**、**`options.error`**、**`options.filename`**、**`options.lineno`**、**`options.colno`**
 
-可选，对应同名的属性。不传时的值**未在模拟器验证**。
+可选，对应同名的属性。不传时：`message` 和 `filename` 是空串，`lineno` 和 `colno` 是 `0`，`error` 是 `undefined`。
 
 **`options.cancelable`**
 
@@ -34,7 +34,11 @@ new ErrorEvent(type, { message, error, filename, lineno, cancelable })
 
 ### 异常
 
-没传事件名时抛 `TypeError`，和 [`Event()`](../event/constructor.md) 相同。**未在模拟器验证。**
+**`TypeError`**
+
+- 某个字段的值转换不了，见上面各个参数。
+- 没传事件名：`Failed to construct 'ErrorEvent': 1 argument required, but only 0 present.`
+- 不带 `new`，当成函数调用。
 
 ## 示例
 
@@ -44,7 +48,7 @@ const event = new ErrorEvent('error', { message: err.message, error: err });
 console.log(event.message, event.error === err);
 ```
 
-**结果**：控制台输出 `测试 true`。**未在模拟器验证。**
+**结果**：控制台输出 `测试 true`。
 
 ## 对应的 iOS API
 

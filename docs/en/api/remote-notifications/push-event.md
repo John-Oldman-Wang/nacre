@@ -17,7 +17,7 @@ application.remoteNotifications.addEventListener('push', (event) => { })
 
 A [`PushEvent`](../push-event.md), an `Event` with one extra field and one method:
 
-**`data`**
+**[`data`](../push-event/data.md)**
 
 The push content: the entire JSON object sent by the server, including `aps`. See [`data`](../push-event/data.md).
 

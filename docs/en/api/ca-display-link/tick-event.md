@@ -15,9 +15,9 @@ link.addEventListener('tick', (event) => { })
 
 ## Event object
 
-A `CADisplayLinkEvent`. Besides `type` and `target`, it carries one field:
+A [`CADisplayLinkEvent`](../ca-display-link-event.md). Besides `type` and `target`, it carries one field:
 
-**`frame`**
+**[`frame`](../ca-display-link-event/frame.md)**
 
 Three times for this frame, all in **seconds**:
 
@@ -28,8 +28,6 @@ Three times for this frame, all in **seconds**:
 | `targetTimestamp` | The time this frame's content will be displayed on screen, later than `timestamp` |
 
 These three times are only good for subtracting from each other. Their origin differs from that of `Date.now()`, so don't mix them.
-
-The callback parameter is declared as a plain `Event`. To read `frame`, cast it to `CADisplayLinkEvent` first, as in the example below.
 
 Not cancelable.
 
@@ -49,7 +47,7 @@ let last = 0;
 let x = 0;
 
 link.addEventListener('tick', (ev) => {
-  const frame = /** @type {CADisplayLinkEvent} */ (ev).frame;
+  const frame = ev.frame;
   const dt = last === 0 ? 0 : frame.timestamp - last;   // seconds since the previous callback
   last = frame.timestamp;
   x += speed * dt;

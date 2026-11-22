@@ -109,6 +109,18 @@ static const char* GestureClassName(UIGestureRecognizer* recognizer) {
   return "UIGestureRecognizer";
 }
 
+// 这个识别器的事件用哪个 JS 类建：带自己的量的三种各有一个类，别的是基类的
+static const char* GestureEventClassName(UIGestureRecognizer* recognizer) {
+  if ([recognizer isKindOfClass:UIPanGestureRecognizer.class]) return "UIPanGestureRecognizerEvent";
+  if ([recognizer isKindOfClass:UIPinchGestureRecognizer.class]) {
+    return "UIPinchGestureRecognizerEvent";
+  }
+  if ([recognizer isKindOfClass:UIRotationGestureRecognizer.class]) {
+    return "UIRotationGestureRecognizerEvent";
+  }
+  return "UIGestureRecognizerEvent";
+}
+
 // 事件负载里的一个点。和原来 location 的写法一样：六位小数，不是有限数给 null
 static NSString* GesturePointJSON(CGPoint p) {
   return (isfinite(p.x) && isfinite(p.y))
@@ -161,7 +173,8 @@ static NSString* GestureNumberJSON(CGFloat n) {
                        nacre_bridge::GestureNumberJSON(turn.velocity)];
   }
   [json appendString:@"}"];
-  nacre_bridge::NacreEmitEventWithJSON(sender, nacre_bridge::GestureClassName(sender), type, json);
+  nacre_bridge::NacreEmitEventWithJSON(sender, nacre_bridge::GestureClassName(sender), type, json,
+                                       nacre_bridge::GestureEventClassName(sender));
 }
 
 @end
@@ -176,7 +189,7 @@ static NSString* GestureNumberJSON(CGFloat n) {
                        nacre_bridge::GesturePointJSON([recognizer locationInView:recognizer.view]),
                        (unsigned long)recognizer.numberOfTouches];
   return !nacre_bridge::NacreEmitEventSync(recognizer, nacre_bridge::GestureClassName(recognizer),
-                                           @"beforebegin", json);
+                                           @"beforebegin", json, "UIGestureRecognizerEvent");
 }
 
 // 能不能和另一个同时识别：在表里就能。UIKit 两边的委托都会问，有一边答能就同时

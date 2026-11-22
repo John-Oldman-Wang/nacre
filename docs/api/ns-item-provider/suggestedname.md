@@ -20,7 +20,7 @@ native: NSItemProvider.suggestedName
 ```js
 const picker = new PHPickerViewController(new PHPickerConfiguration());
 picker.addEventListener('pick', (event) => {
-  const { results } = /** @type {PHPickerViewControllerFinishEvent} */ (event);
+  const { results } = event;
   for (const result of results) {
     console.log(result.itemProvider.suggestedName ?? '（没有名字）');
   }

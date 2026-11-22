@@ -15,14 +15,12 @@ scroller.addEventListener('beforedragend', (event) => { })
 
 ## 事件对象
 
-`UIScrollViewDragEndEvent`。除了 `type` 和 `target`（这个滚动视图），还带两个字段：
+[`UIScrollViewDragEndEvent`](../ui-scroll-view-drag-end-event.md)。除了 `type` 和 `target`（这个滚动视图），还带两个字段：
 
 | 字段 | 类型 | 可读 | 可写 | 含义 |
 | --- | --- | --- | --- | --- |
-| `velocity` | [`CGPoint`](../cg-point.md) | 是 | 否 | 松手时内容移动的速度，单位是 [pt](../units.md) 每毫秒 |
-| `targetContentOffset` | [`CGPoint`](../cg-point.md) | 是 | 是 | 内容停下时的 [`contentOffset`](contentoffset.md)，单位 pt。初值是系统算出的停下的位置 |
-
-回调参数的类型声明是 `Event`，读写这两个字段要转一下类型，见示例。
+| [`velocity`](../ui-scroll-view-drag-end-event/velocity.md) | [`CGPoint`](../cg-point.md) | 是 | 否 | 松手时内容移动的速度，单位是 [pt](../units.md) 每毫秒 |
+| [`targetContentOffset`](../ui-scroll-view-drag-end-event/targetcontentoffset.md) | [`CGPoint`](../cg-point.md) | 是 | 是 | 内容停下时的 [`contentOffset`](contentoffset.md)，单位 pt。初值是系统算出的停下的位置 |
 
 不能取消：`event.cancelable` 是 `false`，`preventDefault()` 没有效果。要让内容停在原地，把 `targetContentOffset` 写成当前的 `contentOffset`。
 
@@ -52,8 +50,7 @@ scroller.addEventListener('beforedragend', (event) => { })
 ```js
 const scroller = new UIScrollView();
 const rowHeight = 80;
-scroller.addEventListener('beforedragend', (event) => {
-  const e = /** @type {UIScrollViewDragEndEvent} */ (event);
+scroller.addEventListener('beforedragend', (e) => {
   const y = Math.round(e.targetContentOffset.y / rowHeight) * rowHeight;
   e.targetContentOffset = new CGPoint(0, y);
 });

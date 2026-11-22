@@ -15,9 +15,9 @@ picker.addEventListener('contactpropertyselect', (event) => { })
 
 ## 事件对象
 
-`Event`，多一个字段：
+[`CNContactPickerContactPropertyEvent`](../cn-contact-picker-contact-property-event.md)，多一个只读字段：
 
-**`contactProperty`**
+**[`contactProperty`](../cn-contact-picker-contact-property-event/contactproperty.md)**
 
 用户选中的那一项，[`CNContactProperty`](../cn-contact-property.md)：哪个联系人、哪个字段、哪个值。
 

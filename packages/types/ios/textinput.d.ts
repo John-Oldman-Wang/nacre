@@ -96,7 +96,7 @@ type UITextContentType =
  * | --- | --- | --- |
  * | `beforefocus` | 要不要开始编辑 | 不进入编辑，`becomeFirstResponder()` 返回 `false` |
  * | `beforeblur` | 要不要结束编辑 | 焦点留在输入框上，`resignFirstResponder()` 返回 `false` |
- * | `beforeinput` | 这次修改让不让发生 | 文字不变。事件对象是 `UITextFieldBeforeInputEvent` |
+ * | `beforeinput` | 这次修改让不让发生 | 文字不变。事件对象是 `UITextBeforeInputEvent` |
  * | `beforeclear` | 点了清除按钮，让不让清 | 不清空 |
  * | `beforereturn` | 按了回车，要不要按默认的处理 | 忽略这次回车 |
  */
@@ -114,8 +114,11 @@ type UITextFieldShouldEventType =
  */
 type UITextFieldSelectionEventType = 'selectionchange';
 
-/** `beforeinput` 的事件对象：这次修改打算把哪一段换成什么。 */
-declare interface UITextFieldBeforeInputEvent extends Event {
+/**
+ * 单行和多行输入框的 `beforeinput` 的事件对象：这次修改打算把哪一段换成什么。
+ */
+declare class UITextBeforeInputEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<UITextBeforeInputEvent, 'range' | 'replacementString'>>);
   /**
    * 要被换掉的那一段，单位是 UTF-16 码元，和 JS 字符串的下标一致。
    * 插入时 `length` 是 0；删除时是被删掉的长度。
@@ -125,38 +128,30 @@ declare interface UITextFieldBeforeInputEvent extends Event {
   readonly replacementString: string;
 }
 
+/**
+ * 单行输入框上每个事件名对应的事件对象：控件的那些，加上五个可取消的
+ * `before…` 事件（见 `UITextFieldShouldEventType`）和选区变化的 `selectionchange`。
+ */
+interface UITextFieldEventMap extends UIControlEventMap {
+  'beforefocus': Event;
+  'beforeblur': Event;
+  'beforeinput': UITextBeforeInputEvent;
+  'beforeclear': Event;
+  'beforereturn': Event;
+  'selectionchange': Event;
+}
+
 declare class UITextField extends UIControl {
   constructor();
 
-  /**
-   * 除了控件的事件，输入框还有五个可取消的 `should…` 事件（见
-   * `UITextFieldShouldEventType`），和选区变化的 `selectionchange`。
-   */
-  addEventListener(
-    type: 'beforeinput',
-    callback: EventListener<UITextFieldBeforeInputEvent> | null,
+  addEventListener<K extends keyof UITextFieldEventMap>(
+    type: K,
+    callback: ((event: UITextFieldEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
   ): void;
-  addEventListener(
-    type:
-      | UITextFieldShouldEventType
-      | UITextFieldSelectionEventType
-      | UIControlEventType
-      | UITraitChangeEventType,
-    callback: EventListener | null,
-    options?: AddEventListenerOptions,
-  ): void;
-  removeEventListener(
-    type: 'beforeinput',
-    callback: EventListener<UITextFieldBeforeInputEvent> | null,
-  ): void;
-  removeEventListener(
-    type:
-      | UITextFieldShouldEventType
-      | UITextFieldSelectionEventType
-      | UIControlEventType
-      | UITraitChangeEventType,
-    callback: EventListener | null,
+  removeEventListener<K extends keyof UITextFieldEventMap>(
+    type: K,
+    callback: ((event: UITextFieldEventMap[K]) => void) | null,
   ): void;
 
   text: string;

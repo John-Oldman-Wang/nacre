@@ -50,7 +50,7 @@
     @"duration" : @(duration),
   };
   nacre_bridge::NacreEmitEventNow(screen, "UIScreen", type,
-                                  @(nacre_bridge::EncodeJSON(payload).c_str()));
+                                  @(nacre_bridge::EncodeJSON(payload).c_str()), "UIScreenKeyboardEvent");
 }
 - (void)keyboardShow:(NSNotification*)note { [self keyboard:note type:@"keyboardshow"]; }
 - (void)keyboardHide:(NSNotification*)note { [self keyboard:note type:@"keyboardhide"]; }

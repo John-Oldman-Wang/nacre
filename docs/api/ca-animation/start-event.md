@@ -15,7 +15,7 @@ animation.addEventListener('start', (event) => { })
 
 ## 事件对象
 
-`CAAnimationEvent`，除 `type`、`target` 外不带别的字段。
+普通的 [`Event`](../event.md)，除 `type`、`target` 外不带别的字段。
 
 - `target` 是代码创建的那个动画对象，不是图层上保存的副本。
 - 不能取消。

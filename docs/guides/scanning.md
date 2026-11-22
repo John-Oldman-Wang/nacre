@@ -440,7 +440,7 @@ session.addEventListener('interruptend', () => {
   if (!session.isRunning) session.startRunning();
 });
 session.addEventListener('runtimeerror', (e) => {
-  status.text = '取景出错：' + e.message;
+  status.text = '取景出错：' + e.error.message;
 });
 ```
 

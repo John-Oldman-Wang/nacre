@@ -51,7 +51,9 @@ static const void* kNacreTextFieldDelegateKey = &kNacreTextFieldDelegateKey;
 // 返回系统要的那个 BOOL：监听器没取消就是 YES
 - (BOOL)ask:(NSString*)type field:(UITextField*)field json:(NSString*)json {
   if (![self.types containsObject:type]) return YES;
-  return !nacre_bridge::NacreEmitEventSync(field, "UITextField", type, json);
+  // 只有 beforeinput 带字段；别的几个是普通的 Event
+  const char* eventClass = [type isEqualToString:@"beforeinput"] ? "UITextBeforeInputEvent" : nullptr;
+  return !nacre_bridge::NacreEmitEventSync(field, "UITextField", type, json, eventClass);
 }
 
 - (BOOL)textFieldShouldBeginEditing:(UITextField*)textField {

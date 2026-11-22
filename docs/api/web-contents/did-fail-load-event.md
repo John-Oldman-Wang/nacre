@@ -15,14 +15,14 @@ contents.addEventListener('did-fail-load', (event) => {})
 
 ## 事件对象
 
-`WebContentsDidFailLoadEvent`，除 `type`、`target` 以外带四个字段：
+[`WebContentsDidFailLoadEvent`](../web-contents-did-fail-load-event.md)，除 `type`、`target` 以外带四个字段：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `errorCode` | 数 | 系统的错误码，见下 |
-| `errorDescription` | 字符串 | 系统给的说明。语言跟随系统，只适合打日志 |
-| `validatedURL` | 字符串 | 加载失败的那个地址 |
-| `isMainFrame` | 布尔 | 总是 `true`。网页里 `<iframe>` 的加载失败不派发这个事件 |
+| [`errorCode`](../web-contents-did-fail-load-event/errorcode.md) | 数 | 系统的错误码，见下 |
+| [`errorDescription`](../web-contents-did-fail-load-event/errordescription.md) | 字符串 | 系统给的说明。语言跟随系统，只适合打日志 |
+| [`validatedURL`](../web-contents-did-fail-load-event/validatedurl.md) | 字符串 | 加载失败的那个地址 |
+| [`isMainFrame`](../web-contents-did-fail-load-event/ismainframe.md) | 布尔 | 总是 `true`。网页里 `<iframe>` 的加载失败不派发这个事件 |
 
 常见的 `errorCode`：
 

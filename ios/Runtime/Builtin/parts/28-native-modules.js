@@ -17,7 +17,6 @@
     Event,
     EventTarget,
     define,
-    defineField,
     defineNativeClass,
     internalEventHandlers,
     kHandle,
@@ -394,9 +393,9 @@
     if (payload === null || typeof payload !== 'object') return;
     const module = modules.get(payload.module);
     if (module === undefined) return;
-    const event = new Event(String(payload.type));
-    defineField(event, 'detail', decode(payload.detail, payload.bytes));
-    module.dispatchEvent(event);
+    module.dispatchEvent(new ctx.CustomEvent(String(payload.type), {
+      detail: decode(payload.detail, payload.bytes),
+    }));
   });
 
   // application.nativeModules。挂法和能力包往 Application 上挂属性一样，只是

@@ -46,7 +46,7 @@ When the Promise is rejected, the error's `name` is:
 const picker = new PHPickerViewController(new PHPickerConfiguration());
 const imageView = new UIImageView();
 picker.addEventListener('pick', async (event) => {
-  const { results } = /** @type {PHPickerViewControllerFinishEvent} */ (event);
+  const { results } = event;
   picker.dismissViewController({ animated: true });
   if (results.length === 0) return;
   try {

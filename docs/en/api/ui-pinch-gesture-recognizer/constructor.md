@@ -33,7 +33,7 @@ Subclassing with `class X extends UIPinchGestureRecognizer {}` and then calling 
 const card = new UIView();
 const pinch = new UIPinchGestureRecognizer();
 pinch.addEventListener('changed', (e) => {
-  const { scale } = /** @type {UIPinchGestureRecognizerEvent} */ (e);
+  const { scale } = e;
   console.log(scale);
 });
 card.addGestureRecognizer(pinch);

@@ -440,7 +440,7 @@ session.addEventListener('interruptend', () => {
   if (!session.isRunning) session.startRunning();
 });
 session.addEventListener('runtimeerror', (e) => {
-  status.text = 'Capture error: ' + e.message;
+  status.text = 'Capture error: ' + e.error.message;
 });
 ```
 

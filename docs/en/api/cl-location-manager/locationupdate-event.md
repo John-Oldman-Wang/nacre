@@ -15,9 +15,9 @@ manager.addEventListener('locationupdate', (event) => { })
 
 ## Event object
 
-`CLLocationUpdateEvent`, with one extra field:
+[`CLLocationUpdateEvent`](../cl-location-update-event.md), with one extra field:
 
-**`locations`**
+**[`locations`](../cl-location-update-event/locations.md)**
 
 An array of [`CLLocation`](../cl-location.md), with at least one item, ordered from earliest to latest; **the last one is the newest**. The system sometimes reports several locations together. This field is read-only; assigning to it throws `TypeError`.
 

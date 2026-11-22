@@ -46,9 +46,11 @@ API 分两类：
 | [`Event`](event.md) | **`Event`** 表示一次事件：发生了什么（事件名）、派发给了谁、能不能取消。 |
 | [`ErrorEvent`](error-event.md) | **`ErrorEvent`** 表示一次没被捕获的异常。 |
 | [`PromiseRejectionEvent`](promise-rejection-event.md) | **`PromiseRejectionEvent`** 表示一次没有被处理的 Promise 拒绝。 |
+| [`CustomEvent`](custom-event.md) | **`CustomEvent`** 表示一次带着一份自定义数据的事件。 |
 | [`DOMException`](dom-exception.md) | **`DOMException`** 表示一个按名字分类的错误。 |
 | [`NSError`](ns-error.md) | **`NSError`** 表示 iOS 系统给出的一个错误。 |
 | [`OpenURLEvent`](open-url-event.md) | **`OpenURLEvent`** 表示一次「本 App 被一条链接打开」。 |
+| [`SceneEvent`](scene-event.md) | **`SceneEvent`** 表示一个场景接入或断开。 |
 | [`application.nativeModules`](native-modules.md) | **`application.nativeModules`** 表示登记进这个 App 的全部原生模块。 |
 | [`NativeModule`](native-module.md) | **`NativeModule`** 表示一个登记进 App 的原生模块：一段用 ObjC 或 Swift 写的代码，按一个名字提供一组方法和一组事件。 |
 
@@ -57,22 +59,27 @@ API 分两类：
 | 页面 | 说明 |
 | --- | --- |
 | [`UIWindowScene`](ui-window-scene.md) | **`UIWindowScene`** 表示 App 界面的一个实例，称为场景。 |
+| [`UIWindowSceneGeometryChangeEvent`](ui-window-scene-geometry-change-event.md) | **`UIWindowSceneGeometryChangeEvent`** 表示场景的几何信息变了，比如手机转了方向。 |
 | [`UIWindowSceneGeometry`](ui-window-scene-geometry.md) | **`UIWindowSceneGeometry`** 表示场景在某一刻的几何信息：界面的方向、方向是不是锁着。 |
 | [`UIWindowSceneGeometryPreferencesIOS`](ui-window-scene-geometry-preferences-ios.md) | **`UIWindowSceneGeometryPreferencesIOS`** 表示请求转屏时的偏好：想要哪几个方向。 |
 | [`UIStatusBarManager`](ui-status-bar-manager.md) | **`UIStatusBarManager`** 表示场景的状态栏此刻的样子。 |
 | [`UISceneSession`](ui-scene-session.md) | **`UISceneSession`** 表示场景的会话：场景的持久身份。 |
 | [`UIWindow`](ui-window.md) | **`UIWindow`** 表示窗口：一个场景里承载界面的最外层视图。 |
 | [`UIViewController`](ui-view-controller.md) | **`UIViewController`** 表示一屏内容的管理者，下文称为页面。 |
+| [`UIViewControllerAppearanceEvent`](ui-view-controller-appearance-event.md) | **`UIViewControllerAppearanceEvent`** 表示页面即将出现、已经出现、即将消失、已经消失。 |
 | [`UINavigationController`](ui-navigation-controller.md) | **`UINavigationController`** 表示一个页面栈，称为导航控制器。 |
+| [`UINavigationControllerEvent`](ui-navigation-controller-event.md) | **`UINavigationControllerEvent`** 表示导航控制器即将显示、或者已经显示了某一页。 |
 | [`UINavigationItem`](ui-navigation-item.md) | **`UINavigationItem`** 表示一个页面在导航条上的配置：正中的标题、副标题、下一页返回按钮上的字、左右两侧各有哪些按钮。 |
 | [`UIBarItem`](ui-bar-item.md) | **`UIBarItem`** 表示导航条或标签栏上一个项的公共部分：文字、图标、能不能点、编号。 |
 | [`UIBarButtonItem`](ui-bar-button-item.md) | **`UIBarButtonItem`** 表示导航条上的一个按钮。 |
 | [`UITabBarController`](ui-tab-bar-controller.md) | **`UITabBarController`** 表示一个带标签栏的界面，称为标签控制器。 |
+| [`UITabBarControllerEvent`](ui-tab-bar-controller-event.md) | **`UITabBarControllerEvent`** 表示用户在标签栏上点中了一页。 |
 | [`UITabBar`](ui-tab-bar.md) | **`UITabBar`** 表示标签控制器屏幕底部的那一排标签。 |
 | [`UITabBarItem`](ui-tab-bar-item.md) | **`UITabBarItem`** 表示底部标签栏上的一个标签：图标、图标下面的文字、右上角的角标。 |
 | [`UIAlertController`](ui-alert-controller.md) | **`UIAlertController`** 表示一个系统弹窗：一段标题、一段说明文字，加上若干个按钮。 |
 | [`UIAlertAction`](ui-alert-action.md) | **`UIAlertAction`** 表示系统弹窗上的一个按钮。 |
 | [`UIActivityViewController`](ui-activity-view-controller.md) | **`UIActivityViewController`** 表示系统的分享面板。 |
+| [`UIActivityViewControllerCompletionEvent`](ui-activity-view-controller-completion-event.md) | **`UIActivityViewControllerCompletionEvent`** 表示系统的分享面板结束了，带着用户选了什么、做没做完。 |
 
 ### 视图和布局
 
@@ -88,6 +95,7 @@ API 分两类：
 | [`UIKeyboardLayoutGuide`](ui-keyboard-layout-guide.md) | **`UIKeyboardLayoutGuide`** 表示键盘所占区域的 layout guide。 |
 | [`UIStackView`](ui-stack-view.md) | **`UIStackView`** 表示一个排列容器。 |
 | [`UIScrollView`](ui-scroll-view.md) | **`UIScrollView`** 表示一个可以滚动的视图，称为滚动视图。 |
+| [`UIScrollViewDragEndEvent`](ui-scroll-view-drag-end-event.md) | **`UIScrollViewDragEndEvent`** 表示用户拖动滚动视图之后、松手的那一刻。 |
 | [`UIVisualEffectView`](ui-visual-effect-view.md) | **`UIVisualEffectView`** 表示一块带效果的区域。 |
 | [`UIVisualEffect`](ui-visual-effect.md) | **`UIVisualEffect`** 表示一种视觉效果，是四种效果的共同父类：`UIBlurEffect`（模糊）、`UIVibrancyEffect`（鲜明）、`UIGlassEffect`（玻璃）、`UIGlassContainerEffect`（玻璃容器）。 |
 | [`UIBlurEffect`](ui-blur-effect.md) | **`UIBlurEffect`** 表示一种模糊效果：把效果视图后面的画面变模糊，并盖上一层半透明的颜色。 |
@@ -117,6 +125,7 @@ API 分两类：
 | 页面 | 说明 |
 | --- | --- |
 | [`UICollectionView`](ui-collection-view.md) | **`UICollectionView`** 表示一个能滚动的列表。 |
+| [`UICollectionViewItemEvent`](ui-collection-view-item-event.md) | **`UICollectionViewItemEvent`** 表示列表里某一项发生的事：被选中、取消选中、要显示、不再显示。 |
 | [`UICollectionViewDiffableDataSource`](ui-collection-view-diffable-data-source.md) | **`UICollectionViewDiffableDataSource`** 表示一个列表的数据源：它决定 `UICollectionView` 显示哪些项、每一项长什么样。 |
 | [`NSDiffableDataSourceSnapshot`](ns-diffable-data-source-snapshot.md) | **`NSDiffableDataSourceSnapshot`** 表示一份列表数据的清单：有哪些分区、每个分区里有哪些项、什么顺序。 |
 | [`NSIndexPath`](ns-index-path.md) | **`NSIndexPath`** 表示一项在列表里的位置：第 `section` 个分区里的第 `item` 项，都从 0 数。 |
@@ -139,6 +148,7 @@ API 分两类：
 | [`BarcodeDetector`](barcode-detector.md) | **`BarcodeDetector`** 表示在一张图片里找条码的检测器。 |
 | [`UIColor`](ui-color.md) | **`UIColor`** 表示一个颜色。 |
 | [`UITraitCollection`](ui-trait-collection.md) | **`UITraitCollection`** 表示界面当前所处环境的一组值：现在是深色还是浅色，屏幕上 1 pt 对应几个像素，用户把系统的文字大小设到了哪一档，等等。 |
+| [`UITraitChangeEvent`](ui-trait-change-event.md) | **`UITraitChangeEvent`** 表示界面所处环境的一组值变了，比如深色模式开关、字号设置。 |
 | [`NSAttributedString`](ns-attributed-string.md) | **`NSAttributedString`** 表示一段带样式的文字，称为富文本：一个字符串，加上每一段上的一组属性。 |
 | [`NSMutableAttributedString`](ns-mutable-attributed-string.md) | **`NSMutableAttributedString`** 表示一段可以改的富文本：可以给某一段加属性、去掉属性，拼接、插入、替换、删除文字。 |
 | [`NSParagraphStyle`](ns-paragraph-style.md) | **`NSParagraphStyle`** 表示一组段落样式：对齐、行距、段距、缩进、换行方式。 |
@@ -151,6 +161,7 @@ API 分两类：
 | 页面 | 说明 |
 | --- | --- |
 | [`UIControl`](ui-control.md) | **`UIControl`** 表示一个控件：一种能接收触摸的视图，它把一次触摸的过程转换成一组「控件事件」派发出来。 |
+| [`UIControlTouchEvent`](ui-control-touch-event.md) | **`UIControlTouchEvent`** 表示控件上的一次触摸事件：手指按下、移动、松开、被打断。 |
 | [`UIButton`](ui-button.md) | **`UIButton`** 表示一个按钮：屏幕上一块可以点击的区域，上面显示文字、图标，或者两者都有。 |
 | [`UISwitch`](ui-switch.md) | **`UISwitch`** 表示一个开关：一条短轨道上有一个圆钮，圆钮在左边是关，在右边是开。 |
 | [`UISlider`](ui-slider.md) | **`UISlider`** 表示一个滑块：一条横着的轨道上有一个圆钮，用户拖动圆钮在一个范围里选一个数。 |
@@ -161,6 +172,8 @@ API 分两类：
 | [`UIColorWell`](system-controls.md) | **`UIColorWell`** 表示一个取色控件：一个显示当前颜色的小圆钮。 |
 | [`UITextField`](ui-text-field.md) | **`UITextField`** 表示一个单行输入框。 |
 | [`UITextView`](ui-text-view.md) | **`UITextView`** 表示一块可以输入多行文字的区域。 |
+| [`UITextBeforeInputEvent`](ui-text-before-input-event.md) | **`UITextBeforeInputEvent`** 表示用户对输入框内容的一次修改，在修改生效之前。 |
+| [`UITextViewLinkClickEvent`](ui-text-view-link-click-event.md) | **`UITextViewLinkClickEvent`** 表示用户点了多行文字里的一个链接，在系统打开它之前。 |
 | [`NSTextContainer`](ns-text-container.md) | **`NSTextContainer`** 表示 `UITextView` 里文字排版的区域：每行左右空多少、最多排几行、一行排不下时怎么处理。 |
 | [`UISearchBar`](ui-search-bar.md) | **`UISearchBar`** 表示一个搜索框：一个带放大镜图标的单行输入框，右端有清空按钮。 |
 
@@ -169,11 +182,15 @@ API 分两类：
 | 页面 | 说明 |
 | --- | --- |
 | [`UIGestureRecognizer`](ui-gesture-recognizer.md) | **`UIGestureRecognizer`** 表示一个手势识别器：一个加在视图上的对象，它观察这个视图上的触摸，认出某种手势时派发事件。 |
+| [`UIGestureRecognizerEvent`](ui-gesture-recognizer-event.md) | **`UIGestureRecognizerEvent`** 表示手势识别器的一次事件：手势要开始、开始、变化、结束、被取消。 |
 | [`UITapGestureRecognizer`](ui-tap-gesture-recognizer.md) | **`UITapGestureRecognizer`** 表示一个点按识别器：手指按下后很快抬起时认出手势。 |
 | [`UILongPressGestureRecognizer`](ui-long-press-gesture-recognizer.md) | **`UILongPressGestureRecognizer`** 表示一个长按识别器：手指按住不动一段时间时认出手势，默认是 0.5 秒。 |
 | [`UIPanGestureRecognizer`](ui-pan-gesture-recognizer.md) | **`UIPanGestureRecognizer`** 表示一个拖动识别器：手指按下并移动时认出手势。 |
+| [`UIPanGestureRecognizerEvent`](ui-pan-gesture-recognizer-event.md) | **`UIPanGestureRecognizerEvent`** 表示拖动手势的一次事件：开始、移动、结束、被取消。 |
 | [`UIPinchGestureRecognizer`](ui-pinch-gesture-recognizer.md) | **`UIPinchGestureRecognizer`** 表示一个捏合识别器：两根手指张开或捏拢时认出手势。 |
+| [`UIPinchGestureRecognizerEvent`](ui-pinch-gesture-recognizer-event.md) | **`UIPinchGestureRecognizerEvent`** 表示捏合手势的一次事件：开始、变化、结束、被取消。 |
 | [`UIRotationGestureRecognizer`](ui-rotation-gesture-recognizer.md) | **`UIRotationGestureRecognizer`** 表示一个旋转识别器：两根手指绕着彼此转动时认出手势。 |
+| [`UIRotationGestureRecognizerEvent`](ui-rotation-gesture-recognizer-event.md) | **`UIRotationGestureRecognizerEvent`** 表示旋转手势的一次事件：开始、变化、结束、被取消。 |
 | [`UISwipeGestureRecognizer`](ui-swipe-gesture-recognizer.md) | **`UISwipeGestureRecognizer`** 表示一个轻扫识别器：手指朝指定的方向快速划过时认出手势。 |
 | [`UIScreenEdgePanGestureRecognizer`](ui-screen-edge-pan-gesture-recognizer.md) | **`UIScreenEdgePanGestureRecognizer`** 表示一个屏幕边缘拖动识别器：只识别从屏幕边缘开始、向内的拖动。 |
 
@@ -186,6 +203,7 @@ API 分两类：
 | [`CAShapeLayer`](ca-shape-layer.md) | **`CAShapeLayer`** 表示形状图层：把一条路径（`UIBezierPath`）画出来。 |
 | [`UIBezierPath`](ui-bezier-path.md) | **`UIBezierPath`** 表示一条路径：由直线段、曲线段和圆弧连成的几何形状。 |
 | [`CAAnimation`](ca-animation.md) | **`CAAnimation`** 表示一段作用在图层上的动画：在一段时间里，让图层的某个属性（不透明度、位置、圆角、颜色、路径等）从一个值连续变到另一个值。 |
+| [`CAAnimationEvent`](ca-animation-event.md) | **`CAAnimationEvent`** 表示一段动画停了：播放到了结尾，或者中途被移除。 |
 | [`CAPropertyAnimation`](ca-property-animation.md) | **`CAPropertyAnimation`** 表示改图层某一个属性的动画。 |
 | [`CABasicAnimation`](ca-basic-animation.md) | **`CABasicAnimation`** 表示让图层的一个属性从一个值变到另一个值的动画。 |
 | [`CAKeyframeAnimation`](ca-keyframe-animation.md) | **`CAKeyframeAnimation`** 表示让图层的一个属性依次经过几个值的动画，或者让图层沿一条路径移动的动画。 |
@@ -194,6 +212,7 @@ API 分两类：
 | [`CAMediaTimingFunction`](ca-media-timing-function.md) | **`CAMediaTimingFunction`** 表示一条时间曲线。 |
 | [`CATransaction`](ca-transaction.md) | **`CATransaction`** 表示事务：一组一起交给系统的图层修改。 |
 | [`CADisplayLink`](ca-display-link.md) | **`CADisplayLink`** 表示一个和屏幕刷新同步的定时器。 |
+| [`CADisplayLinkEvent`](ca-display-link-event.md) | **`CADisplayLinkEvent`** 表示屏幕刷新的一帧。 |
 | [`NSRunLoop`](ns-run-loop.md) | **`NSRunLoop`** 表示一个线程的事件循环。 |
 
 ### 网络
@@ -212,6 +231,8 @@ API 分两类：
 | [`URL`](url.md) | **`URL`** 表示一个解析好的地址。 |
 | [`URLSearchParams`](url-search-params.md) | **`URLSearchParams`** 表示地址里 `?` 后面的那一串查询参数。 |
 | [`WebSocket`](websocket.md) | **`WebSocket`** 表示 App 和服务器之间的一条长连接。 |
+| [`MessageEvent`](message-event.md) | **`MessageEvent`** 表示收到的一条消息。 |
+| [`CloseEvent`](close-event.md) | **`CloseEvent`** 表示一条连接结束了。 |
 | [`application.network`](network.md) | **`application.network`** 表示设备此刻的网络状态：有没有连上网络、走的是哪种网络、这个网络是不是按流量计费。 |
 
 ### 网页
@@ -220,6 +241,13 @@ API 分两类：
 | --- | --- |
 | [`WebView`](web-view.md) | **`WebView`** 表示一个显示网页的视图。 |
 | [`WebContents`](web-contents.md) | **`WebContents`** 表示 `WebView` 里的那张网页。 |
+| [`WebContentsWillNavigateEvent`](web-contents-will-navigate-event.md) | **`WebContentsWillNavigateEvent`** 表示网页自己发起了一次跳转，在跳转开始之前。 |
+| [`WebContentsDidNavigateEvent`](web-contents-did-navigate-event.md) | **`WebContentsDidNavigateEvent`** 表示网页换到了一个新的地址。 |
+| [`WebContentsDidFailLoadEvent`](web-contents-did-fail-load-event.md) | **`WebContentsDidFailLoadEvent`** 表示网页加载失败了。 |
+| [`WebContentsIpcMessageEvent`](web-contents-ipc-message-event.md) | **`WebContentsIpcMessageEvent`** 表示网页通过消息通道发来的一条消息。 |
+| [`WebContentsPreloadErrorEvent`](web-contents-preload-error-event.md) | **`WebContentsPreloadErrorEvent`** 表示预加载脚本执行时抛了异常。 |
+| [`WebContentsPageTitleUpdatedEvent`](web-contents-page-title-updated-event.md) | **`WebContentsPageTitleUpdatedEvent`** 表示网页的标题变了。 |
+| [`WebContentsConsoleMessageEvent`](web-contents-console-message-event.md) | **`WebContentsConsoleMessageEvent`** 表示网页往 `console` 里写了一条日志。 |
 | [`NavigationHistory`](navigation-history.md) | **`NavigationHistory`** 表示一张网页的后退和前进：能不能后退、前进，以及后退、前进一页。 |
 | [`WebContentsIPC`](web-contents-ipc.md) | **`WebContentsIPC`** 表示一张网页的请求-应答通道在 App 这一头。 |
 | [`ipcRenderer`](ipc-renderer.md) | **`ipcRenderer`** 表示消息通道在网页那一头：网页给 App 发消息、向 App 要结果、收 App 发来的消息，都用它。 |
@@ -256,6 +284,7 @@ API 分两类：
 | --- | --- |
 | [`UIDevice`](ui-device.md) | **`UIDevice`** 表示运行 App 的这台设备。 |
 | [`UIScreen`](ui-screen.md) | **`UIScreen`** 表示一块屏幕：它的大小、像素密度、亮度、刷新率，以及此刻有没有被录制。 |
+| [`UIScreenKeyboardEvent`](ui-screen-keyboard-event.md) | **`UIScreenKeyboardEvent`** 表示屏幕键盘出现、收起或者改变位置大小。 |
 | [`UIScreenMode`](ui-screen-mode.md) | **`UIScreenMode`** 表示屏幕的一种显示模式：一种分辨率和像素形状。 |
 | [`UIPasteboard`](ui-pasteboard.md) | **`UIPasteboard`** 表示系统剪贴板。 |
 | [`UIFeedbackGenerator`](ui-feedback-generator.md) | **`UIFeedbackGenerator`** 表示一个触感反馈的生成器。 |
@@ -270,10 +299,14 @@ API 分两类：
 | [`application.keychain`](keychain.md) | **`application.keychain`** 表示 App 在钥匙串里的条目。 |
 | [`LAContext`](la-context.md) | **`LAContext`** 表示一次「确认现在拿着手机的人是机主」的认证。 |
 | [`CLLocationManager`](cl-location-manager.md) | **`CLLocationManager`** 表示 App 向系统要位置的一个入口。 |
+| [`CLLocationUpdateEvent`](cl-location-update-event.md) | **`CLLocationUpdateEvent`** 表示系统报上来了新的位置。 |
+| [`CLLocationErrorEvent`](cl-location-error-event.md) | **`CLLocationErrorEvent`** 表示定位出了错。 |
 | [`CLLocation`](cl-location.md) | **`CLLocation`** 表示系统量到的一个位置：经纬度、海拔、各个量的误差、速度、移动方向，以及这个位置是什么时候量的。 |
 | [`CLLocationCoordinate2D`](cl-location-coordinate-2d.md) | **`CLLocationCoordinate2D`** 表示地球上一个点的经纬度，单位是度。 |
 | [`CLLocationError`](cl-location-error.md) | **`CLLocationError`** 是定位出错时得到的错误。 |
 | [`UNUserNotificationCenter`](un-user-notification-center.md) | **`UNUserNotificationCenter`** 表示这个 App 和系统的通知功能之间的入口，整个 App 只有一个。 |
+| [`UNNotificationPresentEvent`](un-notification-present-event.md) | **`UNNotificationPresentEvent`** 表示 App 在前台时，一条通知送达了。 |
+| [`UNNotificationResponseEvent`](un-notification-response-event.md) | **`UNNotificationResponseEvent`** 表示用户点了一条通知。 |
 | [`UNNotificationRequest`](un-notification-request.md) | **`UNNotificationRequest`** 表示一条要发的通知：标识、内容、什么时候送达。 |
 | [`UNNotificationContent`](un-notification-content.md) | **`UNNotificationContent`** 表示一条通知只读的内容：从请求的 `content` 读出来的，包括已经送达的通知和远程推送的通知里的。 |
 | [`UNMutableNotificationContent`](un-mutable-notification-content.md) | **`UNMutableNotificationContent`** 表示自己写的一条通知的内容：标题、副标题、正文、角标、声音、分组的标识、跟着通知走的数据。 |
@@ -288,22 +321,30 @@ API 分两类：
 | [`RemoteNotifications`](remote-notifications.md) | **`RemoteNotifications`** 表示这个 App 的远程推送：向 Apple 的推送服务注册、拿到这台设备的令牌，以及收到静默推送。 |
 | [`PushEvent`](push-event.md) | **`PushEvent`** 表示一条到达的静默推送。 |
 | [`UIImagePickerController`](ui-image-picker-controller.md) | **`UIImagePickerController`** 表示系统的拍照界面。 |
+| [`UIImagePickerControllerMediaEvent`](ui-image-picker-controller-media-event.md) | **`UIImagePickerControllerMediaEvent`** 表示用户在系统的拍照界面里拍好了一张照片。 |
 | [`AVCaptureSession`](av-capture-session.md) | **`AVCaptureSession`** 表示一次取景：它把摄像头送来的画面交给加在它上面的输出和取景图层。 |
+| [`AVCaptureSessionInterruptEvent`](av-capture-session-interrupt-event.md) | **`AVCaptureSessionInterruptEvent`** 表示取景被系统打断了。 |
+| [`AVCaptureSessionRuntimeErrorEvent`](av-capture-session-runtime-error-event.md) | **`AVCaptureSessionRuntimeErrorEvent`** 表示取景中出了错。 |
 | [`AVCaptureDevice`](av-capture-device.md) | **`AVCaptureDevice`** 表示手机上的一个摄像头。 |
 | [`AVCaptureInput`](av-capture-input.md) | **`AVCaptureInput`** 表示 `AVCaptureSession` 的一个输入：画面从哪里来。 |
 | [`AVCaptureDeviceInput`](av-capture-device-input.md) | **`AVCaptureDeviceInput`** 表示把一个摄像头接进 `AVCaptureSession` 的输入。 |
 | [`AVCaptureOutput`](av-capture-output.md) | **`AVCaptureOutput`** 表示 `AVCaptureSession` 的一个输出：会话把画面交给它处理。 |
 | [`AVCaptureMetadataOutput`](av-capture-metadata-output.md) | **`AVCaptureMetadataOutput`** 表示从取景画面里识别码、人脸这类东西的输出。 |
+| [`AVCaptureMetadataOutputDetectEvent`](av-capture-metadata-output-detect-event.md) | **`AVCaptureMetadataOutputDetectEvent`** 表示取景画面的一帧里认到了要找的东西，比如二维码。 |
 | [`AVMetadataObject`](av-metadata-object.md) | **`AVMetadataObject`** 表示 `AVCaptureMetadataOutput` 在一帧画面里认到的一样东西。 |
 | [`AVMetadataMachineReadableCodeObject`](av-metadata-machine-readable-code-object.md) | **`AVMetadataMachineReadableCodeObject`** 表示在取景画面里认到的一个码：二维码、商品条码这类。 |
 | [`AVCaptureVideoPreviewLayer`](av-capture-video-preview-layer.md) | **`AVCaptureVideoPreviewLayer`** 表示显示摄像头取景画面的图层，称为取景图层。 |
 | [`PHPickerViewController`](photos.md) | **`PHPickerViewController`** 表示系统的选图界面。 |
+| [`PHPickerViewControllerFinishEvent`](ph-picker-view-controller-finish-event.md) | **`PHPickerViewControllerFinishEvent`** 表示用户在系统的选图界面里选好了，或者点了取消。 |
 | [`PHPickerConfiguration`](ph-picker-configuration.md) | **`PHPickerConfiguration`** 表示选图界面的配置：最多选几项、显示哪些类型、选中的方式、界面的样子。 |
 | [`PHPickerFilter`](ph-picker-filter.md) | **`PHPickerFilter`** 表示选图界面里显示哪些类型，比如只显示图片、只显示视频、图片里去掉截屏。 |
 | [`PHPickerResult`](ph-picker-result.md) | **`PHPickerResult`** 表示用户在选图界面里选中的一项。 |
 | [`NSItemProvider`](ns-item-provider.md) | **`NSItemProvider`** 表示一项内容的提供者。 |
 | [`PHPhotoLibrary`](ph-photo-library.md) | **`PHPhotoLibrary`** 表示系统的相册。 |
 | [`CNContactPickerViewController`](contacts.md) | **`CNContactPickerViewController`** 表示系统的选联系人界面。 |
+| [`CNContactPickerContactEvent`](cn-contact-picker-contact-event.md) | **`CNContactPickerContactEvent`** 表示用户在系统的选联系人界面里点了一个联系人。 |
+| [`CNContactPickerContactsEvent`](cn-contact-picker-contacts-event.md) | **`CNContactPickerContactsEvent`** 表示用户在系统的选联系人界面里勾选了几个联系人，点了「完成」。 |
+| [`CNContactPickerContactPropertyEvent`](cn-contact-picker-contact-property-event.md) | **`CNContactPickerContactPropertyEvent`** 表示用户在系统的选联系人界面里，点了某个联系人详情里的一项，比如一个电话号码。 |
 | [`CNContact`](cn-contact.md) | **`CNContact`** 表示通讯录里的一个联系人：姓名、公司、电话、邮箱。 |
 | [`CNLabeledValue`](cn-labeled-value.md) | **`CNLabeledValue`** 表示联系人的一个电话或一个邮箱，连同它的标签。 |
 | [`CNPhoneNumber`](cn-phone-number.md) | **`CNPhoneNumber`** 表示一个电话号码。 |
@@ -318,5 +359,5 @@ API 分两类：
 
 **有**：完整的 ES 标准库，而且版本相当新——`Iterator`（迭代器辅助方法）、`DisposableStack` / `AsyncDisposableStack` / `SuppressedError`（显式资源管理）、`Float16Array`、`Atomics`、`SharedArrayBuffer`、`WeakRef`、`FinalizationRegistry` 都在。`Promise` 和微任务队列正常工作。`eval` 和 `new Function` 照常可用。
 
-运行时装入的**非标准全局**：`console`、`EventTarget` / `Event`（及 `ErrorEvent`、`PromiseRejectionEvent`）、`application`，以及上面列出的原生类和结构体类。
+运行时装入的**非标准全局**：`console`、`EventTarget` / `Event`（及它的子类，见[带字段的事件](event.md#带字段的事件)）、`application`，以及上面列出的原生类和结构体类。
 

@@ -33,11 +33,9 @@ type UIScrollTypeMask = 'discrete' | 'continuous';
 /**
  * 手势事件带的数据。
  *
- * 回调参数的类型没有窄化（`EventTarget` 的基类签名不允许），要拿就转一下型：
- *
  * ```js
  * tap.addEventListener('ended', (e) => {
- *   const { location } = /** @type {UIGestureRecognizerEvent} *\/ (e);
+ *   const { location } = e;
  * });
  * ```
  *
@@ -46,7 +44,8 @@ type UIScrollTypeMask = 'discrete' | 'continuous';
  * 拖动、捏合、旋转的事件各自多带两个字段，见 `UIPanGestureRecognizerEvent`、
  * `UIPinchGestureRecognizerEvent`、`UIRotationGestureRecognizerEvent`。
  */
-declare interface UIGestureRecognizerEvent extends Event {
+declare class UIGestureRecognizerEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<UIGestureRecognizerEvent, 'location' | 'numberOfTouches'>>);
   /**
    * 手势的位置，在**识别器所在视图的坐标系**里，单位是点。多根手指时是
    * 它们的中心。要别的坐标系用 `view.convertPoint()`。
@@ -60,7 +59,8 @@ declare interface UIGestureRecognizerEvent extends Event {
  * 拖动（`UIPanGestureRecognizer`、`UIScreenEdgePanGestureRecognizer`）的事件
  * 带的数据。
  */
-declare interface UIPanGestureRecognizerEvent extends UIGestureRecognizerEvent {
+declare class UIPanGestureRecognizerEvent extends UIGestureRecognizerEvent {
+  constructor(type: string, init?: EventInit & Partial<Pick<UIPanGestureRecognizerEvent, 'location' | 'numberOfTouches' | 'translation' | 'velocity'>>);
   /**
    * 从手势开始到这个事件为止，手指移动了多少。在**识别器所在视图的坐标系**
    * 里，单位是点。
@@ -71,7 +71,8 @@ declare interface UIPanGestureRecognizerEvent extends UIGestureRecognizerEvent {
 }
 
 /** 捏合（`UIPinchGestureRecognizer`）的事件带的数据。 */
-declare interface UIPinchGestureRecognizerEvent extends UIGestureRecognizerEvent {
+declare class UIPinchGestureRecognizerEvent extends UIGestureRecognizerEvent {
+  constructor(type: string, init?: EventInit & Partial<Pick<UIPinchGestureRecognizerEvent, 'location' | 'numberOfTouches' | 'scale' | 'velocity'>>);
   /** 两指间距相对手势开始时的倍数。张开大于 1，捏拢小于 1。 */
   readonly scale: number;
   /** `scale` 每秒变化多少。 */
@@ -79,11 +80,48 @@ declare interface UIPinchGestureRecognizerEvent extends UIGestureRecognizerEvent
 }
 
 /** 旋转（`UIRotationGestureRecognizer`）的事件带的数据。 */
-declare interface UIRotationGestureRecognizerEvent extends UIGestureRecognizerEvent {
+declare class UIRotationGestureRecognizerEvent extends UIGestureRecognizerEvent {
+  constructor(type: string, init?: EventInit & Partial<Pick<UIRotationGestureRecognizerEvent, 'location' | 'numberOfTouches' | 'rotation' | 'velocity'>>);
   /** 相对手势开始时转了多少，单位是**弧度**。 */
   readonly rotation: number;
   /** 旋转的速度，单位是弧度每秒。 */
   readonly velocity: number;
+}
+
+/** 识别器上每个事件名对应的事件对象。 */
+interface UIGestureRecognizerEventMap {
+  'beforebegin': UIGestureRecognizerEvent;
+  'began': UIGestureRecognizerEvent;
+  'changed': UIGestureRecognizerEvent;
+  'ended': UIGestureRecognizerEvent;
+  'cancelled': UIGestureRecognizerEvent;
+}
+
+/**
+ * 拖动识别器（包括屏幕边缘的）上每个事件名对应的事件对象。`beforebegin` 是
+ * 基类的事件对象，没有拖动的字段。
+ */
+interface UIPanGestureRecognizerEventMap extends UIGestureRecognizerEventMap {
+  'began': UIPanGestureRecognizerEvent;
+  'changed': UIPanGestureRecognizerEvent;
+  'ended': UIPanGestureRecognizerEvent;
+  'cancelled': UIPanGestureRecognizerEvent;
+}
+
+/** 捏合识别器上每个事件名对应的事件对象。`beforebegin` 是基类的事件对象。 */
+interface UIPinchGestureRecognizerEventMap extends UIGestureRecognizerEventMap {
+  'began': UIPinchGestureRecognizerEvent;
+  'changed': UIPinchGestureRecognizerEvent;
+  'ended': UIPinchGestureRecognizerEvent;
+  'cancelled': UIPinchGestureRecognizerEvent;
+}
+
+/** 旋转识别器上每个事件名对应的事件对象。`beforebegin` 是基类的事件对象。 */
+interface UIRotationGestureRecognizerEventMap extends UIGestureRecognizerEventMap {
+  'began': UIRotationGestureRecognizerEvent;
+  'changed': UIRotationGestureRecognizerEvent;
+  'ended': UIRotationGestureRecognizerEvent;
+  'cancelled': UIRotationGestureRecognizerEvent;
 }
 
 /**
@@ -103,14 +141,14 @@ declare interface UIRotationGestureRecognizerEvent extends UIGestureRecognizerEv
  */
 declare class UIGestureRecognizer extends NSObject {
   constructor();
-  addEventListener(
-    type: UIGestureRecognizerEventType,
-    callback: EventListener | null,
+  addEventListener<K extends keyof UIGestureRecognizerEventMap>(
+    type: K,
+    callback: ((event: UIGestureRecognizerEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
   ): void;
-  removeEventListener(
-    type: UIGestureRecognizerEventType,
-    callback: EventListener | null,
+  removeEventListener<K extends keyof UIGestureRecognizerEventMap>(
+    type: K,
+    callback: ((event: UIGestureRecognizerEventMap[K]) => void) | null,
   ): void;
 
   /**
@@ -189,6 +227,15 @@ declare class UILongPressGestureRecognizer extends UIGestureRecognizer {
  */
 declare class UIPanGestureRecognizer extends UIGestureRecognizer {
   constructor();
+  addEventListener<K extends keyof UIPanGestureRecognizerEventMap>(
+    type: K,
+    callback: ((event: UIPanGestureRecognizerEventMap[K]) => void) | null,
+    options?: AddEventListenerOptions,
+  ): void;
+  removeEventListener<K extends keyof UIPanGestureRecognizerEventMap>(
+    type: K,
+    callback: ((event: UIPanGestureRecognizerEventMap[K]) => void) | null,
+  ): void;
   /** 最少要几根手指。默认 1。 */
   minimumNumberOfTouches: number;
   /** 最多能有几根手指按着。默认 4294967295，等于不限。 */
@@ -225,6 +272,15 @@ declare class UIPanGestureRecognizer extends UIGestureRecognizer {
  */
 declare class UIPinchGestureRecognizer extends UIGestureRecognizer {
   constructor();
+  addEventListener<K extends keyof UIPinchGestureRecognizerEventMap>(
+    type: K,
+    callback: ((event: UIPinchGestureRecognizerEventMap[K]) => void) | null,
+    options?: AddEventListenerOptions,
+  ): void;
+  removeEventListener<K extends keyof UIPinchGestureRecognizerEventMap>(
+    type: K,
+    callback: ((event: UIPinchGestureRecognizerEventMap[K]) => void) | null,
+  ): void;
   /**
    * 两指间距相对手势开始时的倍数。默认 1。可写：手势进行中写它，之后从写进去
    * 的值接着算。
@@ -241,6 +297,15 @@ declare class UIPinchGestureRecognizer extends UIGestureRecognizer {
  */
 declare class UIRotationGestureRecognizer extends UIGestureRecognizer {
   constructor();
+  addEventListener<K extends keyof UIRotationGestureRecognizerEventMap>(
+    type: K,
+    callback: ((event: UIRotationGestureRecognizerEventMap[K]) => void) | null,
+    options?: AddEventListenerOptions,
+  ): void;
+  removeEventListener<K extends keyof UIRotationGestureRecognizerEventMap>(
+    type: K,
+    callback: ((event: UIRotationGestureRecognizerEventMap[K]) => void) | null,
+  ): void;
   /** 相对手势开始时转了多少，单位是**弧度**。默认 0。可写。 */
   rotation: number;
   /** 旋转的速度，单位是弧度每秒。没有手势在进行时是 0。 */

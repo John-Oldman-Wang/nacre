@@ -193,18 +193,16 @@ type PHPickerViewControllerEventType = 'pick';
 
 /**
  * `pick` 事件带的数据。
- *
- * 回调参数的类型没有窄化（`EventTarget` 的基类签名不允许），要拿就转一下型：
- *
- * ```js
- * picker.addEventListener('pick', (e) => {
- *   const { results } = /** @type {PHPickerViewControllerFinishEvent} *\/ (e);
- * });
- * ```
  */
-declare interface PHPickerViewControllerFinishEvent extends Event {
+declare class PHPickerViewControllerFinishEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<PHPickerViewControllerFinishEvent, 'results'>>);
   /** 选中的那几项。用户点了取消时是空数组。 */
   readonly results: readonly PHPickerResult[];
+}
+
+/** 选图界面上每个事件名对应的事件对象：自己的 `pick`，加上页面的那些。 */
+interface PHPickerViewControllerEventMap extends UIViewControllerEventMap {
+  'pick': PHPickerViewControllerFinishEvent;
 }
 
 /**
@@ -221,7 +219,7 @@ declare interface PHPickerViewControllerFinishEvent extends Event {
  * config.filter = PHPickerFilter.imagesFilter;
  * const picker = new PHPickerViewController(config);
  * picker.addEventListener('pick', async (e) => {
- *   const { results } = /** @type {PHPickerViewControllerFinishEvent} *\/ (e);
+ *   const { results } = e;
  *   picker.dismissViewController({ animated: true });
  *   if (results.length === 0) return;   // 取消
  *   imageView.image = await results[0].itemProvider.loadObjectOfClass(UIImage);
@@ -235,6 +233,19 @@ declare class PHPickerViewController extends UIViewController {
 
   /** 构造时复制的那一份配置。 */
   readonly configuration: PHPickerConfiguration;
+
+  addEventListener<K extends keyof PHPickerViewControllerEventMap>(
+    type: K,
+    callback: ((event: PHPickerViewControllerEventMap[K]) => void) | null,
+    options?: AddEventListenerOptions,
+  ): void;
+  /** 别的名字当自定义事件：`dispatchEvent` 是公开 API，JS 可以派发自己的事件。 */
+  addEventListener(type: string, callback: EventListener | null, options?: AddEventListenerOptions): void;
+  removeEventListener<K extends keyof PHPickerViewControllerEventMap>(
+    type: K,
+    callback: ((event: PHPickerViewControllerEventMap[K]) => void) | null,
+  ): void;
+  removeEventListener(type: string, callback: EventListener | null): void;
 }
 
 // ---------- 存图 ----------

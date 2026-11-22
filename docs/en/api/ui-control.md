@@ -104,14 +104,13 @@ State changes do not fire events. `isEnabled` and `isSelected` are changed only 
 
 ## Touch location
 
-For the nine events whose names start with `touch`, the event object's type is `UIControlTouchEvent`, which has two more read-only fields than a plain `Event`:
+For the nine events whose names start with `touch`, the event object is a [`UIControlTouchEvent`](ui-control-touch-event.md), which has two more read-only fields than a plain `Event`:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `location` | [`CGPoint`](structs.md) or `null` | The finger's position, in **this control's own coordinate system**, in [pt](units.md). `null` when there is no real touch |
-| `tapCount` | number | The number of consecutive taps, counted in taps. 0 when there is no real touch |
+| [`location`](ui-control-touch-event/location.md) | [`CGPoint`](structs.md) or `null` | The finger's position, in **this control's own coordinate system**, in [pt](units.md). `null` when there is no real touch |
+| [`tapCount`](ui-control-touch-event/tapcount.md) | number | The number of consecutive taps, counted in taps. 0 when there is no real touch |
 
-- The callback parameter is declared as `Event`. To read these two fields, cast it with `/** @type {UIControlTouchEvent} */ (e)`.
 - Events fired by [`sendActionsForControlEvents()`](ui-control/sendactionsforcontrolevents.md) have no corresponding touch: `location` is `null` and `tapCount` is 0. `null` differs from `(0, 0)`: `(0, 0)` is the control's top-left corner, a real position.
 - These two values can only be read from the event object. By the time the callback runs, the touch may already have ended, and the control does not store the touch position. To convert the position to another view's coordinate system, use `convertPoint()` on [`UIView`](ui-view.md).
 - The objects of the other seven events do not have these two fields; reading them gives `undefined`, and `'location' in e` is `false`. `focus`, `input`, `blur`, and `return` are text input events and have nothing to do with touch points; `change`, `click`, and `menuaction` do not necessarily come from a touch, since code calling `sendActionsForControlEvents()` also fires them.

@@ -15,13 +15,13 @@ screen.addEventListener('keyboardhide', (event) => { })
 
 ## 事件对象
 
-`UIScreenKeyboardEvent`，除 `type`、`target`（这块屏幕）以外带三个只读字段：
+[`UIScreenKeyboardEvent`](../ui-screen-keyboard-event.md)，除 `type`、`target`（这块屏幕）以外带三个只读字段：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `frame` | [`CGRect`](../cg-rect.md) | 动画结束时键盘的位置，屏幕坐标，单位 pt。键盘的高度是 `frame.height` |
-| `previousFrame` | [`CGRect`](../cg-rect.md) | 动画开始时键盘的位置 |
-| `duration` | 数 | 键盘动画的时长，单位秒 |
+| [`frame`](../ui-screen-keyboard-event/frame.md) | [`CGRect`](../cg-rect.md) | 动画结束时键盘的位置，屏幕坐标，单位 pt。键盘的高度是 `frame.height` |
+| [`previousFrame`](../ui-screen-keyboard-event/previousframe.md) | [`CGRect`](../cg-rect.md) | 动画开始时键盘的位置 |
+| [`duration`](../ui-screen-keyboard-event/duration.md) | 数 | 键盘动画的时长，单位秒 |
 
 不能取消。iPhone 上 App 占满整个屏幕，屏幕坐标和窗口里的坐标相同。
 

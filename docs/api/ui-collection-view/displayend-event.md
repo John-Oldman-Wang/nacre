@@ -15,11 +15,11 @@ list.addEventListener('displayend', (event) => { })
 
 ## 事件对象
 
-`UICollectionViewItemEvent`。`type` 是事件名，`target` 是这个列表，另外多一个只读字段：
+[`UICollectionViewItemEvent`](../ui-collection-view-item-event.md)。`type` 是事件名，`target` 是这个列表，另外多一个只读字段：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `indexPath` | [`NSIndexPath`](../ns-index-path.md) | 事件发生那一刻这一项的位置 |
+| [`indexPath`](../ui-collection-view-item-event/indexpath.md) | [`NSIndexPath`](../ns-index-path.md) | 事件发生那一刻这一项的位置 |
 
 不能取消，`preventDefault()` 不起作用。
 

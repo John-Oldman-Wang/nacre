@@ -839,7 +839,8 @@ void OnMain(dispatch_block_t block) {
   [self.heldResponses removeAllObjects];
   for (NSString* json in held) {
     nacre_bridge::NacreEmitEventWithJSON(self.center, nacre_bridge::kCenterClass,
-                                         nacre_bridge::kResponseEvent, json);
+                                         nacre_bridge::kResponseEvent, json,
+                                         "UNNotificationResponseEvent");
   }
 }
 
@@ -867,7 +868,8 @@ void OnMain(dispatch_block_t block) {
   nacre_bridge::OnMain(^{
     if (!self.wantsPresent) return;
     nacre_bridge::NacreEmitEventWithJSON(self.center, nacre_bridge::kCenterClass,
-                                         nacre_bridge::kPresentEvent, json);
+                                         nacre_bridge::kPresentEvent, json,
+                                         "UNNotificationPresentEvent");
   });
   id<UNUserNotificationCenterDelegate> next = self.next;
   if ([next respondsToSelector:_cmd]) {
@@ -897,7 +899,8 @@ void OnMain(dispatch_block_t block) {
   nacre_bridge::OnMain(^{
     if (self.wantsResponse) {
       nacre_bridge::NacreEmitEventWithJSON(self.center, nacre_bridge::kCenterClass,
-                                           nacre_bridge::kResponseEvent, json);
+                                           nacre_bridge::kResponseEvent, json,
+                                         "UNNotificationResponseEvent");
     } else {
       [self.heldResponses addObject:json];
       while (self.heldResponses.count > nacre_bridge::kMaxHeldResponses) {

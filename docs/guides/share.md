@@ -36,8 +36,7 @@ application.addEventListener('sceneconnect', (e) => {
 
     // 2. 面板结束时看结果
     sheet.addEventListener('complete', (event) => {
-      const { completed, activityType } =
-        /** @type {UIActivityViewControllerCompletionEvent} */ (event);
+      const { completed, activityType } = event;
       console.log(completed ? '分享到了 ' + activityType : '没有分享');
     });
 
@@ -105,8 +104,7 @@ page.presentViewController(linkSheet, { animated: true });
 
 ```js
 const linkSheet = new UIActivityViewController([new URL('https://example.com')]);
-linkSheet.addEventListener('complete', (event) => {
-  const result = /** @type {UIActivityViewControllerCompletionEvent} */ (event);
+linkSheet.addEventListener('complete', (result) => {
   if (result.activityError !== null) {
     console.log('分享出错了：' + result.activityError.message);
   } else if (result.completed) {
@@ -122,7 +120,7 @@ page.presentViewController(linkSheet, { animated: true });
 - 动作失败时输出错误信息。
 - 用户直接关掉面板时什么都不输出。
 
-事件对象的类型要转一下才能读到这三个字段，写法见上。
+事件对象是 [`UIActivityViewControllerCompletionEvent`](../api/ui-activity-view-controller-completion-event.md)，三个字段直接读。
 
 - **`complete` 之后，分享出去的东西到没到对方手里，App 不知道。** `completed` 是 `true` 只表示那个动作执行完了，比如信息 App 的发送界面被用户点了发送。
 - **用代码关掉面板时派不派发 `complete`，未在模拟器验证。** 调 [`dismissViewController()`](../api/ui-view-controller/dismissviewcontroller.md) 之后要做的事，直接写在那一句后面，不依赖这个事件。

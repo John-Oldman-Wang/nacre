@@ -15,12 +15,12 @@ contents.addEventListener('ipc-message', (event) => {})
 
 ## Event object
 
-`WebContentsIpcMessageEvent`. Besides `type` and `target`, it has two fields:
+[`WebContentsIpcMessageEvent`](../web-contents-ipc-message-event.md). Besides `type` and `target`, it has two fields:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `channel` | string | The channel name |
-| `args` | array | The arguments that followed the channel name, passed as JSON |
+| [`channel`](../web-contents-ipc-message-event/channel.md) | string | The channel name |
+| [`args`](../web-contents-ipc-message-event/args.md) | array | The arguments that followed the channel name, passed as JSON |
 
 `target` is this page's `webContents`. Not cancelable.
 

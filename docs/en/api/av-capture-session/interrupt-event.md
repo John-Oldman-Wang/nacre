@@ -15,9 +15,9 @@ session.addEventListener('interrupt', (event) => { })
 
 ## Event object
 
-`AVCaptureSessionInterruptEvent`, with one extra field:
+[`AVCaptureSessionInterruptEvent`](../av-capture-session-interrupt-event.md), with one extra field:
 
-**`reason`**
+**[`reason`](../av-capture-session-interrupt-event/reason.md)**
 
 Why the session was interrupted: a string, one of these six; `null` when the system gives no reason:
 

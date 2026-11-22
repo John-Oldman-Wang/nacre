@@ -15,13 +15,11 @@ page.addEventListener('beforeappear', (event) => { })
 
 ## 事件对象
 
-`UIViewControllerAppearanceEvent`。除了 `type` 和 `target`（这个页面），多一个只读字段：
+[`UIViewControllerAppearanceEvent`](../ui-view-controller-appearance-event.md)。除了 `type` 和 `target`（这个页面），多一个只读字段：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `animated` | `boolean` | 这一次出现带不带转场动画 |
-
-类型定义里，回调收到的事件对象是普通的 `Event`。要读 `animated`，把它标成 `UIViewControllerAppearanceEvent`，写法见示例。
+| [`animated`](../ui-view-controller-appearance-event/animated.md) | `boolean` | 这一次出现带不带转场动画 |
 
 不能取消。
 
@@ -38,7 +36,7 @@ page.addEventListener('beforeappear', (event) => { })
 ```js
 const page = new UIViewController();
 page.addEventListener('beforeappear', (event) => {
-  const { animated } = /** @type {UIViewControllerAppearanceEvent} */ (event);
+  const { animated } = event;
   console.log('即将出现，带动画：' + animated);
 });
 ```

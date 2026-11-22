@@ -97,7 +97,7 @@ status: partial
 
 四个事件共同的规则：
 
-- 事件对象是 `UICollectionViewItemEvent`，多一个只读字段 `indexPath`，类型是 [`NSIndexPath`](ns-index-path.md)。
+- 事件对象是 [`UICollectionViewItemEvent`](ui-collection-view-item-event.md)，多一个只读字段 `indexPath`，类型是 [`NSIndexPath`](ns-index-path.md)。
 - 不能取消，`preventDefault()` 不起作用。
 - 回调排在当前这一轮代码之后执行。`indexPath` 是事件发生那一刻的位置；回调执行前数据变了的话，这个位置上可能已经是另一项，或者没有项。要长期用一项，先用数据源的 [`itemIdentifierForIndexPath()`](ui-collection-view-diffable-data-source/itemidentifierforindexpath.md) 换成标识。
 

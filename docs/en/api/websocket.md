@@ -64,7 +64,7 @@ Listen with `addEventListener()`. There are no properties such as `onopen` or `o
 | [`error`](websocket/error-event.md) | The connection failed, or dropped partway through. Always followed by a `close` |
 | [`close`](websocket/close-event.md) | The connection ended. Fires only once per connection |
 
-None of the four events can be canceled. Listening for any other name does not throw: it is treated as a custom event and fires only when you dispatch it yourself with `dispatchEvent()`.
+The event object of `message` is a [`MessageEvent`](message-event.md), of `error` an [`ErrorEvent`](error-event.md), of `close` a [`CloseEvent`](close-event.md), and of `open` a plain [`Event`](event.md). None of the four events can be canceled. Listening for any other name does not throw: it is treated as a custom event and fires only when you dispatch it yourself with `dispatchEvent()`.
 
 Event callbacks all run after the current piece of code finishes (see [How the runtime works](how-it-works.md)), so adding listeners right after `new WebSocket()` does not miss any event. An event that fires before a listener is added is lost; it is not delivered again.
 
@@ -106,16 +106,16 @@ ws.addEventListener('open', () => {
 });
 
 ws.addEventListener('message', (e) => {
-  const data = /** @type {WebSocketMessageEvent} */ (e).data;
+  const data = e.data;
   console.log('Received', data);
   if (data === 'hello') ws.close(1000, 'bye');
 });
 
 ws.addEventListener('error', (e) => {
-  console.log('Error', /** @type {WebSocketErrorEvent} */ (e).message);
+  console.log('Error', e.message);
 });
 ws.addEventListener('close', (e) => {
-  const { code, wasClean } = /** @type {WebSocketCloseEvent} */ (e);
+  const { code, wasClean } = e;
   console.log('Closed', code, wasClean);
 });
 ```
@@ -126,8 +126,6 @@ ws.addEventListener('close', (e) => {
 - The server sends `hello` back, and `Received hello` is logged. This service may first send a welcome message of its own when the connection opens; that one is logged too.
 - When closing completes, logs `Closed 1000 true`.
 - If the connection fails, logs `Error` followed by a system error description, then `Closed 1006 false`.
-
-The event callback's parameter has the generic `Event` type, so it needs a cast before you can read fields such as `data`, `message`, and `code`; that is what `/** @type {...} */ (e)` above does.
 
 This code has not been run as a whole in the simulator. Each API it uses has been run against the same service in the acceptance tests.
 

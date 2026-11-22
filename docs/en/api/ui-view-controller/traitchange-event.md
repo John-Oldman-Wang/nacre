@@ -15,11 +15,11 @@ page.addEventListener('traitchange', (event) => { })
 
 ## Event object
 
-`UITraitChangeEvent`. Besides `type` and `target` (this view controller), it has one more read-only field:
+[`UITraitChangeEvent`](../ui-trait-change-event.md). Besides `type` and `target` (this view controller), it has one more read-only field:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `previousTraitCollection` | [`UITraitCollection`](../ui-trait-collection.md) | The set of values before the change. Read the current values from `event.target.traitCollection` |
+| [`previousTraitCollection`](../ui-trait-change-event/previoustraitcollection.md) | [`UITraitCollection`](../ui-trait-collection.md) | The set of values before the change. Read the current values from `event.target.traitCollection` |
 
 Not cancelable.
 
@@ -32,7 +32,7 @@ When any value in the view controller's [`traitCollection`](traitcollection.md) 
 ```js
 const page = new UIViewController();
 page.addEventListener('traitchange', (event) => {
-  const { previousTraitCollection } = /** @type {UITraitChangeEvent} */ (event);
+  const { previousTraitCollection } = event;
   console.log(previousTraitCollection.userInterfaceStyle, '→',
     page.traitCollection.userInterfaceStyle);
 });

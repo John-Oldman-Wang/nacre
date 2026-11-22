@@ -54,7 +54,7 @@ Creates a `CADisplayLink` that isn't running yet.
 const link = new CADisplayLink();
 
 link.addEventListener('tick', (ev) => {
-  const frame = /** @type {CADisplayLinkEvent} */ (ev).frame;
+  const frame = ev.frame;
   console.log('Frame time:', frame.timestamp);
 });
 

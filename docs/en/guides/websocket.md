@@ -25,7 +25,7 @@ ws.addEventListener('open', () => {
 
 // 3. Receive messages
 ws.addEventListener('message', (e) => {
-  const data = /** @type {WebSocketMessageEvent} */ (e).data;
+  const data = e.data;
   console.log('Received', data);
 
   // 4. Close after receiving the message we sent
@@ -34,10 +34,10 @@ ws.addEventListener('message', (e) => {
 
 // 5. Errors and the end
 ws.addEventListener('error', (e) => {
-  console.log('Error', /** @type {WebSocketErrorEvent} */ (e).message);
+  console.log('Error', e.message);
 });
 ws.addEventListener('close', (e) => {
-  const { code, wasClean } = /** @type {WebSocketCloseEvent} */ (e);
+  const { code, wasClean } = e;
   console.log('Ended', code, wasClean);
 });
 ```
@@ -49,7 +49,7 @@ ws.addEventListener('close', (e) => {
 - After the close completes, prints `Ended 1000 true`.
 - When it cannot connect, prints `Error` followed by a system error description, then `Ended 1006 false`.
 
-The callbacks' parameter type is the generic `Event`; to read fields such as `data`, `message`, and `code`, cast it once, which is what `/** @type {...} */ (e)` above does.
+The event object of `message` is a [`MessageEvent`](../api/message-event.md), of `error` an [`ErrorEvent`](../api/error-event.md), and of `close` a [`CloseEvent`](../api/close-event.md); read fields such as `data`, `message`, and `code` directly.
 
 This code has not been run as a whole in the simulator. Every API it uses has been run against the same service in the acceptance tests.
 
@@ -77,7 +77,7 @@ ws.send(new Uint8Array([1, 2, 3, 4, 5]));
 
 ```js
 ws.addEventListener('message', async (e) => {
-  const data = /** @type {WebSocketMessageEvent} */ (e).data;
+  const data = e.data;
   if (typeof data === 'string') {
     console.log('Text', data);
   } else {
@@ -97,7 +97,7 @@ The `data` of a text message is a string; the `data` of a binary message is a `B
 ws.send(JSON.stringify({ type: 'subscribe', symbol: 'AAPL' }));
 
 ws.addEventListener('message', (e) => {
-  const data = /** @type {WebSocketMessageEvent} */ (e).data;
+  const data = e.data;
   if (typeof data !== 'string') return;
   try {
     const msg = JSON.parse(data);
@@ -154,7 +154,7 @@ console.log(ws.readyState === WebSocket.CLOSING);
 
 ```js
 ws.addEventListener('close', (e) => {
-  const { code, reason, wasClean } = /** @type {WebSocketCloseEvent} */ (e);
+  const { code, reason, wasClean } = e;
   if (wasClean) {
     console.log('Closed normally', code, reason);
   } else {
@@ -210,7 +210,7 @@ function keepConnected(url, onMessage) {
     });
 
     socket.addEventListener('message', (e) => {
-      onMessage(/** @type {WebSocketMessageEvent} */ (e).data);
+      onMessage(e.data);
     });
 
     // However it ended, it always ends up here

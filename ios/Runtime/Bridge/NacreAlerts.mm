@@ -38,7 +38,6 @@
 static const void* kNacreAlertActionStateKey = &kNacreAlertActionStateKey;
 // 关联对象的 key：UIActivityViewController → 最近一次完成回调的结果（字典）。
 // JS 那一侧在派发 complete 之前取走，见 AlertsCallMethod
-static const void* kNacreActivityCompletionKey = &kNacreActivityCompletionKey;
 
 namespace nacre_bridge {
 
@@ -258,9 +257,9 @@ static bool AlertsConstruct(const std::string& className, const NacreArgs& args,
           @"completed": @(completed),
           @"activityError": failure,
         };
-        objc_setAssociatedObject(strongSheet, kNacreActivityCompletionKey, result,
-                                 OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        NacreEmitEvent(strongSheet, "UIActivityViewController", kActivityEventName);
+        NacreEmitEventWithJSON(strongSheet, "UIActivityViewController", kActivityEventName,
+                               @(EncodeJSON(result).c_str()),
+                               "UIActivityViewControllerCompletionEvent");
         // 用户选了去处之后面板是系统自己关的，和弹窗一样要报一声。
         // 同样排在 complete 后面
         NotifyDismissedBySystem(strongSheet, "UIActivityViewController");
@@ -515,18 +514,6 @@ static bool AlertsCallMethod(id object, NSString* sel, const NacreArgs& args,
       // 配置用的 block 传 nil：实测输入框在这一句里就建好了，JS 从
       // textFields 里拿到它再配置，效果一样
       [alert addTextFieldWithConfigurationHandler:nil];
-      return true;
-    }
-    return false;
-  }
-  if ([object isKindOfClass:UIActivityViewController.class]) {
-    // 运行时自己用的：取走最近一次完成回调的结果。取一次就清掉，所以
-    // JS 自己 dispatchEvent 一个 complete 时这里是 null
-    if ([sel isEqualToString:@"nacre:takeCompletion"]) {
-      NSDictionary* result = objc_getAssociatedObject(object, kNacreActivityCompletionKey);
-      objc_setAssociatedObject(object, kNacreActivityCompletionKey, nil,
-                               OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-      *out = result != nil ? EncodeJSON(result) : "null";
       return true;
     }
     return false;

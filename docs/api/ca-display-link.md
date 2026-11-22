@@ -54,7 +54,7 @@ status: partial
 const link = new CADisplayLink();
 
 link.addEventListener('tick', (ev) => {
-  const frame = /** @type {CADisplayLinkEvent} */ (ev).frame;
+  const frame = ev.frame;
   console.log('这一帧的时刻:', frame.timestamp);
 });
 

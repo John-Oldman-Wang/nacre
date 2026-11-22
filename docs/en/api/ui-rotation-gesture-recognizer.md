@@ -49,11 +49,11 @@ const card = new UIView();
 const twist = new UIRotationGestureRecognizer();
 let baseAngle = 0;
 twist.addEventListener('changed', (e) => {
-  const { rotation } = /** @type {UIRotationGestureRecognizerEvent} */ (e);
+  const { rotation } = e;
   card.transform = CGAffineTransform.rotation(baseAngle + rotation);
 });
 twist.addEventListener('ended', (e) => {
-  const { rotation } = /** @type {UIRotationGestureRecognizerEvent} */ (e);
+  const { rotation } = e;
   baseAngle = baseAngle + rotation;
 });
 card.addGestureRecognizer(twist);

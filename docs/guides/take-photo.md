@@ -54,7 +54,7 @@ application.addEventListener('sceneconnect', (e) => {
 
     // 3. 用户点了「使用照片」：取照片，关掉界面
     picker.addEventListener('pick', (event) => {
-      const { originalImage } = /** @type {UIImagePickerControllerMediaEvent} */ (event);
+      const { originalImage } = event;
       preview.image = originalImage;
       console.log('拍到了 ' + originalImage.size.width + ' × ' + originalImage.size.height);
       picker.dismissViewController({ animated: true });
@@ -149,8 +149,7 @@ if (canTakePhoto()) picker.sourceType = 'camera';
 ```js
 picker.allowsEditing = true;
 
-picker.addEventListener('pick', (event) => {
-  const shot = /** @type {UIImagePickerControllerMediaEvent} */ (event);
+picker.addEventListener('pick', (shot) => {
   // 开了裁剪时用裁过的那张；万一没有，退回原图
   const image = shot.editedImage ?? shot.originalImage;
   console.log(image.size.width + ' × ' + image.size.height);
@@ -211,7 +210,7 @@ function takePhoto(from) {
       resolve(image);
     };
     camera.addEventListener('pick', (event) => {
-      finish(/** @type {UIImagePickerControllerMediaEvent} */ (event).originalImage);
+      finish(event.originalImage);
     });
     camera.addEventListener('cancel', () => finish(null));
     from.presentViewController(camera, { animated: true });
@@ -229,7 +228,7 @@ takePhoto(page).then((photo) => {
 
 ```js
 picker.addEventListener('pick', async (event) => {
-  const { originalImage } = /** @type {UIImagePickerControllerMediaEvent} */ (event);
+  const { originalImage } = event;
   // 等拍照界面关完，再弹下一个页面
   await picker.dismissViewController({ animated: true });
   page.presentViewController(new UIActivityViewController([originalImage]), { animated: true });

@@ -118,6 +118,7 @@ import { stepEnumProperties } from './steps/enum-properties.js';
 import { stepArgValues } from './steps/arg-values.js';
 import { stepWebGlobals } from './steps/web-globals.js';
 import { stepErrors } from './steps/errors.js';
+import { stepEvents } from './steps/events.js';
 import { stepOpenURL } from './steps/openurl.js';
 import { stepFetchStream } from './steps/fetch-stream.js';
 import { stepNativeModules } from './steps/native-modules.js';
@@ -172,7 +173,10 @@ const stepWanted = (name) => stepFilter === null || name === 'stepWindow' ||
 application.addEventListener('sceneconnect', (e) => {
   sceneConnects++;
   if (sceneConnects === 1) {
+    // 类还没有时不能抛：这个监听器管着各步骤的开始
+    const isSceneEvent = typeof SceneEvent === 'function' && e instanceof SceneEvent;
     setTimeout(() => {
+      assert('sceneconnect 是 SceneEvent', isSceneEvent, true);
       assert('sceneconnect 只来了一次（键盘的内部场景不算数）', sceneConnects, 1);
       assert('application.scenes 里也只有一个', application.scenes.length, 1);
     }, 6000);
@@ -288,6 +292,7 @@ application.addEventListener('sceneconnect', (e) => {
     ['stepArgValues', () => stepArgValues(ctx)],
     ['stepWebGlobals', () => stepWebGlobals(ctx)],
     ['stepErrors', () => stepErrors(ctx)],
+    ['stepEvents', () => stepEvents(ctx)],
     ['stepOpenURL', () => stepOpenURL(ctx)],
     ['stepFetchStream', () => stepFetchStream(ctx)],
     ['stepNativeModules', () => stepNativeModules(ctx)],

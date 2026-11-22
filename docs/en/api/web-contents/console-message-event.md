@@ -15,14 +15,14 @@ contents.addEventListener('console-message', (event) => {})
 
 ## Event object
 
-`WebContentsConsoleMessageEvent`. Besides `type` and `target`, it has four fields:
+[`WebContentsConsoleMessageEvent`](../web-contents-console-message-event.md). Besides `type` and `target`, it has four fields:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `level` | string | One of `'info'`, `'warning'`, `'error'`, `'debug'` |
-| `message` | string | The log text |
-| `lineNumber` | number | The line the call was made on. `0` when unavailable |
-| `sourceId` | string | The file the call was made in: the script file's URL, or the page's own URL. Empty string when unavailable |
+| [`level`](../web-contents-console-message-event/level.md) | string | One of `'info'`, `'warning'`, `'error'`, `'debug'` |
+| [`message`](../web-contents-console-message-event/message.md) | string | The log text |
+| [`lineNumber`](../web-contents-console-message-event/linenumber.md) | number | The line the call was made on. `0` when unavailable |
+| [`sourceId`](../web-contents-console-message-event/sourceid.md) | string | The file the call was made in: the script file's URL, or the page's own URL. Empty string when unavailable |
 
 `target` is this page's `webContents`. Not cancelable.
 

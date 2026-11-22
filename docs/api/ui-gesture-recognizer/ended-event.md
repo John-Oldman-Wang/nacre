@@ -15,25 +15,25 @@ addEventListener('ended', (event) => { })
 
 ## 事件对象
 
-事件对象的类型是 `UIGestureRecognizerEvent`，除了 `type` 和 `target`，还带两个只读字段：
+[`UIGestureRecognizerEvent`](../ui-gesture-recognizer-event.md)。除了 `type` 和 `target`，还带两个只读字段：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `location` | [`CGPoint`](../structs.md) 或 `null` | 手势的位置，在识别器所在视图的坐标系里，单位 [pt](../units.md)。多根手指时是它们的中心点。要换算到别的视图，用视图的 `convertPoint()` |
-| `numberOfTouches` | 数 | 事件发生时参与手势的手指个数 |
+| [`location`](../ui-gesture-recognizer-event/location.md) | [`CGPoint`](../structs.md) 或 `null` | 手势的位置，在识别器所在视图的坐标系里，单位 [pt](../units.md)。多根手指时是它们的中心点。要换算到别的视图，用视图的 `convertPoint()` |
+| [`numberOfTouches`](../ui-gesture-recognizer-event/numberoftouches.md) | 数 | 事件发生时参与手势的手指个数 |
 
-三种识别器的事件对象各多两个只读字段，都是事件发生那一刻的值：
+三种识别器的事件对象是它的子类，各多两个只读字段，都是事件发生那一刻的值：
 
 | 识别器 | 事件对象的类型 | 字段 | 类型 | 含义 |
 | --- | --- | --- | --- | --- |
-| [`UIPanGestureRecognizer`](../ui-pan-gesture-recognizer.md)、[`UIScreenEdgePanGestureRecognizer`](../ui-screen-edge-pan-gesture-recognizer.md) | `UIPanGestureRecognizerEvent` | `translation` | `CGPoint` | 从手势开始到这个事件为止手指移动了多少，在识别器所在视图的坐标系里，单位 pt |
-| | | `velocity` | `CGPoint` | 手指移动的速度，坐标系同上，单位是 pt 每秒 |
-| [`UIPinchGestureRecognizer`](../ui-pinch-gesture-recognizer.md) | `UIPinchGestureRecognizerEvent` | `scale` | 数 | 两指的间距相对手势开始时的倍数 |
-| | | `velocity` | 数 | `scale` 每秒变化多少 |
-| [`UIRotationGestureRecognizer`](../ui-rotation-gesture-recognizer.md) | `UIRotationGestureRecognizerEvent` | `rotation` | 数 | 相对手势开始时转过的角度，单位是弧度 |
-| | | `velocity` | 数 | 旋转的速度，单位是弧度每秒 |
+| [`UIPanGestureRecognizer`](../ui-pan-gesture-recognizer.md)、[`UIScreenEdgePanGestureRecognizer`](../ui-screen-edge-pan-gesture-recognizer.md) | [`UIPanGestureRecognizerEvent`](../ui-pan-gesture-recognizer-event.md) | [`translation`](../ui-pan-gesture-recognizer-event/translation.md) | `CGPoint` | 从手势开始到这个事件为止手指移动了多少，在识别器所在视图的坐标系里，单位 pt |
+| | | [`velocity`](../ui-pan-gesture-recognizer-event/velocity.md) | `CGPoint` | 手指移动的速度，坐标系同上，单位是 pt 每秒 |
+| [`UIPinchGestureRecognizer`](../ui-pinch-gesture-recognizer.md) | [`UIPinchGestureRecognizerEvent`](../ui-pinch-gesture-recognizer-event.md) | [`scale`](../ui-pinch-gesture-recognizer-event/scale.md) | 数 | 两指的间距相对手势开始时的倍数 |
+| | | [`velocity`](../ui-pinch-gesture-recognizer-event/velocity.md) | 数 | `scale` 每秒变化多少 |
+| [`UIRotationGestureRecognizer`](../ui-rotation-gesture-recognizer.md) | [`UIRotationGestureRecognizerEvent`](../ui-rotation-gesture-recognizer-event.md) | [`rotation`](../ui-rotation-gesture-recognizer-event/rotation.md) | 数 | 相对手势开始时转过的角度，单位是弧度 |
+| | | [`velocity`](../ui-rotation-gesture-recognizer-event/velocity.md) | 数 | 旋转的速度，单位是弧度每秒 |
 
-回调参数的类型声明是 `Event`，读这些字段要转一下类型，见示例。这些值只能从事件对象上读：回调比手势晚执行，回头在识别器上读不到当时的值。
+这些值只能从事件对象上读：回调比手势晚执行，回头在识别器上读不到当时的值。
 
 不能取消：`preventDefault()` 没有效果。事件只派发给识别器自己，不传给视图或父视图。
 
@@ -56,7 +56,7 @@ addEventListener('ended', (event) => { })
 const card = new UIView();
 const tap = new UITapGestureRecognizer();
 tap.addEventListener('ended', (e) => {
-  const { location } = /** @type {UIGestureRecognizerEvent} */ (e);
+  const { location } = e;
   if (location !== null) {
     console.log(location.x, location.y);
   }

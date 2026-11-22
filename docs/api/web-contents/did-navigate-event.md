@@ -15,12 +15,12 @@ contents.addEventListener('did-navigate', (event) => {})
 
 ## 事件对象
 
-`WebContentsDidNavigateEvent`，除 `type`、`target` 以外带两个字段：
+[`WebContentsDidNavigateEvent`](../web-contents-did-navigate-event.md)，除 `type`、`target` 以外带两个字段：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `url` | 字符串 | 新的地址 |
-| `httpResponseCode` | 数 | HTTP 状态码。`data:`、`about:`、本地文件这类不经过 HTTP 的是 `-1`。后退或前进回到一张之前加载过的网页时也是 `-1`：那时没有重新请求服务器 |
+| [`url`](../web-contents-did-navigate-event/url.md) | 字符串 | 新的地址 |
+| [`httpResponseCode`](../web-contents-did-navigate-event/httpresponsecode.md) | 数 | HTTP 状态码。`data:`、`about:`、本地文件这类不经过 HTTP 的是 `-1`。后退或前进回到一张之前加载过的网页时也是 `-1`：那时没有重新请求服务器 |
 
 不可取消。
 

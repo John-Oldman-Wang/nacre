@@ -185,7 +185,7 @@ card.addEventListener('touchdragenter', () => {
 
 ```js
 card.addEventListener('touchupinside', (e) => {
-  const { location, tapCount } = /** @type {UIControlTouchEvent} */ (e);
+  const { location, tapCount } = e;
   if (location !== null) {
     console.log(location.x, location.y, tapCount);
   }

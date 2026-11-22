@@ -139,7 +139,7 @@ application.addEventListener('sceneconnect', (e) => {
 
     const picker = new PHPickerViewController(config);
     picker.addEventListener('pick', async (event) => {
-      const { results } = /** @type {PHPickerViewControllerFinishEvent} */ (event);
+      const { results } = event;
       picker.dismissViewController({ animated: true });
       if (results.length === 0) {
         console.log('用户取消了');

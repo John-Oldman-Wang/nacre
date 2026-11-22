@@ -15,17 +15,16 @@ picker.addEventListener('pick', (event) => { })
 
 ## 事件对象
 
-`UIImagePickerControllerMediaEvent`，多出三个字段：
+[`UIImagePickerControllerMediaEvent`](../ui-image-picker-controller-media-event.md)，多出三个字段：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `originalImage` | [`UIImage`](../ui-image.md) | 拍到的照片，没有裁剪过 |
-| `editedImage` | `UIImage` 或 `null` | 用户裁剪之后的照片。没开 [`allowsEditing`](allowsediting.md) 时是 `null` |
-| `cropRect` | [`CGRect`](../structs.md) 或 `null` | 用户裁的是原图上的哪一块。没开 `allowsEditing` 时是 `null`。数值的单位**未验证** |
+| [`originalImage`](../ui-image-picker-controller-media-event/originalimage.md) | [`UIImage`](../ui-image.md) | 拍到的照片，没有裁剪过 |
+| [`editedImage`](../ui-image-picker-controller-media-event/editedimage.md) | `UIImage` 或 `null` | 用户裁剪之后的照片。没开 [`allowsEditing`](allowsediting.md) 时是 `null` |
+| [`cropRect`](../ui-image-picker-controller-media-event/croprect.md) | [`CGRect`](../structs.md) 或 `null` | 用户裁的是原图上的哪一块。没开 `allowsEditing` 时是 `null`。数值的单位**未验证** |
 
 - `target` 是这个拍照界面。
 - 不能取消，`preventDefault()` 不起作用。
-- 回调参数的类型是 `Event`，要转成 `UIImagePickerControllerMediaEvent` 才能读到这三个字段，写法见示例。
 
 ## 什么时候派发
 
@@ -41,7 +40,7 @@ picker.addEventListener('pick', (event) => { })
 ```js
 const picker = new UIImagePickerController();
 picker.addEventListener('pick', (event) => {
-  const { originalImage } = /** @type {UIImagePickerControllerMediaEvent} */ (event);
+  const { originalImage } = event;
   console.log('拍到了 ' + originalImage.size.width + ' × ' + originalImage.size.height);
   picker.dismissViewController({ animated: true });
 });

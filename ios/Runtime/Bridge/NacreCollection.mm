@@ -47,7 +47,8 @@ static NSString* const kNacreFallbackCellIdentifier = @"nacre.fallback";
     @"indexPath": @{@"section": @(path.section), @"item": @(path.item)},
   };
   nacre_bridge::NacreEmitEventWithJSON(view, "UICollectionView", type,
-                                       @(nacre_bridge::EncodeJSON(fields).c_str()));
+                                       @(nacre_bridge::EncodeJSON(fields).c_str()),
+                                       "UICollectionViewItemEvent");
 }
 
 - (void)collectionView:(UICollectionView*)collectionView

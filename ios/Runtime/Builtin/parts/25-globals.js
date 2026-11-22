@@ -11,17 +11,13 @@
 
   const {
     Application,
-    ErrorEvent,
     Event,
     EventTarget,
-    PromiseRejectionEvent,
     application,
     define,
   } = ctx;
 
   define(globalThis, 'Event', Event);
-  define(globalThis, 'ErrorEvent', ErrorEvent);
-  define(globalThis, 'PromiseRejectionEvent', PromiseRejectionEvent);
   define(globalThis, 'EventTarget', EventTarget);
   define(globalThis, 'Application', Application);
   define(globalThis, 'application', application);

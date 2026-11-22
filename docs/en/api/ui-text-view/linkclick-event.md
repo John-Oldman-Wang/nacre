@@ -17,14 +17,14 @@ input.addEventListener('linkclick', (event) => { })
 
 ## Event object
 
-`UITextViewLinkClickEvent`. `type` is `'linkclick'` and `target` is this text view. Cancelable (measured).
+[`UITextViewLinkClickEvent`](../ui-text-view-link-click-event.md). `type` is `'linkclick'` and `target` is this text view. Cancelable (measured).
 
 It also carries two read-only fields (measured):
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `url` | String | The link's address |
-| `range` | [`NSRange`](../ns-range.md) | The stretch of text the link covers. `location` is the start and `length` is the length, both in UTF-16 code units, matching JS string indices |
+| [`url`](../ui-text-view-link-click-event/url.md) | String | The link's address |
+| [`range`](../ui-text-view-link-click-event/range.md) | [`NSRange`](../ns-range.md) | The stretch of text the link covers. `location` is the start and `length` is the length, both in UTF-16 code units, matching JS string indices |
 
 ## When it fires
 

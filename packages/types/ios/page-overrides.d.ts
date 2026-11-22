@@ -73,9 +73,15 @@ declare class UIStatusBarManager extends NSObject {
 }
 
 /** 场景的 `geometrychange` 事件。当场派发：监听器在转屏动画里执行。不能取消。 */
-interface UIWindowSceneGeometryChangeEvent extends Event {
+declare class UIWindowSceneGeometryChangeEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<UIWindowSceneGeometryChangeEvent, 'previousInterfaceOrientation'>>);
   /** 变化之前的方向。现在的方向读 `scene.effectiveGeometry`。 */
   readonly previousInterfaceOrientation: UIInterfaceOrientation;
+}
+
+// 合并进场景的事件表
+interface UIWindowSceneEventMap {
+  'geometrychange': UIWindowSceneGeometryChangeEvent;
 }
 
 interface UIWindowScene {

@@ -17,7 +17,6 @@
   const {
     EventTarget,
     define,
-    defineField,
     defineNativeClass,
     internalEventHandlers,
     kSubscribe,
@@ -49,23 +48,15 @@
   const kPromises = Symbol('push.promises');
 
   // Web 推送的 push 事件是 ExtendableEvent：waitUntil 只能在派发的过程中调
-  class PushEvent extends Event {
-    constructor(type, init) {
-      super(type);
-      const o = init == null ? {} : init;
-      defineField(this, 'data', o.data === undefined ? {} : o.data);
-      this[kDispatching] = false;
-      this[kPromises] = [];
+  const PushEvent = ctx.defineEventClass('PushEvent', Event, { data: ['any', () => ({})] });
+  define(PushEvent.prototype, 'waitUntil', function waitUntil(promise) {
+    if (this[kDispatching] !== true) {
+      throw new ctx.DOMException('waitUntil must be called while the push event is being dispatched',
+                                 'InvalidStateError');
     }
-    waitUntil(promise) {
-      if (!this[kDispatching]) {
-        throw new ctx.DOMException('waitUntil must be called while the push event is being dispatched',
-                                   'InvalidStateError');
-      }
-      this[kPromises].push(Promise.resolve(promise));
-    }
-  }
-  define(globalThis, 'PushEvent', PushEvent);
+    if (this[kPromises] === undefined) this[kPromises] = [];
+    this[kPromises].push(Promise.resolve(promise));
+  });
 
   // 原生把静默推送作为内部事件 @push 派发在 RemoteNotifications 上：带着号和内容。
   // 这里建 PushEvent、派发，等 waitUntil 收下的 Promise 都落定，把结果交回原生：
@@ -78,7 +69,7 @@
     } finally {
       event[kDispatching] = false;
     }
-    const promises = event[kPromises];
+    const promises = event[kPromises] || [];
     const finish = (result) => nativeCall(target, 'nacre:finishPush', [payload.id, result]);
     if (promises.length === 0) {
       finish('noData');

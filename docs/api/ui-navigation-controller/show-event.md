@@ -15,13 +15,11 @@ nav.addEventListener('show', (event) => { })
 
 ## 事件对象
 
-`Event`，多一个字段：
+[`UINavigationControllerEvent`](../ui-navigation-controller-event.md)，多一个只读字段：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `viewController` | `UIViewController` | 已经显示的页面 |
-
-类型定义里还没有这个事件对象的类型，要自己标注 `viewController` 字段，写法见示例。
+| [`viewController`](../ui-navigation-controller-event/viewcontroller.md) | `UIViewController` | 已经显示的页面 |
 
 不能取消。
 
@@ -37,8 +35,7 @@ nav.addEventListener('show', (event) => { })
 
 ```js
 const nav = new UINavigationController(new UIViewController());
-nav.addEventListener('show', (ev) => {
-  const event = /** @type {Event & { viewController: UIViewController }} */ (ev);
+nav.addEventListener('show', (event) => {
   console.log(event.type, event.target === nav, event.viewController === nav.topViewController);
 });
 ```

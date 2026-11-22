@@ -101,11 +101,13 @@
     return ctx.makeError(fields.name, fields.message, fields);
   }
 
-  // 事件带的字段过桥时是普通对象，在这里换成上面的类型
-  eventFieldConverters.set('locationupdate', (fields) => ({
+  // 事件类。字段过桥时是普通对象，在这里换成上面的类型
+  ctx.defineEventClass('CLLocationUpdateEvent', ctx.Event, { locations: ['array', () => []] });
+  ctx.defineEventClass('CLLocationErrorEvent', ctx.Event, { error: ['any', null] });
+  eventFieldConverters.set('CLLocationUpdateEvent', (fields) => ({
     locations: fields.locations.map(toLocation),
   }));
-  eventFieldConverters.set('locationerror', (fields) => ({ error: toError(fields) }));
+  eventFieldConverters.set('CLLocationErrorEvent', (fields) => ({ error: toError(fields) }));
 
   // ---------- CLLocationManager ----------
   //

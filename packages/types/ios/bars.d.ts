@@ -38,6 +38,18 @@ type UISearchBarEventType =
   | 'cancel' | 'bookmarkclick' | 'resultslistclick'
   | 'scopechange';
 
+/** 搜索框上每个事件名对应的事件对象。 */
+interface UISearchBarEventMap extends UIViewEventMap {
+  'focus': Event;
+  'blur': Event;
+  'input': Event;
+  'search': Event;
+  'cancel': Event;
+  'bookmarkclick': Event;
+  'resultslistclick': Event;
+  'scopechange': Event;
+}
+
 /**
  * 工具条：一横条，里面从左到右排着 `UIBarButtonItem`。
  *
@@ -221,16 +233,16 @@ declare class UISearchBar extends UIView {
   inputAccessoryView: UIView | null;
 
   /**
-   * 事件名认不出来会抛 `TypeError`——搜索框的事件是有限的那几个，
-   * 写错了不该静默不响应。
+   * 事件名只能是表里的这些：写错了类型检查会报。运行时不拒绝不认识的名字，
+   * 当自定义事件（只有自己 `dispatchEvent` 才会收到）。
    */
-  addEventListener(
-    type: UISearchBarEventType | UITraitChangeEventType,
-    callback: EventListener | null,
+  addEventListener<K extends keyof UISearchBarEventMap>(
+    type: K,
+    callback: ((event: UISearchBarEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
   ): void;
-  removeEventListener(
-    type: UISearchBarEventType | UITraitChangeEventType,
-    callback: EventListener | null,
+  removeEventListener<K extends keyof UISearchBarEventMap>(
+    type: K,
+    callback: ((event: UISearchBarEventMap[K]) => void) | null,
   ): void;
 }

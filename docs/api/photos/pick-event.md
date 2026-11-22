@@ -15,13 +15,11 @@ picker.addEventListener('pick', (event) => { })
 
 ## 事件对象
 
-一个 `Event`，多一个字段：
+[`PHPickerViewControllerFinishEvent`](../ph-picker-view-controller-finish-event.md)，多一个只读字段：
 
-**`results`**
+**[`results`](../ph-picker-view-controller-finish-event/results.md)**
 
 [`PHPickerResult`](../ph-picker-result.md) 的数组，只读（冻结的）。用户点了取消时是空数组。`selection` 是 `'ordered'` 或 `'continuousAndOrdered'` 时，按用户选的先后排。
-
-监听器收到的参数类型是 `Event`，读 `results` 要转一次类型：`/** @type {PHPickerViewControllerFinishEvent} */ (event)`。
 
 不可取消。回调在事件发生之后的下一轮执行。
 
@@ -37,7 +35,7 @@ picker.addEventListener('pick', (event) => { })
 
 - **选图界面不会自己关掉。** 派发 `pick` 之后它还在屏幕上，要在监听器里调 [`dismissViewController()`](../ui-view-controller/dismissviewcontroller.md)。对已经被拖走的选择器再调一次 `dismissViewController()` 会怎样，**未在模拟器验证**。
 - **[`selection`](../ph-picker-configuration/selection.md) 是 `'continuous'` 或 `'continuousAndOrdered'` 时，每选中或取消一项就派发一次**，`results` 是当时选中的全部。这种方式下不要在监听器里关界面。
-- 自己用 `dispatchEvent()` 派发的 `pick` 事件上没有 `results`。
+- 自己派发 `pick` 试监听器时，用 [`new PHPickerViewControllerFinishEvent()`](../ph-picker-view-controller-finish-event/constructor.md) 建事件，`results` 不给是空数组。派发普通的 `Event` 时，监听器读到的 `results` 是 `undefined`。
 
 ## 示例
 
@@ -45,7 +43,7 @@ picker.addEventListener('pick', (event) => { })
 const page = new UIViewController();
 const picker = new PHPickerViewController(new PHPickerConfiguration());
 picker.addEventListener('pick', (event) => {
-  const { results } = /** @type {PHPickerViewControllerFinishEvent} */ (event);
+  const { results } = event;
   picker.dismissViewController({ animated: true });
   console.log(results.length === 0 ? '取消了' : '选了 ' + results.length + ' 项');
 });

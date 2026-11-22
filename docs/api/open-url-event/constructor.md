@@ -43,6 +43,9 @@ new OpenURLEvent(type, { url, scene, sourceApplication, cancelable })
 
 **`TypeError`**
 
+- 某个字段的值转换不了，见上面各个参数。
+- 没传事件名：`Failed to construct 'OpenURLEvent': 1 argument required, but only 0 present.`
+- 不带 `new`，当成函数调用。
 - 没传 `url`：`Failed to construct 'OpenURLEvent': url is required`。
 - `scene` 没传或者不是场景：`Failed to construct 'OpenURLEvent': scene must be a UIWindowScene`。
 

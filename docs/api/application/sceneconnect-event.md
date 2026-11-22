@@ -15,11 +15,11 @@ application.addEventListener('sceneconnect', (event) => { })
 
 ## 事件对象
 
-`Event`，多一个只读字段：
+[`SceneEvent`](../scene-event.md)，多一个只读字段：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `scene` | [`UIWindowScene`](../ui-window-scene.md) | 系统刚创建的场景 |
+| [`scene`](../scene-event/scene.md) | [`UIWindowScene`](../ui-window-scene.md) | 系统刚创建的场景 |
 
 `target` 是 `application`。不能取消，`cancelable` 是 `false`。
 

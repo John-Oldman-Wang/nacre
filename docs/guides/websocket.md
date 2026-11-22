@@ -25,7 +25,7 @@ ws.addEventListener('open', () => {
 
 // 3. 收到消息
 ws.addEventListener('message', (e) => {
-  const data = /** @type {WebSocketMessageEvent} */ (e).data;
+  const data = e.data;
   console.log('收到', data);
 
   // 4. 收到自己发的那条之后关闭
@@ -34,10 +34,10 @@ ws.addEventListener('message', (e) => {
 
 // 5. 出错和结束
 ws.addEventListener('error', (e) => {
-  console.log('出错', /** @type {WebSocketErrorEvent} */ (e).message);
+  console.log('出错', e.message);
 });
 ws.addEventListener('close', (e) => {
-  const { code, wasClean } = /** @type {WebSocketCloseEvent} */ (e);
+  const { code, wasClean } = e;
   console.log('结束', code, wasClean);
 });
 ```
@@ -49,7 +49,7 @@ ws.addEventListener('close', (e) => {
 - 关闭完成后输出 `结束 1000 true`。
 - 连不上时输出 `出错` 加一段系统的错误描述，然后输出 `结束 1006 false`。
 
-事件回调的参数类型是通用的 `Event`，要转一次类型才能读 `data`、`message`、`code` 这些字段，上面 `/** @type {...} */ (e)` 就是做这件事。
+`message` 的事件对象是 [`MessageEvent`](../api/message-event.md)，`error` 的是 [`ErrorEvent`](../api/error-event.md)，`close` 的是 [`CloseEvent`](../api/close-event.md)，`data`、`message`、`code` 这些字段直接读。
 
 这段代码没有作为一个整体在模拟器运行过。其中用到的每个 API 都在验收用例里对着同一个服务运行过。
 
@@ -77,7 +77,7 @@ ws.send(new Uint8Array([1, 2, 3, 4, 5]));
 
 ```js
 ws.addEventListener('message', async (e) => {
-  const data = /** @type {WebSocketMessageEvent} */ (e).data;
+  const data = e.data;
   if (typeof data === 'string') {
     console.log('文本', data);
   } else {
@@ -97,7 +97,7 @@ ws.addEventListener('message', async (e) => {
 ws.send(JSON.stringify({ type: 'subscribe', symbol: 'AAPL' }));
 
 ws.addEventListener('message', (e) => {
-  const data = /** @type {WebSocketMessageEvent} */ (e).data;
+  const data = e.data;
   if (typeof data !== 'string') return;
   try {
     const msg = JSON.parse(data);
@@ -154,7 +154,7 @@ console.log(ws.readyState === WebSocket.CLOSING);
 
 ```js
 ws.addEventListener('close', (e) => {
-  const { code, reason, wasClean } = /** @type {WebSocketCloseEvent} */ (e);
+  const { code, reason, wasClean } = e;
   if (wasClean) {
     console.log('正常关闭', code, reason);
   } else {
@@ -210,7 +210,7 @@ function keepConnected(url, onMessage) {
     });
 
     socket.addEventListener('message', (e) => {
-      onMessage(/** @type {WebSocketMessageEvent} */ (e).data);
+      onMessage(e.data);
     });
 
     // 不管怎么结束的，最后都到这里

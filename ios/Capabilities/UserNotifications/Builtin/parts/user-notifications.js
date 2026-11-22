@@ -484,11 +484,14 @@
                                       notificationFromWire(wire.notification));
   }
 
-  // 事件带的字段过桥时是普通对象，在这里换成上面的类型
-  eventFieldConverters.set('notification', (fields) => ({
+  // 事件类。字段过桥时是普通对象，在这里换成上面的类型
+  ctx.defineEventClass('UNNotificationPresentEvent', ctx.Event, { notification: ['UNNotification?', null] });
+  ctx.defineEventClass('UNNotificationResponseEvent', ctx.Event,
+                       { response: ['UNNotificationResponse?', null] });
+  eventFieldConverters.set('UNNotificationPresentEvent', (fields) => ({
     notification: notificationFromWire(fields.notification),
   }));
-  eventFieldConverters.set('notificationclick', (fields) => ({
+  eventFieldConverters.set('UNNotificationResponseEvent', (fields) => ({
     response: responseFromWire(fields.response),
   }));
 

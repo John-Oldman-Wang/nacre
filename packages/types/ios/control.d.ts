@@ -41,12 +41,9 @@ type UIButtonRole = 'normal' | 'primary' | 'cancel' | 'destructive';
 /**
  * 触摸类控件事件（九个 `touch*`）带的数据。
  *
- * 和导航那几个带负载的事件一样，回调参数的类型没有窄化（`EventTarget`
- * 的基类签名不允许），要拿就转一下型：
- *
  * ```js
  * button.addEventListener('touchupinside', (e) => {
- *   const { location, tapCount } = /** @type {UIControlTouchEvent} *\/ (e);
+ *   const { location, tapCount } = e;
  * });
  * ```
  *
@@ -56,7 +53,8 @@ type UIButtonRole = 'normal' | 'primary' | 'cancel' | 'destructive';
  * 不确定就不承诺。这是 Web 的做法：`clientX` 在 `MouseEvent` 上，
  * `KeyboardEvent` 根本没有这个字段。
  */
-declare interface UIControlTouchEvent extends Event {
+declare class UIControlTouchEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<UIControlTouchEvent, 'location' | 'tapCount'>>);
   /**
    * 触点在**这个控件自己的坐标系**里的位置。
    *
@@ -66,6 +64,26 @@ declare interface UIControlTouchEvent extends Event {
   readonly location: CGPoint | null;
   /** 连击次数。没有真实触点时是 0。 */
   readonly tapCount: number;
+}
+
+/** 控件上每个事件名对应的事件对象。 */
+interface UIControlEventMap extends UIViewEventMap {
+  'touchdown': UIControlTouchEvent;
+  'touchdownrepeat': UIControlTouchEvent;
+  'touchdraginside': UIControlTouchEvent;
+  'touchdragoutside': UIControlTouchEvent;
+  'touchdragenter': UIControlTouchEvent;
+  'touchdragexit': UIControlTouchEvent;
+  'touchupinside': UIControlTouchEvent;
+  'touchupoutside': UIControlTouchEvent;
+  'touchcancel': UIControlTouchEvent;
+  'change': Event;
+  'click': Event;
+  'menuaction': Event;
+  'focus': Event;
+  'input': Event;
+  'blur': Event;
+  'return': Event;
 }
 
 declare class UIControl extends UIView {
@@ -95,17 +113,17 @@ declare class UIControl extends UIView {
   sendActionsForControlEvents(types: readonly UIControlEventType[]): void;
 
   /**
-   * 事件名认不出来会抛 `TypeError`——控件的事件类型是有限的，
-   * 写错了不该静默不响应。
+   * 事件名只能是表里的这些：写错了类型检查会报。运行时不拒绝不认识的名字，
+   * 当自定义事件（只有自己 `dispatchEvent` 才会收到）。
    */
-  addEventListener(
-    type: UIControlEventType | UITraitChangeEventType,
-    callback: EventListener | null,
+  addEventListener<K extends keyof UIControlEventMap>(
+    type: K,
+    callback: ((event: UIControlEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
   ): void;
-  removeEventListener(
-    type: UIControlEventType | UITraitChangeEventType,
-    callback: EventListener | null,
+  removeEventListener<K extends keyof UIControlEventMap>(
+    type: K,
+    callback: ((event: UIControlEventMap[K]) => void) | null,
   ): void;
 }
 
@@ -164,7 +182,10 @@ declare class UIBarItem extends NSObject {
   tag: number;
 }
 
-type BarButtonEventName = UIBarButtonItemEventType | (string & {});
+/** 导航条按钮上每个事件名对应的事件对象。 */
+interface UIBarButtonItemEventMap {
+  'click': Event;
+}
 
 /**
  * 导航条上的按钮。**它不是 `UIView` 也不是 `UIControl`**——是一个描述对象，
@@ -203,9 +224,16 @@ declare class UIBarButtonItem extends UIBarItem {
   isHidden: boolean;
   customView: UIView | null;
 
-  addEventListener(
-    type: BarButtonEventName,
-    callback: EventListener | null,
+  addEventListener<K extends keyof UIBarButtonItemEventMap>(
+    type: K,
+    callback: ((event: UIBarButtonItemEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
   ): void;
+  /** 别的名字当自定义事件：`dispatchEvent` 是公开 API，JS 可以派发自己的事件。 */
+  addEventListener(type: string, callback: EventListener | null, options?: AddEventListenerOptions): void;
+  removeEventListener<K extends keyof UIBarButtonItemEventMap>(
+    type: K,
+    callback: ((event: UIBarButtonItemEventMap[K]) => void) | null,
+  ): void;
+  removeEventListener(type: string, callback: EventListener | null): void;
 }

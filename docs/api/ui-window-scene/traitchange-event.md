@@ -15,11 +15,11 @@ scene.addEventListener('traitchange', (event) => { })
 
 ## 事件对象
 
-`UITraitChangeEvent`。除了 `type` 和 `target`（这个场景），多一个只读字段：
+[`UITraitChangeEvent`](../ui-trait-change-event.md)。除了 `type` 和 `target`（这个场景），多一个只读字段：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `previousTraitCollection` | [`UITraitCollection`](../ui-trait-collection.md) | 变化之前的那一组值。现在的值从 `event.target.traitCollection` 读 |
+| [`previousTraitCollection`](../ui-trait-change-event/previoustraitcollection.md) | [`UITraitCollection`](../ui-trait-collection.md) | 变化之前的那一组值。现在的值从 `event.target.traitCollection` 读 |
 
 不能取消。
 
@@ -33,7 +33,7 @@ scene.addEventListener('traitchange', (event) => { })
 application.addEventListener('sceneconnect', (e) => {
   const scene = e.scene;
   scene.addEventListener('traitchange', (ev) => {
-    const { previousTraitCollection } = /** @type {UITraitChangeEvent} */ (ev);
+    const { previousTraitCollection } = ev;
     console.log(previousTraitCollection.userInterfaceStyle, '→',
       scene.traitCollection.userInterfaceStyle);
   });

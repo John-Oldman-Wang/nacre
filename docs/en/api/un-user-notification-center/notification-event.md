@@ -15,9 +15,9 @@ center.addEventListener('notification', (event) => { })
 
 ## Event object
 
-`UNNotificationPresentEvent`, an `Event` with one extra field:
+[`UNNotificationPresentEvent`](../un-notification-present-event.md), an `Event` with one extra field:
 
-**`notification`**
+**[`notification`](../un-notification-present-event/notification.md)**
 
 The notification that just arrived, a [`UNNotification`](../un-notification.md).
 

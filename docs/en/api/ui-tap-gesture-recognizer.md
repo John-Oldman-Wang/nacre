@@ -43,7 +43,7 @@ Events come from [`UIGestureRecognizer`](ui-gesture-recognizer.md#events); liste
 const card = new UIView();
 const tap = new UITapGestureRecognizer();
 tap.addEventListener('ended', (e) => {
-  const { location } = /** @type {UIGestureRecognizerEvent} */ (e);
+  const { location } = e;
   if (location !== null) {
     console.log('Tapped at', location.x, location.y);
   }

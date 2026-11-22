@@ -325,7 +325,7 @@ export function collect(scene) {
  */
 export function onLevelChange(listener) {
   const module = native();
-  /** @param {NativeModuleEvent} event */
+  /** @param {CustomEvent} event */
   const handler = (event) => {
     const detail = /** @type {{ level: number }} */ (event.detail);
     listener(detail.level);

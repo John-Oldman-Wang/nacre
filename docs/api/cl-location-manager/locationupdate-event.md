@@ -15,9 +15,9 @@ manager.addEventListener('locationupdate', (event) => { })
 
 ## 事件对象
 
-`CLLocationUpdateEvent`，多出一个字段：
+[`CLLocationUpdateEvent`](../cl-location-update-event.md)，多出一个字段：
 
-**`locations`**
+**[`locations`](../cl-location-update-event/locations.md)**
 
 [`CLLocation`](../cl-location.md) 的数组，至少一个，按时间从早到晚，**最后一个是最新的**。系统有时把几个位置一起报。这个字段只读，给它赋值抛 `TypeError`。
 

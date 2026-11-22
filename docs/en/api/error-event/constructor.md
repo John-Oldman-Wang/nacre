@@ -11,7 +11,7 @@ The **`ErrorEvent()`** constructor creates an error event object.
 
 ```
 new ErrorEvent(type)
-new ErrorEvent(type, { message, error, filename, lineno, cancelable })
+new ErrorEvent(type, { message, error, filename, lineno, colno, cancelable })
 ```
 
 ### Parameters
@@ -20,9 +20,9 @@ new ErrorEvent(type, { message, error, filename, lineno, cancelable })
 
 The event name, a string.
 
-**`options.message`**, **`options.error`**, **`options.filename`**, **`options.lineno`**
+**`options.message`**, **`options.error`**, **`options.filename`**, **`options.lineno`**, **`options.colno`**
 
-Optional. Each corresponds to the property of the same name. The values when omitted are **not verified in the simulator**.
+Optional. Each corresponds to the property of the same name. When omitted, `message` and `filename` are empty strings, `lineno` and `colno` are `0`, and `error` is `undefined`.
 
 **`options.cancelable`**
 
@@ -34,7 +34,11 @@ The new `ErrorEvent`.
 
 ### Exceptions
 
-Throws `TypeError` when no event name is passed, same as [`Event()`](../event/constructor.md). **Not verified in the simulator.**
+**`TypeError`**
+
+- A field's value cannot be converted; see each parameter above.
+- No event name is passed: `Failed to construct 'ErrorEvent': 1 argument required, but only 0 present.`
+- It is called as a function, without `new`.
 
 ## Examples
 
@@ -44,7 +48,7 @@ const event = new ErrorEvent('error', { message: err.message, error: err });
 console.log(event.message, event.error === err);
 ```
 
-**Result**: the console prints `Test true`. **Not verified in the simulator.**
+**Result**: the console prints `Test true`.
 
 ## Corresponding iOS API
 

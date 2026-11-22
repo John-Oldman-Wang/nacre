@@ -157,33 +157,16 @@
     }
   }
 
-  // ---------- 错误类事件 ----------
-  // 这两类事件由运行时在 JS 线程上同步派发，派发方拿得到返回值，
-  // 所以是 cancelable 的：调 preventDefault() 就不会再打运行时的默认日志。
+  // 往对象上挂一个只读、可枚举的字段。事件的字段不用它了（事件类的字段是原型上的
+  // getter，见 core 的 05-events.js），别处还在用
 
   function defineField(obj, name, value) {
     Object.defineProperty(obj, name, { value, enumerable: true });
   }
 
-  class ErrorEvent extends Event {
-    constructor(type, options) {
-      const o = options == null ? {} : options;
-      super(type, o);
-      defineField(this, 'message', o.message === undefined ? '' : o.message);
-      defineField(this, 'error', o.error);
-      defineField(this, 'filename', o.filename === undefined ? '' : o.filename);
-      defineField(this, 'lineno', o.lineno === undefined ? 0 : o.lineno);
-    }
-  }
-
-  class PromiseRejectionEvent extends Event {
-    constructor(type, options) {
-      const o = options == null ? {} : options;
-      super(type, o);
-      defineField(this, 'reason', o.reason);
-      defineField(this, 'promise', o.promise);
-    }
-  }
+  // ErrorEvent 和 PromiseRejectionEvent 是 Web 标准的事件类，在 core 的 05-events.js。
+  // 它们由运行时在 JS 线程上同步派发（21-application.js），是 cancelable 的：
+  // 调 preventDefault() 就不会再打运行时的默认日志
 
   // ---------- 原生对象的包装 ----------
   // 句柄 id 挂在闭包里的 Symbol 上，而不是 V8 的 internal field。
@@ -192,10 +175,8 @@
 
   // 这个 part 对外提供的东西
   Object.assign(ctx, {
-    ErrorEvent,
     Event,
     EventTarget,
-    PromiseRejectionEvent,
     define,
     defineField,
     initWrapper,

@@ -15,14 +15,12 @@ addEventListener('touchdownrepeat', (event) => { })
 
 ## Event object
 
-The event object's type is [`UIControlTouchEvent`](../ui-control.md#touch-location). Besides `type` and `target`, it carries two read-only fields:
+[`UIControlTouchEvent`](../ui-control-touch-event.md). Besides `type` and `target`, it carries two read-only fields:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `location` | [`CGPoint`](../structs.md) or `null` | The finger's position, in this control's own coordinate system, in [pt](../units.md). `null` when fired by [`sendActionsForControlEvents()`](sendactionsforcontrolevents.md) |
-| `tapCount` | number | The number of consecutive taps, counted in taps. 0 when fired by `sendActionsForControlEvents()` |
-
-The callback parameter is declared as `Event`; to read these two fields, cast it to `UIControlTouchEvent`, as shown in the example.
+| [`location`](../ui-control-touch-event/location.md) | [`CGPoint`](../structs.md) or `null` | The finger's position, in this control's own coordinate system, in [pt](../units.md). `null` when fired by [`sendActionsForControlEvents()`](sendactionsforcontrolevents.md) |
+| [`tapCount`](../ui-control-touch-event/tapcount.md) | number | The number of consecutive taps, counted in taps. 0 when fired by `sendActionsForControlEvents()` |
 
 It cannot be canceled: `cancelable` is `false`, and `preventDefault()` has no effect.
 
@@ -37,7 +35,7 @@ It cannot be canceled: `cancelable` is `false`, and `preventDefault()` has no ef
 ```js
 const card = new UIControl();
 card.addEventListener('touchdownrepeat', (e) => {
-  const { tapCount } = /** @type {UIControlTouchEvent} */ (e);
+  const { tapCount } = e;
   console.log('Repeat tap', tapCount);
 });
 ```

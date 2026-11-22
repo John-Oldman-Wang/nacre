@@ -15,13 +15,11 @@ nav.addEventListener('beforeshow', (event) => { })
 
 ## Event object
 
-`Event`, with one extra field:
+[`UINavigationControllerEvent`](../ui-navigation-controller-event.md), with one extra read-only field:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `viewController` | `UIViewController` | The view controller about to be shown |
-
-The type definitions don't yet have a type for this event object; annotate the `viewController` field yourself, as shown in the example.
+| [`viewController`](../ui-navigation-controller-event/viewcontroller.md) | `UIViewController` | The view controller about to be shown |
 
 Not cancelable, and it can't be used to stop the user from going back.
 
@@ -38,8 +36,7 @@ To tell which view controller is about to be shown, use `event.viewController`, 
 ```js
 const home = new UIViewController();
 const nav = new UINavigationController(home);
-nav.addEventListener('beforeshow', (ev) => {
-  const event = /** @type {Event & { viewController: UIViewController }} */ (ev);
+nav.addEventListener('beforeshow', (event) => {
   nav.setNavigationBarHidden(event.viewController === home, { animated: true });
 });
 ```

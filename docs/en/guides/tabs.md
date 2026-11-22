@@ -125,8 +125,7 @@ console.log(tabs.selectedViewController === profile);
 ## Knowing when the user switched tabs
 
 ```js
-tabs.addEventListener('tabselect', (ev) => {
-  const event = /** @type {UITabBarControllerEvent} */ (ev);
+tabs.addEventListener('tabselect', (event) => {
   console.log(event.viewController === tabs.selectedViewController);
 });
 ```

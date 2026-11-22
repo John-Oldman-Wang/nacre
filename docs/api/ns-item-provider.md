@@ -44,7 +44,7 @@ status: partial
 ```js
 const picker = new PHPickerViewController(new PHPickerConfiguration());
 picker.addEventListener('pick', async (event) => {
-  const { results } = /** @type {PHPickerViewControllerFinishEvent} */ (event);
+  const { results } = event;
   for (const result of results) {
     const provider = result.itemProvider;
     if (provider.canLoadObjectOfClass(UIImage)) {

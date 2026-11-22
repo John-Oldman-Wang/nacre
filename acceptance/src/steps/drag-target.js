@@ -54,6 +54,7 @@ export async function stepDragTarget(ctx) {
   const event = /** @type {UIScrollViewDragEndEvent | null} */ (seen);
   assert('停点：当场派发，事件的 target 是这个滚动视图', event !== null && event.target === scroller, true);
   assert('停点：不能取消', event !== null && event.cancelable, false);
+  assert('停点：是 UIScrollViewDragEndEvent', event instanceof UIScrollViewDragEndEvent, true);
   assert('停点：velocity 是松手时的速度', event !== null && event.velocity instanceof CGPoint &&
          event.velocity.x === 0 && event.velocity.y === 2, true);
 

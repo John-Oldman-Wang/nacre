@@ -7,7 +7,6 @@
 
   const {
     constructNative,
-    defineField,
     defineNativeClass,
     describeValue,
     finalCheck,
@@ -161,24 +160,16 @@
     return Array.from(value);
   }
 
-  // complete 事件带的数据。原生那边把完成回调的结果记在面板上、发一个不带
-  // 数据的事件；这个监听器在构造时就挂上，所以排在所有别的监听器前面，
-  // 把结果取出来挂到事件对象上。
-  //
-  // 绕这一下是因为核心的事件汇入口只认它知道的那几种负载形状，新的形状会
-  // 被丢掉，而那个文件不归这个域改。结果取一次就清，所以自己 dispatchEvent
-  // 一个 complete 时这里什么都不挂
-  function attachCompletion(event) {
-    const result = nativeCall(this, 'nacre:takeCompletion', []);
-    if (result === null) return;
-    defineField(event, 'activityType', result.activityType);
-    defineField(event, 'completed', result.completed);
-    let failure = null;
-    if (result.activityError !== null) {
-      failure = ctx.makeError('NSError', result.activityError.message, result.activityError);
-    }
-    defineField(event, 'activityError', failure);
-  }
+  // complete 事件带的数据由原生随事件带过来（UIActivityViewControllerCompletionEvent），
+  // 系统给的错误在这里建成 NSError
+  ctx.eventFieldConverters.set('UIActivityViewControllerCompletionEvent', (init) => {
+    const failure = init.activityError;
+    return {
+      ...init,
+      activityError: failure === null || failure === undefined
+        ? null : ctx.makeError('NSError', failure.message, failure),
+    };
+  });
 
   defineNativeClass('UIActivityViewController',
                     class UIActivityViewController extends UIViewController {
@@ -192,7 +183,6 @@
       }
       constructNative(this, new.target, 'UIActivityViewController',
                       activityItemArgs(activityItems));
-      this.addEventListener('complete', attachCompletion);
     }
 
     // 不想出现在面板里的系统动作。null 是一个都不排除

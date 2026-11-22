@@ -15,14 +15,12 @@ scroller.addEventListener('beforedragend', (event) => { })
 
 ## Event object
 
-`UIScrollViewDragEndEvent`. Besides `type` and `target` (this scroll view), it carries two fields:
+[`UIScrollViewDragEndEvent`](../ui-scroll-view-drag-end-event.md). Besides `type` and `target` (this scroll view), it carries two fields:
 
 | Field | Type | Readable | Writable | Meaning |
 | --- | --- | --- | --- | --- |
-| `velocity` | [`CGPoint`](../cg-point.md) | Yes | No | How fast the content was moving when the finger lifted, in [pt](../units.md) per millisecond |
-| `targetContentOffset` | [`CGPoint`](../cg-point.md) | Yes | Yes | The [`contentOffset`](contentoffset.md) at which the content will stop, in pt. Its initial value is the stopping position the system computed |
-
-The callback parameter is declared as `Event`, so cast it to read and write these fields; see the example.
+| [`velocity`](../ui-scroll-view-drag-end-event/velocity.md) | [`CGPoint`](../cg-point.md) | Yes | No | How fast the content was moving when the finger lifted, in [pt](../units.md) per millisecond |
+| [`targetContentOffset`](../ui-scroll-view-drag-end-event/targetcontentoffset.md) | [`CGPoint`](../cg-point.md) | Yes | Yes | The [`contentOffset`](contentoffset.md) at which the content will stop, in pt. Its initial value is the stopping position the system computed |
 
 Not cancelable: `event.cancelable` is `false` and `preventDefault()` has no effect. To keep the content where it is, write the current `contentOffset` to `targetContentOffset`.
 
@@ -52,8 +50,7 @@ The sign of `velocity` gives the direction, matching the direction in which `con
 ```js
 const scroller = new UIScrollView();
 const rowHeight = 80;
-scroller.addEventListener('beforedragend', (event) => {
-  const e = /** @type {UIScrollViewDragEndEvent} */ (event);
+scroller.addEventListener('beforedragend', (e) => {
   const y = Math.round(e.targetContentOffset.y / rowHeight) * rowHeight;
   e.targetContentOffset = new CGPoint(0, y);
 });

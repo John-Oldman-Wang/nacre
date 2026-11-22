@@ -10,7 +10,7 @@
 (function (ctx) {
   'use strict';
 
-  ctx.eventFieldConverters.set('beforeinput', (fields) => {
+  ctx.eventFieldConverters.set('UITextBeforeInputEvent', (fields) => {
     const range = fields.range;
     // NSRange 定义在多行输入那个 part 里，这个函数到派发事件时才执行，那时它已经在了
     return {

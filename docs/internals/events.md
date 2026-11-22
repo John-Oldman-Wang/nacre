@@ -793,3 +793,40 @@ UIKit 用委托问识别器两件事，都是当场要答案：
 - 表用弱引用（`NSHashTable weakObjectsHashTable`）：识别器由各自的视图持有，这张表不该延长它们的命；JS 一侧因此也不记所有权边。
 - 两样都不要了就把委托摘掉，识别器回到 UIKit 的默认行为。
 - 验收：示例模块的 `simulateGestureAsk` 照 UIKit 的做法去问委托。真的触摸没验。
+
+## 事件类：一种字段组合是一个类（2026-11-22）
+
+之前运行时里真正的事件类只有五个（`Event`、`ErrorEvent`、`PromiseRejectionEvent`、`OpenURLEvent`、`PushEvent`）。原生发来的事件一律 `new Event(type)`，再用 `defineField` 把负载的字段挂在实例上；类型里有四十多个 `interface XxxEvent extends Event`，只存在于类型里。结果是：不能 `instanceof`、不能 `new` 一个出来测、`addEventListener` 的回调一律是 `Event`，读字段要强转。
+
+照 Web 改：`MouseEvent` 有 `clientX`，`KeyboardEvent` 没有——一种字段组合是一个类。
+
+| | 做法 |
+| --- | --- |
+| 类 | 带字段的事件都是真的类，挂在全局：`new XxxEvent(type, init)`，字段从 `init` 里取，没给的取默认值；`cancelable` 也从 `init` 来 |
+| 字段 | 原型上的 getter，实例自己没有；只读的写了抛 `TypeError`（严格模式）。「系统当场要一个值」的那一个可写（`UIScrollViewDragEndEvent.targetContentOffset`） |
+| 定义 | `ctx.defineEventClass(name, Parent, fields, { writable, check })`，在 core 的 `05-events.js`。每个字段是 `[类型, 默认值]`，平台和能力包的事件类都用它，登记进 `ctx.eventClasses` |
+| 转换 | `init` 里的值照「API 层宽松接收、照 Web IDL 转换」那条规矩，按字段的类型转：数、整数、布尔、字符串、可空字符串、数组、结构体（给字段齐的普通对象也收）、原生类（不转，不是那个类抛）、任意值。原生发出来的事件也走同一个构造函数，所以负载里类型不对会抛，不会悄悄带进去。可写字段写的时候不转，交给读它的原生去核。枚举字段（`previousInterfaceOrientation`、`navigationType`、`level`）现在只按字符串转，不核是不是可选值之一：可选值的表在原生那边，JS 这边没有 |
+| Web 标准 | `CustomEvent`、`MessageEvent`、`CloseEvent`、`ErrorEvent`、`PromiseRejectionEvent` 在 core。WebSocket 改用后三个（`error` 用 `ErrorEvent`：Web 上是裸的 `Event`，不带原因；Node 的 WebSocket 用 `ErrorEvent`，能把原因带上）；原生模块的事件是 `CustomEvent` |
+| 合并 | 单行、多行输入框的 `beforeinput` 合成一个 `UITextBeforeInputEvent`（字段一样）；不借 Web 的 `InputEvent`，它的字段是 `data` 和 `inputType`，含义不一样 |
+| 新增 | 导航控制器的 `beforeshow` / `show` 原来带了 `viewController` 却没有接口，补了 `UINavigationControllerEvent` |
+| 不是事件的 | `ipc.handle` 处理函数的第一个参数 `{ sender }` 不是事件，保持普通对象 |
+
+**哪个事件是哪个类只在原生那边写一份。** 原生发事件的出口（`NacreEmitEventWithJSON` / `WithObject` / `Sync` / `Now` / `ForAnswer`，运行时自己的 `emitEvent:…eventClass:`，WebSocket、网页的出口）多带一个 `eventClass`，一路传到引擎（`EmitObjectEvent…` 的 `event_class`），作为 sink 的第七个参数交给 JS。JS 在 `ctx.eventClasses` 里找到类，负载变成 `init`：
+
+- 负载是字典：每一项是一个字段，`{ x, y }` 换成 `CGPoint`。
+- 负载不是字典（原生对象、一个布尔、一段文字）：挂在这个类登记的那个字段上（`payloadField` 表，按类不按事件名：`stop`、`error`、`message` 这些名字太泛）。
+- 字段要换类型的，按事件类登记一个换法（`ctx.eventFieldConverters`，原来按事件名登记，同名的事件会串）。
+
+这样原来 sink 里按负载的形状猜（有 `tapCount` 的是控件触摸、有 `previousFrame` 和 `duration` 的是键盘、有 `wasClean` 的是 WebSocket 关闭）的几支都去掉了。
+
+`check-api.sh` 第 12 节核对：原生里写到的每个事件类名，内置脚本里都要有。写错了运行时只打一条警告、派发一个普通的 `Event`，字段就丢了，所以在这里挡住。
+
+**由 JS 自己建事件的那些**（原生发的是 `@` 开头的内部事件，处理函数再派发对外的事件：扫码的 `detect`、拍照、选联系人、选图、推送、被链接打开、原生模块）不走 sink，处理函数直接 `new` 那个类。
+
+**分享面板的 `complete` 改了一处原生。** 原来原生把结果记在面板上、发一个不带数据的事件，构造时挂上的第一个监听器再去取、挂到事件上。字段成了只读 getter 之后挂不上了，改成原生直接把结果带在事件里。
+
+**`AVCaptureSessionRuntimeErrorEvent` 的字段从 `message` / `code` 改成 `error`**（一个 `NSError`），照[报错](errors.md)的规矩。这个事件触发不了，没在真机上见过。
+
+**会破坏现有写法的**：WebSocket 和原生模块的事件类改了名（类型上）；`{...e}`、`Object.keys(e)` 拿不到字段了（Web 上本来也是这样）。盘点过验收用例和文档，没有这样用的。
+
+**没做的**：`Event` 基类的 `bubbles`、`timeStamp`、`isTrusted` 和冒泡；`Event` 自己的 `type`、`cancelable` 还是实例上的字段。

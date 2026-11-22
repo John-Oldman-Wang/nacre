@@ -81,7 +81,7 @@ card.addGestureRecognizer(press);
 
 ```js
 tap.addEventListener('ended', (e) => {
-  const { location } = /** @type {UIGestureRecognizerEvent} */ (e);
+  const { location } = e;
   if (location !== null) {
     console.log(location.x, location.y);
   }
@@ -92,7 +92,7 @@ tap.addEventListener('ended', (e) => {
 
 Checked in the acceptance tests: tapping 28 pt from the left and 28 pt from the top inside the view gives a `location` of `(28, 28)`.
 
-The callback's parameter type is `Event`; to read `location`, cast it to `UIGestureRecognizerEvent` as above.
+The event object is a [`UIGestureRecognizerEvent`](../api/ui-gesture-recognizer-event.md); read `location` directly.
 
 ## Responding to a double tap
 
@@ -170,7 +170,7 @@ After a long press is recognized, each finger movement fires `changed`, and lift
 
 ```js
 press.addEventListener('changed', (e) => {
-  const { location } = /** @type {UIGestureRecognizerEvent} */ (e);
+  const { location } = e;
   if (location !== null) {
     console.log('moved to', location.x, location.y);
   }
@@ -197,7 +197,7 @@ drag.addEventListener('began', () => {
   start = card.center;
 });
 drag.addEventListener('changed', (e) => {
-  const { translation } = /** @type {UIPanGestureRecognizerEvent} */ (e);
+  const { translation } = e;
   card.center = new CGPoint(start.x + translation.x, start.y + translation.y);
 });
 card.addGestureRecognizer(drag);
@@ -218,7 +218,7 @@ const drag = new UIPanGestureRecognizer();
 card.addGestureRecognizer(drag);
 
 drag.addEventListener('ended', (e) => {
-  const { velocity } = /** @type {UIPanGestureRecognizerEvent} */ (e);
+  const { velocity } = e;
   if (velocity.x > 500) {
     console.log('flung to the right');
   }
@@ -246,11 +246,11 @@ A pinch recognizer's events carry `scale`: the distance between the two fingers 
 const pinch = new UIPinchGestureRecognizer();
 let baseScale = 1;
 pinch.addEventListener('changed', (e) => {
-  const { scale } = /** @type {UIPinchGestureRecognizerEvent} */ (e);
+  const { scale } = e;
   card.transform = CGAffineTransform.scale(baseScale * scale);
 });
 pinch.addEventListener('ended', (e) => {
-  const { scale } = /** @type {UIPinchGestureRecognizerEvent} */ (e);
+  const { scale } = e;
   baseScale = baseScale * scale;
 });
 card.addGestureRecognizer(pinch);
@@ -268,11 +268,11 @@ A rotation recognizer's events carry `rotation`: the angle turned since the star
 const twist = new UIRotationGestureRecognizer();
 let baseAngle = 0;
 twist.addEventListener('changed', (e) => {
-  const { rotation } = /** @type {UIRotationGestureRecognizerEvent} */ (e);
+  const { rotation } = e;
   card.transform = CGAffineTransform.rotation(baseAngle + rotation);
 });
 twist.addEventListener('ended', (e) => {
-  const { rotation } = /** @type {UIRotationGestureRecognizerEvent} */ (e);
+  const { rotation } = e;
   baseAngle = baseAngle + rotation;
 });
 card.addGestureRecognizer(twist);
@@ -357,7 +357,7 @@ card.addSubview(badge);
 
 const cardTap = new UITapGestureRecognizer();
 cardTap.addEventListener('ended', (e) => {
-  const { location } = /** @type {UIGestureRecognizerEvent} */ (e);
+  const { location } = e;
   if (location === null) return;
   const hit = card.hitTest(location);
   console.log(hit === badge ? 'tapped the square' : 'tapped elsewhere on the rectangle');
@@ -471,7 +471,7 @@ To keep a recognizer from beginning in some situations, listen for its [`beforeb
 ```js
 const handlePan = new UIPanGestureRecognizer();
 handlePan.addEventListener('beforebegin', (event) => {
-  const { location } = /** @type {UIGestureRecognizerEvent} */ (event);
+  const { location } = event;
   if (location === null || location.x > 40) event.preventDefault();
 });
 card.addGestureRecognizer(handlePan);

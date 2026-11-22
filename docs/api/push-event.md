@@ -16,11 +16,13 @@ status: partial
 
 ## 构造函数
 
-静默推送到了时，运行时创建它，派发给 `push` 的监听器。也可以自己用 `new PushEvent('push', { data })` 建一个，派发出去试监听器。
+[`PushEvent()`](push-event/constructor.md)
+
+静默推送到了时，运行时创建它，派发给 `push` 的监听器。App 的代码也可以自己建一个，派发出去试监听器。
 
 ## 实例属性
 
-还继承 [`Event`](event.md) 的属性。`cancelable` 是 `false`（实测）。
+还继承 [`Event`](event.md) 的属性。`data` 是只读的，给它赋值抛 `TypeError`。它在原型上，不在事件对象自己身上，`Object.keys(event)` 拿不到它，见[带字段的事件](event.md#带字段的事件)。
 
 | 属性 | 说明 |
 | --- | --- |
@@ -31,6 +33,14 @@ status: partial
 | 方法 | 说明 |
 | --- | --- |
 | [`waitUntil()`](push-event/waituntil.md) | 让系统等一个 Promise 落定，用它的结果回答系统 |
+
+## 哪些事件是这个类
+
+| 对象 | 事件 |
+| --- | --- |
+| [`RemoteNotifications`](remote-notifications.md) | [`push`](remote-notifications/push-event.md) |
+
+不能取消：`cancelable` 是 `false`（实测）。
 
 ## 系统得到的结果
 

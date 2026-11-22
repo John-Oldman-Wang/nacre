@@ -15,12 +15,12 @@ contents.addEventListener('preload-error', (event) => {})
 
 ## 事件对象
 
-`WebContentsPreloadErrorEvent`，除 `type`、`target` 以外带两个字段：
+[`WebContentsPreloadErrorEvent`](../web-contents-preload-error-event.md)，除 `type`、`target` 以外带两个字段：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `preloadPath` | 字符串 | 建 `WebView` 时给的预加载脚本路径 |
-| `error` | `Error` | 预加载脚本抛出来的错误。`message` 是网页那边 `String(error)` 的结果 |
+| [`preloadPath`](../web-contents-preload-error-event/preloadpath.md) | 字符串 | 建 `WebView` 时给的预加载脚本路径 |
+| [`error`](../web-contents-preload-error-event/error.md) | `Error` | 预加载脚本抛出来的错误。`message` 是网页那边 `String(error)` 的结果 |
 
 不可取消。
 

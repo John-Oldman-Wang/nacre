@@ -49,11 +49,11 @@ const card = new UIView();
 const pinch = new UIPinchGestureRecognizer();
 let baseScale = 1;
 pinch.addEventListener('changed', (e) => {
-  const { scale } = /** @type {UIPinchGestureRecognizerEvent} */ (e);
+  const { scale } = e;
   card.transform = CGAffineTransform.scale(baseScale * scale);
 });
 pinch.addEventListener('ended', (e) => {
-  const { scale } = /** @type {UIPinchGestureRecognizerEvent} */ (e);
+  const { scale } = e;
   baseScale = baseScale * scale;
 });
 card.addGestureRecognizer(pinch);

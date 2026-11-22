@@ -8,7 +8,7 @@
 (function (ctx) {
   'use strict';
 
-  ctx.eventFieldConverters.set('linkclick', (fields) => ({
+  ctx.eventFieldConverters.set('UITextViewLinkClickEvent', (fields) => ({
     url: fields.url,
     range: new NSRange(fields.range.location, fields.range.length),
   }));

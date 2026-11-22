@@ -115,7 +115,7 @@ nacre: @nacrejs/av-capture needs NSCameraUsageDescription in Info.plist: a sente
 | [`stop`](av-capture-session/stop-event.md) | 停止取景了，包括系统自己停的 |
 | [`interrupt`](av-capture-session/interrupt-event.md) | 被系统打断了。事件带着原因 |
 | [`interruptend`](av-capture-session/interruptend-event.md) | 打断结束了 |
-| [`runtimeerror`](av-capture-session/runtimeerror-event.md) | 取景中出错了。事件带着系统给的说明 |
+| [`runtimeerror`](av-capture-session/runtimeerror-event.md) | 取景中出错了。事件对象是 [`AVCaptureSessionRuntimeErrorEvent`](av-capture-session-runtime-error-event.md)，`error` 是系统给的错误 |
 
 监听别的名字不会报错：它被当成自定义事件，只有自己用 `dispatchEvent()` 派发时才会触发。
 
@@ -201,7 +201,7 @@ async function scan(box) {
 | 在后台队列上调 `[session stopRunning]` | `await session.stopRunning()` |
 | 观察 `AVCaptureSessionDidStartRunningNotification` | `session.addEventListener('start', …)` |
 | 观察 `AVCaptureSessionWasInterruptedNotification`，原因在 `userInfo[AVCaptureSessionInterruptionReasonKey]` | `interrupt` 事件，原因是 `event.reason` |
-| 观察 `AVCaptureSessionRuntimeErrorNotification`，错误在 `userInfo[AVCaptureSessionErrorKey]` | `runtimeerror` 事件，`event.message` 和 `event.code` |
+| 观察 `AVCaptureSessionRuntimeErrorNotification`，错误在 `userInfo[AVCaptureSessionErrorKey]` | `runtimeerror` 事件，`event.error` |
 
 ## 参见
 

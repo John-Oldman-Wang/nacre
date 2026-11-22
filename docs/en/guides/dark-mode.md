@@ -100,7 +100,7 @@ When the user switches in system settings, `traitchange` fires on the [scene](..
 application.addEventListener('sceneconnect', (e) => {
   const scene = e.scene;
   scene.addEventListener('traitchange', (event) => {
-    const before = /** @type {UITraitChangeEvent} */ (event).previousTraitCollection;
+    const before = event.previousTraitCollection;
     console.log(before.userInterfaceStyle + ' → ' + scene.traitCollection.userInterfaceStyle);
   });
 });

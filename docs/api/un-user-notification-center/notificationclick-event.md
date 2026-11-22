@@ -15,9 +15,9 @@ center.addEventListener('notificationclick', (event) => { })
 
 ## 事件对象
 
-`UNNotificationResponseEvent`，一个 `Event`，多一个字段：
+[`UNNotificationResponseEvent`](../un-notification-response-event.md)，一个 `Event`，多一个字段：
 
-**`response`**
+**[`response`](../un-notification-response-event/response.md)**
 
 用户的动作，一个 [`UNNotificationResponse`](../un-notification-response.md)。`response.notification` 是被点的那一条，`response.notification.request.content.userInfo` 是当初放进内容里的数据，用它决定打开哪个页面。
 

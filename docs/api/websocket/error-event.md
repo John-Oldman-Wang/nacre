@@ -15,9 +15,9 @@ ws.addEventListener('error', (event) => { })
 
 ## 事件对象
 
-类型定义里是 `WebSocketErrorEvent`。不能取消。
+[`ErrorEvent`](../error-event.md)，只带 `message`：`filename` 是空串，`lineno`、`colno` 是 `0`，`error` 是 `undefined`。不能取消。
 
-**`message`**
+**[`message`](../error-event/message.md)**
 
 字符串，系统给出的错误描述。这是一段给人读的文字，语言跟随系统设置，不要用它做判断。
 
@@ -35,7 +35,7 @@ const ws = new WebSocket('wss://echo.websocket.org');
 let opened = false;
 ws.addEventListener('open', () => { opened = true; });
 ws.addEventListener('error', (e) => {
-  const reason = /** @type {WebSocketErrorEvent} */ (e).message;
+  const reason = e.message;
   console.log(opened ? '中途断开' : '没连上', reason);
 });
 ```

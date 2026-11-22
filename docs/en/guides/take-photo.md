@@ -54,7 +54,7 @@ application.addEventListener('sceneconnect', (e) => {
 
     // 3. The user tapped "Use Photo": take the photo and close the interface
     picker.addEventListener('pick', (event) => {
-      const { originalImage } = /** @type {UIImagePickerControllerMediaEvent} */ (event);
+      const { originalImage } = event;
       preview.image = originalImage;
       console.log('Took a photo of ' + originalImage.size.width + ' × ' + originalImage.size.height);
       picker.dismissViewController({ animated: true });
@@ -149,8 +149,7 @@ The system shows a permission prompt the first time the app opens the camera int
 ```js
 picker.allowsEditing = true;
 
-picker.addEventListener('pick', (event) => {
-  const shot = /** @type {UIImagePickerControllerMediaEvent} */ (event);
+picker.addEventListener('pick', (shot) => {
   // With cropping on, use the cropped image; if there isn't one, fall back to the original
   const image = shot.editedImage ?? shot.originalImage;
   console.log(image.size.width + ' × ' + image.size.height);
@@ -211,7 +210,7 @@ function takePhoto(from) {
       resolve(image);
     };
     camera.addEventListener('pick', (event) => {
-      finish(/** @type {UIImagePickerControllerMediaEvent} */ (event).originalImage);
+      finish(event.originalImage);
     });
     camera.addEventListener('cancel', () => finish(null));
     from.presentViewController(camera, { animated: true });
@@ -229,7 +228,7 @@ takePhoto(page).then((photo) => {
 
 ```js
 picker.addEventListener('pick', async (event) => {
-  const { originalImage } = /** @type {UIImagePickerControllerMediaEvent} */ (event);
+  const { originalImage } = event;
   // Wait for the camera interface to finish closing before presenting the next view controller
   await picker.dismissViewController({ animated: true });
   page.presentViewController(new UIActivityViewController([originalImage]), { animated: true });

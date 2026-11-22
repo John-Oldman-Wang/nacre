@@ -190,7 +190,7 @@ application.addEventListener('sceneconnect', (e) => {
 
     // 3. 用户点了「使用照片」：取照片，关掉界面
     picker.addEventListener('pick', (event) => {
-      const { originalImage } = /** @type {UIImagePickerControllerMediaEvent} */ (event);
+      const { originalImage } = event;
       preview.image = originalImage;
       console.log('拍到了 ' + originalImage.size.width + ' × ' + originalImage.size.height);
       picker.dismissViewController({ animated: true });

@@ -18,7 +18,7 @@ native: PHPickerResult.itemProvider
 ```js
 const picker = new PHPickerViewController(new PHPickerConfiguration());
 picker.addEventListener('pick', async (event) => {
-  const { results } = /** @type {PHPickerViewControllerFinishEvent} */ (event);
+  const { results } = event;
   if (results.length === 0) return;
   const provider = results[0].itemProvider;
   if (provider.canLoadObjectOfClass(UIImage)) {

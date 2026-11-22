@@ -38,7 +38,7 @@ Once all listeners for an event name are removed, the native side stops sending 
 
 ```js
 const example = application.nativeModules.get('example');
-/** @param {NativeModuleEvent} e */
+/** @param {CustomEvent} e */
 const onTick = (e) => {
   console.log('tick', e.detail);
 };

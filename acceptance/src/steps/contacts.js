@@ -284,6 +284,7 @@ export function stepContacts(ctx) {
     ['选联系人', open('选联系人', (shown, finish) => {
       shown.addEventListener('contactselect', (e) => {
         assert('真实触摸：选联系人，e.target 是这个选择器', e.target === shown, true);
+        assert('真实触摸：选联系人，是 CNContactPickerContactEvent', e instanceof CNContactPickerContactEvent, true);
         checkContact(assert, '真实触摸：选联系人，', e.contact);
         finish();
       });

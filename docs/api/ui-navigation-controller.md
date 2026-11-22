@@ -154,8 +154,7 @@ application.addEventListener('sceneconnect', (e) => {
     nav.pushViewController(detail, { animated: true });
   });
 
-  nav.addEventListener('show', (ev) => {
-    const event = /** @type {Event & { viewController: UIViewController }} */ (ev);
+  nav.addEventListener('show', (event) => {
     console.log('现在显示', event.viewController.title, '，栈里有', nav.viewControllers.length, '页');
   });
 });

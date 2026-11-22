@@ -12,7 +12,7 @@
 
   const {
     constructNative,
-    defineField,
+    Event,
     defineNativeClass,
     describeValue,
     has,
@@ -258,12 +258,12 @@
   // 选图结束。原生那边把结果存着，发一个带号的内部事件；这里按号取走那一组
   // 结果，建出 pick 再派发。绕这一下是因为事件只带得了一个对象，
   // 而结果是一组
+  const PHPickerViewControllerFinishEvent = ctx.defineEventClass(
+    'PHPickerViewControllerFinishEvent', Event, { results: ['frozenArray', () => Object.freeze([])] });
   internalEventHandlers.set('@photos-picked', (picker, payload) => {
     const token = payload !== null && typeof payload === 'object' ? payload.token : null;
     const results = nativeCallObjectArray(picker, 'nacre:takeResults', [token]);
-    const event = new Event('pick');
-    defineField(event, 'results', Object.freeze(results));
-    picker.dispatchEvent(event);
+    picker.dispatchEvent(new PHPickerViewControllerFinishEvent('pick', { results }));
   });
 
   // ---- 相册 ----

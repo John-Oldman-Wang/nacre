@@ -159,7 +159,9 @@ J, D = js_classes(), dts_classes()
 TS_LIB_GLOBALS = {'Intl'}
 # nacre.js 里用 class 定义、注入全局的非原生类也要有声明
 plain = set(re.findall(r"define\(globalThis,\s*'(\w+)'", js))
-js_all = set(J) | {p for p in plain if p[0].isupper()}
+# 事件类用 ctx.defineEventClass('名字', …) 定义，它自己挂上全局
+EVENT_CLASSES = set(re.findall(r"defineEventClass\(\s*'(\w+)'", js))
+js_all = set(J) | {p for p in plain if p[0].isupper()} | EVENT_CLASSES
 # 两个解析器任何一个空了，类的对比就没有意义——它们自己已经报过失效了
 if J and D:
     # Intl 的类型是 TypeScript 自带的 lib 给的（ES 标准的一部分），我们的
@@ -851,6 +853,20 @@ else:
             complain('ctx', f'{_short(f)} 里用了 ctx.{name}，没有哪个 part 放过它')
         _seen |= provides
     ctx_note = f'，ctx 上的名字 {len(_all_provided)} 个'
+
+# ------------------- 12. 原生发事件时说的类名，内置脚本里要有这个事件类
+# 哪个事件是哪个类只在原生那边写一份（NacreEmitEvent… 的 eventClass、
+# emitEvent:…eventClass:）。写错了运行时只打一条警告、派发一个普通的 Event，
+# 字段就丢了，所以在这里挡住
+_native_event_classes = set(re.findall(r'"([A-Z]\w*Event)"', mm))
+if not _native_event_classes:
+    complain('事件类', '原生层一个事件类名都没抽出来，check-api.sh 要更新')
+elif not EVENT_CLASSES:
+    complain('事件类', '内置脚本里一个 defineEventClass 都没抽出来，check-api.sh 要更新')
+else:
+    _unknown = _native_event_classes - EVENT_CLASSES
+    if _unknown:
+        complain('事件类', f'原生发事件时说的这些类，内置脚本里没有：{sorted(_unknown)}')
 
 # ------------------------------------------------------------------ 报告
 if problems:

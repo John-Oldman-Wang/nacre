@@ -15,9 +15,9 @@ picker.addEventListener('contactselect', (event) => { })
 
 ## 事件对象
 
-`Event`，多一个字段：
+[`CNContactPickerContactEvent`](../cn-contact-picker-contact-event.md)，多一个只读字段：
 
-**`contact`**
+**[`contact`](../cn-contact-picker-contact-event/contact.md)**
 
 用户选中的联系人，[`CNContact`](../cn-contact.md)。
 

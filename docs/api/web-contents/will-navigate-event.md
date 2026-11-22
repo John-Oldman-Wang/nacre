@@ -15,13 +15,13 @@ contents.addEventListener('will-navigate', (event) => {})
 
 ## 事件对象
 
-`WebContentsWillNavigateEvent`，除 `type`、`target` 以外带三个字段：
+[`WebContentsWillNavigateEvent`](../web-contents-will-navigate-event.md)，除 `type`、`target` 以外带三个字段：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `url` | 字符串 | 要去的地址 |
-| `navigationType` | 字符串 | 这次跳转是怎么引起的，取值见下 |
-| `isMainFrame` | 布尔 | 总是 `true`。`<iframe>` 里的跳转不派发这个事件 |
+| [`url`](../web-contents-will-navigate-event/url.md) | 字符串 | 要去的地址 |
+| [`navigationType`](../web-contents-will-navigate-event/navigationtype.md) | 字符串 | 这次跳转是怎么引起的，取值见下 |
+| [`isMainFrame`](../web-contents-will-navigate-event/ismainframe.md) | 布尔 | 总是 `true`。`<iframe>` 里的跳转不派发这个事件 |
 
 `navigationType` 的取值：
 

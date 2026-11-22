@@ -55,6 +55,13 @@ type CLLocationDistanceFilter = number | 'none';
 /** 定位的三个事件。 */
 type CLLocationManagerEventType = 'locationupdate' | 'locationerror' | 'authorizationchange';
 
+/** 定位上每个事件名对应的事件对象。 */
+interface CLLocationManagerEventMap {
+  'locationupdate': CLLocationUpdateEvent;
+  'locationerror': CLLocationErrorEvent;
+  'authorizationchange': Event;
+}
+
 /**
  * 经纬度，单位是度。北纬和东经是正数，南纬和西经是负数。
  *
@@ -142,7 +149,8 @@ type CLLocationError =
   | (NSError & { readonly name: 'LocationUnknownError' | 'NSError' });
 
 /** `locationupdate` 的事件对象。 */
-declare interface CLLocationUpdateEvent extends Event {
+declare class CLLocationUpdateEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<CLLocationUpdateEvent, 'locations'>>);
   /**
    * 这一次报上来的位置，至少一个，按时间从早到晚，**最后一个是最新的**。
    * 系统有时把几个位置攒在一起报。
@@ -151,7 +159,8 @@ declare interface CLLocationUpdateEvent extends Event {
 }
 
 /** `locationerror` 的事件对象。 */
-declare interface CLLocationErrorEvent extends Event {
+declare class CLLocationErrorEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<CLLocationErrorEvent, 'error'>>);
   readonly error: CLLocationError;
 }
 
@@ -219,35 +228,13 @@ declare class CLLocationManager extends NSObject {
    */
   requestLocation(): Promise<CLLocation>;
 
-  addEventListener(
-    type: 'locationupdate',
-    callback: EventListener<CLLocationUpdateEvent> | null,
+  addEventListener<K extends keyof CLLocationManagerEventMap>(
+    type: K,
+    callback: ((event: CLLocationManagerEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
   ): void;
-  addEventListener(
-    type: 'locationerror',
-    callback: EventListener<CLLocationErrorEvent> | null,
-    options?: AddEventListenerOptions,
+  removeEventListener<K extends keyof CLLocationManagerEventMap>(
+    type: K,
+    callback: ((event: CLLocationManagerEventMap[K]) => void) | null,
   ): void;
-  addEventListener(
-    type: 'authorizationchange',
-    callback: EventListener | null,
-    options?: AddEventListenerOptions,
-  ): void;
-  /** 事件名是一个变量（三个之一）时走这一条，事件对象按最宽的 `Event` 给。 */
-  addEventListener(
-    type: CLLocationManagerEventType,
-    callback: EventListener | null,
-    options?: AddEventListenerOptions,
-  ): void;
-  removeEventListener(
-    type: 'locationupdate',
-    callback: EventListener<CLLocationUpdateEvent> | null,
-  ): void;
-  removeEventListener(
-    type: 'locationerror',
-    callback: EventListener<CLLocationErrorEvent> | null,
-  ): void;
-  removeEventListener(type: 'authorizationchange', callback: EventListener | null): void;
-  removeEventListener(type: CLLocationManagerEventType, callback: EventListener | null): void;
 }

@@ -16,14 +16,17 @@
 type UIViewControllerAppearanceEventType =
   | 'beforeappear' | 'appear' | 'beforedisappear' | 'disappear';
 
-/**
- * 那四个事件的事件对象。
- *
- * 页面的 `addEventListener` 没有为这四个名字单独声明回调的类型（几个页面
- * 子类各自重新声明过它，加不进去），回调收到的类型是普通的 `Event`。要读
- * `animated` 时，用 JSDoc 的 `@type` 把事件对象标成这个类型（写法见 API 文档）。
- */
-declare interface UIViewControllerAppearanceEvent extends Event {
+/** 那四个事件的事件对象。 */
+declare class UIViewControllerAppearanceEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<UIViewControllerAppearanceEvent, 'animated'>>);
   /** 这一次出现或消失带不带转场动画。 */
   readonly animated: boolean;
+}
+
+// 合并进页面的事件表，页面的子类（导航控制器、tab 控制器……）跟着继承
+interface UIViewControllerEventMap {
+  'beforeappear': UIViewControllerAppearanceEvent;
+  'appear': UIViewControllerAppearanceEvent;
+  'beforedisappear': UIViewControllerAppearanceEvent;
+  'disappear': UIViewControllerAppearanceEvent;
 }

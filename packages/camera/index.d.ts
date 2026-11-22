@@ -41,22 +41,25 @@ type UIImagePickerControllerEventType = 'pick' | 'cancel';
 
 /**
  * `pick` 事件带的数据。
- *
- * 回调参数的类型没有窄化（`EventTarget` 的基类签名不允许），要拿就转一下型：
- *
- * ```js
- * picker.addEventListener('pick', (e) => {
- *   const { originalImage } = /** @type {UIImagePickerControllerMediaEvent} *\/ (e);
- * });
- * ```
  */
-declare interface UIImagePickerControllerMediaEvent extends Event {
+declare class UIImagePickerControllerMediaEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<UIImagePickerControllerMediaEvent, 'originalImage' | 'editedImage' | 'cropRect'>>);
   /** 拍到的照片，没有裁剪过。 */
   readonly originalImage: UIImage;
   /** 用户裁剪之后的照片。没开 `allowsEditing` 时是 `null`。 */
   readonly editedImage: UIImage | null;
   /** 用户裁的是原图上的哪一块。没开 `allowsEditing` 时是 `null`。 */
   readonly cropRect: CGRect | null;
+}
+
+/**
+ * 拍照界面上每个事件名对应的事件对象：自己的两个，加上页面出现和消失的四个、
+ * 外观变化的 `traitchange`。没有模态的那三个。
+ */
+interface UIImagePickerControllerEventMap
+  extends Omit<UIViewControllerEventMap, UIPresentationEventType> {
+  'pick': UIImagePickerControllerMediaEvent;
+  'cancel': Event;
 }
 
 /**
@@ -70,8 +73,7 @@ declare interface UIImagePickerControllerMediaEvent extends Event {
  * const picker = new UIImagePickerController();
  * picker.sourceType = 'camera';
  * picker.addEventListener('pick', (e) => {
- *   const { originalImage } = /** @type {UIImagePickerControllerMediaEvent} *\/ (e);
- *   imageView.image = originalImage;
+ *   imageView.image = e.originalImage;
  *   picker.dismissViewController({ animated: true });
  * });
  * picker.addEventListener('cancel', () => {
@@ -111,10 +113,14 @@ declare class UIImagePickerController extends UIViewController {
    * 监听它们抛 `TypeError`：拍照界面关不关由 `pick` 和
    * `cancel` 的监听器决定。
    */
-  addEventListener(
-    type: UIImagePickerControllerEventType | UIViewControllerAppearanceEventType | 'traitchange',
-    callback: EventListener | null,
+  addEventListener<K extends keyof UIImagePickerControllerEventMap>(
+    type: K,
+    callback: ((event: UIImagePickerControllerEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
+  ): void;
+  removeEventListener<K extends keyof UIImagePickerControllerEventMap>(
+    type: K,
+    callback: ((event: UIImagePickerControllerEventMap[K]) => void) | null,
   ): void;
 
   /**

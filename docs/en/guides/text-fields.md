@@ -405,7 +405,7 @@ The recommended way is to add a tap [gesture recognizer](../api/ui-gesture-recog
 const dismiss = new UITapGestureRecognizer();
 dismiss.cancelsTouchesInView = false;   // don't cancel touches the views themselves are handling
 dismiss.addEventListener('ended', (e) => {
-  const { location } = /** @type {UIGestureRecognizerEvent} */ (e);
+  const { location } = e;
   if (location === null) return;
   // Tapped on a control (text field, button) or one of its subviews: don't dismiss the keyboard
   for (let v = page.view.hitTest(location); v !== null; v = v.superview) {
@@ -659,7 +659,7 @@ submit.addEventListener('click', login);
 const dismissTap = new UITapGestureRecognizer();
 dismissTap.cancelsTouchesInView = false;
 dismissTap.addEventListener('ended', (e) => {
-  const { location } = /** @type {UIGestureRecognizerEvent} */ (e);
+  const { location } = e;
   if (location === null) return;
   for (let v = page.view.hitTest(location); v !== null; v = v.superview) {
     if (v instanceof UIControl) return;
@@ -733,8 +733,7 @@ If you set views' `frame` yourself instead of using constraints, listen for the 
 ```js
 application.addEventListener('sceneconnect', (e) => {
   const screen = e.scene.screen;
-  screen.addEventListener('keyboardchange', (event) => {
-    const keyboard = /** @type {UIScreenKeyboardEvent} */ (event);
+  screen.addEventListener('keyboardchange', (keyboard) => {
     const top = Math.min(keyboard.frame.y, screen.bounds.height);
     field.frame = new CGRect(16, top - 16 - 40, 358, 40);
   });

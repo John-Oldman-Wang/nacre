@@ -100,7 +100,7 @@ console.log(dark ? '深色' : '浅色');
 application.addEventListener('sceneconnect', (e) => {
   const scene = e.scene;
   scene.addEventListener('traitchange', (event) => {
-    const before = /** @type {UITraitChangeEvent} */ (event).previousTraitCollection;
+    const before = event.previousTraitCollection;
     console.log(before.userInterfaceStyle + ' → ' + scene.traitCollection.userInterfaceStyle);
   });
 });

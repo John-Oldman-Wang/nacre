@@ -15,9 +15,9 @@ ws.addEventListener('message', (event) => { })
 
 ## Event object
 
-`WebSocketMessageEvent` in the type definitions. Cannot be canceled. The callback parameter has the generic `Event` type, so cast it before reading `data`; see the example below.
+[`MessageEvent`](../message-event.md). Cannot be canceled. Besides `data` below, [`origin`](../message-event/origin.md) is the origin of the connection URL.
 
-**`data`**
+**[`data`](../message-event/data.md)**
 
 The received content:
 
@@ -35,7 +35,7 @@ The received content:
 ```js
 const ws = new WebSocket('wss://echo.websocket.org');
 ws.addEventListener('message', async (e) => {
-  const data = /** @type {WebSocketMessageEvent} */ (e).data;
+  const data = e.data;
   if (typeof data === 'string') {
     console.log('Text', data);
   } else {
@@ -50,7 +50,6 @@ ws.addEventListener('message', async (e) => {
 ## Differences from the web
 
 - In browsers, binary messages are `Blob` by default and can be changed to `ArrayBuffer` with `binaryType`; here they are always `Blob`, and there is no `binaryType`.
-- The browser's event object is a `MessageEvent` that also carries fields such as `origin` and `lastEventId`; here it carries only `data`.
 - There is no `onmessage` property; only `addEventListener` works.
 
 ## See also

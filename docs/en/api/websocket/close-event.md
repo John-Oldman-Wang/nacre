@@ -15,17 +15,17 @@ ws.addEventListener('close', (event) => { })
 
 ## Event object
 
-`WebSocketCloseEvent` in the type definitions. Cannot be canceled.
+[`CloseEvent`](../close-event.md). Cannot be canceled.
 
-**`code`**
+**[`code`](../close-event/code.md)**
 
 A number: the close code, which says why the connection ended. See [Close codes](#close-codes) below.
 
-**`reason`**
+**[`reason`](../close-event/reason.md)**
 
 A string: the explanation given by the other side. An empty string if there is none.
 
-**`wasClean`**
+**[`wasClean`](../close-event/wasclean.md)**
 
 A boolean. `true` means both sides completed the closing handshake according to the protocol; `false` means the connection ended abnormally.
 
@@ -52,7 +52,7 @@ Common codes: `1000` is a normal closure, `1001` means one side is going away (f
 ```js
 const ws = new WebSocket('wss://echo.websocket.org');
 ws.addEventListener('close', (e) => {
-  const { code, reason, wasClean } = /** @type {WebSocketCloseEvent} */ (e);
+  const { code, reason, wasClean } = e;
   if (wasClean) {
     console.log('Closed cleanly', code, reason);
   } else {

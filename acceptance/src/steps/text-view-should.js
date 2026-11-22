@@ -69,14 +69,15 @@ export async function stepTextViewShould(ctx) {
     area.removeEventListener('beforeblur', onBlur);
 
     // ---- beforeinput ----
-    /** @type {UITextViewBeforeInputEvent | null} */
+    /** @type {UITextBeforeInputEvent | null} */
     let inputEvent = null;
     let refuseInput = false;
-    /** @param {UITextViewBeforeInputEvent} e */
+    /** @param {UITextBeforeInputEvent} e */
     const onInput = (e) => { inputEvent = e; if (refuseInput) e.preventDefault(); };
     area.addEventListener('beforeinput', onInput);
     assert('beforeinput：不取消，答要', ask('change', 2, 1, 'X'), true);
-    const ie = /** @type {UITextViewBeforeInputEvent | null} */ (inputEvent);
+    const ie = /** @type {UITextBeforeInputEvent | null} */ (inputEvent);
+    assert('beforeinput：是 UITextBeforeInputEvent', ie instanceof UITextBeforeInputEvent, true);
     assert('beforeinput：range 是 NSRange', ie !== null && ie.range instanceof NSRange, true);
     assert('beforeinput：range 是要换掉的那一段', ie !== null ? ie.range.location + ',' + ie.range.length : '', '2,1');
     assert('beforeinput：replacementString 是要换上的文字', ie !== null && ie.replacementString, 'X');
@@ -106,6 +107,7 @@ export async function stepTextViewShould(ctx) {
       assert('linkclick：range 是链接那一段', le !== null ? le.range.location + ',' + le.range.length : '', '2,4');
       assert('linkclick：range 是 NSRange', le !== null && le.range instanceof NSRange, true);
       assert('linkclick：可以取消', le !== null && le.cancelable, true);
+      assert('linkclick：是 UITextViewLinkClickEvent', le instanceof UITextViewLinkClickEvent, true);
       assert('linkclick：target 是多行输入框', le !== null && le.target === area, true);
       refuseLink = true;
       assert('linkclick：preventDefault 就不打开', ask('link', 'https://example.com/terms', 2, 4), 'none');

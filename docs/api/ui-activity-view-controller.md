@@ -120,8 +120,7 @@ application.addEventListener('sceneconnect', (e) => {
       new URL('https://example.com/article'),
     ]);
     sheet.addEventListener('complete', (event) => {
-      const { completed, activityType } =
-        /** @type {UIActivityViewControllerCompletionEvent} */ (event);
+      const { completed, activityType } = event;
       console.log(completed ? '分享到了 ' + activityType : '没有分享');
     });
     page.presentViewController(sheet, { animated: true });

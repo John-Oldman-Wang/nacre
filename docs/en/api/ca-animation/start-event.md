@@ -15,7 +15,7 @@ animation.addEventListener('start', (event) => { })
 
 ## Event object
 
-`CAAnimationEvent`, with no fields other than `type` and `target`.
+A plain [`Event`](../event.md), with no fields other than `type` and `target`.
 
 - `target` is the animation object your code created, not the copy stored on the layer.
 - Not cancelable.

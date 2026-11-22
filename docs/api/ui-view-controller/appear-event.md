@@ -15,7 +15,7 @@ page.addEventListener('appear', (event) => { })
 
 ## 事件对象
 
-`UIViewControllerAppearanceEvent`。除了 `type` 和 `target`（这个页面），多一个只读字段 `animated`（`boolean`）：这一次出现带不带转场动画。读它要先把事件对象标成 `UIViewControllerAppearanceEvent`，写法见 [`beforeappear`](beforeappear-event.md)。
+[`UIViewControllerAppearanceEvent`](../ui-view-controller-appearance-event.md)。除了 `type` 和 `target`（这个页面），多一个只读字段 [`animated`](../ui-view-controller-appearance-event/animated.md)（`boolean`）：这一次出现带不带转场动画。
 
 不能取消。
 

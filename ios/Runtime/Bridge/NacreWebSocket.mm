@@ -50,12 +50,14 @@ static NSURLSession* NacreWebSocketSession(void) {
   return session;
 }
 
+// eventClass：事件对象用哪个 JS 类建（Web 标准的 MessageEvent、CloseEvent、ErrorEvent）
 static void NacreWebSocketEmitEvent(NSURLSessionWebSocketTask* task, NSString* type,
-                                    id payload, NacreBlob* blob) {
+                                    id payload, NacreBlob* blob,
+                                    const char* eventClass = nullptr) {
   if (g_webSocketEmit == nil) return;
   NSString* json =
       payload == nil ? nil : @(nacre_bridge::EncodeJSON(payload).c_str());
-  g_webSocketEmit(task, type, json, blob);
+  g_webSocketEmit(task, type, json, blob, eventClass);
 }
 
 // 收一条就再续一次。出错就停——那时 didCompleteWithError 会把 close 发出去
@@ -66,13 +68,13 @@ static void NacreWebSocketReceiveNext(NSURLSessionWebSocketTask* task) {
     NSURLSessionWebSocketTask* strongTask = weakTask;
     if (strongTask == nil || error != nil) return;
     if (message.type == NSURLSessionWebSocketMessageTypeString) {
-      NacreWebSocketEmitEvent(strongTask, @"message", message.string ?: @"", nil);
+      NacreWebSocketEmitEvent(strongTask, @"message", message.string ?: @"", nil, "MessageEvent");
     } else if (message.data != nil) {
       // 二进制给 Blob，字节不进 V8 堆——和 fetch 的 blob() 同一条路
       NacreBlob* blob = [NacreBlob new];
       blob.data = message.data;
       blob.type = @"";
-      NacreWebSocketEmitEvent(strongTask, @"message", nil, blob);
+      NacreWebSocketEmitEvent(strongTask, @"message", nil, blob, "MessageEvent");
     }
     NacreWebSocketReceiveNext(strongTask);
   }];
@@ -101,7 +103,7 @@ static void NacreWebSocketReceiveNext(NSURLSessionWebSocketTask* task) {
                                              encoding:NSUTF8StringEncoding] ?: @"") : @"";
   NacreWebSocketEmitEvent(
       task, @"close",
-      @{@"code" : @((NSInteger)code), @"reason" : text, @"wasClean" : @YES}, nil);
+      @{@"code" : @((NSInteger)code), @"reason" : text, @"wasClean" : @YES}, nil, "CloseEvent");
 }
 
 // 握手失败、连接断了都走这里，而且那时 didCloseWithCode **不会**被调
@@ -115,11 +117,11 @@ static void NacreWebSocketReceiveNext(NSURLSessionWebSocketTask* task) {
   state.readyState = 3;
   if (error != nil) {
     NacreWebSocketEmitEvent(ws, @"error",
-                            error.localizedDescription ?: @"websocket failed", nil);
+                            error.localizedDescription ?: @"websocket failed", nil, "ErrorEvent");
   }
   // 1006 是「异常关闭」：RFC 6455 规定它只能由端自己生成，不会出现在线上
   NacreWebSocketEmitEvent(
-      ws, @"close", @{@"code" : @1006, @"reason" : @"", @"wasClean" : @NO}, nil);
+      ws, @"close", @{@"code" : @1006, @"reason" : @"", @"wasClean" : @NO}, nil, "CloseEvent");
 }
 
 @end

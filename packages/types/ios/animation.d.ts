@@ -22,6 +22,14 @@ declare class CAMediaTimingFunction extends NSObject {
   controlPointAtIndex(index: number): CGPoint;
 }
 
+/** 动画上每个事件名对应的事件对象。 */
+interface CAAnimationEventMap {
+  /** 动画开始了。 */
+  'start': Event;
+  /** 动画停了：跑完了，或者被摘掉了。 */
+  'stop': CAAnimationEvent;
+}
+
 /**
  * 动画的基类。不可直接构造，用 {@link CABasicAnimation}。
  *
@@ -38,14 +46,14 @@ declare class CAMediaTimingFunction extends NSObject {
  */
 declare class CAAnimation extends NSObject {
   protected constructor();
-  addEventListener(
-    type: CAAnimationEventType,
-    listener: (event: CAAnimationEvent) => void,
-    options?: { once?: boolean; signal?: AbortSignal },
+  addEventListener<K extends keyof CAAnimationEventMap>(
+    type: K,
+    callback: ((event: CAAnimationEventMap[K]) => void) | null,
+    options?: AddEventListenerOptions,
   ): void;
-  removeEventListener(
-    type: CAAnimationEventType,
-    listener: (event: CAAnimationEvent) => void,
+  removeEventListener<K extends keyof CAAnimationEventMap>(
+    type: K,
+    callback: ((event: CAAnimationEventMap[K]) => void) | null,
   ): void;
 
   // ---- 时间（来自 CAMediaTiming） ----
@@ -79,10 +87,11 @@ declare class CAAnimation extends NSObject {
   removedOnCompletion: boolean;
 }
 
-/** 动画的 `start` / `stop` 事件。`finished` 只有 `stop` 上有。 */
-declare interface CAAnimationEvent extends Event {
-  /** 动画是自己跑完的（`true`），还是被摘掉的（`false`）。只有 `stop` 有。 */
-  readonly finished?: boolean;
+/** 动画的 `stop` 事件。`start` 是普通的 `Event`。 */
+declare class CAAnimationEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<CAAnimationEvent, 'finished'>>);
+  /** 动画是自己跑完的（`true`），还是被摘掉的（`false`）。 */
+  readonly finished: boolean;
 }
 
 /** 动画某一个属性。自己不可构造，用 {@link CABasicAnimation}。 */
@@ -252,17 +261,9 @@ declare class NSRunLoop extends NSObject {
 
 /**
  * `CADisplayLink` 的 `tick` 事件。每帧一次。
- *
- * 和导航那几个带负载的事件一样，回调参数的类型没有窄化（`EventTarget`
- * 的基类签名不允许），要拿 `frame` 就转一下型：
- *
- * ```js
- * link.addEventListener('tick', (e) => {
- *   const frame = /** @type {CADisplayLinkEvent} *\/ (e).frame;
- * });
- * ```
  */
-declare interface CADisplayLinkEvent extends Event {
+declare class CADisplayLinkEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<CADisplayLinkEvent, 'frame'>>);
   /**
    * 这一帧的时间，**单位是秒**（和 ObjC 一致）。
    *
@@ -274,6 +275,11 @@ declare interface CADisplayLinkEvent extends Event {
     /** 该为哪一帧渲染。做预测用这个，不是 `timestamp`。 */
     readonly targetTimestamp: number;
   };
+}
+
+/** display link 上每个事件名对应的事件对象。 */
+interface CADisplayLinkEventMap {
+  'tick': CADisplayLinkEvent;
 }
 
 /**
@@ -297,12 +303,15 @@ declare interface CADisplayLinkEvent extends Event {
  */
 declare class CADisplayLink extends NSObject {
   constructor();
-  addEventListener(
-    type: 'tick',
-    callback: EventListener | null,
+  addEventListener<K extends keyof CADisplayLinkEventMap>(
+    type: K,
+    callback: ((event: CADisplayLinkEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
   ): void;
-  removeEventListener(type: 'tick', callback: EventListener | null): void;
+  removeEventListener<K extends keyof CADisplayLinkEventMap>(
+    type: K,
+    callback: ((event: CADisplayLinkEventMap[K]) => void) | null,
+  ): void;
 
   /** `forMode` 不给时是 `'default'`，那个在滚动时会停。 */
   addToRunLoop(runLoop: NSRunLoop, options?: { forMode?: NSRunLoopMode }): void;

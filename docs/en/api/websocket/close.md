@@ -50,7 +50,7 @@ ws.addEventListener('open', () => {
   console.log(ws.readyState === WebSocket.CLOSING);
 });
 ws.addEventListener('close', (e) => {
-  console.log(/** @type {WebSocketCloseEvent} */ (e).code);
+  console.log(e.code);
 });
 ```
 

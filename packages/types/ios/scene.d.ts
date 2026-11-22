@@ -25,10 +25,17 @@ declare class UISceneSession extends NSObject {
 type UISceneEventType = 'active' | 'inactive' | 'foreground' | 'background';
 
 /**
- * 已知事件名给补全，自定义的也接受——dispatchEvent 是公开 API，JS 可以派发
- * 自己的事件。`string & {}` 是让编辑器仍然提示已知值的惯用写法。
+ * 场景上每个事件名对应的事件对象。转屏的 `geometrychange` 在 page-overrides.d.ts
+ * 里合并进来。
  */
-type SceneEventName = UISceneEventType | (string & {});
+interface UIWindowSceneEventMap {
+  'active': Event;
+  'inactive': Event;
+  'foreground': Event;
+  'background': Event;
+  /** 整个场景的外观特征变了。 */
+  'traitchange': UITraitChangeEvent;
+}
 
 declare class UIWindowScene extends UIScene {
   private constructor();
@@ -47,9 +54,16 @@ declare class UIWindowScene extends UIScene {
   /** 场景级的打开 URL。application.openURL 是 App 级的，两者都有。options 同样还没接。 */
   openURL(url: string): Promise<boolean>;
 
-  addEventListener(
-    type: SceneEventName,
-    callback: EventListener | null,
+  addEventListener<K extends keyof UIWindowSceneEventMap>(
+    type: K,
+    callback: ((event: UIWindowSceneEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
   ): void;
+  /** 别的名字当自定义事件：`dispatchEvent` 是公开 API，JS 可以派发自己的事件。 */
+  addEventListener(type: string, callback: EventListener | null, options?: AddEventListenerOptions): void;
+  removeEventListener<K extends keyof UIWindowSceneEventMap>(
+    type: K,
+    callback: ((event: UIWindowSceneEventMap[K]) => void) | null,
+  ): void;
+  removeEventListener(type: string, callback: EventListener | null): void;
 }

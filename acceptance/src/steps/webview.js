@@ -204,6 +204,7 @@ export function stepWebView(ctx) {
     assert('不是 HTTP 的导航，httpResponseCode 是 -1', navigations[0].httpResponseCode, -1);
     assert('page-title-updated 带着标题', titles.includes('第一页'), true);
     assert('事件的 target 是 webContents', navigations[0].target === contents, true);
+    assert('did-navigate 是 WebContentsDidNavigateEvent', navigations[0] instanceof WebContentsDidNavigateEvent, true);
 
     // ----- 后退和前进 -----
     await contents.loadURL(urlB);
@@ -254,6 +255,7 @@ export function stepWebView(ctx) {
     if (failures.length > 0) {
       assert('did-fail-load 的 errorCode 和拒绝的 code 是同一个数',
              failures[0].errorCode, failure && failure.cause && failure.cause.code);
+      assert('did-fail-load 是 WebContentsDidFailLoadEvent', failures[0] instanceof WebContentsDidFailLoadEvent, true);
       assert('validatedURL 是失败的那个地址',
              failures[0].validatedURL, 'https://nacre-does-not-exist.invalid/');
       assert('isMainFrame 是 true', failures[0].isMainFrame, true);
@@ -385,6 +387,7 @@ export function stepWebView(ctx) {
     assert('脚本改 location 的 navigationType 是 other', asked[0].navigationType, 'other');
     assert('isMainFrame 是 true', asked[0].isMainFrame, true);
     assert('will-navigate 是可取消的', asked[0].cancelable, true);
+    assert('will-navigate 是 WebContentsWillNavigateEvent', asked[0] instanceof WebContentsWillNavigateEvent, true);
     assert('事件的 target 是 webContents', asked[0].target === gated, true);
     assert('拦住之后 defaultPrevented 是 true', asked[0].defaultPrevented, true);
     assert('拦住之后一个加载事件都没有', loads.join(','), '');
@@ -736,6 +739,7 @@ export function stepWebView(ctx) {
     for (let i = 0; i < 20 && messages.length === 0; i++) await sleep(50);
     assert('ipcRenderer.send：App 收到一次 ipc-message', messages.length, 1);
     assert('ipc-message 带着频道名', messages.length > 0 && messages[0].channel, 'say');
+    assert('ipc-message 是 WebContentsIpcMessageEvent', messages[0] instanceof WebContentsIpcMessageEvent, true);
     assert('ipc-message 带着参数', messages.length > 0 && JSON.stringify(messages[0].args), '["hi",{"at":1}]');
     assert('ipc-message 的 target 是 webContents', messages.length > 0 && messages[0].target === bridged, true);
     assert('<iframe> 里够得着通道', await run1('window.frameChannel'), 'reachable');
@@ -836,6 +840,8 @@ export function stepWebView(ctx) {
     assert('预加载脚本执行时抛了：派发一次 preload-error', preloadErrors.length, 1);
     if (preloadErrors.length > 0) {
       assert('preload-error 带着路径', preloadErrors[0].preloadPath, preDir + '/throws.js');
+      assert('preload-error 是 WebContentsPreloadErrorEvent',
+             preloadErrors[0] instanceof WebContentsPreloadErrorEvent, true);
       assert('preload-error 带着错误', preloadErrors[0].error instanceof Error &&
              preloadErrors[0].error.message.includes('预加载脚本故意抛的'), true);
     }

@@ -192,10 +192,15 @@ static NSString* const kNacreConsoleName = @"nacreConsole";
 }
 
 - (void)emit:(NSString*)type payload:(id)payload {
+  [self emit:type payload:payload eventClass:nullptr];
+}
+
+// 带字段的事件给 eventClass：事件对象用哪个 JS 类建
+- (void)emit:(NSString*)type payload:(id)payload eventClass:(const char*)eventClass {
   if (g_webContentsEmit == nil) return;
   NSString* json =
       payload == nil ? nil : @(nacre_bridge::EncodeJSON(payload).c_str());
-  g_webContentsEmit(self, type, json);
+  g_webContentsEmit(self, type, json, eventClass);
 }
 
 // 把还挂着的加载都拒掉，keep 那一个除外（nil 就是全部）
@@ -282,12 +287,13 @@ static NSString* const kNacreConsoleName = @"nacreConsole";
     return;
   }
   [self emit:@"console-message"
-      payload:@{
-        @"level" : level,
-        @"message" : text,
-        @"lineNumber" : [line isKindOfClass:NSNumber.class] ? line : @0,
-        @"sourceId" : [source isKindOfClass:NSString.class] ? source : @"",
-      }];
+         payload:@{
+           @"level" : level,
+           @"message" : text,
+           @"lineNumber" : [line isKindOfClass:NSNumber.class] ? line : @0,
+           @"sourceId" : [source isKindOfClass:NSString.class] ? source : @"",
+         }
+      eventClass:"WebContentsConsoleMessageEvent"];
 }
 
 // 网页那头发来一条。内容是一段 JSON 文本：{ kind, channel, args }
@@ -319,7 +325,9 @@ static NSString* const kNacreConsoleName = @"nacreConsole";
     return;
   }
   if ([kind isEqualToString:@"send"]) {
-    [self emit:@"ipc-message" payload:@{@"channel" : channel, @"args" : args}];
+    [self emit:@"ipc-message"
+           payload:@{@"channel" : channel, @"args" : args}
+        eventClass:"WebContentsIpcMessageEvent"];
     reply(nil, nil);
   } else if ([kind isEqualToString:@"invoke"]) {
     NSInteger replyId = ++self.nextReplyId;
@@ -329,7 +337,8 @@ static NSString* const kNacreConsoleName = @"nacreConsole";
   } else if ([kind isEqualToString:@"preload-error"]) {
     id text = ((NSArray*)args).firstObject;
     [self emit:@"preload-error"
-        payload:@{@"message" : [text isKindOfClass:NSString.class] ? text : @""}];
+           payload:@{@"message" : [text isKindOfClass:NSString.class] ? text : @""}
+        eventClass:"WebContentsPreloadErrorEvent"];
     reply(nil, nil);
   } else {
     reply(nil, @"malformed message");
@@ -368,7 +377,9 @@ static NSString* const kNacreConsoleName = @"nacreConsole";
   if ([keyPath isEqualToString:@"loading"]) {
     [self emit:webView.isLoading ? @"did-start-loading" : @"did-stop-loading" payload:nil];
   } else if ([keyPath isEqualToString:@"title"]) {
-    [self emit:@"page-title-updated" payload:@{@"title" : webView.title ?: @""}];
+    [self emit:@"page-title-updated"
+           payload:@{@"title" : webView.title ?: @""}
+        eventClass:"WebContentsPageTitleUpdatedEvent"];
   }
 }
 
@@ -469,7 +480,7 @@ static BOOL OnlyFragmentDiffers(NSString* target, NSString* current) {
     @"isMainFrame" : @YES,
     @"navigationType" : nacre_bridge::NameForWebNavigationType(action.navigationType) ?: @"other"
   }).c_str());
-  g_webContentsAsk(self, @"will-navigate", json, ^(BOOL prevented) {
+  g_webContentsAsk(self, @"will-navigate", json, "WebContentsWillNavigateEvent", ^(BOOL prevented) {
     decisionHandler(prevented ? WKNavigationActionPolicyCancel
                               : WKNavigationActionPolicyAllow);
   });
@@ -500,7 +511,8 @@ static BOOL OnlyFragmentDiffers(NSString* target, NSString* current) {
       payload:@{
         @"url" : webView.URL.absoluteString ?: @"",
         @"httpResponseCode" : @(self.responseCode)
-      }];
+      }
+      eventClass:"WebContentsDidNavigateEvent"];
 }
 
 - (void)webView:(WKWebView*)webView didFinishNavigation:(WKNavigation*)navigation {
@@ -528,7 +540,8 @@ static BOOL OnlyFragmentDiffers(NSString* target, NSString* current) {
         @"validatedURL" : [failing isKindOfClass:NSString.class] ? failing : @"",
         // 这个 delegate 只报主文档的导航，子框架的失败到不了这里
         @"isMainFrame" : @YES
-      }];
+      }
+      eventClass:"WebContentsDidFailLoadEvent"];
   NacreAsyncDone done = nil;
   if (navigation != nil) done = [self.pending objectForKey:navigation];
   if (done != nil) {

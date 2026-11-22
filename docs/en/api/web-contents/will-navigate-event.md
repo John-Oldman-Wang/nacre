@@ -15,13 +15,13 @@ contents.addEventListener('will-navigate', (event) => {})
 
 ## Event object
 
-`WebContentsWillNavigateEvent`. Besides `type` and `target`, it has three fields:
+[`WebContentsWillNavigateEvent`](../web-contents-will-navigate-event.md). Besides `type` and `target`, it has three fields:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `url` | string | The destination URL |
-| `navigationType` | string | What caused this navigation; values below |
-| `isMainFrame` | boolean | Always `true`. Navigations inside an `<iframe>` don't fire this event |
+| [`url`](../web-contents-will-navigate-event/url.md) | string | The destination URL |
+| [`navigationType`](../web-contents-will-navigate-event/navigationtype.md) | string | What caused this navigation; values below |
+| [`isMainFrame`](../web-contents-will-navigate-event/ismainframe.md) | boolean | Always `true`. Navigations inside an `<iframe>` don't fire this event |
 
 Values of `navigationType`:
 

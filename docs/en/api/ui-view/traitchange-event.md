@@ -17,9 +17,9 @@ view.addEventListener('traitchange', (event) => { })
 
 ## Event object
 
-`UITraitChangeEvent`. Besides `type` and `target`, it has one more field:
+[`UITraitChangeEvent`](../ui-trait-change-event.md). Besides `type` and `target`, it has one more field:
 
-**`previousTraitCollection`**
+**[`previousTraitCollection`](../ui-trait-change-event/previoustraitcollection.md)**
 
 [`UITraitCollection`](../ui-trait-collection.md): the set of values before the change. The current values aren't on the event object; read them from `event.target.traitCollection`, which already holds the new values when the callback runs.
 
@@ -40,8 +40,7 @@ This is the only event `UIView` itself fires. Touches don't produce `UIView` eve
 
 ```js
 const page = new UIViewController();
-page.view.addEventListener('traitchange', (e) => {
-  const event = /** @type {UITraitChangeEvent} */ (e);
+page.view.addEventListener('traitchange', (event) => {
   console.log(event.previousTraitCollection.userInterfaceStyle);
   console.log(page.view.traitCollection.userInterfaceStyle);
 });

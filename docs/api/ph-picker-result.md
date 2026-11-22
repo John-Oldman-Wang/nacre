@@ -33,7 +33,7 @@ Illegal constructor: PHPickerResult is created by the runtime, not by new
 ```js
 const picker = new PHPickerViewController(new PHPickerConfiguration());
 picker.addEventListener('pick', async (event) => {
-  const { results } = /** @type {PHPickerViewControllerFinishEvent} */ (event);
+  const { results } = event;
   picker.dismissViewController({ animated: true });
   for (const result of results) {
     const image = await result.itemProvider.loadObjectOfClass(UIImage);

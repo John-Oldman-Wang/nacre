@@ -159,12 +159,13 @@ export async function stepPageOverrides(ctx) {
   const follower = new UIView();
   follower.frame = new CGRect(0, 0, 10, 10);
   root.view.addSubview(follower);
-  /** @type {{ previous: string, now: string, animated: string[] }[]} */
+  /** @type {{ kind: boolean, previous: string, now: string, animated: string[] }[]} */
   const changes = [];
   /** @param {Event} e */
   const onGeometry = (e) => {
     follower.frame = new CGRect(0, 100, 10, 10);
     changes.push({
+      kind: e instanceof UIWindowSceneGeometryChangeEvent,
       previous: /** @type {UIWindowSceneGeometryChangeEvent} */ (e).previousInterfaceOrientation,
       now: scene.effectiveGeometry.interfaceOrientation,
       animated: follower.layer.animationKeys(),
@@ -179,6 +180,7 @@ export async function stepPageOverrides(ctx) {
   assert('geometrychange 来了', change !== undefined, true);
   if (change !== undefined) {
     assert('geometrychange：previousInterfaceOrientation', change.previous, 'portrait');
+    assert('geometrychange：是 UIWindowSceneGeometryChangeEvent', change.kind, true);
     assert('geometrychange：监听器里读到的已经是新方向', change.now, 'landscapeRight');
     assert('geometrychange：监听器里挪的视图跟着转屏动画走', change.animated.includes('position'), true);
   }

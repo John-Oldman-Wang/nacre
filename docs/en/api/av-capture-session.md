@@ -115,7 +115,7 @@ Listen with `addEventListener()`. All five events fire on the turn after the sys
 | [`stop`](av-capture-session/stop-event.md) | The session stopped running, including when the system stopped it |
 | [`interrupt`](av-capture-session/interrupt-event.md) | The system interrupted the session. The event carries the reason |
 | [`interruptend`](av-capture-session/interruptend-event.md) | The interruption ended |
-| [`runtimeerror`](av-capture-session/runtimeerror-event.md) | An error occurred while running. The event carries the system's description |
+| [`runtimeerror`](av-capture-session/runtimeerror-event.md) | An error occurred while running. The event object is an [`AVCaptureSessionRuntimeErrorEvent`](av-capture-session-runtime-error-event.md), and `error` is the error the system gave |
 
 Listening for other names doesn't throw: they are treated as custom events and only fire when you dispatch them yourself with `dispatchEvent()`.
 
@@ -201,7 +201,7 @@ This code hasn't been run as a whole. Every API it uses has been run in the acce
 | Calling `[session stopRunning]` on a background queue | `await session.stopRunning()` |
 | Observing `AVCaptureSessionDidStartRunningNotification` | `session.addEventListener('start', …)` |
 | Observing `AVCaptureSessionWasInterruptedNotification`, with the reason in `userInfo[AVCaptureSessionInterruptionReasonKey]` | The `interrupt` event, with the reason in `event.reason` |
-| Observing `AVCaptureSessionRuntimeErrorNotification`, with the error in `userInfo[AVCaptureSessionErrorKey]` | The `runtimeerror` event, with `event.message` and `event.code` |
+| Observing `AVCaptureSessionRuntimeErrorNotification`, with the error in `userInfo[AVCaptureSessionErrorKey]` | The `runtimeerror` event, with `event.error` |
 
 ## See also
 

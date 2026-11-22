@@ -15,14 +15,14 @@ field.addEventListener('beforeinput', (event) => { })
 
 ## 事件对象
 
-`UITextFieldBeforeInputEvent`。`type` 是 `'beforeinput'`，`target` 是这个输入框。可以取消。
+[`UITextBeforeInputEvent`](../ui-text-before-input-event.md)，单行和多行输入框共用。`type` 是 `'beforeinput'`，`target` 是这个输入框。可以取消。
 
 另外带两个只读字段，描述这次修改打算把哪一段换成什么：
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `range` | [`NSRange`](../ns-range.md) | 要被换掉的那一段。`location` 是起点，`length` 是长度，单位都是 UTF-16 码元，和 JS 字符串的下标一致 |
-| `replacementString` | 字符串 | 要换上去的文字 |
+| [`range`](../ui-text-before-input-event/range.md) | [`NSRange`](../ns-range.md) | 要被换掉的那一段。`location` 是起点，`length` 是长度，单位都是 UTF-16 码元，和 JS 字符串的下标一致 |
+| [`replacementString`](../ui-text-before-input-event/replacementstring.md) | 字符串 | 要换上去的文字 |
 
 三种修改各是什么样（来自 Apple 的文档，**未在模拟器验证**）：
 

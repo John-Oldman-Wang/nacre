@@ -1,5 +1,13 @@
 // @nacrejs/push：远程推送。装了这个包才有 application.remoteNotifications。
 
+/** 远程推送上每个事件名对应的事件对象。 */
+interface RemoteNotificationsEventMap {
+  /** 令牌变了（包括第一次拿到）。读 `token` 拿新的。延后一轮派发，不可取消。 */
+  'tokenchange': Event;
+  /** 静默推送到了。 */
+  'push': PushEvent;
+}
+
 /**
  * 远程推送。不能 `new`，从 `application.remoteNotifications` 拿，每次是同一个对象。
  *
@@ -21,12 +29,17 @@ declare class RemoteNotifications extends EventTarget {
   /** 这次启动以来最近一次拿到的令牌。还没拿到过是 `null`。 */
   readonly token: string | null;
 
-  /** `tokenchange`：令牌变了（包括第一次拿到）。读 `token` 拿新的。延后一轮派发，不可取消。 */
-  addEventListener(type: 'tokenchange', callback: EventListener | null, options?: AddEventListenerOptions): void;
-  /** `push`：静默推送到了。 */
-  addEventListener(type: 'push', callback: EventListener<PushEvent> | null, options?: AddEventListenerOptions): void;
+  addEventListener<K extends keyof RemoteNotificationsEventMap>(
+    type: K,
+    callback: ((event: RemoteNotificationsEventMap[K]) => void) | null,
+    options?: AddEventListenerOptions,
+  ): void;
+  /** 别的名字当自定义事件：`dispatchEvent` 是公开 API，JS 可以派发自己的事件。 */
   addEventListener(type: string, callback: EventListener | null, options?: AddEventListenerOptions): void;
-  removeEventListener(type: 'push', callback: EventListener<PushEvent> | null): void;
+  removeEventListener<K extends keyof RemoteNotificationsEventMap>(
+    type: K,
+    callback: ((event: RemoteNotificationsEventMap[K]) => void) | null,
+  ): void;
   removeEventListener(type: string, callback: EventListener | null): void;
 }
 

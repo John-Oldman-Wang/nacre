@@ -8,13 +8,11 @@
   const {
     Event,
     INSETS_FIELDS,
-    WebContentsClass,
     WebSocketClass,
     answerInvoke,
     colorArg,
     colorString,
     constructNative,
-    defineField,
     defineNativeClass,
     disown,
     has,
@@ -695,14 +693,17 @@
   // contentOffset 上读得到，所以 scroll 不带（不带才能无损合并）；导航的
   // 「哪个页面」在 beforeshow 那一刻从 nav 上读不到（topViewController 还没
   // 换过去），所以带上。
-  // 事件负载挂在哪个字段上。值可以是原生对象（beforeshow 带 viewController）
-  // 也可以是普通 JSON 值（动画的 stop 带一个布尔）——sink 一视同仁
-  const objectEventField = {
-    beforeshow: 'viewController', show: 'viewController', tabselect: 'viewController',
-    traitchange: 'previousTraitCollection',
-    stop: 'finished',
-    tick: 'frame', message: 'data', error: 'message',
-  };
+  // 负载不是一个字典时（原生对象、一个布尔、一段文字），挂在哪个字段上。按事件类
+  // 认（原生发事件时带着类名），不按事件名：stop、error、message 这些名字太泛
+  const payloadField = new Map([
+    ['UINavigationControllerEvent', 'viewController'],
+    ['UITabBarControllerEvent', 'viewController'],
+    ['UITraitChangeEvent', 'previousTraitCollection'],
+    ['CAAnimationEvent', 'finished'],
+    ['CADisplayLinkEvent', 'frame'],
+    ['MessageEvent', 'data'],
+    ['ErrorEvent', 'message'],
+  ]);
 
   // 原生要给某个对象自己派发事件时回调这里（场景的生命周期事件走这条路）
   const alwaysEmitted = new Set(['UIWindow', 'WebSocket']);
@@ -712,10 +713,26 @@
   // preventDefault() 真的拦得住。别的原生事件发生时默认动作早就做完了，
   // 建成不可取消的，preventDefault() 照标准静默无效
   const cancelableNativeEvents = new Set(['will-navigate']);
-  // 事件带的字段要换成别的类型时，在这里登记一个换法：事件名 → (字段) => 字段。
-  // 输入框的 beforeinput 用它把 range 换成 NSRange。没登记的原样挂上去
+  // 事件带的字段要换成别的类型时，在这里登记一个换法：事件类名 → (init, 发事件的对象)
+  // => init。输入框的 beforeinput 用它把 range 换成 NSRange。没登记的原样用；
+  // 值正好是 { x, y } 的先一律换成 CGPoint
   const eventFieldConverters = new Map();
   ctx.eventFieldConverters = eventFieldConverters;
+  // 键盘：两个位置是 CGRect
+  eventFieldConverters.set('UIScreenKeyboardEvent', (init) => ({
+    ...init, frame: toRect(init.frame), previousFrame: toRect(init.previousFrame),
+  }));
+  // WebSocket 的消息：origin 是连接地址的源，照 Web
+  eventFieldConverters.set('MessageEvent', (init, socket) => {
+    let origin = '';
+    try { origin = new URL(socket.url).origin; } catch (err) { origin = ''; }
+    return { ...init, origin };
+  });
+  // 预加载脚本执行时抛了：照 Electron 给路径和错误
+  eventFieldConverters.set('WebContentsPreloadErrorEvent', (init, contents) => ({
+    preloadPath: preloadPaths.get(contents) || '',
+    error: new Error(typeof init.message === 'string' ? init.message : ''),
+  }));
   // 域自己的内部事件：名字 @ 开头，不派发给监听器，直接交给登记的处理函数
   // (wrapper, payload)。给「系统当场来要东西」的场合用：原生用
   // NacreEmitEventSync 发一个 @ 开头的事件，处理函数当场把东西交回原生
@@ -725,7 +742,11 @@
   ctx.internalEventHandlers = internalEventHandlers;
   // cancelable：原生说这一次派发它在**当场等答复**（同步回调，见
   // NacreEmitEventSync），所以建成可取消的事件，preventDefault() 真的拦得住
-  native.setObjectEventSink(function (wrapper, type, payload, rebuilt, cancelable, answerField) {
+  //
+  // eventClass：原生说这个事件用哪个类建（带字段的事件才有）。字段从负载里来，
+  // 作为 init 交给那个类的构造函数
+  native.setObjectEventSink(function (wrapper, type, payload, rebuilt, cancelable, answerField,
+                                      eventClass) {
     // 运行时自己订的两个内部事件：系统自己动了持有关系，镜像要跟上。
     // 不派发给监听器
     if (type === '@stack') {
@@ -770,85 +791,38 @@
       answerInvoke(wrapper, payload);
       return false;
     }
-    const event = new Event(type, {
-      cancelable: cancelable === true || cancelableNativeEvents.has(type),
-    });
-    const field = objectEventField[type];
-    if (wrapper instanceof WebContentsClass && type === 'preload-error') {
-      // 预加载脚本执行时抛了。照 Electron 给路径和错误
-      defineField(event, 'preloadPath', preloadPaths.get(wrapper) || '');
-      defineField(event, 'error', new Error(payload && payload.message));
-    } else if (wrapper instanceof WebContentsClass) {
-      // 网页的事件。负载是一个字典，有什么就挂什么——字段名照搬 Electron，
-      // 原生那边已经按事件各自列好了
-      if (payload !== undefined && payload !== null && typeof payload === 'object') {
-        for (const key of Object.keys(payload)) defineField(event, key, payload[key]);
+    let EventClass = Event;
+    if (typeof eventClass === 'string') {
+      const found = ctx.eventClasses.get(eventClass);
+      if (found !== undefined) {
+        EventClass = found;
+      } else {
+        console.warn('[Nacre] the native side fired "' + type + '" as ' + eventClass +
+                     ', which is not a known event class; dispatching a plain Event');
       }
-    } else if (field !== undefined && payload !== undefined) {
-      defineField(event, field, payload);
-    } else if (payload !== undefined && payload !== null &&
-               typeof payload === 'object' && 'previousFrame' in payload && 'duration' in payload) {
-      // 键盘的三个事件（屏幕上的 keyboardshow / keyboardhide / keyboardchange）。
-      // 按负载的形状认：两个位置转成 CGRect，和别处一致
-      defineField(event, 'frame', toRect(payload.frame));
-      defineField(event, 'previousFrame', toRect(payload.previousFrame));
-      defineField(event, 'duration', payload.duration);
-    } else if (payload !== undefined && payload !== null &&
-               typeof payload === 'object' && 'wasClean' in payload) {
-      // WebSocket 关闭。按**负载的形状**认，不按事件名——'close' 这个名字
-      // 太泛，将来别的对象也会用
-      defineField(event, 'code', payload.code);
-      defineField(event, 'reason', payload.reason);
-      defineField(event, 'wasClean', payload.wasClean);
-    } else if (payload !== undefined && payload !== null &&
-               typeof payload === 'object' && 'tapCount' in payload) {
-      // 触摸类的控件事件。原生**只给这九个**带负载，所以这里不用镜像
-      // 那张表——收到负载就挂上。location 转成 CGPoint，和别处一致；
-      // 没有真实触点时（sendActionsForControlEvents）原生给的就是 null
-      defineField(event, 'location',
-                  payload.location === null ? null : toPoint(payload.location));
-      defineField(event, 'tapCount', payload.tapCount);
-    } else if (payload !== undefined && payload !== null &&
-               typeof payload === 'object' && 'numberOfTouches' in payload) {
-      // 手势事件。同样按负载的形状认：began / ended 这些名字太泛
-      defineField(event, 'location',
-                  payload.location === null ? null : toPoint(payload.location));
-      defineField(event, 'numberOfTouches', payload.numberOfTouches);
-      // 各种手势自己的量：拖动的 translation / velocity（点），捏合的 scale /
-      // velocity，旋转的 rotation / velocity（数）。原生给了什么就挂什么，
-      // 这里不镜像那张表；值是 { x, y } 的转成 CGPoint，和 location 一致
-      for (const key of Object.keys(payload)) {
-        if (key === 'location' || key === 'numberOfTouches') continue;
-        const value = payload[key];
-        defineField(event, key,
-                    value !== null && typeof value === 'object' ? toPoint(value) : value);
-      }
-    } else if (payload !== undefined && payload !== null && typeof payload === 'object' &&
-               Object.getPrototypeOf(payload) === Object.prototype) {
-      // 上面哪一种都不是：登记进来的域用 NacreEmitEventWithJSON 带的数据。
-      // 原生给了什么字段，事件对象上就有什么，这里不认识任何一个域。
-      // 值正好是 { x, y } 的转成 CGPoint，和别处一致。
-      //
-      // 没有这一支的时候，新域带的字段到不了 JS：这个函数只认它知道的那几种
-      // 形状，而它在共享文件里，新域没法从自己的文件里加（接手势时为此
-      // 改过这里一次）
-      const convert = eventFieldConverters.get(type);
-      if (convert !== undefined) payload = convert(payload);
-      for (const key of Object.keys(payload)) {
-        const value = payload[key];
-        const isPoint = value !== null && typeof value === 'object' &&
-                        Object.keys(value).length === 2 &&
-                        typeof value.x === 'number' && typeof value.y === 'number';
-        if (key === answerField) {
-          // 「当场要一个值」的那个字段：监听器可以改它，派发完交回原生
-          Object.defineProperty(event, key, {
-            value: isPoint ? toPoint(value) : value, enumerable: true, writable: true,
-          });
-        } else {
-          defineField(event, key, isPoint ? toPoint(value) : value);
+    }
+    // 负载 → init。字典的每一项是一个字段（{ x, y } 换成 CGPoint）；别的负载挂在
+    // 这个类登记的那个字段上
+    /** @type {Record<string, unknown>} */
+    let init = {};
+    if (payload !== undefined && payload !== null) {
+      const field = payloadField.get(eventClass);
+      if (field !== undefined) {
+        init[field] = payload;
+      } else if (typeof payload === 'object' && Object.getPrototypeOf(payload) === Object.prototype) {
+        for (const key of Object.keys(payload)) {
+          const value = payload[key];
+          const isPoint = value !== null && typeof value === 'object' &&
+                          Object.keys(value).length === 2 &&
+                          typeof value.x === 'number' && typeof value.y === 'number';
+          init[key] = isPoint ? toPoint(value) : value;
         }
       }
     }
+    const convert = eventFieldConverters.get(eventClass);
+    if (convert !== undefined) init = convert(init, wrapper);
+    init.cancelable = cancelable === true || cancelableNativeEvents.has(type);
+    const event = new EventClass(type, init);
     wrapper.dispatchEvent(event);
     if (typeof answerField === 'string') {
       // 交回原生的是纯数据：结构体按它的字段编（CGPoint 的 x、y 是自己的可枚举

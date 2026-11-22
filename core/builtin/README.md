@@ -7,6 +7,7 @@
 | 文件 | 定义的全局名字 | 要的原生入口（`native.*`） | 要 `ctx` 上的 |
 | --- | --- | --- | --- |
 | `05-dom-exception.js` | `DOMException`；往 `ctx` 放 `DOMException` 和建错误的唯一入口 `makeError`（平台特有的错误由平台放的 `ctx.makePlatformError` 建，没放就是 `Error` 加 `name`） | `setErrorFactory`（引擎拒绝 Promise、同步报错时用它建错误） | `define`、`native` |
+| `05-events.js` | `CustomEvent`、`MessageEvent`、`CloseEvent`、`ErrorEvent`、`PromiseRejectionEvent`；往 `ctx` 放定义事件类的 `defineEventClass` 和登记表 `eventClasses`（平台的事件类也用它，原生发事件时按类名在这里找） | 无 | `Event`、`define` |
 | `06-websocket.js` | `WebSocket` | 无（走桥：`WebSocket` 是一个原生类） | `EventTarget`、`constructNative`、`defineNativeClass`、`finalCheck`、`kSubscribe`、`nativeCall`、`nativeCallAsync`、`nativeGet`、`nativeSet`、`ownOne`、`requireNative`、`subscribeNative`、`toInteger`、`toTextOrNull`、`application` |
 | `22-url.js` | `URL`、`URLSearchParams`、`Headers` | `parseURL` | `define`、`has`、`native` |
 | `23-fetch.js` | `fetch`、`Request`、`Response`、`Blob`、`AbortController`、`AbortSignal`、`ReadableStream`、`ReadableStreamDefaultReader` | `createBlob`、`fetchStart`、`fetchCancel`、`fetchReadBody`、`fetchRelease`、`readObjectAsync` | `Event`、`EventTarget`、`URL`、`URLSearchParams`、`define`、`defineNativeClass`、`finalCheck`、`has`、`kHandle`、`nativeGet`、`requireNative`、`native` |

@@ -11,6 +11,11 @@ type StorageValue =
   | readonly StorageValue[]
   | { readonly [key: string]: StorageValue };
 
+/** 本地存储上每个事件名对应的事件对象。 */
+interface NSUserDefaultsEventMap {
+  'change': Event;
+}
+
 declare class NSUserDefaults extends NSObject {
   /** 只能由运行时给出，用 `application.storage`。 */
   private constructor();
@@ -47,10 +52,16 @@ declare class NSUserDefaults extends NSObject {
    * 边界：外部进程和 iCloud 的改动收不到。和 Web 的 `storage` 事件正好
    * 相反——那个只在**别的 tab** 改时发，自己改不发。
    */
-  addEventListener(type: 'change', callback: (event: Event) => void,
-                   options?: { once?: boolean }): void;
-  addEventListener(type: string, callback: (event: Event) => void,
-                   options?: { once?: boolean }): void;
-  removeEventListener(type: 'change', callback: (event: Event) => void): void;
-  removeEventListener(type: string, callback: (event: Event) => void): void;
+  addEventListener<K extends keyof NSUserDefaultsEventMap>(
+    type: K,
+    callback: ((event: NSUserDefaultsEventMap[K]) => void) | null,
+    options?: AddEventListenerOptions,
+  ): void;
+  /** 别的名字当自定义事件：`dispatchEvent` 是公开 API，JS 可以派发自己的事件。 */
+  addEventListener(type: string, callback: EventListener | null, options?: AddEventListenerOptions): void;
+  removeEventListener<K extends keyof NSUserDefaultsEventMap>(
+    type: K,
+    callback: ((event: NSUserDefaultsEventMap[K]) => void) | null,
+  ): void;
+  removeEventListener(type: string, callback: EventListener | null): void;
 }

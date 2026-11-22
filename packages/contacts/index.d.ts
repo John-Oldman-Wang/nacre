@@ -153,21 +153,32 @@ type CNContactPickerEventType =
   | 'cancel' | 'contactselect' | 'contactsselect' | 'contactpropertyselect';
 
 /** `contactselect` 的事件对象。 */
-declare interface CNContactPickerContactEvent extends Event {
+declare class CNContactPickerContactEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<CNContactPickerContactEvent, 'contact'>>);
   /** 用户选中的联系人。 */
   readonly contact: CNContact;
 }
 
 /** `contactsselect` 的事件对象。 */
-declare interface CNContactPickerContactsEvent extends Event {
+declare class CNContactPickerContactsEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<CNContactPickerContactsEvent, 'contacts'>>);
   /** 用户勾选的联系人。 */
   readonly contacts: CNContact[];
 }
 
 /** `contactpropertyselect` 的事件对象。 */
-declare interface CNContactPickerContactPropertyEvent extends Event {
+declare class CNContactPickerContactPropertyEvent extends Event {
+  constructor(type: string, init?: EventInit & Partial<Pick<CNContactPickerContactPropertyEvent, 'contactProperty'>>);
   /** 用户在联系人详情里选中的那一项。 */
   readonly contactProperty: CNContactProperty;
+}
+
+/** 选联系人界面上每个事件名对应的事件对象：自己的四个，加上页面的那些。 */
+interface CNContactPickerViewControllerEventMap extends UIViewControllerEventMap {
+  'cancel': Event;
+  'contactselect': CNContactPickerContactEvent;
+  'contactsselect': CNContactPickerContactsEvent;
+  'contactpropertyselect': CNContactPickerContactPropertyEvent;
 }
 
 /**
@@ -203,42 +214,13 @@ declare class CNContactPickerViewController extends UIViewController {
    */
   displayedPropertyKeys: CNContactKey[] | null;
 
-  addEventListener(
-    type: 'contactselect',
-    callback: EventListener<CNContactPickerContactEvent> | null,
+  addEventListener<K extends keyof CNContactPickerViewControllerEventMap>(
+    type: K,
+    callback: ((event: CNContactPickerViewControllerEventMap[K]) => void) | null,
     options?: AddEventListenerOptions,
   ): void;
-  addEventListener(
-    type: 'contactsselect',
-    callback: EventListener<CNContactPickerContactsEvent> | null,
-    options?: AddEventListenerOptions,
-  ): void;
-  addEventListener(
-    type: 'contactpropertyselect',
-    callback: EventListener<CNContactPickerContactPropertyEvent> | null,
-    options?: AddEventListenerOptions,
-  ): void;
-  addEventListener(
-    type: CNContactPickerEventType | UIPresentationEventType
-        | UIViewControllerAppearanceEventType | 'traitchange',
-    callback: EventListener | null,
-    options?: AddEventListenerOptions,
-  ): void;
-  removeEventListener(
-    type: 'contactselect',
-    callback: EventListener<CNContactPickerContactEvent> | null,
-  ): void;
-  removeEventListener(
-    type: 'contactsselect',
-    callback: EventListener<CNContactPickerContactsEvent> | null,
-  ): void;
-  removeEventListener(
-    type: 'contactpropertyselect',
-    callback: EventListener<CNContactPickerContactPropertyEvent> | null,
-  ): void;
-  removeEventListener(
-    type: CNContactPickerEventType | UIPresentationEventType
-        | UIViewControllerAppearanceEventType | 'traitchange',
-    callback: EventListener | null,
+  removeEventListener<K extends keyof CNContactPickerViewControllerEventMap>(
+    type: K,
+    callback: ((event: CNContactPickerViewControllerEventMap[K]) => void) | null,
   ): void;
 }
