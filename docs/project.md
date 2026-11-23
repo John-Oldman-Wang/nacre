@@ -334,7 +334,7 @@ WebView 留在核心：它不需要用户声明任何东西，拆了的净收益
 
 **要新定规矩的几件事**（和版本无关，第 4 步讨论）：重载的方法怎么映射成 JS；整数常量怎么变成字符串枚举；覆写点在 Android 上逐类怎么落（哪些转事件、哪些换成能力）；只能靠样式在构造时给的外观怎么传。所有权的做法第 3 步已经定了：Java 对象发编号交给引擎，包装活着就持有，JS 侧做所有权镜像，见[Android 的运行时](internals/android.md)；JS 不实现 Java 的类，所以没有跨两个垃圾回收器的环。
 
-**顺序**：最小壳、`core/builtin/` 里不依赖桥的 6 个、第一条竖切（包装、所有权、事件、JS 层的继承）、安全区域（`activity.windowInsets` 和 `windowinsetschange`）、`fetch` / `Blob`、`WebSocket` 已经有了（`android/`：运行时 `runtime/`、开发用的壳 `shell/`）→ 接上 `core/builtin/` 里剩下的两个 `Intl` → bindgen 的提取部分做统计、定上面五条规矩 → bindgen 的生成部分、按组接类。CLI 生成 `android/`、`@nacrejs/android`、能力包排在最后。每一步照 SOP 单独讨论。
+**顺序**：最小壳、`core/builtin/` 里不依赖桥的 6 个、第一条竖切（包装、所有权、事件、JS 层的继承）、安全区域（`activity.windowInsets` 和 `windowinsetschange`）、`fetch` / `Blob`、`WebSocket`、`Intl`（`core/builtin/` 的 10 个全部接上）已经有了（`android/`：运行时 `runtime/`、开发用的壳 `shell/`）→ bindgen 的提取部分做统计、定上面五条规矩 → bindgen 的生成部分、按组接类。CLI 生成 `android/`、`@nacrejs/android`、能力包排在最后。每一步照 SOP 单独讨论。
 
 ## 5. 目录约定
 
@@ -587,7 +587,7 @@ Commit message 格式：
 
 ### 要建设的能力
 
-**先做：** Android：接上 `core/builtin/` 里剩下的两个 `Intl`，第 4 节顺序的下一步。
+**先做：** Android：第 4 步，bindgen 读 `android.jar` 做统计，定下剩下的几条规矩（第 4 节顺序的下一步）。
 
 **留着，按需要做：**
 

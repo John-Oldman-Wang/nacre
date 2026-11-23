@@ -139,6 +139,11 @@
     const result = native.callObj(obj[kHandle], name, values, handles);
     return result === undefined ? null : result;
   }
+  // 返回值不是原生对象的类方法（core 的 Intl 用它，类名 NacreIntl 只是桥上的地址）
+  function nativeClassCallValue(className, name, args) {
+    const { values, handles } = splitArgs(args);
+    return JSON.parse(native.classCallValue(className, name, values, handles));
+  }
   // 类级的对象属性：没有实例，用类名定位
   function nativeClassObject(className, name) {
     const result = native.classObjProp(className, name);
@@ -277,6 +282,7 @@
     nativeCallAsync,
     nativeCallObject,
     nativeClassNames,
+    nativeClassCallValue,
     nativeClassObject,
     nativeGet,
     nativeOnly,

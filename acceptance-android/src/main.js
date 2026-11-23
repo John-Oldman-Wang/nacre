@@ -1,9 +1,10 @@
 // Android 上验收的入口。现在只验 Web 标准那一批（core/builtin 里两端共用的内置脚本）：
 // console、Event / EventTarget、DOMException 和几个 Web 的事件类、URL / URLSearchParams /
 // Headers、定时器和微任务、performance、crypto、TextEncoder / TextDecoder / atob / btoa /
-// structuredClone、fetch / Request / Response（含 response.body 的流）/ Blob / AbortController。
+// structuredClone、fetch / Request / Response（含 response.body 的流）/ Blob / AbortController、
+// Intl.NumberFormat / Intl.DateTimeFormat / toLocale*String / String.prototype.normalize。
 //
-// 步骤从 acceptance/src/steps/ 拷过来，去掉了要 application、原生类、WebSocket、Intl 的部分；
+// 步骤从 acceptance/src/steps/ 拷过来，去掉了要 application、原生类、网页（WebView）的部分；
 // 留下的断言名字和期望值和 iOS 一字不差。每个文件第一行写着去掉了什么。
 //
 // 输出的格式和 iOS 一样：一条断言一行（「  ✓ 名字 = 值」「  ✗ 名字 = …」），全部跑完
@@ -20,6 +21,9 @@ import { stepCrypto } from './steps/crypto.js';
 import { stepEvents } from './steps/events.js';
 import { stepErrors } from './steps/errors.js';
 import { stepWebGlobals } from './steps/web-globals.js';
+import { stepIntlNumber } from './steps/intl-number.js';
+import { stepIntlDate } from './steps/intl-date.js';
+import { stepNormalize } from './steps/normalize.js';
 import { stepTimers } from './steps/timers.js';
 import { stepPerformance } from './steps/performance.js';
 import { stepFetch } from './steps/fetch.js';
@@ -56,6 +60,11 @@ run('stepCrypto', () => stepCrypto(ctx));
 run('stepEvents', () => stepEvents(ctx));
 run('stepErrors', () => stepErrors(ctx));
 run('stepWebGlobals', () => stepWebGlobals(ctx));
+// Intl 三步：iOS 上排在最后，是因为那三张和网页的比对要占主线程十几秒。这里只剩固定期望值的
+// 断言，全是同步的，排在定时器那一步前面：要做的原生调用在定时器开始量时刻之前就做完了
+run('stepIntlNumber', () => stepIntlNumber(ctx));
+run('stepIntlDate', () => stepIntlDate(ctx));
+run('stepNormalize', () => stepNormalize(ctx));
 run('stepTimers', () => stepTimers(ctx));
 run('stepPerformance', () => stepPerformance(ctx));
 // WebSocket 的异步部分各自等（和 iOS 一样不交出「做完了」），最长 10 秒一段，靠结束标记前的「5 秒没有新断言」兜着

@@ -2,7 +2,7 @@
 
 ← [实现原理](README.md)
 
-Android 这一侧现在有：最小的壳（引擎起来、执行 JS、`console` 进 logcat），事件循环，`core/builtin/` 里不依赖桥的 6 个 Web 标准内置脚本，第一条竖切（JS 拿到页面、建布局、放文字、点击收得到事件），安全区域（窗口边衬），和网络（`fetch`、`Blob`、`WebSocket`）。方向和顺序见 [`project.md` 第 4 节](../project.md#4-android2026-11-21-定的方向)。
+Android 这一侧现在有：最小的壳（引擎起来、执行 JS、`console` 进 logcat），事件循环，`core/builtin/` 里不依赖桥的 6 个 Web 标准内置脚本，第一条竖切（JS 拿到页面、建布局、放文字、点击收得到事件），安全区域（窗口边衬），网络（`fetch`、`Blob`、`WebSocket`），和 `Intl`。`core/builtin/` 的 10 个内置脚本全部接上了。方向和顺序见 [`project.md` 第 4 节](../project.md#4-android2026-11-21-定的方向)。
 
 ## 目录
 
@@ -190,6 +190,21 @@ iOS 真机连不到 Mac 上的本地测试服务（`acceptance/scripts/test-serv
 
 加上 OkHttp（连同 Okio、Kotlin 的标准库）之后，没开代码压缩的 `classes.dex` 从 2 MB 到 6.6 MB。交付的包开 R8 之后会小很多，还没量。
 
+## Intl
+
+`core/builtin/parts/26-intl.js`、`27-intl-date.js` 原样接上，经「调类方法」的通道调到 `NacreIntl.kt`（类名 `NacreIntl` 只是桥上的地址），16 个调用的约定照 iOS 的 `NacreIntl.mm`、`NacreIntlDate.mm`、`NacreIntlNumber.swift`。
+
+**全部用 Android 自带的 ICU**（`android.icu`）。网页里的 Intl（V8）底下也是 ICU，所以这里不用像 iOS 那样在系统的格式化接口上补差别：
+- 数字用 `android.icu.number.NumberFormatter`（API 30 起有），选项照 V8 的方式映射：分组的 `always` / `min2` 是 ICU 本来就有的 `ON_ALIGNED` / `MIN2`，百分比是 `PERCENT` 单位加 ×100，会计写法是 `ACCOUNTING` 一族。`signDisplay: 'negative'` Android 11 的 ICU 还没有，照 iOS 的做法自己判断。
+- 日期用 `DateTimePatternGenerator`、`SimpleDateFormat`、`DateIntervalFormat`。小时写一位还是两位，用网页向 ICU 要格式串时用的 `MATCH_HOUR_FIELD_LENGTH` 问一次就知道（iOS 那边只有 Swift 问得到）。公历改成「往前一直推到头」，和 JS 的 `Date` 一样；窄空格换成普通空格，和浏览器一样。
+- normalize 用 ICU 的 `Normalizer2`。
+
+**和 iOS 不同的 1 条**：`en-US` 的 `dateStyle: 'medium'` 加 `timeStyle: 'short'`，iOS 的期望照 Safari（日期和时间之间是「at」），Android 和 Chrome 一样用逗号。验收里这条按 Android 写，名字和 iOS 不同。
+
+**覆盖面比 iOS 窄**：iOS 的验收有三张上千条的大表，期望值运行时从 WebView 里取，和网页逐条比对；Android 没有 WebView，只拷了 80 条固定期望值的断言（数字、日期、normalize）。要补得另想期望值从哪来（比如把 Chrome 的结果存成数据），以后单独讨论。
+
+先把两个 `Intl` 脚本从包里拿掉跑过一遍，70 条失败。
+
 ## 构建
 
 - Android Gradle 插件 9.5.2 自带 Kotlin 编译，不用另外加 Kotlin 插件。
@@ -206,4 +221,4 @@ iOS 真机连不到 Mac 上的本地测试服务（`acceptance/scripts/test-serv
 
 `acceptance-android/` 是从 iOS 的验收拷过来的 8 步（`console-basics`、`url`、`crypto`、`events`、`errors`、`web-globals`、`timers`、`performance`），去掉了用到 iOS 的类、`application`、`fetch`、`Blob`、`Intl` 的断言，留下的断言名字和期望值和 iOS 一字不差。`web-globals` 里「和网页逐条比对」那一段要 WebView，没拷。
 
-先在第 1 步的运行时上跑过 Web 标准那批：没有 `setTimeout`，一条 ✓ 都没有、到不了结束标记，判为失败；竖切那一步在没有桥的运行时上跑，`application is not defined`，也判为失败。2026-11-23 在 Pixel 6（Android 17，API 37）上，Debug 和 Release 都是 842 条通过、0 条失败。
+先在第 1 步的运行时上跑过 Web 标准那批：没有 `setTimeout`，一条 ✓ 都没有、到不了结束标记，判为失败；竖切那一步在没有桥的运行时上跑，`application is not defined`，也判为失败。2026-11-24 在 Pixel 6（Android 17，API 37）上，Debug 和 Release 都是 922 条通过、0 条失败。

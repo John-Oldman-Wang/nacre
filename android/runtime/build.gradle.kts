@@ -42,7 +42,6 @@ android {
 // 内置脚本：core/builtin/parts/ 里 Android 现在用的那几个，加上 Android 自己的
 // src/main/builtin/parts/，合到包里的 nacre/parts/，运行时按文件名顺序执行。
 //
-// core 里还没接的：26-intl 和 27-intl-date（走调类方法的通道）。
 val corePartsInUse = listOf(
     "05-dom-exception.js",
     "05-events.js",
@@ -51,6 +50,8 @@ val corePartsInUse = listOf(
     "23-fetch.js",
     "24-timer.js",
     "25-crypto.js",
+    "26-intl.js",
+    "27-intl-date.js",
     "28-web-globals.js",
 )
 
