@@ -23,6 +23,7 @@ import { stepWebGlobals } from './steps/web-globals.js';
 import { stepTimers } from './steps/timers.js';
 import { stepPerformance } from './steps/performance.js';
 import { stepSlice } from './steps/slice.js';
+import { stepInheritance } from './steps/inheritance.js';
 
 /**
  * 各步共享的上下文。这一批只用得到断言。
@@ -61,6 +62,12 @@ const sliceDone = (async () => {
     await stepSlice(ctx);
   } catch (err) {
     console.log('  ✗ 步骤 stepSlice 中途抛了，它后面的断言没跑: ' +
+                (err instanceof Error ? err.message : String(err)));
+  }
+  try {
+    await stepInheritance(ctx);
+  } catch (err) {
+    console.log('  ✗ 步骤 stepInheritance 中途抛了，它后面的断言没跑: ' +
                 (err instanceof Error ? err.message : String(err)));
   }
 })();

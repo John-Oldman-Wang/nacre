@@ -67,8 +67,7 @@ export async function stepSlice(ctx) {
   assert('new TextView(123) 抛 TypeError', thrown(() => new TextView(/** @type {any} */ (123))), 'TypeError');
   // Button 是现成的部件（TextView 加系统主题的样式），不接：任何视图都能点，样式由 App 自己定
   assert('没有 Button 这个全局名字', 'Button' in globalThis, false);
-  class MyText extends TextView {}
-  assert('继承 TextView 之后 new 抛 TypeError', thrown(() => new MyText(activity)), 'TypeError');
+  // 继承原生类的行为（JS 层的继承）在 inheritance.js 里测
 
   // ===== 建视图、文字 =====
   const plain = new View(activity);

@@ -134,41 +134,39 @@
 
   // ---- 构造 ----
 
-  // 原生类一律 final，和 iOS 一样：JS 不实现 Java 的类（project.md 第 4 节「继承」）。
-  // 拦不到 `class X extends TextView {}` 那一行本身，只能在 new 的时候说
-  function finalCheck(newTarget) {
-    if (nativeClassNames.has(newTarget)) return;
-    let base = Object.getPrototypeOf(newTarget);
-    while (typeof base === 'function' && !nativeClassNames.has(base)) {
-      base = Object.getPrototypeOf(base);
-    }
-    const name = (newTarget && newTarget.name) || 'this class';
-    const baseName = nativeClassNames.get(base) || 'a native class';
-    throw new TypeError(
-      'Illegal constructor: ' + name + ' extends ' + baseName +
-      ', but subclassing native classes is not supported yet');
+  // ---- JS 层的继承（2026-11-23 定）----
+  //
+  // JS 的类可以继承原生类，但继承只在 JS 这一层：原生那边建的永远是原型链上最近的
+  // 那个原生类，原生世界里没有 JS 子类这个类型。子类覆写的方法只对 JS 自己的调用
+  // 生效，系统不会来调；系统要告诉 JS 什么，只走事件。所以原生不持有任何 JS 对象。
+
+  // 原型链上离 cls 最近的原生类（cls 自己是原生类就是它自己）
+  function nearestNative(cls) {
+    let c = cls;
+    while (typeof c === 'function' && !nativeClassNames.has(c)) c = Object.getPrototypeOf(c);
+    return typeof c === 'function' ? c : undefined;
   }
 
-  // 只能由系统或运行时建的类（Activity、Context）。包装工厂不走构造函数，所以无条件抛
+  // 只能由系统建的类（Activity、Context）：自己和它们的 JS 子类都不能 new。
+  // 包装工厂不走构造函数，所以这里无条件抛
   function nativeOnly(newTarget) {
-    finalCheck(newTarget);
-    throw new TypeError(
-      'Illegal constructor: ' + (nativeClassNames.get(newTarget) || 'this class') +
-      ' is created by the system, not by new');
+    const name = nativeClassNames.get(nearestNative(newTarget)) || 'this class';
+    throw new TypeError('Illegal constructor: ' + name + ' is created by the system, not by new');
   }
 
-  // 继承链上的抽象类（ViewGroup）：自己不能 new，但不能挡住能 new 的子类
+  // 抽象类（ViewGroup）：最近的原生类是它，就没有东西可建
   function abstractOnly(newTarget, cls) {
-    if (newTarget === cls) {
+    if (nearestNative(newTarget) === cls) {
       throw new TypeError(
-        'Illegal constructor: ' + nativeClassNames.get(cls) + ' is abstract and cannot be constructed');
+        'Illegal constructor: ' + nativeClassNames.get(cls) +
+        ' is abstract and cannot be constructed; extend a concrete class such as LinearLayout');
     }
   }
 
-  // JS 构造原生对象：先有 this，再让原生造出对象并和 this 绑定。构造链上每个类都调
-  // 一次，只有「正在被 new 的那个类」真的去建
-  function constructNative(wrapper, builtAs, className, args) {
-    if (nativeClasses[className] !== builtAs) return;
+  // JS 构造原生对象：先有 this，再让原生造出对象并和 this 绑定。构造链上每个原生类
+  // 都调一次，只有「new.target 最近的原生类」那一层真的去建
+  function constructNative(wrapper, newTarget, className, args) {
+    if (nativeClassNames.get(nearestNative(newTarget)) !== className) return;
     const { values, handles } = splitArgs(args);
     const handle = native.construct(className, values, handles, wrapper);
     if (!handle) throw new TypeError('cannot construct ' + className + ' with these arguments');
@@ -203,7 +201,6 @@
     constructNative,
     defineNativeClass,
     describeValue,
-    finalCheck,
     nativeCall,
     nativeCallObject,
     nativeClassNames,

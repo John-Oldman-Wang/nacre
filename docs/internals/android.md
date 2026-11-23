@@ -93,7 +93,7 @@ iOS 的 URL 验收（34 条，期望值是照 iOS 写的）在 Android 上原样
 
 ## 第一条竖切：包装、所有权、事件
 
-JS 拿到页面（`application.activity`）、建 `LinearLayout` 和两个 `TextView`、`addView`、`setContentView`，点文字收到 `click`。引擎给宿主留的接口 iOS 全在用，Android 照着实现，`core/engine/` 没改。
+JS 拿到页面（`application.activity`）、建 `LinearLayout` 和两个 `TextView`、`addView`、`setContentView`，点文字收到 `click`；JS 的类可以继承原生类（只在 JS 这一层）。引擎给宿主留的接口 iOS 全在用，Android 照着实现，`core/engine/` 没改。
 
 ### 身份：交给引擎的「指针」是编号
 
@@ -117,6 +117,14 @@ JS 第一次给视图加 `click` 监听时，引擎经 `set_event_subscription` 
 - 返回值照 iOS 用 JSON（读属性、方法的返回值），Kotlin 交回 UTF-8 字节，不走 JNI 的字符串。
 - Kotlin 抛 `NacreTypeError`（参数类的错）JS 那边是 `TypeError`；别的异常（Java 自己抛的）写成「`\x01类名\x01说明`」交给引擎，JS 那边是 `name` 为异常类名的 `Error`，比如同一个子视图加两次是 `IllegalStateException`。
 - 每个宿主回调都包一层 `PushLocalFrame`：一轮 JS 里可能过桥几千次，不包的话 JNI 的局部引用表会满。
+
+### JS 层的继承
+
+`class Card extends TextView {}`，`new Card(ctx)`：构造链上每个原生类都调一次 `constructNative`，只有「`new.target` 在原型链上最近的原生类」那一层真的去建（`01-bridge.js` 的 `nearestNative`），所以原生那边建的是一个普通的 `TextView`。JS 这边的包装就是 `Card` 的实例，子类的方法、字段、私有字段都在；身份表里那个编号对应的就是它，从原生读回来（`getChildAt`）还是同一个 `Card`。抽象类（最近的原生类是 `ViewGroup`）和系统建的类（`Activity`、`Context`）继承了也不能 `new`。
+
+子类覆写的方法系统看不见：用例里一个写了 `onDraw()` 的子类挂在屏幕上画了半秒，那个方法一次都没被调过。系统要告诉 JS 什么只走事件，原生不持有任何 JS 对象。
+
+**没做的**：子类实例的「子类身份」和 JS 字段挂在包装上。包装被回收后再从原生读回来，会变成一个普通的 `TextView`。按所有权镜像，挂在界面上的视图包装不会被回收；只有镜像漏了边才会出现。方案里原本打算原生记下「这个对象是 JS 子类建的」，重建时打一条警告；但现在 Android 上所有建立持有关系的入口都做了镜像，没有一条路能触发它、也就测不了，所以没做。等出现原生自己建的持有关系（bindgen 接类之后）再加。
 
 ### 不接 Button
 
@@ -145,4 +153,4 @@ JS 第一次给视图加 `click` 监听时，引擎经 `set_event_subscription` 
 
 `acceptance-android/` 是从 iOS 的验收拷过来的 8 步（`console-basics`、`url`、`crypto`、`events`、`errors`、`web-globals`、`timers`、`performance`），去掉了用到 iOS 的类、`application`、`fetch`、`Blob`、`Intl` 的断言，留下的断言名字和期望值和 iOS 一字不差。`web-globals` 里「和网页逐条比对」那一段要 WebView，没拷。
 
-先在第 1 步的运行时上跑过 Web 标准那批：没有 `setTimeout`，一条 ✓ 都没有、到不了结束标记，判为失败；竖切那一步在没有桥的运行时上跑，`application is not defined`，也判为失败。2026-11-23 在 Pixel 6（Android 17，API 37）上，Debug 和 Release 都是 482 条通过、0 条失败。
+先在第 1 步的运行时上跑过 Web 标准那批：没有 `setTimeout`，一条 ✓ 都没有、到不了结束标记，判为失败；竖切那一步在没有桥的运行时上跑，`application is not defined`，也判为失败。2026-11-23 在 Pixel 6（Android 17，API 37）上，Debug 和 Release 都是 498 条通过、0 条失败。

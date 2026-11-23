@@ -8,6 +8,7 @@
 //
 // 规矩（2026-11-23 定，第 3 步）：类用简单类名挂在全局；Java 的 getText() / setText()
 // 合成一个属性 text；类的层级照 Android。手写的，以后由 bindgen 生成。
+// JS 的类可以继承它们，但继承只在 JS 这一层（见 01-bridge.js 的 nearestNative）。
 (function (ctx) {
   'use strict';
 
@@ -16,7 +17,6 @@
     abstractOnly,
     constructNative,
     defineNativeClass,
-    finalCheck,
     kSubscribe,
     nativeCall,
     nativeCallObject,
@@ -58,7 +58,6 @@
 
   class View extends EventTarget {
     constructor(context) {
-      finalCheck(new.target);
       super();
       if (arguments.length < 1) {
         throw new TypeError("Failed to construct '" + new.target.name + "': 1 argument required.");
