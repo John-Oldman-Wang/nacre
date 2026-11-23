@@ -28,6 +28,12 @@ android {
         }
     }
 
+    sourceSets {
+        getByName("main") {
+            assets.directories += layout.buildDirectory.dir("generated/nacre-assets").get().asFile.path
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -37,3 +43,17 @@ android {
 dependencies {
     implementation(project(":runtime"))
 }
+
+// 壳执行的 main.js。默认是 src/main/js/main.js（只验 console 进 logcat），
+// 验收时 scripts/run-device.sh 用 -PnacreMainJs=<路径> 换成验收套件打出来的那个
+val mainJs = providers.gradleProperty("nacreMainJs")
+    .map { file(it) }
+    .orElse(provider { file("src/main/js/main.js") })
+
+val copyMainJs by tasks.registering(Copy::class) {
+    from(mainJs) { rename { "main.js" } }
+    into(layout.buildDirectory.dir("generated/nacre-assets"))
+    inputs.property("mainJsPath", mainJs.map { it.absolutePath })
+}
+
+tasks.named("preBuild") { dependsOn(copyMainJs) }

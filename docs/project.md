@@ -325,11 +325,13 @@ WebView 留在核心：它不需要用户声明任何东西，拆了的净收益
 | 单位 | 像素，照 Android 的 API 原样 |
 | 能力包 | 另起包，按 Android 的 API 起名，一律带前缀（`@nacrejs/android-*`）；iOS 已发布的包不改名 |
 | 类型 | Android 的类型走单独的入口 `@nacrejs/types/android`，不进现在的默认入口 |
-| 验收 | 在连着的 Android 真机上跑。以后是单独一个项目 `acceptance-android/`，Web 标准那批步骤先两边各放一份；在那之前用 `android/scripts/run-device.sh`：编、装、打开开发用的壳，按 logcat 判定，看退出码 |
+| 验收 | 在连着的 Android 真机上跑：`android/scripts/run-device.sh` 把 `acceptance-android/`（单独一个项目）打包进开发用的壳，装、打开，按 logcat 判定，看退出码。判定和 iOS 共用 `acceptance/scripts/lib/report.mjs`。Web 标准那批步骤两边各放一份 |
+| URL 解析 | ada（网页标准的 URL 解析器，Node.js 用的就是它），胶水在 `core/url/`，`android/scripts/fetch-ada.sh` 下载。iOS 还是 `NSURLComponents`，iOS 要不要也换以后单独讨论（2026-11-23 定） |
+| 不影响 iOS | Android 的改动不碰 iOS 的运行时：iOS 的工程编 `core/engine/` 下的全部文件、执行 `core/builtin/parts/` 下的全部脚本，所以 Android 先用、iOS 还没用的东西不放这两个目录。`core/builtin/parts/` 里 Android 用哪几个，列在 `android/runtime/build.gradle.kts`（2026-11-23 定） |
 
 **要新定规矩的五件事**（和版本无关，开工后最先讨论）：重载的方法怎么映射成 JS；整数常量怎么变成字符串枚举；抽象类的中转子类长什么样；只能靠样式在构造时给的外观怎么传；Java 对象和 JS 包装之间的所有权（JNI 的全局引用和 V8 的垃圾回收怎么配合）。
 
-**顺序**：最小壳已经有了（`android/`：运行时 `runtime/`、开发用的壳 `shell/`）→ 接上 `core/builtin/` 那批 Web 标准 → 手写一条竖切（JS 建一个布局、放一个文字、响应一次点击）定包装、所有权、事件 → bindgen 的提取部分做统计、定上面五条规矩 → bindgen 的生成部分、按组接类。CLI 生成 `android/`、`@nacrejs/android`、能力包排在最后。每一步照 SOP 单独讨论。
+**顺序**：最小壳和 `core/builtin/` 里不依赖桥的 6 个已经接上（`android/`：运行时 `runtime/`、开发用的壳 `shell/`）→ 手写一条竖切（JS 建一个布局、放一个文字、响应一次点击）定包装、所有权、事件 → 接上 `core/builtin/` 里依赖桥的 4 个（`fetch` / `Blob`、`WebSocket`、两个 `Intl`）→ bindgen 的提取部分做统计、定上面五条规矩 → bindgen 的生成部分、按组接类。CLI 生成 `android/`、`@nacrejs/android`、能力包排在最后。每一步照 SOP 单独讨论。
 
 ## 5. 目录约定
 
@@ -348,8 +350,9 @@ nacre/
 ├─ acceptance/        验收套件（一个 Nacre 项目）
 ├─ examples/hello/    最小示例（一个 Nacre 项目）
 ├─ scripts/           发布 npm 包用的脚本：改版本、核对、打包、发布，和发布前的演练
-└─ android/           Android 运行时源码：runtime/（运行时）、shell/（开发用的壳）、scripts/
-                      （以后还有 acceptance-android/、packages/android/）
+├─ android/           Android 运行时源码：runtime/（运行时）、shell/（开发用的壳）、scripts/
+│                     （以后还有 packages/android/）
+└─ acceptance-android/ Android 的验收套件（现在是 Web 标准那批）
 ```
 
 `acceptance/` 和 `examples/hello/` 都是**一个 Nacre 项目**，形状一样，它们的 `ios/` 都由 CLI 生成、不进版本库：
@@ -558,7 +561,7 @@ types/
    动了 `android/` 或 `core/` 时，在连着的 Android 真机上 Debug 和 Release 也各跑一遍，同样看退出码：
 
    ```bash
-   bash android/scripts/run-device.sh && bash android/scripts/run-device.sh --release
+   bash android/scripts/run-device.sh && bash android/scripts/run-device.sh --release   # 要先设 ANDROID_HOME
    ```
 
    有一类问题只在开了优化之后出现（ARC 更早释放临时对象），而交付的 `Nacre.xcframework` 是 Release。只跑 Debug 等于没验交付物，见[包装](internals/wrapper.md#交接的那一段没人持有只在-release-下崩的悬空指针)。
@@ -581,7 +584,7 @@ Commit message 格式：
 
 ### 要建设的能力
 
-**先做：** Android：接上 `core/builtin/` 那批 Web 标准（第 4 节顺序的下一步）。
+**先做：** Android：手写一条竖切，定包装、所有权、事件（第 4 节顺序的下一步）。
 
 **留着，按需要做：**
 
