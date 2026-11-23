@@ -1,0 +1,381 @@
+// 拷自 acceptance/src/steps/fetch.js，去掉了「读 body 期间 Response 被回收」那一段（它靠 application.storage 的 change 事件带 GC 的清理回调）；另外两段异步的部分不再各跑各的，合成一个 Promise 返回，入口等它。
+//
+// fetch、Blob、AbortController。
+
+/**
+ * @param {import("../main.js").StepContext} ctx
+ * @returns {Promise<void>} 这一步全部做完时兑现
+ */
+export function stepFetch(ctx) {
+  const { assert } = ctx;
+  // ===== fetch =====
+  // 对着公开的 httpbin.org 跑，不需要本地起服务。代价是这些断言依赖外网：
+  // 没网或者 httpbin 挂了就会整体报错，这是预期的，不是运行时的问题。
+  // 另外耗时里现在含真实的 RTT（实测单次约 1.5 s），别拿来衡量桥的开销。
+  const basics = (async () => {
+    const base = 'https://httpbin.org';
+    console.log('  --- fetch ---');
+    try {
+      // /response-headers 把查询参数原样回成响应首部，同名的真发两条，
+      // 正好验证「同名多值用 ', ' 合并」
+      const res = await fetch(base + '/response-headers?x-multi=one&x-multi=two');
+      assert('status', res.status, 200);
+      assert('ok', res.ok, true);
+      assert('url 是绝对的', res.url,
+             base + '/response-headers?x-multi=one&x-multi=two');
+      assert('响应首部大小写不敏感', res.headers.get('CONTENT-TYPE'), 'application/json');
+      assert('同名多值合并', res.headers.get('x-multi'), 'one, two');
+      const data = await res.json();
+      assert('json() 解析出数组', Array.isArray(data['x-multi']), true);
+      assert('body 读过之后 bodyUsed', res.bodyUsed, true);
+      try { await res.json(); console.log('  ✗ body 居然能读第二次'); }
+      catch (err) { assert('body 不能读第二次', err.constructor.name, 'TypeError'); }
+
+      // text()：后台 UTF-8 解码
+      const t = await (await fetch(base + '/range/16')).text();
+      assert('text()', t, 'abcdefghijklmnop');
+
+      // 404 不是网络错误：fetch 照样兑现，只是 ok 为 false
+      const r404 = await fetch(base + '/status/404');
+      assert('404 不拒绝，只是 ok=false', r404.ok, false);
+      assert('404 的 status', r404.status, 404);
+
+      // arrayBuffer 走零拷贝那条路。/range/N 是确定的 a-z 循环，不是随机字节
+      const buf = await (await fetch(base + '/range/256')).arrayBuffer();
+      assert('arrayBuffer 是 ArrayBuffer', buf instanceof ArrayBuffer, true);
+      assert('arrayBuffer 长度', buf.byteLength, 256);
+      const view = new Uint8Array(buf);
+      assert('arrayBuffer 内容对得上', view[0] + ',' + view[255], '97,118');  // 'a','v'
+
+      // POST 带 body 和自定义首部，/post 把收到的原样回显
+      const post = await fetch(base + '/post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 来自: 'nacre' }),
+      });
+      const echo = await post.json();
+      assert('POST 的 method 到了服务器', echo.method, 'POST');
+      assert('POST 的 body 到了服务器（含中文）', echo.json.来自, 'nacre');
+      assert('自定义首部到了服务器', echo.headers['Content-Type'], 'application/json');
+
+      // 网络层失败才拒绝
+      try {
+        await fetch('http://127.0.0.1:1/nope');
+        console.log('  ✗ 连不上居然没拒绝');
+      } catch (err) {
+        assert('连不上时拒绝', err.constructor.name, 'TypeError');
+      }
+      try { await fetch('/相对路径'); console.log('  ✗ 相对 URL 居然通过'); }
+      catch (err) { assert('相对 URL 被拒（没有 base）', err.constructor.name, 'TypeError'); }
+
+      // --- Blob：字节不进 V8 堆 ---
+      const blob = await (await fetch(base + '/range/256')).blob();
+      assert('blob() 返回 Blob', blob instanceof Blob, true);
+      assert('blob.size', blob.size, 256);
+      const blobBuf = await blob.arrayBuffer();
+      assert('Blob 能取出字节', new Uint8Array(blobBuf)[255], 118);
+      const textBlob = new Blob(['前缀-', '后缀'], { type: 'text/plain' });
+      assert('new Blob 拼字符串', await textBlob.text(), '前缀-后缀');
+      assert('new Blob 的 type', textBlob.type, 'text/plain');
+      assert('new Blob 的 size（UTF-8 字节数）', textBlob.size, 13);  // 6+1+6
+      const bytesBlob = new Blob([new Uint8Array([1, 2, 3])]);
+      assert('new Blob 吃 TypedArray', bytesBlob.size, 3);
+
+      // --- AbortController ---
+      const ctrl = new AbortController();
+      assert('signal 初始未中止', ctrl.signal.aborted, false);
+      let gotAbortEvent = false;
+      ctrl.signal.addEventListener('abort', () => { gotAbortEvent = true; });
+      // /delay/5 要 5 秒才回，足够在它回来之前把它取消掉
+      const slowRequest = fetch(base + '/delay/5', { signal: ctrl.signal });
+      setTimeout(() => ctrl.abort(), 200);
+      try {
+        await slowRequest;
+        console.log('  ✗ 取消了居然还成功');
+      } catch (err) {
+        assert('取消后拒绝，name 是 AbortError', err.name, 'AbortError');
+        assert('取消后拒绝的是 DOMException，code 20', err instanceof DOMException && err.code, 20);
+      }
+      assert('abort 事件派发了', gotAbortEvent, true);
+      assert('中止后 aborted', ctrl.signal.aborted, true);
+      // reason 的类型是 unknown——任何值都能当中止原因，这是 Web 的语义
+      assert('reason 默认是 AbortError',
+           /** @type {Error} */ (ctrl.signal.reason).name, 'AbortError');
+      assert('reason 默认是 DOMException', ctrl.signal.reason instanceof DOMException, true);
+      ctrl.abort();   // 重复中止是空操作，不该再派发
+      assert('重复 abort 不出错', ctrl.signal.aborted, true);
+
+      // 已经中止的 signal，请求根本不该发出去
+      try {
+        await fetch(base + '/get', { signal: AbortSignal.abort() });
+        console.log('  ✗ 已中止的 signal 居然还发请求');
+      } catch (err) {
+        assert('已中止的 signal 直接拒绝', err.name, 'AbortError');
+      }
+      // 超时：有了定时器才做得了
+      try {
+        await fetch(base + '/delay/5', { signal: AbortSignal.timeout(300) });
+        console.log('  ✗ 超时了居然还成功');
+      } catch (err) {
+        assert('AbortSignal.timeout 到点中止', err.name, 'AbortError');
+      }
+      {
+        const timed = AbortSignal.timeout(10);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        const reason = timed.reason;
+        assert('AbortSignal.timeout 的 reason 是 DOMException TimeoutError，code 23',
+               reason instanceof DOMException ? reason.name + ' ' + reason.code : String(reason),
+               'TimeoutError 23');
+      }
+      try { AbortSignal.abort().throwIfAborted(); console.log('  ✗ throwIfAborted 没抛'); }
+      catch (err) { assert('throwIfAborted 抛的是 reason', err.name, 'AbortError'); }
+
+      // 并发：验证请求是并行发出去的，不是一个接一个。
+      //
+      // 断言的是**耗时**不是成功率：httpbin 对突发并发会回 429（实测 10 个
+      // 一起发有 6 个被限流），那是公开服务的配额，不是运行时的问题。
+      // 而 429 本身也是服务器正常答复，照样证明请求发出去了。
+      const single0 = Date.now();
+      await fetch(base + '/range/8?warm=1');
+      const singleMs = Date.now() - single0;
+
+      const t0 = Date.now();
+      const batch = await Promise.allSettled(
+        Array.from({ length: 10 }, (_, i) =>
+          fetch(base + '/range/8?i=' + i).then((r) => r.status)));
+      const batchMs = Date.now() - t0;
+      const ok200 = batch.filter(
+        (r) => r.status === 'fulfilled' && r.value === 200).length;
+      assert('10 个请求全都有结果', batch.length, 10);
+      assert('没有串行（10 个的耗时 < 单次的 4 倍）', batchMs < singleMs * 4, true);
+      console.log('  ✓ 单次', singleMs, 'ms，10 个并发', batchMs,
+                  'ms，其中 200 的有', ok200, '个（其余被 httpbin 限流）');
+    } catch (err) {
+      console.log('  ✗ fetch 用例整体出错:', err && err.message);
+    }
+  })();
+
+  // ===== 本地 body：自己构造的 Request / Response（回归）=====
+  //
+  // 原来 `new Request(url, { body: 'hello' }).text()` 和 `new Response('hello').text()`
+  // 都被拒绝：读取只认网络请求的 id，自己构造的没有；Response 的构造函数
+  // 干脆没存 body。现在 body 统一存成 Blob，读取和发送都从它走。
+  const localBody = (async () => {
+    /**
+     * 读取的结果，或者被拒绝的原因。让一条失败不打断后面的断言
+     * @param {() => Promise<unknown>} read
+     */
+    const outcome = async (read) => {
+      try { return await read(); }
+      catch (err) { return 'rejected: ' + /** @type {Error} */ (err).name; }
+    };
+    /** @param {ArrayBuffer} buffer */
+    const bytesOf = (buffer) => Array.from(new Uint8Array(buffer)).join(',');
+    const url = 'https://example.com/';
+
+    try {
+      console.log('--- fetch：本地 body ---');
+
+      // --- Request ---
+      const req = new Request(url, { method: 'POST', body: 'hello' });
+      assert('Request：读之前 bodyUsed', req.bodyUsed, false);
+      assert('Request：text()', await outcome(() => req.text()), 'hello');
+      assert('Request：读之后 bodyUsed', req.bodyUsed, true);
+      assert('Request：第二次读被拒', await outcome(() => req.text()), 'rejected: TypeError');
+      assert('Request：json()',
+             JSON.stringify(await outcome(() => new Request(url, { method: 'POST', body: '{"a":1}' }).json())),
+             '{"a":1}');
+      assert('Request：arrayBuffer() 是 UTF-8 字节',
+             await outcome(async () => bytesOf(await new Request(url, { method: 'POST', body: '你好' }).arrayBuffer())),
+             '228,189,160,229,165,189');
+      assert('Request：blob() 的大小',
+             await outcome(async () => (await new Request(url, { method: 'POST', body: 'hello' }).blob()).size), 5);
+
+      // --- Response ---
+      assert('Response：text()', await outcome(() => new Response('hello').text()), 'hello');
+      assert('Response：json()',
+             JSON.stringify(await outcome(() => new Response('{"ok":true}').json())), '{"ok":true}');
+      assert('Response：arrayBuffer()',
+             await outcome(async () => bytesOf(await new Response('AB').arrayBuffer())), '65,66');
+      assert('Response：blob() 的大小',
+             await outcome(async () => (await new Response('hello').blob()).size), 5);
+      const res = new Response('once');
+      await outcome(() => res.text());
+      assert('Response：读之后 bodyUsed', res.bodyUsed, true);
+      assert('Response：第二次读被拒', await outcome(() => res.arrayBuffer()), 'rejected: TypeError');
+
+      // --- 二进制的 body ---
+      const raw = new Uint8Array([0, 255, 16, 128]);
+      assert('Response：body 是类型数组',
+             await outcome(async () => bytesOf(await new Response(raw).arrayBuffer())), '0,255,16,128');
+      assert('Response：body 是 ArrayBuffer',
+             await outcome(async () => bytesOf(await new Response(raw.buffer).arrayBuffer())), '0,255,16,128');
+      assert('Response：body 是 Blob',
+             await outcome(async () => bytesOf(await new Response(new Blob([raw])).arrayBuffer())), '0,255,16,128');
+      assert('Request：body 是类型数组',
+             await outcome(async () => bytesOf(await new Request(url, { method: 'POST', body: raw }).arrayBuffer())),
+             '0,255,16,128');
+      assert('Request：body 是 Blob，blob() 读回同样的字节',
+             await outcome(async () => {
+               const sent = new Request(url, { method: 'POST', body: new Blob([raw]) });
+               return bytesOf(await (await sent.blob()).arrayBuffer());
+             }), '0,255,16,128');
+
+      // --- 空串：有 body，只是长度为 0 ---
+      const emptyText = new Response('');
+      assert('空串：text()', await outcome(() => emptyText.text()), '');
+      assert('空串：也算读过', emptyText.bodyUsed, true);
+
+      // --- 没有 body：照 Web 给空内容，不算读过，可以重复读 ---
+      const none = new Response();
+      assert('没有 body：text()', await outcome(() => none.text()), '');
+      assert('没有 body：bodyUsed 保持 false', none.bodyUsed, false);
+      assert('没有 body：可以再读一次', await outcome(() => none.text()), '');
+      assert('没有 body：arrayBuffer() 是 0 字节',
+             await outcome(async () => (await new Response(null).arrayBuffer()).byteLength), 0);
+      assert('没有 body：blob() 是空的',
+             await outcome(async () => (await new Response().blob()).size), 0);
+      assert('没有 body：json() 因为解析空串被拒',
+             await outcome(() => new Response().json()), 'rejected: SyntaxError');
+      assert('没有 body：GET 请求的 text()', await outcome(() => new Request(url).text()), '');
+
+      // --- 其它类型按 String() 转 ---
+      assert('数当 body：按 String() 转',
+             await outcome(() => new Response(/** @type {any} */ (42)).text()), '42');
+      assert('URLSearchParams 当 body：得到序列化之后的串',
+             await outcome(() => new Response(new URLSearchParams({ a: '1', b: '2' })).text()), 'a=1&b=2');
+
+      // --- 默认的 Content-Type，照 Web ---
+      assert('字符串 body 的默认 Content-Type',
+             new Response('x').headers.get('content-type'), 'text/plain;charset=UTF-8');
+      assert('自己给了 Content-Type 就不覆盖',
+             new Response('{}', { headers: { 'Content-Type': 'application/json' } }).headers.get('content-type'),
+             'application/json');
+      assert('Blob body 用 Blob 的 type',
+             new Response(new Blob(['x'], { type: 'image/png' })).headers.get('content-type'), 'image/png');
+      assert('没有 type 的 Blob 不加 Content-Type',
+             new Response(new Blob(['x'])).headers.get('content-type'), null);
+      assert('ArrayBuffer body 不加 Content-Type',
+             new Response(raw.buffer).headers.get('content-type'), null);
+      assert('URLSearchParams body 的默认 Content-Type',
+             new Response(new URLSearchParams({ a: '1' })).headers.get('content-type'),
+             'application/x-www-form-urlencoded;charset=UTF-8');
+      assert('没有 body 不加 Content-Type', new Response().headers.get('content-type'), null);
+      assert('Request 同样加默认的 Content-Type',
+             new Request(url, { method: 'POST', body: 'x' }).headers.get('content-type'),
+             'text/plain;charset=UTF-8');
+
+      // --- clone ---
+      const original = new Request(url, { method: 'POST', body: 'twice' });
+      const copy = original.clone();
+      assert('clone：原件读得出', await outcome(() => original.text()), 'twice');
+      assert('clone：副本不受原件影响', copy.bodyUsed, false);
+      assert('clone：副本也读得出', await outcome(() => copy.text()), 'twice');
+      assert('clone：读过之后再 clone 抛（和 Web 一致）',
+             (() => { try { original.clone(); return '没抛'; }
+                      catch (err) { return /** @type {Error} */ (err).name; } })(), 'TypeError');
+
+      // --- signal：取消的信号带在 Request 上 ---
+      //
+      // 这里只验「存在哪、怎么传」，不发请求；真的取消在「边下边读」那一步里
+      // 对着本机的测试服务验。
+      {
+        /** @param {() => unknown} fn */
+        const thrownName = (fn) => {
+          try { fn(); return '没抛'; }
+          catch (err) { return /** @type {Error} */ (err).name; }
+        };
+        const owner = new AbortController();
+        const other = new AbortController();
+        const carrying = new Request(url, { signal: owner.signal });
+        assert('Request 的 signal：带了哪个就是哪个', carrying.signal === owner.signal, true);
+        const plain = new Request(url);
+        assert('Request 的 signal：没带也有一个 AbortSignal', plain.signal instanceof AbortSignal, true);
+        assert('Request 的 signal：没带的那个没有中止', plain.signal.aborted, false);
+        assert('Request 的 signal：每次读是同一个对象', plain.signal === plain.signal, true);
+        assert('Request 的 signal：两个没带的 Request 各有各的',
+               plain.signal === new Request(url).signal, false);
+        assert('Request 的 signal：从已有的 Request 构造，跟着它',
+               new Request(carrying).signal === owner.signal, true);
+        assert('Request 的 signal：init 里带了就用 init 的',
+               new Request(carrying, { signal: other.signal }).signal === other.signal, true);
+        assert('Request 的 signal：init 里是 undefined 视为没带',
+               new Request(carrying, { signal: undefined }).signal === owner.signal, true);
+        const dropped = new Request(carrying, { signal: null });
+        assert('Request 的 signal：init 里写 null 是去掉', dropped.signal === owner.signal, false);
+        assert('Request 的 signal：clone() 保留', carrying.clone().signal === owner.signal, true);
+        assert('Request 的 signal：不是 AbortSignal 抛 TypeError',
+               // @ts-expect-error signal 只收 AbortSignal
+               thrownName(() => new Request(url, { signal: {} })), 'TypeError');
+        assert('Request 的 signal：只读，写了抛 TypeError',
+               // @ts-expect-error signal 只读
+               thrownName(() => { carrying.signal = other.signal; }), 'TypeError');
+        owner.abort();
+        assert('Request 的 signal：中止之后从 Request 上读到的也是中止的', carrying.signal.aborted, true);
+        assert('Request 的 signal：去掉之后不跟着原来的中止', dropped.signal.aborted, false);
+        // fetch 的 signal 不对：和别的参数错误一样，给一个被拒绝的 Promise，不当场抛
+        assert('fetch 的 signal 不是 AbortSignal：返回被拒绝的 Promise（TypeError），不当场抛',
+               await (async () => {
+                 let promise;
+                 // @ts-expect-error signal 只收 AbortSignal
+                 try { promise = fetch(url, { signal: 1 }); }
+                 catch (err) { return '当场抛了 ' + /** @type {Error} */ (err).name; }
+                 return promise.then(() => '兑现了', (err) => 'rejected: ' + err.name);
+               })(), 'rejected: TypeError');
+      }
+
+      // --- 发出去：服务器收到的是什么 ---
+      //
+      // httpbin 的 /post 把收到的 body 回显在 data 里；不是合法 UTF-8 的字节
+      // 回显成 data: URL（base64）。0,255,16,128 的 base64 是 AP8QgA==
+      const base = 'https://httpbin.org';
+      /**
+       * @param {string} label
+       * @param {RequestInit} init
+       * @param {(echo: any) => void} check
+       */
+      const post = async (label, init, check) => {
+        const reply = await fetch(base + '/post', { method: 'POST', ...init });
+        if (!reply.ok) {
+          console.log('  ! ' + label + '：httpbin 回了 ' + reply.status + '，这一条未验证');
+          return;
+        }
+        check(await reply.json());
+      };
+      await post('字符串 body', { body: 'hello' }, (echo) => {
+        assert('发送：字符串 body 到了服务器', echo.data, 'hello');
+        assert('发送：字符串 body 的 Content-Type', echo.headers['Content-Type'], 'text/plain;charset=UTF-8');
+      });
+      await post('类型数组 body',
+                 { body: raw, headers: { 'Content-Type': 'application/octet-stream' } }, (echo) => {
+        assert('发送：类型数组的字节原样到了服务器',
+               echo.data, 'data:application/octet-stream;base64,AP8QgA==');
+      });
+      await post('Blob body', { body: new Blob([raw], { type: 'application/x-nacre' }) }, (echo) => {
+        assert('发送：Blob 的字节原样到了服务器',
+               echo.data, 'data:application/octet-stream;base64,AP8QgA==');
+        assert('发送：Blob 的 type 成了 Content-Type', echo.headers['Content-Type'], 'application/x-nacre');
+      });
+      await post('ArrayBuffer body，不给 Content-Type', { body: raw.buffer }, (echo) => {
+        // Web 在这种情况下不发 Content-Type。这里量一下系统实际发了什么
+        console.log('  ✓ 实测：ArrayBuffer body 不给 Content-Type 时，服务器看到的是',
+                    JSON.stringify(echo.headers['Content-Type']), '，data =', JSON.stringify(echo.data),
+                    '，form =', JSON.stringify(echo.form));
+      });
+      const prepared = new Request(base + '/post', { method: 'POST', body: 'via request' });
+      const viaRequest = await fetch(prepared);
+      if (viaRequest.ok) {
+        assert('发送：fetch(Request 对象) 带上了它的 body', (await viaRequest.json()).data, 'via request');
+      } else {
+        console.log('  ! fetch(Request 对象)：httpbin 回了 ' + viaRequest.status + '，这一条未验证');
+      }
+    } catch (err) {
+      console.log('  ✗ 「本地 body」用例整体出错:', err && /** @type {Error} */ (err).message);
+    } finally {
+      console.log('--- fetch：本地 body 跑完 ---');
+    }
+  })();
+
+  // 两段各自把异常接住了，不会被拒
+  return Promise.all([basics, localBody]).then(() => {});
+}

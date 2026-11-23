@@ -1,2 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 网络是核心能力（fetch、WebSocket），合并进 App 的清单 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+</manifest>

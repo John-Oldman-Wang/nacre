@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 开发用的壳：只对本机放开明文 HTTP。验收的本地测试服务在 Mac 上，经
+     adb reverse 转到手机的 127.0.0.1（android/scripts/run-device.sh）。别的地址照旧只走 HTTPS -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

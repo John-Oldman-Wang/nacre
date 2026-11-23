@@ -147,6 +147,10 @@
     return typeof c === 'function' ? c : undefined;
   }
 
+  // core 的内置脚本（23-fetch 的 Blob）在构造时调它来拦继承。Android 是 JS 层的继承，
+  // 不拦：和 Web 一样，Blob 能继承
+  function finalCheck() {}
+
   // 只能由系统建的类（Activity、Context）：自己和它们的 JS 子类都不能 new。
   // 包装工厂不走构造函数，所以这里无条件抛
   function nativeOnly(newTarget) {
@@ -201,6 +205,7 @@
     constructNative,
     defineNativeClass,
     describeValue,
+    finalCheck,
     nativeCall,
     nativeCallObject,
     nativeClassNames,

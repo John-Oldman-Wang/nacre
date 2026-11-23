@@ -1,4 +1,4 @@
-// 拷自 acceptance/src/steps/web-globals.js，去掉了克隆原生对象和 Blob / application / AbortController / Response 的几条、和网页逐条比对的那一段（连同区块和状态标签）。
+// 拷自 acceptance/src/steps/web-globals.js，去掉了克隆原生对象和 application 的几条、和网页逐条比对的那一段（连同区块和状态标签）。
 //
 // Web 标准的五个全局：TextEncoder、TextDecoder、atob、btoa、structuredClone。
 //
@@ -541,11 +541,14 @@ export function stepWebGlobals(ctx) {
     assert('DataCloneError 的信息里说了不能克隆', error.message.includes('could not be cloned'), true);
   }
   // 运行时自己的对象：事件、网络那几个类
+  literal('克隆 Blob：抛 DataCloneError', () => structuredClone(new Blob(['abc'])), '抛 DataCloneError');
   literal('克隆 EventTarget：抛 DataCloneError', () => structuredClone(new EventTarget()), '抛 DataCloneError');
   literal('克隆 Event：抛 DataCloneError', () => structuredClone(new Event('x')), '抛 DataCloneError');
+  literal('克隆 AbortController：抛 DataCloneError', () => structuredClone(new AbortController()), '抛 DataCloneError');
   literal('克隆 URL：抛 DataCloneError', () => structuredClone(new URL('https://example.com/')), '抛 DataCloneError');
   literal('克隆 URLSearchParams：抛 DataCloneError', () => structuredClone(new URLSearchParams('a=1')), '抛 DataCloneError');
   literal('克隆 Headers：抛 DataCloneError', () => structuredClone(new Headers()), '抛 DataCloneError');
+  literal('克隆 Response：抛 DataCloneError', () => structuredClone(new Response('x')), '抛 DataCloneError');
   literal('克隆 TextEncoder：抛 DataCloneError', () => structuredClone(new TextEncoder()), '抛 DataCloneError');
   literal('克隆 TextDecoder：抛 DataCloneError', () => structuredClone(new TextDecoder()), '抛 DataCloneError');
 

@@ -14,7 +14,26 @@ class NacreRuntime private constructor(activity: Activity) : AutoCloseable {
 
     // 原生对象和引擎之间那一层。系统的回调（比如点击）进来，排到下一轮再派发给 JS：
     // 原生的通知不当场进 JS，和 iOS 一样
-    private val bridge: NativeBridge = NativeBridge(activity) { target, type ->
+    // 异步调用的兑现：哪个线程来的都排到主线程，再交给引擎
+    private val settle = object : Settle {
+        override fun json(callId: Int, json: String) = onMain {
+            nativeSettleJson(handle, callId, json.toByteArray(Charsets.UTF_8))
+        }
+        override fun bytes(callId: Int, data: ByteArray) = onMain { nativeSettleBytes(handle, callId, data) }
+        override fun obj(callId: Int, value: Any) = onMain {
+            nativeSettleObject(handle, callId, bridge.intern(value), bridge.className(value))
+        }
+        override fun reject(callId: Int, name: String, message: String) = onMain {
+            nativeReject(handle, callId, name, message.toByteArray(Charsets.UTF_8))
+        }
+    }
+
+    // 排到主线程队列的尾部再做（当场做会在 JS 拿到 Promise 之前就兑现）
+    private fun onMain(block: () -> Unit) {
+        handler.post { if (handle != 0L) block() }
+    }
+
+    private val bridge: NativeBridge = NativeBridge(activity, settle) { target, type ->
         handler.post {
             if (handle != 0L) {
                 nativeEmitObjectEvent(handle, bridge.intern(target), bridge.className(target), type)
@@ -51,6 +70,7 @@ class NacreRuntime private constructor(activity: Activity) : AutoCloseable {
         if (handle == 0L) return
         Looper.myQueue().removeIdleHandler(idleHandler)
         handler.removeCallbacksAndMessages(null)
+        bridge.close()
         nativeDestroy(handle)
         handle = 0L
     }
@@ -127,6 +147,10 @@ class NacreRuntime private constructor(activity: Activity) : AutoCloseable {
         @JvmStatic private external fun nativeRunTask(handle: Long, id: Long)
         @JvmStatic private external fun nativeRunIdleTasks(handle: Long, seconds: Double)
         @JvmStatic private external fun nativeEmitObjectEvent(handle: Long, id: Long, className: String, type: String)
+        @JvmStatic private external fun nativeSettleJson(handle: Long, callId: Int, json: ByteArray)
+        @JvmStatic private external fun nativeSettleBytes(handle: Long, callId: Int, data: ByteArray)
+        @JvmStatic private external fun nativeSettleObject(handle: Long, callId: Int, id: Long, className: String)
+        @JvmStatic private external fun nativeReject(handle: Long, callId: Int, name: String, message: ByteArray)
         @JvmStatic private external fun nativeDestroy(handle: Long)
         @JvmStatic private external fun nativeV8Version(): String
     }

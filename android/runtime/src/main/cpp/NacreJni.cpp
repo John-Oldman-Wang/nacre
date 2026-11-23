@@ -89,6 +89,12 @@ struct Runtime {
   jmethodID call_object_method = nullptr;
   jmethodID set_event_subscription = nullptr;
   jmethodID error_text = nullptr;
+  jmethodID create_blob = nullptr;
+  jmethodID read_object_async = nullptr;
+  jmethodID fetch_start = nullptr;
+  jmethodID fetch_read_body = nullptr;
+  jmethodID fetch_cancel = nullptr;
+  jmethodID fetch_release = nullptr;
   // post_task 交过来的任务先存在这里，Kotlin 那边排进主线程的队列，轮到时按编号取回来跑
   std::unordered_map<int64_t, std::function<void()>> tasks;
   int64_t next_task_id = 1;
@@ -192,6 +198,13 @@ Java_nacre_runtime_NacreRuntime_nativeCreate(JNIEnv* env, jclass, jobject self, 
   runtime->set_event_subscription =
       env->GetMethodID(bridge_class, "setEventSubscription", "(JLjava/lang/String;Z)V");
   runtime->error_text = env->GetMethodID(bridge_class, "errorText", "(Ljava/lang/Throwable;)[B");
+  runtime->create_blob = env->GetMethodID(bridge_class, "createBlob", "([B[[B[B)J");
+  runtime->read_object_async =
+      env->GetMethodID(bridge_class, "readObjectAsync", "(JLjava/lang/String;I)V");
+  runtime->fetch_start = env->GetMethodID(bridge_class, "fetchStart", "([B[BJI)I");
+  runtime->fetch_read_body = env->GetMethodID(bridge_class, "fetchReadBody", "(ILjava/lang/String;I)V");
+  runtime->fetch_cancel = env->GetMethodID(bridge_class, "fetchCancel", "(I)V");
+  runtime->fetch_release = env->GetMethodID(bridge_class, "fetchRelease", "(I)V");
   env->DeleteLocalRef(bridge_class);
 
   nacre::EngineHost host;
@@ -296,6 +309,62 @@ Java_nacre_runtime_NacreRuntime_nativeCreate(JNIEnv* env, jclass, jobject self, 
     TakeError(env, runtime, error);
   };
 
+  // ---- Blob 和 fetch：都转给 NativeBridge，结果由 Kotlin 那边回主线程兑现 ----
+  host.create_blob = [runtime](const std::string& parts_json,
+                               const std::vector<std::pair<const void*, size_t>>& buffers,
+                               const std::string& type) {
+    JNIEnv* env = CurrentEnv();
+    Frame frame(env);
+    jclass byte_array_class = env->FindClass("[B");
+    jobjectArray java_buffers =
+        env->NewObjectArray(static_cast<jsize>(buffers.size()), byte_array_class, nullptr);
+    for (size_t i = 0; i < buffers.size(); i++) {
+      if (buffers[i].first == nullptr) continue;
+      jbyteArray bytes = env->NewByteArray(static_cast<jsize>(buffers[i].second));
+      env->SetByteArrayRegion(bytes, 0, static_cast<jsize>(buffers[i].second),
+                              static_cast<const jbyte*>(buffers[i].first));
+      env->SetObjectArrayElement(java_buffers, static_cast<jsize>(i), bytes);
+      env->DeleteLocalRef(bytes);
+    }
+    jlong id = env->CallLongMethod(runtime->bridge, runtime->create_blob,
+                                   ToBytes(env, parts_json), java_buffers, ToBytes(env, type));
+    if (TakeError(env, runtime, nullptr)) return nacre::NativeObjectRef{};
+    return RefOf(env, runtime, id);
+  };
+  host.read_object_async = [runtime](void* ptr, const std::string& kind, int call_id) {
+    JNIEnv* env = CurrentEnv();
+    Frame frame(env);
+    env->CallVoidMethod(runtime->bridge, runtime->read_object_async, IdOf(ptr),
+                        env->NewStringUTF(kind.c_str()), static_cast<jint>(call_id));
+    TakeError(env, runtime, nullptr);
+  };
+  host.fetch_start = [runtime](const std::string& url, const std::string& options_json,
+                               void* body, int call_id) {
+    JNIEnv* env = CurrentEnv();
+    Frame frame(env);
+    jint id = env->CallIntMethod(runtime->bridge, runtime->fetch_start, ToBytes(env, url),
+                                 ToBytes(env, options_json), IdOf(body), static_cast<jint>(call_id));
+    if (TakeError(env, runtime, nullptr)) return 0;
+    return static_cast<int>(id);
+  };
+  host.fetch_read_body = [runtime](int request_id, const std::string& kind, int call_id) {
+    JNIEnv* env = CurrentEnv();
+    Frame frame(env);
+    env->CallVoidMethod(runtime->bridge, runtime->fetch_read_body, static_cast<jint>(request_id),
+                        env->NewStringUTF(kind.c_str()), static_cast<jint>(call_id));
+    TakeError(env, runtime, nullptr);
+  };
+  host.fetch_cancel = [runtime](int request_id) {
+    JNIEnv* env = CurrentEnv();
+    env->CallVoidMethod(runtime->bridge, runtime->fetch_cancel, static_cast<jint>(request_id));
+    TakeError(env, runtime, nullptr);
+  };
+  host.fetch_release = [runtime](int request_id) {
+    JNIEnv* env = CurrentEnv();
+    env->CallVoidMethod(runtime->bridge, runtime->fetch_release, static_cast<jint>(request_id));
+    TakeError(env, runtime, nullptr);
+  };
+
   runtime->engine = std::make_unique<nacre::Engine>(std::move(host));
   return reinterpret_cast<jlong>(runtime);
 }
@@ -356,6 +425,46 @@ Java_nacre_runtime_NacreRuntime_nativeEmitObjectEvent(JNIEnv* env, jclass, jlong
   Runtime* runtime = FromHandle(handle);
   runtime->engine->EmitObjectEvent({PtrOf(id), FromAsciiString(env, class_name)},
                                    FromAsciiString(env, type));
+  AfterTask(runtime);
+}
+
+// ---- 异步调用的兑现（Kotlin 已经排到主线程上了）----
+
+extern "C" JNIEXPORT void JNICALL
+Java_nacre_runtime_NacreRuntime_nativeSettleJson(JNIEnv* env, jclass, jlong handle, jint call_id,
+                                                 jbyteArray json) {
+  Runtime* runtime = FromHandle(handle);
+  runtime->engine->SettleJSON(call_id, FromBytes(env, json));
+  AfterTask(runtime);
+}
+
+// 字节拷一份到 C++ 的内存里交给 V8，由它接管（回收时 free）。Java 数组的内存不能
+// 直接交出去：它随时可能被 Java 的 GC 挪走
+extern "C" JNIEXPORT void JNICALL
+Java_nacre_runtime_NacreRuntime_nativeSettleBytes(JNIEnv* env, jclass, jlong handle, jint call_id,
+                                                  jbyteArray data) {
+  Runtime* runtime = FromHandle(handle);
+  const jsize length = env->GetArrayLength(data);
+  void* copy = malloc(length > 0 ? static_cast<size_t>(length) : 1);
+  if (length > 0) env->GetByteArrayRegion(data, 0, length, static_cast<jbyte*>(copy));
+  runtime->engine->SettleBytes(call_id, copy, static_cast<size_t>(length),
+                               [](void* d, size_t, void*) { free(d); }, nullptr);
+  AfterTask(runtime);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_nacre_runtime_NacreRuntime_nativeSettleObject(JNIEnv* env, jclass, jlong handle, jint call_id,
+                                                   jlong id, jstring class_name) {
+  Runtime* runtime = FromHandle(handle);
+  runtime->engine->SettleObject(call_id, {PtrOf(id), FromAsciiString(env, class_name)});
+  AfterTask(runtime);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_nacre_runtime_NacreRuntime_nativeReject(JNIEnv* env, jclass, jlong handle, jint call_id,
+                                             jstring name, jbyteArray message) {
+  Runtime* runtime = FromHandle(handle);
+  runtime->engine->RejectCall(call_id, FromAsciiString(env, name), FromBytes(env, message));
   AfterTask(runtime);
 }
 

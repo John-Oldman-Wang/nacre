@@ -20,6 +20,8 @@ internal class NacreTypeError(message: String) : RuntimeException(message)
 
 internal class NativeBridge(
     private val activity: Activity,
+    // 异步调用的兑现（fetch、Blob 的读取）
+    private val settle: Settle,
     // 系统的回调进来了，排到下一轮派发给 JS（不当场进 JS）
     private val emit: (target: Any, type: String) -> Unit,
 ) {
@@ -68,6 +70,7 @@ internal class NativeBridge(
 
     // JS 那边按这个名字找类。从具体到一般，第一个对上的就是
     fun className(obj: Any): String = when (obj) {
+        is NacreBlob -> "Blob"
         is Activity -> "Activity"
         is TextView -> "TextView"
         is LinearLayout -> "LinearLayout"
@@ -100,6 +103,8 @@ internal class NativeBridge(
         val target = obj(id)
         val json = when {
             target is TextView && name == "text" -> JSONObject.quote(target.text.toString())
+            target is NacreBlob && name == "size" -> target.data.size.toString()
+            target is NacreBlob && name == "type" -> JSONObject.quote(target.type)
             target is Activity && name == "windowInsets" ->
                 target.window.decorView.rootWindowInsets?.let(::insetsJson) ?: "null"
             target is ViewGroup && name == "childCount" -> target.childCount.toString()
@@ -172,6 +177,50 @@ internal class NativeBridge(
     private fun viewArg(ptrs: LongArray, where: String): View =
         ptrs.getOrNull(0)?.let(::obj) as? View
             ?: throw NacreTypeError("$where: argument 1 must be a View")
+
+    // ---- Blob 和 fetch（core/builtin/parts/23-fetch.js）----
+
+    private val fetch = FetchService(settle)
+
+    // new Blob(parts, { type })。返回编号，由引擎把 JS 那边正在构造的 Blob 绑上去
+    fun createBlob(partsJson: ByteArray, buffers: Array<ByteArray?>, type: ByteArray): Long =
+        intern(NacreBlob.fromParts(String(partsJson, Charsets.UTF_8), buffers, String(type, Charsets.UTF_8)))
+
+    // 读 Blob 的内容。字节本来就在内存里，但 UTF-8 解码是 CPU 活，放到后台
+    fun readObjectAsync(id: Long, kind: String, callId: Int) {
+        val blob = obj(id) as? NacreBlob
+        if (blob == null) {
+            settle.reject(callId, "TypeError", "not a Blob")
+            return
+        }
+        readWork.execute {
+            if (kind == "text") settle.json(callId, JSONObject.quote(NacreBlob.decodeUtf8(blob.data)))
+            else settle.bytes(callId, blob.data.copyOf())
+        }
+    }
+
+    private val readWork = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+        Thread(r, "nacre.blob.read").apply { isDaemon = true }
+    }
+
+    fun fetchStart(url: ByteArray, optionsJson: ByteArray, bodyId: Long, callId: Int): Int {
+        val body = if (bodyId == 0L) null else obj(bodyId)
+        if (body != null && body !is NacreBlob) {
+            settle.reject(callId, "TypeError", "fetch body must be a Blob")
+            return 0
+        }
+        return fetch.start(String(url, Charsets.UTF_8), String(optionsJson, Charsets.UTF_8),
+                           body as NacreBlob?, callId)
+    }
+
+    fun fetchReadBody(requestId: Int, kind: String, callId: Int) = fetch.readBody(requestId, kind, callId)
+    fun fetchCancel(requestId: Int) = fetch.cancel(requestId)
+    fun fetchRelease(requestId: Int) = fetch.release(requestId)
+
+    fun close() {
+        fetch.close()
+        readWork.shutdownNow()
+    }
 
     // ---- 事件 ----
 
