@@ -323,6 +323,8 @@ WebView 留在核心：它不需要用户声明任何东西，拆了的净收益
 | 语言 | Kotlin 写启动壳，C++ 写引擎和 JNI，Java 或 Kotlin 写中转类 |
 | 外观 | **样式全部由 JS 定**，运行时不预设任何外观。要接的能力当成一组：Drawable 一族（`GradientDrawable` 的背景、渐变、圆角、边框，`RippleDrawable` 的按下效果）、`Outline` 和圆角裁切、按高度投的阴影、`RenderEffect`（模糊，Android 12 起，11 上如实告诉 JS 没有）、`Typeface`。**任意阴影**（颜色、模糊、偏移都能调）和**自定义绘制**系统没有现成的，照「继承」那一行的做法给一套绘制指令能力让 JS 调（底下用 `RenderNode` / `Canvas`），不让 JS 覆写 `onDraw`，具体形状单独讨论（2026-11-23 定） |
 | 原生类的写法 | 用简单类名挂在全局（`TextView`、`LinearLayout`），不同包里同名的类怎么办第 4 步统计完再定；Java 的 getter / setter 合成一个属性（`getText()` / `setText()` → `text`），和 Kotlin 一样；入口是上层对象 `application`，现在只有 `application.activity`。Java 抛的异常先转成 JS 的 `Error`，`name` 是异常的简单类名，最终和第 4 步的规矩一起定（2026-11-23 定，第 3 步） |
+| 接类的规矩 | （2026-11-24 定）**整数常量 → 字符串枚举**，照 iOS：去掉前缀、首字母小写（`LinearLayout.VERTICAL` → `'vertical'`，`View.GONE` → `'gone'`），位掩码（`Gravity`）用字符串数组；写错时属性打警告、保持原值，方法参数抛 `TypeError`，都列出全部可选值。**方法的参数照 Java 原样按位置传**（`setPadding(l, t, r, b)`，和 Android 的文档对得上）；有重载的按参数个数和类型选，分不开的在那个成员的文档里写明；options 对象留给上层 API。**构造只传 `context`**：不接 XML 样式，外观一律用属性或方法设（Android 11 起基本都有代码里的接口），只能在构造时给的单独拿出来讨论。覆写点照「继承」那一行，每组落到具体的类上 |
+| 一组类一套新文件 | 和 iOS 一样，接一组类只加新文件：原生是一个 `Domain`（`android/runtime/src/main/kotlin/nacre/runtime/XxxDomain.kt`），在 `Domains.kt` 里登记一行；JS 是自己的内置脚本（往已有的类上加成员也在自己的文件里加）；验收是自己的步骤文件，`acceptance-android/src/main.js` 里加一行；文档在 `docs/internals/android.md` 里加自己的一节。共享文件只在入口各加一行，几组可以分给几个会话同时做。手机只有一台，`run-device.sh` 用一把锁让几个会话的验收排队。怎么做见[Android 的运行时](internals/android.md#接一组类) |
 | 网络 | `fetch` 和 `WebSocket` 都用 OkHttp，和 React Native、Expo 一样；系统里没有 WebSocket 客户端（2026-11-23 定）。超时和 iOS 的系统网络库一样（60 秒没有数据才超时，不限总时长）；每个主机最多同时 64 个请求（OkHttp 默认 5 个，并发请求会被排成几轮）。`fetch()` 的兑现时机和截断的处理照网页标准，和 iOS 有两处不同；`WebSocket` 的 `ping()` 在 Android 上不支持（OkHttp 没有公开的手动 ping），见[Android 的运行时](internals/android.md#和-ios-不同的地方android-照网页标准) |
 | 工具链 | Gradle（用仓库里的 wrapper）、Android Gradle 插件 9.5.2（自带 Kotlin 编译）、compileSdk 37、NDK 29.0.14206865、CMake 4.1.2。版本都写死在 `android/` 的构建文件里 |
 | 单位 | 像素，照 Android 的 API 原样 |
@@ -332,9 +334,9 @@ WebView 留在核心：它不需要用户声明任何东西，拆了的净收益
 | URL 解析 | ada（网页标准的 URL 解析器，Node.js 用的就是它），胶水在 `core/url/`，`android/scripts/fetch-ada.sh` 下载。iOS 还是 `NSURLComponents`，iOS 要不要也换以后单独讨论（2026-11-23 定） |
 | 不影响 iOS | Android 的改动不碰 iOS 的运行时：iOS 的工程编 `core/engine/` 下的全部文件、执行 `core/builtin/parts/` 下的全部脚本，所以 Android 先用、iOS 还没用的东西不放这两个目录。`core/builtin/parts/` 里 Android 用哪几个，列在 `android/runtime/build.gradle.kts`（2026-11-23 定） |
 
-**要新定规矩的几件事**（和版本无关，第 4 步讨论）：重载的方法怎么映射成 JS；整数常量怎么变成字符串枚举；覆写点在 Android 上逐类怎么落（哪些转事件、哪些换成能力）；只能靠样式在构造时给的外观怎么传。所有权的做法第 3 步已经定了：Java 对象发编号交给引擎，包装活着就持有，JS 侧做所有权镜像，见[Android 的运行时](internals/android.md)；JS 不实现 Java 的类，所以没有跨两个垃圾回收器的环。
+**接类的规矩已经定了**（见上面「接类的规矩」「一组类一套新文件」两行）。所有权的做法第 3 步定的：Java 对象发编号交给引擎，包装活着就持有，JS 侧做所有权镜像；JS 不实现 Java 的类，所以没有跨两个垃圾回收器的环。
 
-**顺序**：最小壳、`core/builtin/` 里不依赖桥的 6 个、第一条竖切（包装、所有权、事件、JS 层的继承）、安全区域（`activity.windowInsets` 和 `windowinsetschange`）、`fetch` / `Blob`、`WebSocket`、`Intl`（`core/builtin/` 的 10 个全部接上）已经有了（`android/`：运行时 `runtime/`、开发用的壳 `shell/`）→ bindgen 的提取部分做统计、定上面五条规矩 → bindgen 的生成部分、按组接类。CLI 生成 `android/`、`@nacrejs/android`、能力包排在最后。每一步照 SOP 单独讨论。
+**顺序**：最小壳、`core/builtin/` 里不依赖桥的 6 个、第一条竖切（包装、所有权、事件、JS 层的继承）、安全区域（`activity.windowInsets` 和 `windowinsetschange`）、`fetch` / `Blob`、`WebSocket`、`Intl`（`core/builtin/` 的 10 个全部接上）、按组登记的机制已经有了（`android/`：运行时 `runtime/`、开发用的壳 `shell/`）→ **按组接能力，几个会话并行**：外观、布局、文字、App 层先开，再是图片、触摸和手势、滚动和动画、输入框 → 列表、浮层、网页（覆写点最多，前几组用顺了再开）→ bindgen 读 `android.jar`，接剩下的类。CLI 生成 `android/`、`@nacrejs/android`、能力包排在最后。每一步照 SOP 单独讨论。
 
 ## 5. 目录约定
 
@@ -587,7 +589,7 @@ Commit message 格式：
 
 ### 要建设的能力
 
-**先做：** Android：第 4 步，bindgen 读 `android.jar` 做统计，定下剩下的几条规矩（第 4 节顺序的下一步）。
+**先做：** Android：按组接能力，几个会话并行（外观、布局、文字、App 层先开），见第 4 节的顺序。
 
 **留着，按需要做：**
 

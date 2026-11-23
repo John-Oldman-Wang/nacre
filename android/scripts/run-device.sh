@@ -27,6 +27,22 @@ if [ "$("$ADB" devices | awk 'NR>1 && $2=="device"' | wc -l | tr -d ' ')" = 0 ];
   exit 1
 fi
 
+# 手机只有一台：几个会话同时跑验收会互相抢。用一把锁排队（mkdir 是原子的，macOS 没有 flock）。
+# 锁里记着拿锁的进程号，那个进程没了就当成残留的锁，清掉
+LOCK_DIR="${TMPDIR:-/tmp}/nacre-android-device.lock"
+while ! mkdir "$LOCK_DIR" 2>/dev/null; do
+  owner="$(cat "$LOCK_DIR/pid" 2>/dev/null || true)"
+  if [ -n "$owner" ] && ! kill -0 "$owner" 2>/dev/null; then
+    rm -rf "$LOCK_DIR"
+    continue
+  fi
+  echo "== 手机正被别的验收占着（进程 ${owner:-?}），等它跑完…"
+  sleep 10
+done
+echo $$ > "$LOCK_DIR/pid"
+release_lock() { rm -rf "$LOCK_DIR"; }
+trap release_lock EXIT
+
 bash "$ROOT/scripts/fetch-v8.sh"
 bash "$ROOT/scripts/fetch-ada.sh"
 
@@ -66,7 +82,7 @@ echo "== 打开"
 "$ADB" shell am start -W -n "$PACKAGE/$ACTIVITY" >/dev/null
 
 LOG_FILE="$(mktemp)"
-trap 'rm -f "$LOG_FILE"; cleanup_server' EXIT
+trap 'rm -f "$LOG_FILE"; cleanup_server; release_lock' EXIT
 
 # 只要这个标签的内容，去掉「I/Nacre( pid): 」这样的前缀，剩下的就是 console 打的原文
 read_log() {
