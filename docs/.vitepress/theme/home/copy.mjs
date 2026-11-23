@@ -72,6 +72,18 @@ export default {
       title: 'Checked on a real iPhone before every release',
       sub: 'More than 7,000 assertions, run on a real device in both Debug and Release builds.',
     },
+    // 一次实测的结果，写死在这里：iPhone 14、iOS 27.2、Release 包，一个 1000 行的
+    // UICollectionView 列表页；内存和滚动卡顿用 Instruments 量。数变了要手动改
+    perf: {
+      eyebrow: 'Performance',
+      title: 'A 1,000-row list on an iPhone 14',
+      items: [
+        ['19 MB', 'Memory with the list at rest; it stays at 18–20 MB through 30 seconds of scrolling'],
+        ['60 fps', 'Scrolling steadily for 30 seconds, with one dropped frame'],
+        ['14.8 MB', 'Install size of the whole app, runtime included'],
+      ],
+      note: 'iPhone 14, iOS 27.2, Release build.',
+    },
     stats: ['native classes with a full reference', 'member pages, one per property, method, and event', 'step-by-step guides', 'capability packages, installed only when you need them'],
     end: { title: 'Build your first app', sub: 'Start with one button.' },
     footer: {
@@ -154,6 +166,16 @@ export default {
       eyebrow: '验证',
       title: '每次发布前，在真机上跑一遍',
       sub: '七千多条断言，在真机上 Debug 和 Release 各跑一遍。',
+    },
+    perf: {
+      eyebrow: '性能',
+      title: '一个 1000 行的列表，跑在 iPhone 14 上',
+      items: [
+        ['19 MB', '内存：列表静止时；滚动 30 秒也保持在 18–20 MB'],
+        ['60 帧', '匀速滚动 30 秒，只掉了 1 帧'],
+        ['14.8 MB', '安装大小：整个 App，包括运行时'],
+      ],
+      note: 'iPhone 14，iOS 27.2，Release 包。',
     },
     stats: ['个原生类有完整的参考', '个成员页，每个属性、方法、事件一页', '篇按步骤写的指南', '个能力包，用到才装'],
     end: { title: '做你的第一个 App', sub: '从一个按钮开始。' },

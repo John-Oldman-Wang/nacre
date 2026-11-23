@@ -187,6 +187,18 @@ label.text = <span class="s">`Hi, ${</span>me.name<span class="s">}`</span>;</pr
       </div>
     </section>
 
+    <!-- 7.5 性能：只放自己实测的数 -->
+    <section class="band">
+      <div class="wrap">
+        <div class="eyebrow reveal">{{ t.perf.eyebrow }}</div>
+        <h2 class="reveal">{{ t.perf.title }}</h2>
+        <div class="perf">
+          <div v-for="(p, i) in t.perf.items" :key="i" class="perf-item reveal"><b>{{ p[0] }}</b><span>{{ p[1] }}</span></div>
+        </div>
+        <p class="perf-note reveal">{{ t.perf.note }}</p>
+      </div>
+    </section>
+
     <!-- 8 收尾 -->
     <section class="end">
       <Waves :count="6" :top="120" :gap="60" />
@@ -284,6 +296,12 @@ h2 { font-size: 40px; line-height: 1.15; letter-spacing: -0.03em; text-align: ce
 .stat:first-child b { background: linear-gradient(100deg, #6366f1, #0ea5e9); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .stat span { display: block; margin-top: 6px; color: var(--vp-c-text-2); font-size: 14px; line-height: 1.45; }
 
+.perf { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 40px; }
+.perf-item { min-width: 0; border: 1px solid var(--vp-c-divider); border-radius: 22px; padding: 28px 24px 24px; background: var(--vp-c-bg); text-align: center; }
+.perf-item b { display: block; font-size: 48px; line-height: 1.1; letter-spacing: -0.04em; font-weight: 700; font-variant-numeric: tabular-nums; }
+.perf-item span { display: block; margin-top: 10px; color: var(--vp-c-text-2); font-size: 14.5px; line-height: 1.5; }
+.perf-note { text-align: center; margin: 20px 0 0; font-size: 12.5px; color: var(--vp-c-text-3); }
+
 .end { position: relative; overflow: hidden; text-align: center; padding: 110px 0 120px; }
 .end h2 { font-size: 48px; }
 
@@ -304,6 +322,8 @@ h2 { font-size: 40px; line-height: 1.15; letter-spacing: -0.03em; text-align: ce
   .stats { grid-template-columns: repeat(2, 1fr); row-gap: 32px; }
   .stat b { font-size: 40px; }
   .foot-cols { grid-template-columns: repeat(2, 1fr); row-gap: 28px; }
+  .perf { grid-template-columns: 1fr; }
+  .perf-item b { font-size: 40px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .sheen { animation: none; }
