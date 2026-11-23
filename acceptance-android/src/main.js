@@ -24,6 +24,7 @@ import { stepTimers } from './steps/timers.js';
 import { stepPerformance } from './steps/performance.js';
 import { stepSlice } from './steps/slice.js';
 import { stepInheritance } from './steps/inheritance.js';
+import { stepSafeArea, watchSafeArea } from './steps/safe-area.js';
 
 /**
  * 各步共享的上下文。这一批只用得到断言。
@@ -55,6 +56,13 @@ run('stepWebGlobals', () => stepWebGlobals(ctx));
 run('stepTimers', () => stepTimers(ctx));
 run('stepPerformance', () => stepPerformance(ctx));
 
+// 安全区域要在 onCreate 这一刻就订阅（窗口挂上时的第一次分发要接住），放在最前面
+try {
+  watchSafeArea();
+} catch (err) {
+  console.log('  ✗ watchSafeArea 中途抛了: ' + (err instanceof Error ? err.message : String(err)));
+}
+
 // 竖切要等两次点击，自己交出「做完了」，结束标记等它
 /** @type {Promise<unknown>} */
 const sliceDone = (async () => {
@@ -68,6 +76,12 @@ const sliceDone = (async () => {
     await stepInheritance(ctx);
   } catch (err) {
     console.log('  ✗ 步骤 stepInheritance 中途抛了，它后面的断言没跑: ' +
+                (err instanceof Error ? err.message : String(err)));
+  }
+  try {
+    await stepSafeArea(ctx);
+  } catch (err) {
+    console.log('  ✗ 步骤 stepSafeArea 中途抛了，它后面的断言没跑: ' +
                 (err instanceof Error ? err.message : String(err)));
   }
 })();

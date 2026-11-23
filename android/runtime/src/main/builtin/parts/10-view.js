@@ -18,6 +18,7 @@
     constructNative,
     defineNativeClass,
     kSubscribe,
+    makeWindowInsets,
     nativeCall,
     nativeCallObject,
     nativeGet,
@@ -44,7 +45,21 @@
   }
   defineNativeClass('Context', Context);
 
+  // 页面上原生真的会发的事件
+  const activityEvents = new Set(['windowinsetschange']);
+
   class Activity extends Context {
+    // 窗口边衬（安全区域）：状态栏、导航条、开孔、键盘……各占了多少。每次读是一份新的快照。
+    // 窗口还没挂到屏幕上时（onCreate 那一刻）系统还没分发过，是 null
+    get windowInsets() {
+      const raw = nativeGet(this, 'windowInsets');
+      return raw === null ? null : makeWindowInsets(raw);
+    }
+
+    [kSubscribe](type, on) {
+      if (activityEvents.has(type)) subscribeNative(this, type, on);
+    }
+
     // 把视图设成页面的内容。页面持有它
     setContentView(view) {
       requireInstance(view, View, 'setContentView');
