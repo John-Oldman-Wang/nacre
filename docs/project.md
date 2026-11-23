@@ -304,7 +304,7 @@ WebView 留在核心：它不需要用户声明任何东西，拆了的净收益
 能力包怎么搭、怎么登记、给能力包用的头，见[能力包](internals/capabilities.md)；照着接一组类见[接入一组类](internals/adding-classes.md)。
 
 
-## 4. Android（2026-11-21 定的方向，还没开始写）
+## 4. Android（2026-11-21 定的方向）
 
 **做的是 App 的 JS 运行时，不是 iOS 和 Android 的统一框架。** 两端共用的只有引擎和 Web 标准那批（`core/`）；原生类、`application` 这一层、能力包、包名都按 Android 自己的事实定，不和 iOS 对齐。
 
@@ -317,17 +317,19 @@ WebView 留在核心：它不需要用户声明任何东西，拆了的净收益
 | 最低版本 | Android 11（API 30）。新的窗口边衬体系从这一版齐全；31 起才有的模糊、系统启动屏、屏幕圆角，在 30 上如实告诉 JS 没有 |
 | 架构 | 只支持 arm64-v8a |
 | 线程 | JS 跑在主线程（主 Looper），空闲任务挂 `MessageQueue.IdleHandler` |
-| 引擎 | 同一版本的 V8，`core/engine/` 两端共用。用不用 JIT 没定 |
+| 引擎 | 同一版本的 V8，`core/engine/` 两端共用。预编译库用 NativeScript 和 iOS 同一次构建（`v8-14.9.207.39-7`）的 arm64 包，`android/scripts/fetch-v8.sh` 下载并校验。这份开着 JIT 和指针压缩，**必须用 NDK r29 编**。用不用 JIT 没定 |
 | 桥 | C++ 经 JNI 的分发表；bindgen 改读 `android.jar` |
 | 语言 | Kotlin 写启动壳，C++ 写引擎和 JNI，Java 或 Kotlin 写中转类 |
+| 网络 | `fetch` 和 `WebSocket` 都用 OkHttp，和 React Native、Expo 一样；系统里没有 WebSocket 客户端（2026-11-23 定） |
+| 工具链 | Gradle（用仓库里的 wrapper）、Android Gradle 插件 9.5.2（自带 Kotlin 编译）、compileSdk 37、NDK 29.0.14206865、CMake 4.1.2。版本都写死在 `android/` 的构建文件里 |
 | 单位 | 像素，照 Android 的 API 原样 |
 | 能力包 | 另起包，按 Android 的 API 起名，一律带前缀（`@nacrejs/android-*`）；iOS 已发布的包不改名 |
 | 类型 | Android 的类型走单独的入口 `@nacrejs/types/android`，不进现在的默认入口 |
-| 验收 | 单独一个项目 `acceptance-android/`；Web 标准那批步骤先两边各放一份 |
+| 验收 | 在连着的 Android 真机上跑。以后是单独一个项目 `acceptance-android/`，Web 标准那批步骤先两边各放一份；在那之前用 `android/scripts/run-device.sh`：编、装、打开开发用的壳，按 logcat 判定，看退出码 |
 
 **要新定规矩的五件事**（和版本无关，开工后最先讨论）：重载的方法怎么映射成 JS；整数常量怎么变成字符串枚举；抽象类的中转子类长什么样；只能靠样式在构造时给的外观怎么传；Java 对象和 JS 包装之间的所有权（JNI 的全局引用和 V8 的垃圾回收怎么配合）。
 
-**顺序**：最小壳（Gradle 工程、下载 V8、引擎启动、执行一个 JS、`console.log` 到 logcat）→ 接上 `core/builtin/` 那批 Web 标准 → 手写一条竖切（JS 建一个布局、放一个文字、响应一次点击）定包装、所有权、事件 → bindgen 的提取部分做统计、定上面五条规矩 → bindgen 的生成部分、按组接类。CLI 生成 `android/`、`@nacrejs/android`、能力包排在最后。每一步照 SOP 单独讨论。
+**顺序**：最小壳已经有了（`android/`：运行时 `runtime/`、开发用的壳 `shell/`）→ 接上 `core/builtin/` 那批 Web 标准 → 手写一条竖切（JS 建一个布局、放一个文字、响应一次点击）定包装、所有权、事件 → bindgen 的提取部分做统计、定上面五条规矩 → bindgen 的生成部分、按组接类。CLI 生成 `android/`、`@nacrejs/android`、能力包排在最后。每一步照 SOP 单独讨论。
 
 ## 5. 目录约定
 
@@ -346,7 +348,8 @@ nacre/
 ├─ acceptance/        验收套件（一个 Nacre 项目）
 ├─ examples/hello/    最小示例（一个 Nacre 项目）
 ├─ scripts/           发布 npm 包用的脚本：改版本、核对、打包、发布，和发布前的演练
-└─ android/           以后再加（还有 acceptance-android/、packages/android/）
+└─ android/           Android 运行时源码：runtime/（运行时）、shell/（开发用的壳）、scripts/
+                      （以后还有 acceptance-android/、packages/android/）
 ```
 
 `acceptance/` 和 `examples/hello/` 都是**一个 Nacre 项目**，形状一样，它们的 `ios/` 都由 CLI 生成、不进版本库：
@@ -552,6 +555,12 @@ types/
 
    只想看着日志跑、不要判定时，用 `bash ios/scripts/run-device.sh`（模拟器是 `run-sim.sh`；加 `--release` 是 Release）。
 
+   动了 `android/` 或 `core/` 时，在连着的 Android 真机上 Debug 和 Release 也各跑一遍，同样看退出码：
+
+   ```bash
+   bash android/scripts/run-device.sh && bash android/scripts/run-device.sh --release
+   ```
+
    有一类问题只在开了优化之后出现（ARC 更早释放临时对象），而交付的 `Nacre.xcframework` 是 Release。只跑 Debug 等于没验交付物，见[包装](internals/wrapper.md#交接的那一段没人持有只在-release-下崩的悬空指针)。
 7. **提交**：验收通过后由用户提交，一步一个 commit。
 8. **记录**：做完的事从第 7 节「还要做的」里删掉，不留记录。新的规矩和选型写进本文件前几节；为什么这么做、实测数据、踩过的坑写进 `docs/internals/` 对应的那一页；新冒出来的待办、客户建议、欠的验证，加进第 7 节。
@@ -572,7 +581,7 @@ Commit message 格式：
 
 ### 要建设的能力
 
-**先做：** 现在没有。
+**先做：** Android：接上 `core/builtin/` 那批 Web 标准（第 4 节顺序的下一步）。
 
 **留着，按需要做：**
 

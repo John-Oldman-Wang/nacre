@@ -1,0 +1,8 @@
+# 由 scripts/fetch-v8.sh 下载
+Vendor/
+# Gradle 和构建产物
+.gradle/
+.kotlin/
+build/
+.cxx/
+local.properties
