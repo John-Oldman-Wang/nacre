@@ -2,7 +2,7 @@
 
 ← [实现原理](README.md)
 
-Android 这一侧现在有：最小的壳（引擎起来、执行 JS、`console` 进 logcat），事件循环，`core/builtin/` 里不依赖桥的 6 个 Web 标准内置脚本，第一条竖切（JS 拿到页面、建布局、放文字、点击收得到事件），和安全区域（窗口边衬）。方向和顺序见 [`project.md` 第 4 节](../project.md#4-android2026-11-21-定的方向)。
+Android 这一侧现在有：最小的壳（引擎起来、执行 JS、`console` 进 logcat），事件循环，`core/builtin/` 里不依赖桥的 6 个 Web 标准内置脚本，第一条竖切（JS 拿到页面、建布局、放文字、点击收得到事件），安全区域（窗口边衬），和网络（`fetch`、`Blob`）。方向和顺序见 [`project.md` 第 4 节](../project.md#4-android2026-11-21-定的方向)。
 
 ## 目录
 
@@ -151,10 +151,40 @@ JS 第一次给视图加 `click` 监听时，引擎经 `set_event_subscription` 
 
 键盘弹出时跟着动画逐帧走的边衬（`WindowInsetsAnimation`）没做，留到做输入框和键盘的时候。
 
+## 网络：fetch 和 Blob
+
+`core/builtin/parts/23-fetch.js` 原样接上（`fetch`、`Request`、`Response`、流式的 `response.body`、`Blob`、`AbortController`）。原生那一半照 iOS 的 `NacreFetchService.mm`，用 OkHttp 5.5.1 实现（`FetchService.kt`、`NacreBlob.kt`）：
+
+- **线程**：OkHttp 的线程连接、传输，响应头到了就在那个线程上一块一块读 body；UTF-8 解码这类活派到 work 线程池；兑现 Promise 一律排到主线程（`Settle`）。一个请求的状态由它自己的锁守着。
+- **边下边读和背压**：和 iOS 一样，JS 每 `read()` 一次，把那一刻攒下的全部字节作为一块交出去；按块读之后攒到 1 MiB 就让读 body 的线程停下来等，被读走再接着读。
+- **字节交给 V8**：Java 数组随时可能被 Java 的 GC 挪走，不能直接交，所以在主线程上拷一份到 C++ 的内存再交给 V8（iOS 是零拷贝）。
+- **Blob**：字节放在原生这一侧，JS 只拿句柄。字符串编成 UTF-8 时落单的代理项换成 U+FFFD（`String.toByteArray` 会换成 `?`，和 Web 不一样）；`text()` 照 Web 的解码去掉开头的 BOM。
+- **超时和 iOS 的系统网络库一样**：60 秒没有数据进出才算超时，整个请求不限时长。OkHttp 默认各 10 秒，httpbin 慢一点就超了。
+- **每个主机最多同时 64 个请求**：OkHttp 默认 5 个（React Native 用的就是这个默认值），10 个并发请求被排成两轮，耗时是单次的 6 倍。改成 64 之后是单次的 1.1～1.3 倍。HTTP/2 的服务器上它们在一条连接里并行，和浏览器、iOS 一样；老的 HTTP/1.1 服务器上最多会开 64 条连接，比浏览器的 6 条多。
+- **网络权限**：`INTERNET` 写在运行时自己的清单里，合并进 App。开发用的壳另外只对 `127.0.0.1` 和 `localhost` 放开明文 HTTP（`res/xml/network_security_config.xml`），给本地测试服务用。
+
+### 和 iOS 不同的地方（Android 照网页标准）
+
+- **`fetch()` 什么时候兑现**：Android 响应头一到就兑现，和网页标准、Chrome 一样；iOS 的系统网络库要等第一个内容字节。所以响应头到了之后再中止，Android 上是读 body 时以 `AbortError` 失败，iOS 上是 `fetch()` 本身被拒。
+- **分块传输没发结束块就被正常关闭**：Android 当成截断，流以 `TypeError` 失败（Chrome 报 `ERR_INCOMPLETE_CHUNKED_ENCODING`）；iOS 的系统当成正常结束。
+
+验收里这 6 条按 Android 的行为写，名字和 iOS 不同，文件开头写明了原因。
+
+### 验收的网络
+
+iOS 真机连不到 Mac 上的本地测试服务（`acceptance/scripts/test-server.mjs`），那部分用例跳过。Android 用 `adb reverse` 把手机上的 `127.0.0.1:47831` 转到 Mac，`run-device.sh` 跑之前起服务、做转发，所以流式读取、背压、中途断开这些用例在 Android 真机上真的跑了。另一半对着公网的 httpbin，没网时会失败。
+
+`fetch.js` 里「读 body 期间 Response 被回收」一组、`fetch-stream.js` 里「没人拿着之后」两组没拷：它们靠 `application.storage` 的事件带出 GC 的清理回调，Android 还没有。
+
+### 体积
+
+加上 OkHttp（连同 Okio、Kotlin 的标准库）之后，没开代码压缩的 `classes.dex` 从 2 MB 到 6.6 MB。交付的包开 R8 之后会小很多，还没量。
+
 ## 构建
 
 - Android Gradle 插件 9.5.2 自带 Kotlin 编译，不用另外加 Kotlin 插件。
 - 第一次编译时，插件会自己装它默认要的 build-tools 36。
+- **拷内置脚本用 `Sync` 不用 `Copy`**：`Copy` 不删目标目录里的旧文件，从 `corePartsInUse` 里拿掉的脚本还留在包里。实际撞到过：拿掉 `23-fetch.js` 想看验收失败，`fetch` 却还在。
 - **两个模块都要写 `ndkVersion`。** 只在 `runtime` 里写时，Release 包里的 `libnacre.so` 没去掉调试符号，有 71 MB：打包时去符号的工具从 `shell` 的 NDK 里找，`shell` 没写版本就找不到，也不报错。两边都写之后是 45 MB。
 - 45 MB 里大部分是 V8：这份带完整的 JIT 和 WebAssembly。iOS 那份是 lite mode、不带 WebAssembly。要不要换一份更小的构建，以后再量。
 
@@ -162,8 +192,8 @@ JS 第一次给视图加 `click` 监听时，引擎经 `set_event_subscription` 
 
 `bash android/scripts/run-device.sh`（加 `--release` 是 Release，要先设 `ANDROID_HOME`）：打包 `acceptance-android/`，编壳时用 `-PnacreMainJs=` 把它换成壳执行的 `main.js`，装、打开，从 logcat 读 `Nacre` 标签的原文，交给 iOS 验收的 `report.mjs` 判定：等到结束标记、没有 ✗ 就是 0；期限内没等到、App 提前退出、有 ✗ 都是 1。
 
-**点击是脚本点的。** JS 打一行「`[acceptance] tap 视图上的字`」，脚本用 `uiautomator dump` 找到写着这几个字的视图，用 `adb shell input tap` 点它的正中。跑的时候手机要**解锁、亮屏、别碰**：锁屏时点到的是锁屏；人手点的也会被如实收到，监听器会多触发（实际撞到过）。可以在开发者选项里打开「不锁定屏幕」，插着线就不会息屏。
+**点击是脚本点的。** JS 打一行「`[acceptance] tap 视图上的字`」，脚本用 `uiautomator dump` 找到写着这几个字的视图，用 `adb shell input tap` 点它的正中。App 忙的时候（网络用例同时在跑）`uiautomator` 可能等不到界面空闲、写不出新文件，所以每次先删旧文件，找不到就隔一秒再 dump，最多 5 次；不这样会读到上一次的界面，点不到。跑的时候手机要**解锁、亮屏、别碰**：锁屏时点到的是锁屏；人手点的也会被如实收到，监听器会多触发（实际撞到过）。可以在开发者选项里打开「不锁定屏幕」，插着线就不会息屏。
 
 `acceptance-android/` 是从 iOS 的验收拷过来的 8 步（`console-basics`、`url`、`crypto`、`events`、`errors`、`web-globals`、`timers`、`performance`），去掉了用到 iOS 的类、`application`、`fetch`、`Blob`、`Intl` 的断言，留下的断言名字和期望值和 iOS 一字不差。`web-globals` 里「和网页逐条比对」那一段要 WebView，没拷。
 
-先在第 1 步的运行时上跑过 Web 标准那批：没有 `setTimeout`，一条 ✓ 都没有、到不了结束标记，判为失败；竖切那一步在没有桥的运行时上跑，`application is not defined`，也判为失败。2026-11-23 在 Pixel 6（Android 17，API 37）上，Debug 和 Release 都是 523 条通过、0 条失败。
+先在第 1 步的运行时上跑过 Web 标准那批：没有 `setTimeout`，一条 ✓ 都没有、到不了结束标记，判为失败；竖切那一步在没有桥的运行时上跑，`application is not defined`，也判为失败。2026-11-23 在 Pixel 6（Android 17，API 37）上，Debug 和 Release 都是 815 条通过、0 条失败。

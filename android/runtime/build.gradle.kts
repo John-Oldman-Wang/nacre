@@ -42,18 +42,20 @@ android {
 // 内置脚本：core/builtin/parts/ 里 Android 现在用的那几个，加上 Android 自己的
 // src/main/builtin/parts/，合到包里的 nacre/parts/，运行时按文件名顺序执行。
 //
-// core 里另外四个要等 Android 的桥定下来才接：06-websocket（WebSocket 是原生类）、
-// 23-fetch（Response、Blob 是原生类）、26-intl 和 27-intl-date（走调类方法的通道）。
+// core 里还没接的：06-websocket（WebSocket 是原生类）、26-intl 和 27-intl-date
+//（走调类方法的通道）。
 val corePartsInUse = listOf(
     "05-dom-exception.js",
     "05-events.js",
     "22-url.js",
+    "23-fetch.js",
     "24-timer.js",
     "25-crypto.js",
     "28-web-globals.js",
 )
 
-val copyBuiltinParts by tasks.registering(Copy::class) {
+// 用 Sync 不用 Copy：Copy 不删目标目录里的旧文件，从列表里拿掉的脚本还会留在包里
+val copyBuiltinParts by tasks.registering(Sync::class) {
     val coreParts = rootProject.file("../core/builtin/parts")
     val ownParts = file("src/main/builtin/parts")
     from(coreParts) { include(corePartsInUse) }
@@ -68,3 +70,8 @@ val copyBuiltinParts by tasks.registering(Copy::class) {
 }
 
 tasks.named("preBuild") { dependsOn(copyBuiltinParts) }
+
+dependencies {
+    // fetch 和 WebSocket 的网络层（project.md 第 4 节「网络」）
+    implementation("com.squareup.okhttp3:okhttp:5.5.1")
+}

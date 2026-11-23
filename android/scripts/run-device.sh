@@ -41,13 +41,32 @@ APK="$(ls "$ROOT"/shell/build/outputs/apk/"$(echo "$VARIANT" | tr '[:upper:]' '[
 echo "== 安装 $(basename "$APK")"
 "$ADB" install -r "$APK" >/dev/null
 
+# 网络那几步要一个本机的测试服务（acceptance/scripts/test-server.mjs，iOS 的验收也用它）。
+# 起在 Mac 的 127.0.0.1:47831，再用 adb reverse 把手机上的同一个地址转过来
+PORT=47831
+SERVER_PID=""
+if ! curl -fsS "http://127.0.0.1:$PORT/ping" >/dev/null 2>&1; then
+  echo "== 起本地测试服务"
+  node "$REPO/acceptance/scripts/test-server.mjs" >/dev/null 2>&1 &
+  SERVER_PID=$!
+  for _ in $(seq 1 20); do
+    curl -fsS "http://127.0.0.1:$PORT/ping" >/dev/null 2>&1 && break
+    sleep 0.2
+  done
+fi
+"$ADB" reverse "tcp:$PORT" "tcp:$PORT" >/dev/null
+cleanup_server() {
+  "$ADB" reverse --remove "tcp:$PORT" >/dev/null 2>&1 || true
+  [ -n "$SERVER_PID" ] && kill "$SERVER_PID" 2>/dev/null || true
+}
+
 echo "== 打开"
 "$ADB" shell am force-stop "$PACKAGE"
 "$ADB" logcat -c
 "$ADB" shell am start -W -n "$PACKAGE/$ACTIVITY" >/dev/null
 
 LOG_FILE="$(mktemp)"
-trap 'rm -f "$LOG_FILE"' EXIT
+trap 'rm -f "$LOG_FILE"; cleanup_server' EXIT
 
 # 只要这个标签的内容，去掉「I/Nacre( pid): 」这样的前缀，剩下的就是 console 打的原文
 read_log() {
@@ -64,17 +83,28 @@ tap_requests() {
   while [ "$TAPPED" -lt "$count" ]; do
     TAPPED=$((TAPPED + 1))
     text="$(printf '%s\n' "$requests" | sed -n "${TAPPED}p")"
-    "$ADB" shell uiautomator dump /sdcard/nacre-ui.xml >/dev/null
-    local point
-    point="$("$ADB" exec-out cat /sdcard/nacre-ui.xml | python3 -c '
+    # 先删旧文件再 dump：App 忙的时候 uiautomator 可能等不到界面空闲、写不出新的，
+    # 不删就会读到上一次的界面。找不到就隔一秒再 dump，最多 5 次
+    local point="" attempt
+    for attempt in 1 2 3 4 5; do
+      "$ADB" shell rm -f /sdcard/nacre-ui.xml
+      "$ADB" shell uiautomator dump /sdcard/nacre-ui.xml >/dev/null 2>&1 || true
+      point="$("$ADB" exec-out cat /sdcard/nacre-ui.xml 2>/dev/null | python3 -c '
 import sys, re, xml.etree.ElementTree as ET
 want = sys.argv[1]
-for node in ET.fromstring(sys.stdin.read()).iter("node"):
+try:
+    root = ET.fromstring(sys.stdin.read())
+except ET.ParseError:
+    sys.exit(0)
+for node in root.iter("node"):
     if node.get("text") == want:
         x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.get("bounds")))
         print((x1 + x2) // 2, (y1 + y2) // 2)
         break
 ' "$text")"
+      [ -n "$point" ] && break
+      sleep 1
+    done
     if [ -z "$point" ]; then
       echo "  （界面上没找到写着「$text」的视图，没点）"
       continue

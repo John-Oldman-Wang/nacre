@@ -1,9 +1,9 @@
 // Android 上验收的入口。现在只验 Web 标准那一批（core/builtin 里两端共用的内置脚本）：
 // console、Event / EventTarget、DOMException 和几个 Web 的事件类、URL / URLSearchParams /
 // Headers、定时器和微任务、performance、crypto、TextEncoder / TextDecoder / atob / btoa /
-// structuredClone。
+// structuredClone、fetch / Request / Response（含 response.body 的流）/ Blob / AbortController。
 //
-// 步骤从 acceptance/src/steps/ 拷过来，去掉了要 application、原生类、网络、Intl 的部分；
+// 步骤从 acceptance/src/steps/ 拷过来，去掉了要 application、原生类、WebSocket、Intl 的部分；
 // 留下的断言名字和期望值和 iOS 一字不差。每个文件第一行写着去掉了什么。
 //
 // 输出的格式和 iOS 一样：一条断言一行（「  ✓ 名字 = 值」「  ✗ 名字 = …」），全部跑完
@@ -22,6 +22,8 @@ import { stepErrors } from './steps/errors.js';
 import { stepWebGlobals } from './steps/web-globals.js';
 import { stepTimers } from './steps/timers.js';
 import { stepPerformance } from './steps/performance.js';
+import { stepFetch } from './steps/fetch.js';
+import { stepFetchStream } from './steps/fetch-stream.js';
 import { stepSlice } from './steps/slice.js';
 import { stepInheritance } from './steps/inheritance.js';
 import { stepSafeArea, watchSafeArea } from './steps/safe-area.js';
@@ -86,6 +88,25 @@ const sliceDone = (async () => {
   }
 })();
 
+// 网络那两步不碰界面，和上面那条链并行跑；两步之间先后跑：fetch-stream 里有量时刻、
+// 量背压的断言，fetch 那一步有量并发耗时的断言，各自跑的时候不让对方的流量掺进来
+// （iOS 上这两步也从来不同时跑）。本机测试服务那一半要 runner 先起服务、做 adb reverse
+/** @type {Promise<unknown>} */
+const networkDone = (async () => {
+  try {
+    await stepFetch(ctx);
+  } catch (err) {
+    console.log('  ✗ 步骤 stepFetch 中途抛了，它后面的断言没跑: ' +
+                (err instanceof Error ? err.message : String(err)));
+  }
+  try {
+    await stepFetchStream(ctx);
+  } catch (err) {
+    console.log('  ✗ 步骤 stepFetchStream 中途抛了，它后面的断言没跑: ' +
+                (err instanceof Error ? err.message : String(err)));
+  }
+})();
+
 // 全部跑完之后打一行结束标记，外面的 runner 等的就是它。和 iOS 一样：
 // 连续 5 秒没有新的断言算跑完，每秒看一次
 let seen = assertStats().asserts;
@@ -97,4 +118,4 @@ const tick = () => {
   if (calm < 5) { setTimeout(tick, 1000); return; }
   console.log('[acceptance] done ' + JSON.stringify(assertStats()));
 };
-sliceDone.then(() => { setTimeout(tick, 1000); });
+Promise.allSettled([sliceDone, networkDone]).then(() => { setTimeout(tick, 1000); });
