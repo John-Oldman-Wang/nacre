@@ -11,7 +11,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val rt = NacreRuntime.create()
+        val rt = NacreRuntime.create(assets)
         runtime = rt
         val source = assets.open("main.js").use { it.readBytes() }
         rt.evaluate("main.js", source)

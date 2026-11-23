@@ -27,8 +27,44 @@ android {
         }
     }
 
+    sourceSets {
+        getByName("main") {
+            assets.directories += layout.buildDirectory.dir("generated/nacre-assets").get().asFile.path
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
 }
+
+// 内置脚本：core/builtin/parts/ 里 Android 现在用的那几个，加上 Android 自己的
+// src/main/builtin/parts/，合到包里的 nacre/parts/，运行时按文件名顺序执行。
+//
+// core 里另外四个要等 Android 的桥定下来才接：06-websocket（WebSocket 是原生类）、
+// 23-fetch（Response、Blob 是原生类）、26-intl 和 27-intl-date（走调类方法的通道）。
+val corePartsInUse = listOf(
+    "05-dom-exception.js",
+    "05-events.js",
+    "22-url.js",
+    "24-timer.js",
+    "25-crypto.js",
+    "28-web-globals.js",
+)
+
+val copyBuiltinParts by tasks.registering(Copy::class) {
+    val coreParts = rootProject.file("../core/builtin/parts")
+    val ownParts = file("src/main/builtin/parts")
+    from(coreParts) { include(corePartsInUse) }
+    from(ownParts) { include("*.js") }
+    into(layout.buildDirectory.dir("generated/nacre-assets/nacre/parts"))
+    // 两边同名会互相覆盖，执行顺序也就乱了：直接报错
+    duplicatesStrategy = DuplicatesStrategy.FAIL
+    doFirst {
+        val missing = corePartsInUse.filterNot { coreParts.resolve(it).exists() }
+        check(missing.isEmpty()) { "core/builtin/parts is missing: $missing" }
+    }
+}
+
+tasks.named("preBuild") { dependsOn(copyBuiltinParts) }

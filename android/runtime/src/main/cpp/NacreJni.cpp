@@ -1,12 +1,18 @@
 // Android 这一侧的运行时入口：Kotlin 的 NacreRuntime 经 JNI 调到这里，
-// 这里再交给 core/engine。只有运行时本身的事，不做任何调度。
+// 这里再交给 core/engine。只有运行时本身的事（事件循环、原生入口），不做任何调度。
 #include <android/log.h>
 #include <jni.h>
+#include <stdlib.h>
 
+#include <cstdint>
+#include <functional>
+#include <memory>
 #include <string>
+#include <unordered_map>
 #include <utility>
 
 #include "Engine.h"
+#include "UrlParts.h"
 
 namespace {
 
@@ -54,30 +60,135 @@ std::string FromBytes(JNIEnv* env, jbyteArray bytes) {
   return out;
 }
 
-nacre::Engine* FromHandle(jlong handle) { return reinterpret_cast<nacre::Engine*>(handle); }
+JavaVM* g_vm = nullptr;
+
+// 引擎全程在主线程上用，主线程早就挂在 JVM 上了，这里只是取它的 JNIEnv
+JNIEnv* CurrentEnv() {
+  JNIEnv* env = nullptr;
+  g_vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6);
+  return env;
+}
+
+// 一个运行时：引擎，加上回调 Kotlin 那个对象要用的东西
+struct Runtime {
+  std::unique_ptr<nacre::Engine> engine;
+  jobject self = nullptr;  // NacreRuntime 的全局引用
+  jmethodID schedule_wakeup = nullptr;
+  jmethodID post_task = nullptr;
+  // post_task 交过来的任务先存在这里，Kotlin 那边排进主线程的队列，轮到时按编号取回来跑
+  std::unordered_map<int64_t, std::function<void()>> tasks;
+  int64_t next_task_id = 1;
+};
+
+Runtime* FromHandle(jlong handle) { return reinterpret_cast<Runtime*>(handle); }
+
+// 这些入口都是从主线程上的消息回来的，跑完一轮 JS 之后处理 V8 平台投递的任务
+//（微任务由 kAuto 自动排空），和 iOS 的 postToJS: 一样
+void AfterTask(Runtime* runtime) {
+  if (runtime->engine) runtime->engine->PumpMessageLoop();
+}
 
 }  // namespace
 
+extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void*) {
+  g_vm = vm;
+  return JNI_VERSION_1_6;
+}
+
 extern "C" JNIEXPORT jlong JNICALL
-Java_nacre_runtime_NacreRuntime_nativeCreate(JNIEnv*, jclass) {
+Java_nacre_runtime_NacreRuntime_nativeCreate(JNIEnv* env, jclass, jobject self) {
   nacre::Engine::InitializeV8Once();
+
+  auto* runtime = new Runtime();
+  runtime->self = env->NewGlobalRef(self);
+  jclass cls = env->GetObjectClass(self);
+  runtime->schedule_wakeup = env->GetMethodID(cls, "scheduleWakeup", "(D)V");
+  runtime->post_task = env->GetMethodID(cls, "postTask", "(J)V");
+  env->DeleteLocalRef(cls);
+
   nacre::EngineHost host;
   host.log = WriteLog;
-  return reinterpret_cast<jlong>(new nacre::Engine(std::move(host)));
+  host.parse_url = [](const std::string& url, const std::string& base) {
+    return nacre::ParseUrlParts(url, base);
+  };
+  // 系统的随机源（bionic 的 arc4random 取自内核的 getrandom），密码学强度，不会失败
+  host.fill_random = [](void* bytes, size_t length) {
+    arc4random_buf(bytes, length);
+    return true;
+  };
+  // 「delay_ms 之后叫我」，每次覆盖上一次的约定，负数表示撤销。由 Kotlin 那边用
+  // 主线程的 Handler 排，和别的主线程消息在同一个队列里，先后是确定的
+  host.schedule_wakeup = [runtime](double delay_ms) {
+    CurrentEnv()->CallVoidMethod(runtime->self, runtime->schedule_wakeup, delay_ms);
+  };
+  // 把任务排到主线程队列的尾部。未处理拒绝的延后结算走这条
+  host.post_task = [runtime](std::function<void()> task) {
+    const int64_t id = runtime->next_task_id++;
+    runtime->tasks.emplace(id, std::move(task));
+    CurrentEnv()->CallVoidMethod(runtime->self, runtime->post_task, static_cast<jlong>(id));
+  };
+
+  runtime->engine = std::make_unique<nacre::Engine>(std::move(host));
+  return reinterpret_cast<jlong>(runtime);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_nacre_runtime_NacreRuntime_nativeRunBuiltinPart(JNIEnv* env, jclass, jlong handle,
+                                                     jbyteArray name, jbyteArray source) {
+  Runtime* runtime = FromHandle(handle);
+  nacre::Script script{FromBytes(env, name), FromBytes(env, source)};
+  const bool ok = runtime->engine->RunBuiltinPart(script);
+  AfterTask(runtime);
+  return ok ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_nacre_runtime_NacreRuntime_nativeFinishBuiltinParts(JNIEnv*, jclass, jlong handle) {
+  FromHandle(handle)->engine->FinishBuiltinParts();
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_nacre_runtime_NacreRuntime_nativeEvaluate(JNIEnv* env, jclass, jlong handle,
                                                jbyteArray name, jbyteArray source) {
-  nacre::Engine* engine = FromHandle(handle);
-  if (engine == nullptr) return JNI_FALSE;
+  Runtime* runtime = FromHandle(handle);
   nacre::Script script{FromBytes(env, name), FromBytes(env, source)};
-  return engine->Evaluate(script) ? JNI_TRUE : JNI_FALSE;
+  const bool ok = runtime->engine->Evaluate(script);
+  AfterTask(runtime);
+  return ok ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_nacre_runtime_NacreRuntime_nativeDestroy(JNIEnv*, jclass, jlong handle) {
-  delete FromHandle(handle);
+Java_nacre_runtime_NacreRuntime_nativeFireDueTimers(JNIEnv*, jclass, jlong handle) {
+  Runtime* runtime = FromHandle(handle);
+  runtime->engine->FireDueTimers();
+  AfterTask(runtime);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_nacre_runtime_NacreRuntime_nativeRunTask(JNIEnv*, jclass, jlong handle, jlong id) {
+  Runtime* runtime = FromHandle(handle);
+  auto it = runtime->tasks.find(id);
+  if (it == runtime->tasks.end()) return;
+  std::function<void()> task = std::move(it->second);
+  runtime->tasks.erase(it);
+  task();
+  AfterTask(runtime);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_nacre_runtime_NacreRuntime_nativeRunIdleTasks(JNIEnv*, jclass, jlong handle,
+                                                   jdouble seconds) {
+  FromHandle(handle)->engine->RunIdleTasks(seconds);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_nacre_runtime_NacreRuntime_nativeDestroy(JNIEnv* env, jclass, jlong handle) {
+  Runtime* runtime = FromHandle(handle);
+  // 先关引擎：它析构时可能还会回调宿主，那时 self 还得在
+  runtime->engine.reset();
+  runtime->tasks.clear();
+  env->DeleteGlobalRef(runtime->self);
+  delete runtime;
 }
 
 extern "C" JNIEXPORT jstring JNICALL
