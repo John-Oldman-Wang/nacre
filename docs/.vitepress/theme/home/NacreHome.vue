@@ -12,8 +12,10 @@ const props = defineProps({ lang: { type: String, default: 'en' } });
 const t = computed(() => copy[props.lang] ?? copy.en);
 const prefix = computed(() => (props.lang === 'zh' ? '/zh' : ''));
 const href = (p) => withBase(prefix.value + p);
+// 页脚里站外的链接原样用，站内的加语言前缀
+const link = (p) => (p.startsWith('http') ? p : href(p));
 
-const statList = computed(() => [stats.classes, stats.members, stats.guides, stats.languages].map((n, i) => ({ n, label: t.value.stats[i] })));
+const statList = computed(() => [stats.classes, stats.members, stats.guides, stats.capabilities].map((n, i) => ({ n, label: t.value.stats[i] })));
 const shown = ref(statList.value.map((s) => s.n));
 
 const copied = ref(-1);
@@ -173,10 +175,15 @@ label.text = <span class="s">`Hi, ${</span>me.name<span class="s">}`</span>;</pr
       </div>
     </section>
 
-    <!-- 7 数字 -->
+    <!-- 7 验证和数字 -->
     <section class="band alt">
-      <div class="wrap stats">
-        <div v-for="(s, i) in statList" :key="i" class="stat reveal"><b>{{ shown[i].toLocaleString('en-US') }}</b><span>{{ s.label }}</span></div>
+      <div class="wrap">
+        <div class="eyebrow reveal">{{ t.proof.eyebrow }}</div>
+        <h2 class="reveal">{{ t.proof.title }}</h2>
+        <p class="sub reveal">{{ t.proof.sub }}</p>
+        <div class="stats">
+          <div v-for="(s, i) in statList" :key="i" class="stat reveal"><b>{{ shown[i].toLocaleString('en-US') }}</b><span>{{ s.label }}</span></div>
+        </div>
       </div>
     </section>
 
@@ -193,6 +200,22 @@ label.text = <span class="s">`Hi, ${</span>me.name<span class="s">}`</span>;</pr
         </div>
       </div>
     </section>
+
+    <!-- 9 页脚 -->
+    <footer class="foot">
+      <div class="wrap">
+        <div class="foot-cols">
+          <div v-for="c in t.footer.cols" :key="c.title" class="foot-col">
+            <h4>{{ c.title }}</h4>
+            <a v-for="l in c.links" :key="l[1]" :href="link(l[1])" :target="l[1].startsWith('http') ? '_blank' : undefined" :rel="l[1].startsWith('http') ? 'noopener' : undefined">{{ l[0] }}</a>
+          </div>
+        </div>
+        <p class="foot-note">
+          <svg width="20" height="20" aria-hidden="true"><use href="#nh-logo" /></svg>
+          <span>{{ t.footer.note }}</span>
+        </p>
+      </div>
+    </footer>
   </div>
 </template>
 
@@ -264,6 +287,14 @@ h2 { font-size: 40px; line-height: 1.15; letter-spacing: -0.03em; text-align: ce
 .end { position: relative; overflow: hidden; text-align: center; padding: 110px 0 120px; }
 .end h2 { font-size: 48px; }
 
+.foot { border-top: 1px solid var(--vp-c-divider); padding: 48px 0 40px; }
+.foot-cols { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+.foot-col h4 { margin: 0 0 12px; font-size: 13px; font-weight: 600; color: var(--vp-c-text-1); }
+.foot-col a { display: block; margin: 0 0 8px; font-size: 13.5px; color: var(--vp-c-text-2); text-decoration: none; }
+.foot-col a:hover { color: var(--vp-c-brand-1); }
+.foot-note { display: flex; align-items: center; gap: 8px; margin: 32px 0 0; padding-top: 20px; border-top: 1px solid var(--vp-c-divider); font-size: 12.5px; color: var(--vp-c-text-3); }
+.foot-note svg { color: var(--vp-c-text-2); flex: none; }
+
 @media (max-width: 860px) {
   h1 { font-size: 42px; }
   .lead { font-size: 17px; }
@@ -272,6 +303,7 @@ h2 { font-size: 40px; line-height: 1.15; letter-spacing: -0.03em; text-align: ce
   .pillars, .steps { grid-template-columns: 1fr; }
   .stats { grid-template-columns: repeat(2, 1fr); row-gap: 32px; }
   .stat b { font-size: 40px; }
+  .foot-cols { grid-template-columns: repeat(2, 1fr); row-gap: 28px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .sheen { animation: none; }

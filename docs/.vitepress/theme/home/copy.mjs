@@ -67,8 +67,22 @@ export default {
       copied: 'Copied',
       guide: 'Read the full walkthrough',
     },
-    stats: ['classes with a full reference', 'member pages, one per property, method, and event', 'step-by-step guides', 'languages: English and 中文'],
+    proof: {
+      eyebrow: 'Tested',
+      title: 'Checked on a real iPhone before every release',
+      sub: 'More than 7,000 assertions, run on a real device in both Debug and Release builds.',
+    },
+    stats: ['native classes with a full reference', 'member pages, one per property, method, and event', 'step-by-step guides', 'capability packages, installed only when you need them'],
     end: { title: 'Build your first app', sub: 'Start with one button.' },
+    footer: {
+      cols: [
+        { title: 'Docs', links: [['Get started', '/guides/your-own-app'], ['API reference', '/api/'], ['Guides', '/guides/'], ['Core and packages', '/api/capabilities']] },
+        { title: 'Community', links: [['GitHub', 'https://github.com/John-Oldman-Wang/nacre'], ['Ask a question or report a bug', 'https://github.com/John-Oldman-Wang/nacre/issues']] },
+        { title: 'Packages', links: [['@nacrejs/ios', 'https://www.npmjs.com/package/@nacrejs/ios'], ['@nacrejs/cli', 'https://www.npmjs.com/package/@nacrejs/cli'], ['@nacrejs/types', 'https://www.npmjs.com/package/@nacrejs/types']] },
+        { title: 'Project', links: [['Versions on npm', 'https://www.npmjs.com/package/@nacrejs/ios?activeTab=versions'], ['License', 'https://github.com/John-Oldman-Wang/nacre/blob/main/LICENSE.md']] },
+      ],
+      note: '© 2026 John-Oldman-Wang · Released under FSL-1.1-MIT',
+    },
   },
 
   zh: {
@@ -136,8 +150,22 @@ export default {
       copied: '已复制',
       guide: '看完整的步骤',
     },
-    stats: ['个类有完整的参考', '个成员页，每个属性、方法、事件一页', '篇按步骤写的指南', '种语言：English 和中文'],
+    proof: {
+      eyebrow: '验证',
+      title: '每次发布前，在真机上跑一遍',
+      sub: '七千多条断言，在真机上 Debug 和 Release 各跑一遍。',
+    },
+    stats: ['个原生类有完整的参考', '个成员页，每个属性、方法、事件一页', '篇按步骤写的指南', '个能力包，用到才装'],
     end: { title: '做你的第一个 App', sub: '从一个按钮开始。' },
+    footer: {
+      cols: [
+        { title: '文档', links: [['开始用', '/guides/your-own-app'], ['API 参考', '/api/'], ['指南', '/guides/'], ['核心和能力包', '/api/capabilities']] },
+        { title: '社区', links: [['GitHub', 'https://github.com/John-Oldman-Wang/nacre'], ['提问和报 bug', 'https://github.com/John-Oldman-Wang/nacre/issues']] },
+        { title: '包', links: [['@nacrejs/ios', 'https://www.npmjs.com/package/@nacrejs/ios'], ['@nacrejs/cli', 'https://www.npmjs.com/package/@nacrejs/cli'], ['@nacrejs/types', 'https://www.npmjs.com/package/@nacrejs/types']] },
+        { title: '项目', links: [['npm 上的版本', 'https://www.npmjs.com/package/@nacrejs/ios?activeTab=versions'], ['许可证', 'https://github.com/John-Oldman-Wang/nacre/blob/main/LICENSE.md']] },
+      ],
+      note: '© 2026 John-Oldman-Wang · 以 FSL-1.1-MIT 许可发布',
+    },
   },
 };
 
