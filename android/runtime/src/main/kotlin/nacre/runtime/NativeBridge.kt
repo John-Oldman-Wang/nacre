@@ -8,6 +8,7 @@ import android.app.Activity
 import android.content.Context
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
 import android.widget.LinearLayout
 import android.widget.TextView
 import org.json.JSONObject
@@ -99,6 +100,8 @@ internal class NativeBridge(
         val target = obj(id)
         val json = when {
             target is TextView && name == "text" -> JSONObject.quote(target.text.toString())
+            target is Activity && name == "windowInsets" ->
+                target.window.decorView.rootWindowInsets?.let(::insetsJson) ?: "null"
             target is ViewGroup && name == "childCount" -> target.childCount.toString()
             target is View && name == "paddingLeft" -> target.paddingLeft.toString()
             target is View && name == "paddingTop" -> target.paddingTop.toString()
@@ -175,7 +178,12 @@ internal class NativeBridge(
     // 某个事件类型的监听器从无到有、从有到无。只有原生真的会发的类型才装回调；
     // 不认识的名字是 JS 自己的自定义事件，什么都不做
     fun setEventSubscription(id: Long, type: String, on: Boolean) {
-        val view = obj(id) as? View ?: return
+        val target = obj(id)
+        if (target is Activity && type == "windowinsetschange") {
+            subscribeWindowInsets(target, on)
+            return
+        }
+        val view = target as? View ?: return
         if (type != "click") return
         if (on) {
             clickableBefore[view] = view.isClickable
@@ -190,6 +198,46 @@ internal class NativeBridge(
     }
 
     private val clickableBefore = IdentityHashMap<View, Boolean>()
+
+    // ---- 窗口边衬（安全区域）----
+
+    // 系统每次分发窗口边衬都先经过页面最外层的视图。值变了才发事件（同样的值系统会
+    // 重复分发好几次）；分发本身原样交给它默认的处理，不替 JS 做任何排版决定
+    private var lastInsets: WindowInsets? = null
+
+    private fun subscribeWindowInsets(activity: Activity, on: Boolean) {
+        val decor = activity.window.decorView
+        if (on) {
+            lastInsets = null
+            decor.setOnApplyWindowInsetsListener { v, insets ->
+                if (insets != lastInsets) {
+                    lastInsets = insets
+                    emit(activity, "windowinsetschange")
+                }
+                v.onApplyWindowInsets(insets)
+            }
+        } else {
+            decor.setOnApplyWindowInsetsListener(null)
+            lastInsets = null
+        }
+    }
+
+    // 各类边衬照 WindowInsets.Type 的名字，每类是 [左, 上, 右, 下]，单位像素
+    private fun insetsJson(insets: WindowInsets): String {
+        val types = linkedMapOf(
+            "systemBars" to WindowInsets.Type.systemBars(),
+            "statusBars" to WindowInsets.Type.statusBars(),
+            "navigationBars" to WindowInsets.Type.navigationBars(),
+            "displayCutout" to WindowInsets.Type.displayCutout(),
+            "ime" to WindowInsets.Type.ime(),
+            "systemGestures" to WindowInsets.Type.systemGestures(),
+            "tappableElement" to WindowInsets.Type.tappableElement(),
+        )
+        return types.entries.joinToString(",", "{", "}") { (name, type) ->
+            val i = insets.getInsets(type)
+            "\"$name\":[${i.left},${i.top},${i.right},${i.bottom}]"
+        }
+    }
 
     // 把一个异常写成引擎认的那句话：参数类的错是普通的说明（JS 那边抛 TypeError）；
     // Java 自己抛的，开头带上「\u0001类名\u0001」，JS 那边是 name 为这个类名的 Error
