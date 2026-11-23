@@ -236,7 +236,7 @@ Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套�
 | 怎么发 | `scripts/release.mjs`：`version` 改版本、`check` 核对、`pack` 打压缩包、`publish` 发布（已经发过的包跳过，可以重跑）。发布前跑 `scripts/smoke.sh`：在仓库外建一个新项目、只装打出来的压缩包，照用户的走法生成并编译 |
 | 什么时候发 | 合并到 `main`、且包里写的版本号 npm 上还没有的时候，CI 发（`.github/workflows/release.yml`）。所以发一个新版本就是合并一个改版本号的 PR；别的合并不触发发布。第一个版本手动发 |
 | 用哪个 Xcode 打包 | GitHub 的 `macos-26` 机器上默认装齐的那个（现在是 26.6），在 CI 上，版本号写死在工作流里。为什么不用最老的 26.0，见[交付物](internals/delivery.md#发出去的包用-xcode-266-来打) |
-| PR 上跑什么 | `.github/workflows/check.yml`：不用编译的检查，加上用 Xcode 26 从源码打包并跑一遍 `smoke.sh`。完整的验收不在 CI 里跑，发布前在本地跑 |
+| PR 上跑什么 | `.github/workflows/check.yml`：不用编译的检查，加上用 Xcode 26 从源码打包并跑一遍 `smoke.sh`；Android 的运行时和壳在 Linux 上编 Debug 和 Release，只编不跑。完整的验收不在 CI 里跑，发布前在本地跑 |
 
 为什么是这个形状、工程怎么分 target、三边怎么核对、发布这几条是怎么定的，见[交付物、工程和类型检查](internals/delivery.md)。
 
