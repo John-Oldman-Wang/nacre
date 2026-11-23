@@ -2,16 +2,16 @@
 // 以后有了 CLI，它挪进 CLI 的模板；生命周期和系统事件那时再转给 JS。
 package nacre.shell
 
-import android.app.Activity
 import android.os.Bundle
+import androidx.activity.ComponentActivity
 import nacre.runtime.NacreRuntime
 
-class MainActivity : Activity() {
+class MainActivity : ComponentActivity() {
     private var runtime: NacreRuntime? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val rt = NacreRuntime.create(assets)
+        val rt = NacreRuntime.create(this)
         runtime = rt
         val source = assets.open("main.js").use { it.readBytes() }
         rt.evaluate("main.js", source)

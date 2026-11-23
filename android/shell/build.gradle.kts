@@ -42,6 +42,9 @@ android {
 
 dependencies {
     implementation(project(":runtime"))
+    // 壳继承 ComponentActivity：权限、选图这些结果回调，和 Android 11、12 上的返回键回调，
+    // 只有 AndroidX 版。它不带任何样式（AppCompatActivity 才带）
+    implementation("androidx.activity:activity:1.12.4")
 }
 
 // 壳执行的 main.js。默认是 src/main/js/main.js（只验 console 进 logcat），

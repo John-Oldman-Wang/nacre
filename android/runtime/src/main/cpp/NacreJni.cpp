@@ -9,6 +9,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <vector>
 #include <utility>
 
 #include "Engine.h"
@@ -69,18 +70,87 @@ JNIEnv* CurrentEnv() {
   return env;
 }
 
-// 一个运行时：引擎，加上回调 Kotlin 那个对象要用的东西
+// 一个运行时：引擎，加上回调 Kotlin 那边要用的东西
 struct Runtime {
   std::unique_ptr<nacre::Engine> engine;
-  jobject self = nullptr;  // NacreRuntime 的全局引用
+  jobject self = nullptr;    // NacreRuntime 的全局引用
+  jobject bridge = nullptr;  // NativeBridge 的全局引用
   jmethodID schedule_wakeup = nullptr;
   jmethodID post_task = nullptr;
+  // NativeBridge 的方法
+  jmethodID retain = nullptr;
+  jmethodID release = nullptr;
+  jmethodID class_name_of = nullptr;
+  jmethodID construct = nullptr;
+  jmethodID read_property = nullptr;
+  jmethodID write_property = nullptr;
+  jmethodID read_class_object_property = nullptr;
+  jmethodID call_method = nullptr;
+  jmethodID call_object_method = nullptr;
+  jmethodID set_event_subscription = nullptr;
+  jmethodID error_text = nullptr;
   // post_task 交过来的任务先存在这里，Kotlin 那边排进主线程的队列，轮到时按编号取回来跑
   std::unordered_map<int64_t, std::function<void()>> tasks;
   int64_t next_task_id = 1;
 };
 
 Runtime* FromHandle(jlong handle) { return reinterpret_cast<Runtime*>(handle); }
+
+// 交给引擎的「指针」是 NativeBridge 发的编号，不是真的地址：Java 对象没有固定的
+// 地址，同一个对象要永远对应同一个包装，只能靠编号
+void* PtrOf(jlong id) { return reinterpret_cast<void*>(static_cast<uintptr_t>(id)); }
+jlong IdOf(void* ptr) { return static_cast<jlong>(reinterpret_cast<uintptr_t>(ptr)); }
+
+jbyteArray ToBytes(JNIEnv* env, const std::string& text) {
+  jbyteArray out = env->NewByteArray(static_cast<jsize>(text.size()));
+  env->SetByteArrayRegion(out, 0, static_cast<jsize>(text.size()),
+                          reinterpret_cast<const jbyte*>(text.data()));
+  return out;
+}
+
+jlongArray ToIds(JNIEnv* env, const std::vector<void*>& ptrs) {
+  jlongArray out = env->NewLongArray(static_cast<jsize>(ptrs.size()));
+  std::vector<jlong> ids;
+  ids.reserve(ptrs.size());
+  for (void* p : ptrs) ids.push_back(IdOf(p));
+  if (!ids.empty()) env->SetLongArrayRegion(out, 0, static_cast<jsize>(ids.size()), ids.data());
+  return out;
+}
+
+// 类名都是 ASCII，GetStringUTFChars 够用
+std::string FromAsciiString(JNIEnv* env, jstring text) {
+  if (text == nullptr) return std::string();
+  const char* chars = env->GetStringUTFChars(text, nullptr);
+  std::string out(chars != nullptr ? chars : "");
+  if (chars != nullptr) env->ReleaseStringUTFChars(text, chars);
+  return out;
+}
+
+// Kotlin 那边抛了：清掉异常，交给 NativeBridge.errorText 写成引擎认的那句话
+//（参数类的错是普通说明，JS 抛 TypeError；Java 自己抛的带「\x01类名\x01」）。
+// 没抛返回 false
+bool TakeError(JNIEnv* env, Runtime* runtime, std::string* error) {
+  if (!env->ExceptionCheck()) return false;
+  jthrowable thrown = env->ExceptionOccurred();
+  env->ExceptionClear();
+  auto text = static_cast<jbyteArray>(env->CallObjectMethod(runtime->bridge, runtime->error_text, thrown));
+  if (env->ExceptionCheck()) {   // 连这一步也出错了，只能给一句笼统的
+    env->ExceptionClear();
+    if (error != nullptr) *error = "native call failed";
+  } else if (error != nullptr) {
+    *error = FromBytes(env, text);
+  }
+  env->DeleteLocalRef(thrown);
+  return true;
+}
+
+nacre::NativeObjectRef RefOf(JNIEnv* env, Runtime* runtime, jlong id) {
+  if (id == 0) return {};
+  auto name = static_cast<jstring>(env->CallObjectMethod(runtime->bridge, runtime->class_name_of, id));
+  std::string class_name = FromAsciiString(env, name);
+  env->DeleteLocalRef(name);
+  return {PtrOf(id), class_name};
+}
 
 // 这些入口都是从主线程上的消息回来的，跑完一轮 JS 之后处理 V8 平台投递的任务
 //（微任务由 kAuto 自动排空），和 iOS 的 postToJS: 一样
@@ -96,7 +166,7 @@ extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void*) {
 }
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_nacre_runtime_NacreRuntime_nativeCreate(JNIEnv* env, jclass, jobject self) {
+Java_nacre_runtime_NacreRuntime_nativeCreate(JNIEnv* env, jclass, jobject self, jobject bridge) {
   nacre::Engine::InitializeV8Once();
 
   auto* runtime = new Runtime();
@@ -105,6 +175,24 @@ Java_nacre_runtime_NacreRuntime_nativeCreate(JNIEnv* env, jclass, jobject self) 
   runtime->schedule_wakeup = env->GetMethodID(cls, "scheduleWakeup", "(D)V");
   runtime->post_task = env->GetMethodID(cls, "postTask", "(J)V");
   env->DeleteLocalRef(cls);
+
+  runtime->bridge = env->NewGlobalRef(bridge);
+  jclass bridge_class = env->GetObjectClass(bridge);
+  runtime->retain = env->GetMethodID(bridge_class, "retain", "(J)V");
+  runtime->release = env->GetMethodID(bridge_class, "release", "(J)V");
+  runtime->class_name_of = env->GetMethodID(bridge_class, "classNameOf", "(J)Ljava/lang/String;");
+  runtime->construct = env->GetMethodID(bridge_class, "construct", "(Ljava/lang/String;[B[J)J");
+  runtime->read_property = env->GetMethodID(bridge_class, "readProperty", "(JLjava/lang/String;)[B");
+  runtime->write_property = env->GetMethodID(bridge_class, "writeProperty", "(JLjava/lang/String;[B)V");
+  runtime->read_class_object_property = env->GetMethodID(
+      bridge_class, "readClassObjectProperty", "(Ljava/lang/String;Ljava/lang/String;)J");
+  runtime->call_method = env->GetMethodID(bridge_class, "callMethod", "(JLjava/lang/String;[B[J)[B");
+  runtime->call_object_method =
+      env->GetMethodID(bridge_class, "callObjectMethod", "(JLjava/lang/String;[B[J)J");
+  runtime->set_event_subscription =
+      env->GetMethodID(bridge_class, "setEventSubscription", "(JLjava/lang/String;Z)V");
+  runtime->error_text = env->GetMethodID(bridge_class, "errorText", "(Ljava/lang/Throwable;)[B");
+  env->DeleteLocalRef(bridge_class);
 
   nacre::EngineHost host;
   host.log = WriteLog;
@@ -126,6 +214,86 @@ Java_nacre_runtime_NacreRuntime_nativeCreate(JNIEnv* env, jclass, jobject self) 
     const int64_t id = runtime->next_task_id++;
     runtime->tasks.emplace(id, std::move(task));
     CurrentEnv()->CallVoidMethod(runtime->self, runtime->post_task, static_cast<jlong>(id));
+  };
+
+  // ---- 原生对象：都转给 NativeBridge ----
+  // 每个回调里建的局部引用随这次 JNI 调用一起放掉，所以用 PushLocalFrame 包一层：
+  // 引擎在一轮 JS 里可能调几千次，不包的话局部引用表会满
+  struct Frame {
+    JNIEnv* env;
+    explicit Frame(JNIEnv* e) : env(e) { env->PushLocalFrame(16); }
+    ~Frame() { env->PopLocalFrame(nullptr); }
+  };
+  host.retain_native = [runtime](void* ptr) {
+    CurrentEnv()->CallVoidMethod(runtime->bridge, runtime->retain, IdOf(ptr));
+  };
+  host.release_native = [runtime](void* ptr) {
+    CurrentEnv()->CallVoidMethod(runtime->bridge, runtime->release, IdOf(ptr));
+  };
+  host.construct_native = [runtime](const std::string& class_name, const std::string& packed,
+                                    const std::vector<void*>& args, std::string* error) {
+    JNIEnv* env = CurrentEnv();
+    Frame frame(env);
+    jlong id = env->CallLongMethod(runtime->bridge, runtime->construct,
+                                   env->NewStringUTF(class_name.c_str()), ToBytes(env, packed),
+                                   ToIds(env, args));
+    if (TakeError(env, runtime, error)) return nacre::NativeObjectRef{};
+    return RefOf(env, runtime, id);
+  };
+  host.read_property = [runtime](void* ptr, const std::string& name) {
+    JNIEnv* env = CurrentEnv();
+    Frame frame(env);
+    auto json = static_cast<jbyteArray>(env->CallObjectMethod(
+        runtime->bridge, runtime->read_property, IdOf(ptr), env->NewStringUTF(name.c_str())));
+    if (TakeError(env, runtime, nullptr)) return std::string("null");
+    return FromBytes(env, json);
+  };
+  host.write_property = [runtime](void* ptr, const std::string& name, const std::string& packed,
+                                  std::string* error, std::string*) {
+    JNIEnv* env = CurrentEnv();
+    Frame frame(env);
+    env->CallVoidMethod(runtime->bridge, runtime->write_property, IdOf(ptr),
+                        env->NewStringUTF(name.c_str()), ToBytes(env, packed));
+    TakeError(env, runtime, error);
+  };
+  host.read_class_object_property = [runtime](const std::string& class_name,
+                                              const std::string& name) {
+    JNIEnv* env = CurrentEnv();
+    Frame frame(env);
+    jlong id = env->CallLongMethod(runtime->bridge, runtime->read_class_object_property,
+                                   env->NewStringUTF(class_name.c_str()),
+                                   env->NewStringUTF(name.c_str()));
+    if (TakeError(env, runtime, nullptr)) return nacre::NativeObjectRef{};
+    return RefOf(env, runtime, id);
+  };
+  host.call_method = [runtime](void* ptr, const std::string& name, const std::string& packed,
+                               const std::vector<void*>& args, std::string* error) {
+    JNIEnv* env = CurrentEnv();
+    Frame frame(env);
+    auto json = static_cast<jbyteArray>(env->CallObjectMethod(
+        runtime->bridge, runtime->call_method, IdOf(ptr), env->NewStringUTF(name.c_str()),
+        ToBytes(env, packed), ToIds(env, args)));
+    if (TakeError(env, runtime, error)) return std::string("null");
+    return FromBytes(env, json);
+  };
+  host.call_object_method = [runtime](void* ptr, const std::string& name,
+                                      const std::string& packed,
+                                      const std::vector<void*>& args, std::string* error) {
+    JNIEnv* env = CurrentEnv();
+    Frame frame(env);
+    jlong id = env->CallLongMethod(runtime->bridge, runtime->call_object_method, IdOf(ptr),
+                                   env->NewStringUTF(name.c_str()), ToBytes(env, packed),
+                                   ToIds(env, args));
+    if (TakeError(env, runtime, error)) return nacre::NativeObjectRef{};
+    return RefOf(env, runtime, id);
+  };
+  host.set_event_subscription = [runtime](void* ptr, const std::string& type, bool on,
+                                          std::string* error) {
+    JNIEnv* env = CurrentEnv();
+    Frame frame(env);
+    env->CallVoidMethod(runtime->bridge, runtime->set_event_subscription, IdOf(ptr),
+                        env->NewStringUTF(type.c_str()), on ? JNI_TRUE : JNI_FALSE);
+    TakeError(env, runtime, error);
   };
 
   runtime->engine = std::make_unique<nacre::Engine>(std::move(host));
@@ -181,12 +349,23 @@ Java_nacre_runtime_NacreRuntime_nativeRunIdleTasks(JNIEnv*, jclass, jlong handle
   FromHandle(handle)->engine->RunIdleTasks(seconds);
 }
 
+// 系统的回调进来了（Kotlin 那边已经排到下一轮），派发给这个对象的 JS 包装
+extern "C" JNIEXPORT void JNICALL
+Java_nacre_runtime_NacreRuntime_nativeEmitObjectEvent(JNIEnv* env, jclass, jlong handle, jlong id,
+                                                      jstring class_name, jstring type) {
+  Runtime* runtime = FromHandle(handle);
+  runtime->engine->EmitObjectEvent({PtrOf(id), FromAsciiString(env, class_name)},
+                                   FromAsciiString(env, type));
+  AfterTask(runtime);
+}
+
 extern "C" JNIEXPORT void JNICALL
 Java_nacre_runtime_NacreRuntime_nativeDestroy(JNIEnv* env, jclass, jlong handle) {
   Runtime* runtime = FromHandle(handle);
   // 先关引擎：它析构时可能还会回调宿主，那时 self 还得在
   runtime->engine.reset();
   runtime->tasks.clear();
+  env->DeleteGlobalRef(runtime->bridge);
   env->DeleteGlobalRef(runtime->self);
   delete runtime;
 }

@@ -311,15 +311,18 @@ WebView 留在核心：它不需要用户声明任何东西，拆了的净收益
 | 方面 | 选型 |
 | --- | --- |
 | UI 框架 | Android View 体系；不用 Jetpack Compose，需要时用 `ComposeView` 嵌入（对应 iOS 不用 SwiftUI） |
-| 控件 | 平台 View、AndroidX 的基础库（RecyclerView、ConstraintLayout、ViewPager2）、Material Components |
-| 页面 | 单 Activity 做启动壳，向 JS 暴露生命周期、窗口、窗口边衬、返回回调；页面栈由 JS 用 View 做；不用 Fragment；配置变化不重建 Activity，改成给 JS 发事件 |
-| 继承 | 不照搬 iOS 的「原生类一律 final」：抽象类由原生的中转子类承接，可重写的方法交给 JS 提供（新机制，开工时单独讨论） |
+| 控件 | 平台 View，加上 AndroidX 里提供**能力**的两个：RecyclerView（大列表只建看得见的几行、滚动时复用）、ConstraintLayout（约束排版）。**不接现成的部件**，和 iOS 的「组件不接」一样：`Button`（就是 `TextView` 加主题样式）、Material Components、ViewPager2 都不接，样式和部件由 App 自己用底层能力做（2026-11-23 定） |
+| 页面 | 单 Activity 做启动壳，向 JS 暴露生命周期、窗口、窗口边衬、返回回调；页面栈由 JS 用 View 做；不用 Fragment；配置变化不重建 Activity，改成给 JS 发事件。壳继承 AndroidX 的 `ComponentActivity`（权限和选图的结果回调、Android 11、12 上的返回键回调只有 AndroidX 版；它不带样式，`AppCompatActivity` 才带），主题用 AOSP 自带的 `Theme.Material.Light.NoActionBar`（各家手机上一样，不带厂商的样式）。`Activity` 只能由系统建，JS 里不能 `new` |
+| 继承 | 和 iOS 一样：**原生类一律 final，JS 不实现 Java 的类**。只能靠覆写拿到的能力照「覆写点」那条规矩：运行时为每一处写好固定的原生实现，系统来通知的转成事件，系统当场要答案的走当场派发、可写字段的事件，系统要你提供实现的（`onDraw`、列表的内容）换成能力（绘制指令、属性）。这样原生永远不持有 JS 的对象，没有跨两个垃圾回收器的环（2026-11-23 定，取代原来「抽象类由中转子类承接、可重写的方法交给 JS」的打算） |
+| 事件 | JS 里统一成 `EventTarget` 的发布订阅，原生那边有人订了才装回调。事件只来自两处：**用户做了什么**、**系统通知发生了什么**。一次性的结果用 Promise |
 | 最低版本 | Android 11（API 30）。新的窗口边衬体系从这一版齐全；31 起才有的模糊、系统启动屏、屏幕圆角，在 30 上如实告诉 JS 没有 |
 | 架构 | 只支持 arm64-v8a |
 | 线程 | JS 跑在主线程（主 Looper），空闲任务挂 `MessageQueue.IdleHandler` |
-| 引擎 | 同一版本的 V8，`core/engine/` 两端共用。预编译库用 NativeScript 和 iOS 同一次构建（`v8-14.9.207.39-7`）的 arm64 包，`android/scripts/fetch-v8.sh` 下载并校验。这份开着 JIT 和指针压缩，**必须用 NDK r29 编**。用不用 JIT 没定 |
+| 引擎 | 同一版本的 V8，`core/engine/` 两端共用。预编译库用 NativeScript 和 iOS 同一次构建（`v8-14.9.207.39-7`）的 arm64 包，`android/scripts/fetch-v8.sh` 下载并校验。这份开着 JIT 和指针压缩，**必须用 NDK r29 编**。用不用 JIT 没定：这份让 `libnacre.so` 有 45 MB（压缩后约 12 MB），先量出不开 JIT 的精简构建在 Android 上多大、多快再定（NativeScript 没发布这种，可能要自己编） |
 | 桥 | C++ 经 JNI 的分发表；bindgen 改读 `android.jar` |
 | 语言 | Kotlin 写启动壳，C++ 写引擎和 JNI，Java 或 Kotlin 写中转类 |
+| 外观 | **样式全部由 JS 定**，运行时不预设任何外观。要接的能力当成一组：Drawable 一族（`GradientDrawable` 的背景、渐变、圆角、边框，`RippleDrawable` 的按下效果）、`Outline` 和圆角裁切、按高度投的阴影、`RenderEffect`（模糊，Android 12 起，11 上如实告诉 JS 没有）、`Typeface`。**任意阴影**（颜色、模糊、偏移都能调）和**自定义绘制**系统没有现成的，照「继承」那一行的做法给一套绘制指令能力让 JS 调（底下用 `RenderNode` / `Canvas`），不让 JS 覆写 `onDraw`，具体形状单独讨论（2026-11-23 定） |
+| 原生类的写法 | 用简单类名挂在全局（`TextView`、`LinearLayout`），不同包里同名的类怎么办第 4 步统计完再定；Java 的 getter / setter 合成一个属性（`getText()` / `setText()` → `text`），和 Kotlin 一样；入口是上层对象 `application`，现在只有 `application.activity`。Java 抛的异常先转成 JS 的 `Error`，`name` 是异常的简单类名，最终和第 4 步的规矩一起定（2026-11-23 定，第 3 步） |
 | 网络 | `fetch` 和 `WebSocket` 都用 OkHttp，和 React Native、Expo 一样；系统里没有 WebSocket 客户端（2026-11-23 定） |
 | 工具链 | Gradle（用仓库里的 wrapper）、Android Gradle 插件 9.5.2（自带 Kotlin 编译）、compileSdk 37、NDK 29.0.14206865、CMake 4.1.2。版本都写死在 `android/` 的构建文件里 |
 | 单位 | 像素，照 Android 的 API 原样 |
@@ -329,9 +332,9 @@ WebView 留在核心：它不需要用户声明任何东西，拆了的净收益
 | URL 解析 | ada（网页标准的 URL 解析器，Node.js 用的就是它），胶水在 `core/url/`，`android/scripts/fetch-ada.sh` 下载。iOS 还是 `NSURLComponents`，iOS 要不要也换以后单独讨论（2026-11-23 定） |
 | 不影响 iOS | Android 的改动不碰 iOS 的运行时：iOS 的工程编 `core/engine/` 下的全部文件、执行 `core/builtin/parts/` 下的全部脚本，所以 Android 先用、iOS 还没用的东西不放这两个目录。`core/builtin/parts/` 里 Android 用哪几个，列在 `android/runtime/build.gradle.kts`（2026-11-23 定） |
 
-**要新定规矩的五件事**（和版本无关，开工后最先讨论）：重载的方法怎么映射成 JS；整数常量怎么变成字符串枚举；抽象类的中转子类长什么样；只能靠样式在构造时给的外观怎么传；Java 对象和 JS 包装之间的所有权（JNI 的全局引用和 V8 的垃圾回收怎么配合）。
+**要新定规矩的几件事**（和版本无关，第 4 步讨论）：重载的方法怎么映射成 JS；整数常量怎么变成字符串枚举；覆写点在 Android 上逐类怎么落（哪些转事件、哪些换成能力）；只能靠样式在构造时给的外观怎么传。所有权的做法第 3 步已经定了：Java 对象发编号交给引擎，包装活着就持有，JS 侧做所有权镜像，见[Android 的运行时](internals/android.md)；JS 不实现 Java 的类，所以没有跨两个垃圾回收器的环。
 
-**顺序**：最小壳和 `core/builtin/` 里不依赖桥的 6 个已经接上（`android/`：运行时 `runtime/`、开发用的壳 `shell/`）→ 手写一条竖切（JS 建一个布局、放一个文字、响应一次点击）定包装、所有权、事件 → 接上 `core/builtin/` 里依赖桥的 4 个（`fetch` / `Blob`、`WebSocket`、两个 `Intl`）→ bindgen 的提取部分做统计、定上面五条规矩 → bindgen 的生成部分、按组接类。CLI 生成 `android/`、`@nacrejs/android`、能力包排在最后。每一步照 SOP 单独讨论。
+**顺序**：最小壳、`core/builtin/` 里不依赖桥的 6 个、第一条竖切（包装、所有权、事件）已经有了（`android/`：运行时 `runtime/`、开发用的壳 `shell/`）→ **安全区域**（窗口边衬交给 JS：`targetSdk` 37 强制内容铺满全屏，不交出去任何界面顶上都被状态栏盖着）→ 接上 `core/builtin/` 里依赖桥的 4 个（`fetch` / `Blob`、`WebSocket`、两个 `Intl`）→ bindgen 的提取部分做统计、定上面五条规矩 → bindgen 的生成部分、按组接类。CLI 生成 `android/`、`@nacrejs/android`、能力包排在最后。每一步照 SOP 单独讨论。
 
 ## 5. 目录约定
 
@@ -584,7 +587,7 @@ Commit message 格式：
 
 ### 要建设的能力
 
-**先做：** Android：手写一条竖切，定包装、所有权、事件（第 4 节顺序的下一步）。
+**先做：** Android：安全区域，把窗口边衬交给 JS（第 4 节顺序的下一步）。
 
 **留着，按需要做：**
 
