@@ -23,8 +23,18 @@ internal class NativeBridge(
     // 异步调用的兑现（fetch、Blob 的读取）
     private val settle: Settle,
     // 系统的回调进来了，排到下一轮派发给 JS（不当场进 JS）
-    private val emit: (target: Any, type: String) -> Unit,
+    private val emitter: Emitter,
 ) {
+    // 事件的出口。实现在 NacreRuntime：排到主线程的下一轮，再交给引擎
+    interface Emitter {
+        // 不带数据的事件（click、windowinsetschange）
+        fun plain(target: Any, type: String)
+        // 带一个 JSON 值的事件。eventClass 是 JS 那边建事件用的类（MessageEvent、CloseEvent……）
+        fun json(target: Any, type: String, json: String, eventClass: String)
+        // 带一个原生对象的事件（WebSocket 收到的二进制消息是一个 Blob）
+        fun obj(target: Any, type: String, payload: Any, eventClass: String)
+    }
+
     // ---- 身份表 ----
     //
     // Java 对象没有固定的地址，所以交给引擎的「指针」是这里发的编号：同一个对象永远是
@@ -71,6 +81,7 @@ internal class NativeBridge(
     // JS 那边按这个名字找类。从具体到一般，第一个对上的就是
     fun className(obj: Any): String = when (obj) {
         is NacreBlob -> "Blob"
+        is NacreWebSocket -> "WebSocket"
         is Activity -> "Activity"
         is TextView -> "TextView"
         is LinearLayout -> "LinearLayout"
@@ -85,6 +96,13 @@ internal class NativeBridge(
     // ---- 造对象 ----
 
     fun construct(className: String, args: ByteArray, ptrs: LongArray): Long {
+        if (className == "WebSocket") {
+            // new WebSocket(url, { protocols, headers })。网址不合法交 0，JS 那边抛 TypeError
+            val values = Packed.decode(args) as? List<*> ?: emptyList<Any?>()
+            val url = values.getOrNull(0) as? String ?: return 0L
+            return NacreWebSocket.open(url, values.getOrNull(1) as? Map<*, *>, webSocketEvents)
+                ?.let(::intern) ?: 0L
+        }
         val context = ptrs.getOrNull(0)?.let(::obj) as? Context
             ?: throw NacreTypeError("new $className: argument 1 must be a Context")
         val view: View = when (className) {
@@ -103,6 +121,10 @@ internal class NativeBridge(
         val target = obj(id)
         val json = when {
             target is TextView && name == "text" -> JSONObject.quote(target.text.toString())
+            target is NacreWebSocket && name == "readyState" -> target.readyState.toString()
+            target is NacreWebSocket && name == "url" -> JSONObject.quote(target.url)
+            target is NacreWebSocket && name == "protocol" -> JSONObject.quote(target.protocol)
+            target is NacreWebSocket && name == "maximumMessageSize" -> target.maximumMessageSize.toString()
             target is NacreBlob && name == "size" -> target.data.size.toString()
             target is NacreBlob && name == "type" -> JSONObject.quote(target.type)
             target is Activity && name == "windowInsets" ->
@@ -121,6 +143,10 @@ internal class NativeBridge(
         val target = obj(id)
         val value = Packed.decode(packed)
         when {
+            target is NacreWebSocket && name == "maximumMessageSize" -> {
+                target.maximumMessageSize = (value as? Double)?.toInt()
+                    ?: throw NacreTypeError("maximumMessageSize must be a number")
+            }
             target is TextView && name == "text" -> {
                 // JS 那边已经照 Web IDL 转成字符串了，这里只校验
                 target.text = value as? String ?: throw NacreTypeError("text must be a string")
@@ -142,6 +168,11 @@ internal class NativeBridge(
         val target = obj(id)
         when {
             target is Activity && name == "setContentView" -> target.setContentView(viewArg(ptrs, name))
+            target is NacreWebSocket && name == "close" -> {
+                // JS 那边已经把 code 转成了整数（或者 null），reason 转成了字符串（或者 null）
+                val args = Packed.decode(packed) as? List<*> ?: emptyList<Any?>()
+                target.close((args.getOrNull(0) as? Double)?.toInt(), args.getOrNull(1) as? String)
+            }
             target is ViewGroup && name == "addView" -> target.addView(viewArg(ptrs, name))
             target is View && name == "setPadding" -> {
                 // JS 那边已经照 Web IDL 转成了四个整数，这里只校验
@@ -177,6 +208,37 @@ internal class NativeBridge(
     private fun viewArg(ptrs: LongArray, where: String): View =
         ptrs.getOrNull(0)?.let(::obj) as? View
             ?: throw NacreTypeError("$where: argument 1 must be a View")
+
+    // ---- 异步的方法（返回 Promise）----
+
+    // send 和 ping 都是「发出去，等一个结果」，所以 JS 那边是 Promise
+    fun callAsync(id: Long, name: String, packed: ByteArray, ptrs: LongArray, callId: Int) {
+        val target = obj(id)
+        if (target is NacreWebSocket) {
+            when (name) {
+                "send" -> {
+                    val blob = ptrs.getOrNull(0)?.let(::obj) as? NacreBlob
+                    val text = (Packed.decode(packed) as? List<*>)?.getOrNull(0) as? String
+                    target.send(text, blob, settle, callId)
+                }
+                // OkHttp 没有公开「手动发一个 ping、等 pong」的接口，只有定时自动发
+                "ping" -> settle.reject(callId, "NotSupportedError",
+                                        "ping: not supported on Android (OkHttp has no manual ping)")
+                else -> settle.reject(callId, "TypeError", "WebSocket has no method $name")
+            }
+            return
+        }
+        settle.reject(callId, "TypeError", "${target?.let(::className) ?: "object"} has no method $name")
+    }
+
+    // WebSocket 的事件：总是发，不看有没有人订（和 iOS 一样）
+    private val webSocketEvents = object : NacreWebSocket.Events {
+        override fun plain(socket: NacreWebSocket, type: String) = emitter.plain(socket, type)
+        override fun json(socket: NacreWebSocket, type: String, json: String, eventClass: String) =
+            emitter.json(socket, type, json, eventClass)
+        override fun blob(socket: NacreWebSocket, type: String, blob: NacreBlob, eventClass: String) =
+            emitter.obj(socket, type, blob, eventClass)
+    }
 
     // ---- Blob 和 fetch（core/builtin/parts/23-fetch.js）----
 
@@ -238,7 +300,7 @@ internal class NativeBridge(
             clickableBefore[view] = view.isClickable
             // 回调里拿的是 View 本身，不是编号：JS 的包装可能早被回收了（界面上的
             // 东西没人引用时），点击来了再重新发编号、重建包装
-            view.setOnClickListener { emit(it, "click") }
+            view.setOnClickListener { emitter.plain(it, "click") }
         } else {
             view.setOnClickListener(null)
             // setOnClickListener 会顺手把视图设成可点的，拆掉时还原
@@ -261,7 +323,7 @@ internal class NativeBridge(
             decor.setOnApplyWindowInsetsListener { v, insets ->
                 if (insets != lastInsets) {
                     lastInsets = insets
-                    emit(activity, "windowinsetschange")
+                    emitter.plain(activity, "windowinsetschange")
                 }
                 v.onApplyWindowInsets(insets)
             }

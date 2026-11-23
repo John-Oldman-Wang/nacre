@@ -90,6 +90,7 @@ struct Runtime {
   jmethodID set_event_subscription = nullptr;
   jmethodID error_text = nullptr;
   jmethodID create_blob = nullptr;
+  jmethodID call_async = nullptr;
   jmethodID read_object_async = nullptr;
   jmethodID fetch_start = nullptr;
   jmethodID fetch_read_body = nullptr;
@@ -199,6 +200,7 @@ Java_nacre_runtime_NacreRuntime_nativeCreate(JNIEnv* env, jclass, jobject self, 
       env->GetMethodID(bridge_class, "setEventSubscription", "(JLjava/lang/String;Z)V");
   runtime->error_text = env->GetMethodID(bridge_class, "errorText", "(Ljava/lang/Throwable;)[B");
   runtime->create_blob = env->GetMethodID(bridge_class, "createBlob", "([B[[B[B)J");
+  runtime->call_async = env->GetMethodID(bridge_class, "callAsync", "(JLjava/lang/String;[B[JI)V");
   runtime->read_object_async =
       env->GetMethodID(bridge_class, "readObjectAsync", "(JLjava/lang/String;I)V");
   runtime->fetch_start = env->GetMethodID(bridge_class, "fetchStart", "([B[BJI)I");
@@ -307,6 +309,17 @@ Java_nacre_runtime_NacreRuntime_nativeCreate(JNIEnv* env, jclass, jobject self, 
     env->CallVoidMethod(runtime->bridge, runtime->set_event_subscription, IdOf(ptr),
                         env->NewStringUTF(type.c_str()), on ? JNI_TRUE : JNI_FALSE);
     TakeError(env, runtime, error);
+  };
+
+  // 返回 Promise 的方法（WebSocket 的 send、ping）：结果由 Kotlin 那边回主线程兑现
+  host.call_async = [runtime](void* ptr, const std::string& name, const std::string& packed,
+                              const std::vector<void*>& args, int call_id) {
+    JNIEnv* env = CurrentEnv();
+    Frame frame(env);
+    env->CallVoidMethod(runtime->bridge, runtime->call_async, IdOf(ptr),
+                        env->NewStringUTF(name.c_str()), ToBytes(env, packed), ToIds(env, args),
+                        static_cast<jint>(call_id));
+    TakeError(env, runtime, nullptr);
   };
 
   // ---- Blob 和 fetch：都转给 NativeBridge，结果由 Kotlin 那边回主线程兑现 ----
@@ -425,6 +438,33 @@ Java_nacre_runtime_NacreRuntime_nativeEmitObjectEvent(JNIEnv* env, jclass, jlong
   Runtime* runtime = FromHandle(handle);
   runtime->engine->EmitObjectEvent({PtrOf(id), FromAsciiString(env, class_name)},
                                    FromAsciiString(env, type));
+  AfterTask(runtime);
+}
+
+// 带数据的事件（Kotlin 已经排到下一轮了）。eventClass 是 JS 那边建事件用的类
+extern "C" JNIEXPORT void JNICALL
+Java_nacre_runtime_NacreRuntime_nativeEmitObjectEventJson(JNIEnv* env, jclass, jlong handle,
+                                                          jlong id, jstring class_name,
+                                                          jstring type, jbyteArray json,
+                                                          jstring event_class) {
+  Runtime* runtime = FromHandle(handle);
+  runtime->engine->EmitObjectEventWithJSON({PtrOf(id), FromAsciiString(env, class_name)},
+                                           FromAsciiString(env, type), FromBytes(env, json), false,
+                                           FromAsciiString(env, event_class));
+  AfterTask(runtime);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_nacre_runtime_NacreRuntime_nativeEmitObjectEventWith(JNIEnv* env, jclass, jlong handle,
+                                                          jlong id, jstring class_name,
+                                                          jstring type, jlong payload_id,
+                                                          jstring payload_class,
+                                                          jstring event_class) {
+  Runtime* runtime = FromHandle(handle);
+  runtime->engine->EmitObjectEventWith({PtrOf(id), FromAsciiString(env, class_name)},
+                                       FromAsciiString(env, type),
+                                       {PtrOf(payload_id), FromAsciiString(env, payload_class)},
+                                       FromAsciiString(env, event_class));
   AfterTask(runtime);
 }
 

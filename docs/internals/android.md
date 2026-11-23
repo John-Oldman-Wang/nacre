@@ -2,7 +2,7 @@
 
 ← [实现原理](README.md)
 
-Android 这一侧现在有：最小的壳（引擎起来、执行 JS、`console` 进 logcat），事件循环，`core/builtin/` 里不依赖桥的 6 个 Web 标准内置脚本，第一条竖切（JS 拿到页面、建布局、放文字、点击收得到事件），安全区域（窗口边衬），和网络（`fetch`、`Blob`）。方向和顺序见 [`project.md` 第 4 节](../project.md#4-android2026-11-21-定的方向)。
+Android 这一侧现在有：最小的壳（引擎起来、执行 JS、`console` 进 logcat），事件循环，`core/builtin/` 里不依赖桥的 6 个 Web 标准内置脚本，第一条竖切（JS 拿到页面、建布局、放文字、点击收得到事件），安全区域（窗口边衬），和网络（`fetch`、`Blob`、`WebSocket`）。方向和顺序见 [`project.md` 第 4 节](../project.md#4-android2026-11-21-定的方向)。
 
 ## 目录
 
@@ -17,6 +17,7 @@ android/
 │     └─ kotlin/nacre/runtime/
 │        ├─ NacreRuntime.kt   Kotlin 这一侧的入口和事件循环
 │        ├─ NativeBridge.kt   身份表、读写属性、调方法、造对象、订阅事件（现在是手写的小表）
+│        ├─ FetchService.kt、NacreBlob.kt、NacreWebSocket.kt、Network.kt   网络
 │        └─ Packed.kt         读引擎打包的参数
 ├─ shell/        开发用的最小壳：一个页面，启动时建运行时、执行 main.js
 │                 （默认是 src/main/js/main.js；验收时换成 acceptance-android 打出来的）
@@ -163,6 +164,15 @@ JS 第一次给视图加 `click` 监听时，引擎经 `set_event_subscription` 
 - **每个主机最多同时 64 个请求**：OkHttp 默认 5 个（React Native 用的就是这个默认值），10 个并发请求被排成两轮，耗时是单次的 6 倍。改成 64 之后是单次的 1.1～1.3 倍。HTTP/2 的服务器上它们在一条连接里并行，和浏览器、iOS 一样；老的 HTTP/1.1 服务器上最多会开 64 条连接，比浏览器的 6 条多。
 - **网络权限**：`INTERNET` 写在运行时自己的清单里，合并进 App。开发用的壳另外只对 `127.0.0.1` 和 `localhost` 放开明文 HTTP（`res/xml/network_security_config.xml`），给本地测试服务用。
 
+### WebSocket
+
+`core/builtin/parts/06-websocket.js` 原样接上，原生那一半照 iOS 的 `NacreWebSocket.mm`，用 OkHttp 的 WebSocket（`NacreWebSocket.kt`），和 `fetch` 共用一个 OkHttp 客户端（`Network.kt`）：
+
+- 和 iOS 一样比 Web 多 `headers`（构造的第二个参数），`maximumMessageSize` 默认 1 MiB，超了断开、发 `error` 和 1006 的 `close`。
+- 事件总是发，不看有没有人订；`message` 是 `MessageEvent`（文本是字符串，二进制是 `Blob`，`origin` 是连接地址的源），`close` 是 `CloseEvent`，`error` 是 `ErrorEvent`。连接失败时先 `error` 再补一个 1006 的 `close`。`close` 之后 `application` 放开它。
+- 带数据的事件第一次用到：原生发事件时带「用哪个类建」，JS 的事件汇入口按 `core` 的 `05-events.js` 登记的类建事件，负载是字典就逐项当字段，不是字典就挂在这个类登记的字段上（`MessageEvent` 的 `data`、`ErrorEvent` 的 `message`），和 iOS 的做法一样。
+- **两处和 iOS 不同**：`send()` 的 Promise 在消息放进发送队列时就兑现（OkHttp 没有「发出去了」的回调；iOS 是发出去之后）；**`ping()` 以 `NotSupportedError` 被拒**：OkHttp 没有公开「手动发一个 ping、等 pong」的接口，只有定时自动发。iOS 的 `ping()` 是 iOS 多给的能力，Web 本来就没有。
+
 ### 和 iOS 不同的地方（Android 照网页标准）
 
 - **`fetch()` 什么时候兑现**：Android 响应头一到就兑现，和网页标准、Chrome 一样；iOS 的系统网络库要等第一个内容字节。所以响应头到了之后再中止，Android 上是读 body 时以 `AbortError` 失败，iOS 上是 `fetch()` 本身被拒。
@@ -196,4 +206,4 @@ iOS 真机连不到 Mac 上的本地测试服务（`acceptance/scripts/test-serv
 
 `acceptance-android/` 是从 iOS 的验收拷过来的 8 步（`console-basics`、`url`、`crypto`、`events`、`errors`、`web-globals`、`timers`、`performance`），去掉了用到 iOS 的类、`application`、`fetch`、`Blob`、`Intl` 的断言，留下的断言名字和期望值和 iOS 一字不差。`web-globals` 里「和网页逐条比对」那一段要 WebView，没拷。
 
-先在第 1 步的运行时上跑过 Web 标准那批：没有 `setTimeout`，一条 ✓ 都没有、到不了结束标记，判为失败；竖切那一步在没有桥的运行时上跑，`application is not defined`，也判为失败。2026-11-23 在 Pixel 6（Android 17，API 37）上，Debug 和 Release 都是 815 条通过、0 条失败。
+先在第 1 步的运行时上跑过 Web 标准那批：没有 `setTimeout`，一条 ✓ 都没有、到不了结束标记，判为失败；竖切那一步在没有桥的运行时上跑，`application is not defined`，也判为失败。2026-11-23 在 Pixel 6（Android 17，API 37）上，Debug 和 Release 都是 842 条通过、0 条失败。
