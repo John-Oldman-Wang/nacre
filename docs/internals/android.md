@@ -2,7 +2,7 @@
 
 ← [实现原理](README.md)
 
-Android 这一侧现在有：最小的壳（引擎起来、执行 JS、`console` 进 logcat），事件循环，和 `core/builtin/` 里不依赖桥的 6 个 Web 标准内置脚本。方向和顺序见 [`project.md` 第 4 节](../project.md#4-android2026-11-21-定的方向)。
+Android 这一侧现在有：最小的壳（引擎起来、执行 JS、`console` 进 logcat），事件循环，`core/builtin/` 里不依赖桥的 6 个 Web 标准内置脚本，和第一条竖切（JS 拿到页面、建布局、放文字、点击收得到事件）。方向和顺序见 [`project.md` 第 4 节](../project.md#4-android2026-11-21-定的方向)。
 
 ## 目录
 
@@ -13,8 +13,11 @@ android/
 │  └─ src/main/
 │     ├─ cpp/CMakeLists.txt   编 core/engine/ 加上 JNI，链 V8
 │     ├─ cpp/NacreJni.cpp     Kotlin 经 JNI 调到这里，再交给 core/engine；原生入口的实现
-│     ├─ builtin/parts/       Android 自己的内置脚本（00-core、25-globals）
-│     └─ kotlin/nacre/runtime/NacreRuntime.kt   Kotlin 这一侧的入口和事件循环
+│     ├─ builtin/parts/       Android 自己的内置脚本（00-core、01-bridge、10-view、21-application、25-globals）
+│     └─ kotlin/nacre/runtime/
+│        ├─ NacreRuntime.kt   Kotlin 这一侧的入口和事件循环
+│        ├─ NativeBridge.kt   身份表、读写属性、调方法、造对象、订阅事件（现在是手写的小表）
+│        └─ Packed.kt         读引擎打包的参数
 ├─ shell/        开发用的最小壳：一个页面，启动时建运行时、执行 main.js
 │                 （默认是 src/main/js/main.js；验收时换成 acceptance-android 打出来的）
 ├─ scripts/
@@ -88,6 +91,45 @@ iOS 的 URL 验收（34 条，期望值是照 iOS 写的）在 Android 上原样
 
 `crypto.getRandomValues` 要的随机源直接在 C++ 里用 bionic 的 `arc4random_buf`（取自内核的 `getrandom`），不经过 Java。
 
+## 第一条竖切：包装、所有权、事件
+
+JS 拿到页面（`application.activity`）、建 `LinearLayout` 和两个 `TextView`、`addView`、`setContentView`，点文字收到 `click`。引擎给宿主留的接口 iOS 全在用，Android 照着实现，`core/engine/` 没改。
+
+### 身份：交给引擎的「指针」是编号
+
+引擎按指针认原生对象：同一个指针永远是同一个包装。Java 对象没有固定的地址，JNI 的引用每拿一次都不一样，所以 `NativeBridge` 放一张身份表（`IdentityHashMap`），给每个 Java 对象发一个编号，交给引擎的就是这个编号。同一个对象永远是同一个编号，`layout.getChildAt(0) === label` 成立。
+
+表里强引用着对象。引擎在包装建立时 retain、被 GC 回收时 release，计数到 0 表里就放手，Java 那边才可能回收。和 iOS「包装活着就 `CFRetain`」同一个思路。交给引擎、引擎却没 retain 的（建包装失败了），在主线程空闲时清掉：正常的交接在同一次 JNI 调用里就 retain 了，到空闲时计数早就不是 0。
+
+### 所有权：照搬 iOS 的镜像
+
+原生的 A 持有 B，JS 里 A 的包装也持有 B 的包装（`01-bridge.js` 的 `own` / `ownOne`）：`application` 持有 `activity`，页面持有内容视图，布局持有子视图。用例里有一个只挂在布局上、JS 不留变量的视图，制造垃圾逼 V8 回收之后，它的包装上的记号和监听器都还在；对照组（没有所有者的包装）同时被回收了，证明这一轮 GC 真的跑过。
+
+反方向（Java 持有 JS）不会出现：JS 不实现 Java 的类（`project.md` 第 4 节「继承」），原生只往 JS 的包装上派发事件，不拿着任何 JS 对象，所以没有跨两个垃圾回收器的环。这和 Chrome 的做法同一个原则：网页的 JS 只调用平台的能力，从不去实现平台的类。
+
+### 事件：订阅才装回调，延后一轮派发
+
+JS 第一次给视图加 `click` 监听时，引擎经 `set_event_subscription` 告诉原生，`NativeBridge` 才给它装 `setOnClickListener`；最后一个监听摘掉时拆掉，并还原它原来的可点状态（装回调会顺手把视图设成可点）。回调里拿的是 `View` 本身不是编号：JS 的包装可能早被回收了，点击来了再发编号、重建包装。系统回调进来后排到主线程队列的下一轮再派发，不可取消，和 iOS 一样。`click` 是普通的 `Event`：Android 的点击回调不带坐标。
+
+### 参数和返回值
+
+- 引擎把参数打包成自己的二进制格式（`PackInto`），`Packed.kt` 直接读成 Kotlin 的值，不转 JSON。
+- 返回值照 iOS 用 JSON（读属性、方法的返回值），Kotlin 交回 UTF-8 字节，不走 JNI 的字符串。
+- Kotlin 抛 `NacreTypeError`（参数类的错）JS 那边是 `TypeError`；别的异常（Java 自己抛的）写成「`\x01类名\x01说明`」交给引擎，JS 那边是 `name` 为异常类名的 `Error`，比如同一个子视图加两次是 `IllegalStateException`。
+- 每个宿主回调都包一层 `PushLocalFrame`：一轮 JS 里可能过桥几千次，不包的话 JNI 的局部引用表会满。
+
+### 不接 Button
+
+一开始竖切里用了 `Button`，它在 Pixel 上带着 Material 风格的样式。那不是我们写的，是系统主题给的；它也没有 `TextView` 做不到的能力。按「组件不接」去掉，点的是 `TextView`。壳的主题从「设备默认」换成 AOSP 的 `Theme.Material.Light.NoActionBar`：设备默认在各家手机上长得不一样，连 `TextView` 的默认字色、字号都会变。
+
+### 撞到的：内容在状态栏底下
+
+`targetSdk` 37 下系统强制内容铺满全屏（Android 15 起），状态栏 128 像素，第一版的两个按钮在 y = 0～126，整个被盖着，点到的是状态栏。窗口边衬还没交给 JS，所以先加了 `setPadding`（四个整数，像素）和四个只读的 `paddingLeft` 等，验收里把布局往下挪 400 像素。安全区域排在竖切之后紧接着做。
+
+### 构造的那个坑
+
+`constructNative(wrapper, builtAs, className)` 的第二个参数要传 `new.target`（正在被 `new` 的类），不是类本身：构造链上每个类都调一次，只有「被 new 的就是我」的那一层真的去建。传类本身的话，`new TextView()` 在 `View` 那一层就建了一次，到 `TextView` 那一层再定义句柄时报「Cannot redefine property」。
+
 ## 构建
 
 - Android Gradle 插件 9.5.2 自带 Kotlin 编译，不用另外加 Kotlin 插件。
@@ -99,6 +141,8 @@ iOS 的 URL 验收（34 条，期望值是照 iOS 写的）在 Android 上原样
 
 `bash android/scripts/run-device.sh`（加 `--release` 是 Release，要先设 `ANDROID_HOME`）：打包 `acceptance-android/`，编壳时用 `-PnacreMainJs=` 把它换成壳执行的 `main.js`，装、打开，从 logcat 读 `Nacre` 标签的原文，交给 iOS 验收的 `report.mjs` 判定：等到结束标记、没有 ✗ 就是 0；期限内没等到、App 提前退出、有 ✗ 都是 1。
 
+**点击是脚本点的。** JS 打一行「`[acceptance] tap 视图上的字`」，脚本用 `uiautomator dump` 找到写着这几个字的视图，用 `adb shell input tap` 点它的正中。跑的时候手机要**解锁、亮屏、别碰**：锁屏时点到的是锁屏；人手点的也会被如实收到，监听器会多触发（实际撞到过）。可以在开发者选项里打开「不锁定屏幕」，插着线就不会息屏。
+
 `acceptance-android/` 是从 iOS 的验收拷过来的 8 步（`console-basics`、`url`、`crypto`、`events`、`errors`、`web-globals`、`timers`、`performance`），去掉了用到 iOS 的类、`application`、`fetch`、`Blob`、`Intl` 的断言，留下的断言名字和期望值和 iOS 一字不差。`web-globals` 里「和网页逐条比对」那一段要 WebView，没拷。
 
-先在第 1 步的运行时上跑过这份验收：没有 `setTimeout`，一条 ✓ 都没有、到不了结束标记，判为失败。2026-11-23 在 Pixel 6（Android 17，API 37）上，Debug 和 Release 都是 436 条通过、0 条失败。
+先在第 1 步的运行时上跑过 Web 标准那批：没有 `setTimeout`，一条 ✓ 都没有、到不了结束标记，判为失败；竖切那一步在没有桥的运行时上跑，`application is not defined`，也判为失败。2026-11-23 在 Pixel 6（Android 17，API 37）上，Debug 和 Release 都是 482 条通过、0 条失败。

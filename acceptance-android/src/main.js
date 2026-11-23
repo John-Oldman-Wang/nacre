@@ -22,6 +22,7 @@ import { stepErrors } from './steps/errors.js';
 import { stepWebGlobals } from './steps/web-globals.js';
 import { stepTimers } from './steps/timers.js';
 import { stepPerformance } from './steps/performance.js';
+import { stepSlice } from './steps/slice.js';
 
 /**
  * 各步共享的上下文。这一批只用得到断言。
@@ -53,6 +54,17 @@ run('stepWebGlobals', () => stepWebGlobals(ctx));
 run('stepTimers', () => stepTimers(ctx));
 run('stepPerformance', () => stepPerformance(ctx));
 
+// 竖切要等两次点击，自己交出「做完了」，结束标记等它
+/** @type {Promise<unknown>} */
+const sliceDone = (async () => {
+  try {
+    await stepSlice(ctx);
+  } catch (err) {
+    console.log('  ✗ 步骤 stepSlice 中途抛了，它后面的断言没跑: ' +
+                (err instanceof Error ? err.message : String(err)));
+  }
+})();
+
 // 全部跑完之后打一行结束标记，外面的 runner 等的就是它。和 iOS 一样：
 // 连续 5 秒没有新的断言算跑完，每秒看一次
 let seen = assertStats().asserts;
@@ -64,4 +76,4 @@ const tick = () => {
   if (calm < 5) { setTimeout(tick, 1000); return; }
   console.log('[acceptance] done ' + JSON.stringify(assertStats()));
 };
-setTimeout(tick, 1000);
+sliceDone.then(() => { setTimeout(tick, 1000); });

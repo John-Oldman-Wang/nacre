@@ -54,9 +54,41 @@ read_log() {
   "$ADB" logcat -d -v raw -s "$TAG:V" | grep -v '^---------' > "$LOG_FILE" || true
 }
 
+# JS 打「[acceptance] tap 按钮上的字」请求点一下：用 uiautomator 找到写着这几个字的
+# 那个视图，点它的正中。每个请求只点一次
+TAPPED=0
+tap_requests() {
+  local requests count text
+  requests="$(grep '^\[acceptance\] tap ' "$LOG_FILE" | sed 's/^\[acceptance\] tap //' || true)"
+  count="$(printf '%s' "$requests" | grep -c . || true)"
+  while [ "$TAPPED" -lt "$count" ]; do
+    TAPPED=$((TAPPED + 1))
+    text="$(printf '%s\n' "$requests" | sed -n "${TAPPED}p")"
+    "$ADB" shell uiautomator dump /sdcard/nacre-ui.xml >/dev/null
+    local point
+    point="$("$ADB" exec-out cat /sdcard/nacre-ui.xml | python3 -c '
+import sys, re, xml.etree.ElementTree as ET
+want = sys.argv[1]
+for node in ET.fromstring(sys.stdin.read()).iter("node"):
+    if node.get("text") == want:
+        x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.get("bounds")))
+        print((x1 + x2) // 2, (y1 + y2) // 2)
+        break
+' "$text")"
+    if [ -z "$point" ]; then
+      echo "  （界面上没找到写着「$text」的视图，没点）"
+      continue
+    fi
+    echo "  点「$text」：$point"
+    # shellcheck disable=SC2086
+    "$ADB" shell input tap $point
+  done
+}
+
 STATUS="timeout"
 for _ in $(seq 1 "$TIMEOUT"); do
   read_log
+  tap_requests
   if grep -q '^\[acceptance\] done ' "$LOG_FILE"; then STATUS="done"; break; fi
   if [ -z "$("$ADB" shell pidof "$PACKAGE" | tr -d '\r')" ]; then
     sleep 1; read_log

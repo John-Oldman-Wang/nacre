@@ -3,14 +3,24 @@
 // 不做任何调度：App 做什么全由 JS 决定。
 package nacre.runtime
 
-import android.content.res.AssetManager
+import android.app.Activity
 import android.os.Handler
 import android.os.Looper
 import android.os.MessageQueue
 import kotlin.math.ceil
 
-class NacreRuntime private constructor() : AutoCloseable {
+class NacreRuntime private constructor(activity: Activity) : AutoCloseable {
     private var handle = 0L
+
+    // 原生对象和引擎之间那一层。系统的回调（比如点击）进来，排到下一轮再派发给 JS：
+    // 原生的通知不当场进 JS，和 iOS 一样
+    private val bridge: NativeBridge = NativeBridge(activity) { target, type ->
+        handler.post {
+            if (handle != 0L) {
+                nativeEmitObjectEvent(handle, bridge.intern(target), bridge.className(target), type)
+            }
+        }
+    }
 
     // 引擎的唤醒和投递都排在主线程的这个 Handler 上，和别的主线程消息在同一个队列里，
     // 先后是确定的（iOS 那边是主队列，道理一样）
@@ -23,7 +33,10 @@ class NacreRuntime private constructor() : AutoCloseable {
     // 主线程的消息队列空下来时，把这段空闲交给 V8 做增量 GC。返回 true 是一直留着，
     // 队列每空一次叫一次
     private val idleHandler = MessageQueue.IdleHandler {
-        if (handle != 0L) nativeRunIdleTasks(handle, IDLE_SECONDS)
+        if (handle != 0L) {
+            nativeRunIdleTasks(handle, IDLE_SECONDS)
+            bridge.sweep()
+        }
         true
     }
 
@@ -77,10 +90,11 @@ class NacreRuntime private constructor() : AutoCloseable {
 
         // 建一个运行时，并按文件名顺序跑完全部内置脚本。JS 跑在主线程上，
         // 引擎的每个方法都只能在主线程调
-        fun create(assets: AssetManager): NacreRuntime {
+        fun create(activity: Activity): NacreRuntime {
             checkThread()
-            val runtime = NacreRuntime()
-            runtime.handle = nativeCreate(runtime)
+            val assets = activity.assets
+            val runtime = NacreRuntime(activity)
+            runtime.handle = nativeCreate(runtime, runtime.bridge)
             val names = assets.list(PARTS_DIR).orEmpty().filter { it.endsWith(".js") }.sorted()
             for (name in names) {
                 val source = assets.open("$PARTS_DIR/$name").use { it.readBytes() }
@@ -105,13 +119,14 @@ class NacreRuntime private constructor() : AutoCloseable {
             }
         }
 
-        @JvmStatic private external fun nativeCreate(self: NacreRuntime): Long
+        @JvmStatic private external fun nativeCreate(self: NacreRuntime, bridge: NativeBridge): Long
         @JvmStatic private external fun nativeRunBuiltinPart(handle: Long, name: ByteArray, source: ByteArray): Boolean
         @JvmStatic private external fun nativeFinishBuiltinParts(handle: Long)
         @JvmStatic private external fun nativeEvaluate(handle: Long, name: ByteArray, source: ByteArray): Boolean
         @JvmStatic private external fun nativeFireDueTimers(handle: Long)
         @JvmStatic private external fun nativeRunTask(handle: Long, id: Long)
         @JvmStatic private external fun nativeRunIdleTasks(handle: Long, seconds: Double)
+        @JvmStatic private external fun nativeEmitObjectEvent(handle: Long, id: Long, className: String, type: String)
         @JvmStatic private external fun nativeDestroy(handle: Long)
         @JvmStatic private external fun nativeV8Version(): String
     }
