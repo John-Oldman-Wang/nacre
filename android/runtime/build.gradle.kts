@@ -75,4 +75,9 @@ tasks.named("preBuild") { dependsOn(copyBuiltinParts) }
 dependencies {
     // fetch 和 WebSocket 的网络层（project.md 第 4 节「网络」）
     implementation("com.squareup.okhttp3:okhttp:5.5.1")
+    // ConstraintLayout（project.md 第 4 节「控件」）。它的 pom 带着 appcompat，ConstraintLayout 本身的类
+    // 一个都没用到（看过 2.2.2 的字节码），排除掉，不把 AppCompat 的样式和资源带进 App
+    implementation("androidx.constraintlayout:constraintlayout:2.2.2") {
+        exclude(group = "androidx.appcompat")
+    }
 }
