@@ -117,10 +117,12 @@
     requireNative(obj, name);
     return JSON.parse(native.getProp(obj[kHandle], name));
   }
-  // 写不进去时原生自己抛
+  // 写不进去时原生自己抛。枚举属性写了不认识的值：原生不抛，把那句话交回来，值没动，
+  // 打成警告（和 iOS 一样）
   function nativeSet(obj, name, value) {
     requireNative(obj, name);
-    native.setProp(obj[kHandle], name, value);
+    const warning = native.setProp(obj[kHandle], name, value);
+    if (warning !== undefined) console.warn('[Nacre] ' + warning + ', ignored');
   }
   function nativeCall(obj, name, args) {
     requireNative(obj, name);

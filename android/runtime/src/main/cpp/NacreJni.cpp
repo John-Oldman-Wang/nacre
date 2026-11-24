@@ -191,7 +191,7 @@ Java_nacre_runtime_NacreRuntime_nativeCreate(JNIEnv* env, jclass, jobject self, 
   runtime->class_name_of = env->GetMethodID(bridge_class, "classNameOf", "(J)Ljava/lang/String;");
   runtime->construct = env->GetMethodID(bridge_class, "construct", "(Ljava/lang/String;[B[J)J");
   runtime->read_property = env->GetMethodID(bridge_class, "readProperty", "(JLjava/lang/String;)[B");
-  runtime->write_property = env->GetMethodID(bridge_class, "writeProperty", "(JLjava/lang/String;[B)V");
+  runtime->write_property = env->GetMethodID(bridge_class, "writeProperty", "(JLjava/lang/String;[B)[B");
   runtime->read_class_object_property = env->GetMethodID(
       bridge_class, "readClassObjectProperty", "(Ljava/lang/String;Ljava/lang/String;)J");
   runtime->call_method = env->GetMethodID(bridge_class, "callMethod", "(JLjava/lang/String;[B[J)[B");
@@ -267,12 +267,18 @@ Java_nacre_runtime_NacreRuntime_nativeCreate(JNIEnv* env, jclass, jobject self, 
     return FromBytes(env, json);
   };
   host.write_property = [runtime](void* ptr, const std::string& name, const std::string& packed,
-                                  std::string* error, std::string*) {
+                                  std::string* error, std::string* warning) {
     JNIEnv* env = CurrentEnv();
     Frame frame(env);
-    env->CallVoidMethod(runtime->bridge, runtime->write_property, IdOf(ptr),
-                        env->NewStringUTF(name.c_str()), ToBytes(env, packed));
-    TakeError(env, runtime, error);
+    // 交回来的是警告的字节：空的是写进去了；不空的是值没动、但不算错（枚举写了不认识的值），
+    // 引擎不抛，把这句话交给 JS 打成警告
+    auto text = static_cast<jbyteArray>(env->CallObjectMethod(
+        runtime->bridge, runtime->write_property, IdOf(ptr), env->NewStringUTF(name.c_str()),
+        ToBytes(env, packed)));
+    if (TakeError(env, runtime, error)) return;
+    if (warning != nullptr && text != nullptr && env->GetArrayLength(text) > 0) {
+      *warning = FromBytes(env, text);
+    }
   };
   host.read_class_object_property = [runtime](const std::string& class_name,
                                               const std::string& name) {

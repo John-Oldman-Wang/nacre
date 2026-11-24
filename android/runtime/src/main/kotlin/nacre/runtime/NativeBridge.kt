@@ -13,6 +13,10 @@ import java.util.IdentityHashMap
 // 一个 name 为异常类名的 Error，见 errorText
 internal class NacreTypeError(message: String) : RuntimeException(message)
 
+// 属性写入没生效、但不算错（枚举属性写了不认识的值）：JS 那边不抛，打一条警告，值不变。
+// 只在写属性时有这个意思；方法参数写错抛 NacreTypeError。措辞见 Enums.kt
+internal class NacreWarning(message: String) : RuntimeException(message)
+
 internal class NativeBridge(
     activity: Activity,
     // 异步调用的兑现（fetch、Blob 的读取）
@@ -129,10 +133,15 @@ internal class NativeBridge(
         return json.toByteArray(Charsets.UTF_8)
     }
 
-    fun writeProperty(id: Long, name: String, packed: ByteArray) {
+    // 写进去了交空数组；域抛了 NacreWarning（值没动）交那句话的 UTF-8 字节，引擎当成警告
+    fun writeProperty(id: Long, name: String, packed: ByteArray): ByteArray {
         val target = obj(id)
         val value = Packed.decode(packed)
-        if (target != null && domainsFor(target).any { it.write(target, name, value) }) return
+        try {
+            if (target != null && domainsFor(target).any { it.write(target, name, value) }) return ByteArray(0)
+        } catch (warning: NacreWarning) {
+            return (warning.message ?: "").toByteArray(Charsets.UTF_8)
+        }
         throw NacreTypeError("${describe(target)} has no writable property $name")
     }
 
