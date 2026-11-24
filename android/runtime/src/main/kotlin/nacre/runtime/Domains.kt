@@ -9,4 +9,5 @@ internal fun registeredDomains(host: DomainHost): List<Domain> = listOf(
     WebSocketDomain(host),
     IntlDomain(host),
     AppearanceDomain(host),
+    LayoutDomain(host),
 )
