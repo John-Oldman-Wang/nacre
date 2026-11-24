@@ -66,6 +66,9 @@ export async function stepScroll(ctx) {
   const sv = new ScrollView(activity);
   assert('ScrollView 是 ViewGroup', sv instanceof ViewGroup, true);
   assert('HorizontalScrollView 是 ViewGroup', new HorizontalScrollView(activity) instanceof ViewGroup, true);
+  // Java 里两个滚动视图继承 FrameLayout（布局那一组定义的）
+  assert('ScrollView 是 FrameLayout', sv instanceof FrameLayout, true);
+  assert('HorizontalScrollView 是 FrameLayout', new HorizontalScrollView(activity) instanceof FrameLayout, true);
   assert('new ScrollView() 不给参数抛 TypeError', thrown(() => new /** @type {any} */ (ScrollView)()), 'TypeError');
   assert('new ScrollView 给普通对象抛 TypeError', thrown(() => new ScrollView(/** @type {any} */ ({}))), 'TypeError');
   class MyScroll extends ScrollView {}

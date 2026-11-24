@@ -13,7 +13,7 @@ android/
 │  └─ src/main/
 │     ├─ cpp/CMakeLists.txt   编 core/engine/ 加上 JNI，链 V8
 │     ├─ cpp/NacreJni.cpp     Kotlin 经 JNI 调到这里，再交给 core/engine；原生入口的实现
-│     ├─ builtin/parts/       Android 自己的内置脚本（00-core、01-bridge、09-insets、10-view、21-application、25-globals、30-appearance、36-scroll、37-animation）
+│     ├─ builtin/parts/       Android 自己的内置脚本（00-core、01-bridge、09-insets、10-view、21-application、25-globals、30-appearance、31-layout、36-scroll、37-animation）
 │     └─ kotlin/nacre/runtime/
 │        ├─ NacreRuntime.kt   Kotlin 这一侧的入口和事件循环
 │        ├─ NativeBridge.kt   身份表，按顺序问各个域（Domain.kt、Domains.kt）
@@ -233,7 +233,7 @@ iOS 真机连不到 Mac 上的本地测试服务（`acceptance/scripts/test-serv
 - **枚举**：用 `Enums.kt` 的 `EnumTable`，属性写错抛 `NacreWarning`（JS 打警告、值不变），参数写错抛 `NacreTypeError`，见下面「外观」一节。
 - **登记**：在 `Domains.kt` 的列表里加一行。
 
-现有的域：`ViewDomain`（竖切的那几个类）、`WindowInsetsDomain`、`BlobDomain`、`WebSocketDomain`、`IntlDomain`、`AppearanceDomain`、`ScrollDomain`、`AnimationDomain`。
+现有的域：`ViewDomain`（竖切的那几个类）、`WindowInsetsDomain`、`BlobDomain`、`WebSocketDomain`、`IntlDomain`、`AppearanceDomain`、`LayoutDomain`（布局）、`ScrollDomain`、`AnimationDomain`。
 
 ### JS：自己的内置脚本
 
@@ -302,6 +302,50 @@ Java 的属性大多是 `float`。照 `float` 最短的写法交给 JS（`Float.
 `steps/appearance.js`，排在安全区域之后。全部成员的读写、默认值、Web IDL 的转换、写错时的警告和 `TypeError`、不能 `new` 的类；最后把带圆角边框阴影的卡片、带水波的按钮、模糊加变换的字挂到屏幕上画半秒，用脚本点一下水波那个，收到 `click`。阴影、水波、模糊在屏幕上的样子要人看，没看过。
 
 先在没有实现的运行时上跑了一遍：步骤一开始就抛了 `ColorDrawable is not defined`，判为失败。实现之后 2026-11-24 在 Pixel 6（Android 17，API 37）上 Debug 是 1142 条通过、0 条失败（这一组 220 条），Release 也是 1142 条通过、0 条失败。
+
+## 布局
+
+`ViewGroup.LayoutParams` 一族、`LinearLayout`、`FrameLayout`、`ConstraintLayout`，`View` 上读布局结果的成员、`ViewGroup` 的层级操作、`layoutchange` 事件。原生在 `LayoutDomain.kt`，JS 在 `31-layout.js`，验收在 `steps/layout.js`。单位都是像素。
+
+### 定下来的几条（2026-11-24）
+
+| | 做法 | 理由 |
+| --- | --- | --- |
+| LayoutParams 的形状 | 原生对象的包装，挂成静态的嵌套类：`ViewGroup.LayoutParams`、`ViewGroup.MarginLayoutParams`、`LinearLayout.LayoutParams`、`FrameLayout.LayoutParams`、`ConstraintLayout.LayoutParams`，继承关系照 Java | 和 Android 的文档、Kotlin 的写法对得上；做成值对象的话「取出来、改字段、设回去」的习惯就没了 |
+| 写到视图上 | 同一个对象。改字段不会自己重新排版，要 `requestLayout()` 或者再赋一次 `layoutParams` | 照 Android。`addView` 时类型不对，系统换成父视图要的类型（新对象），也照实 |
+| ConstraintLayout 的约束 | 写在参数的字段上，指向视图用 id，指向父视图写 `'parent'`；不接 `ConstraintSet` | `ConstraintSet.applyTo` 最后也是写这些字段，它只是帮手，JS 能自己写。不收视图对象：写进去是视图、读出来是数，对不上 |
+| 哨兵值 | 有含义的用字符串（`matchParent`、`wrapContent`、`matchConstraint`、`parent`）；表示「没设」的（`NO_ID`、`UNSET`、`GONE_UNSET`、gravity 的 −1）读出来是 `null`，写 `null` 清掉 | 「没设」做成 `'unset'` 这种字符串，读的人会当成一个取值 |
+| 布局事件 | `layoutchange`，`LayoutChangeEvent` 带 `left` / `top` / `right` / `bottom` 和四个 `old…`，延后一轮派发，不可取消；**四边变了才发** | Android 的回调每次排版都来，四边没变也来。不滤的话 JS 在监听器里 `requestLayout` 一次就排个没完。和 `windowinsetschange` 只在值变了才发一样 |
+| `Gravity` | 字符串数组，每个方向最多一个名字，外加 `clipHorizontal` / `clipVertical`。没有 `center`、`fill` | 横向的几个值不是单独的一位（`LEFT` 是 3，`START` 是 `0x800003`），按「每个方向一个取值」拆。合起来的名字照 iOS 位掩码的规矩不收：读出来总是拆开的，收了就写进去和读出来不一样 |
+
+### 实现
+
+- **嵌套的类**：`defineNativeClass` 会把类挂到全局（名字带点），`31-layout.js` 摘掉再挂成静态成员。不改 `01-bridge.js`。
+- **`addView` 的重载**：在 `31-layout.js` 里换掉 `10-view.js` 的 `addView`，按参数的个数和类型分五种写法；原生那边用新的方法名（`addView@index` 这类），只传一个子视图的还走 `ViewDomain` 原来那条。父视图持有子视图（`children` 那条边），视图持有它的参数（`layoutParams` 那条边，持有的是系统真正用的那个对象）。
+- **事件的订阅**接在 `10-view.js` 的 `[kSubscribe]` 后面：`layoutchange` 告诉原生，别的交给原来那一个。别的组也往 `View` 上加事件时照这样接。
+- **属性里的枚举写错**走外观组补的那条路：域的 `write` 抛 `NacreWarning`，JS 那边打一条警告、值不变。简单的名字表用 `Enums.kt` 的 `EnumTable`；宽高（名字和像素混在一起）和 `Gravity`（每个方向一个取值）自己核，措辞和 `EnumTable` 一样。
+- **赋一个父视图不认的参数**：视图已经在布局里时，下一次排版 Java 会在原生里抛 `ClassCastException`，整个 App 就没了。所以写 `layoutParams` 时先用父视图的 `checkLayoutParams`（protected 的公开接口，反射去调，按父视图的实际类型分派）问一次，不认就抛 `TypeError`。系统自己的 `updateViewLayout` 也是这么查的，它抛 `IllegalArgumentException`。
+- **下标越界**：`removeViewAt` 不查下标，按 AOSP 的源码是拿着 `getChildAt` 给的 `null` 往下走（没实测越界时会怎样）。`removeViewAt` 和 `removeViews` 都在原生先查，抛 `IndexOutOfBoundsException`，和 `addView` 越界时 Java 自己抛的一样。
+- **ConstraintLayout 2.2.2 的依赖排除了 appcompat。** 它的 pom 带着 appcompat，但 `widget` 包里的类一个都没用到（看过字节码；用到它的只有 `utils.widget` 下的几个视图，没接）。不排除的话会带进 AppCompat 的样式和资源。
+
+### 和方案不同的一处
+
+`LinearLayout.dividerWidth` 没做：`getDividerWidth()` 在 SDK 里是隐藏的接口（`android.jar` 里没有），不是公开 API。
+
+### 没做的
+
+`dividerDrawable`（要外观组的 `Drawable`，合进来之后再接）；`ConstraintSet` 和辅助线、屏障、分组、`Flow`；`optimizationLevel`；`layoutDirection`；`RelativeLayout`、`GridLayout`；`ViewTreeObserver` 的几个回调（「画之前」的回调要等需要时再做：`layoutchange` 是延后一轮派发的，在监听器里调整会晚一帧）；Android 的类型定义（`@nacrejs/types/android` 还没有）。
+
+### 实测（Pixel 6，Android 17）
+
+验收里的位置全是照 Android 的排版规则先算好的期望值，第一次跑就对上了：
+
+- 600 宽的横向 `LinearLayout`，一个固定 100 宽，另外两个权重 1 和 2：分到 166 和 334（剩下的 500 按 `(int)(权重 × 剩余 / 剩余权重)` 依次分，余数落在后面的那个）。
+- 竖向 `LinearLayout` 默认给子视图的参数是 `matchParent` × `wrapContent`；`gravity` 只给横向时，竖向补成 `top`，给空数组读回来是 `start`、`top`。
+- `ConstraintLayout`（1000 × 500）：上下左右都连父视图的 200 × 100 居中在 (400, 200)；`horizontalBias` 0.25 在 x = 200；宽 100、高 `matchConstraint`、`dimensionRatio` 2:1 的高是 50；两个 100 宽的 `packed` 链在 x = 400、500。
+- 只改参数的字段，300 毫秒后宽还是原来的；`requestLayout()` 之后 `isLayoutRequested` 立刻是 `true`，下一轮来了 `layoutchange`，旧的四边是改之前的。
+- 根视图的 `parent` 是系统放内容的 `FrameLayout`，一直往上走，最外层视图的 `parent` 是 `null`（它上面是 `ViewRootImpl`，不是视图）。
+- 全屏的窗口里 `getLocationOnScreen()` 和 `getLocationInWindow()` 一样。
 
 ## 滚动
 
