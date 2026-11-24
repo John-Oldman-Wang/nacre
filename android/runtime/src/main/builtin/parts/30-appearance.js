@@ -14,6 +14,7 @@
   'use strict';
 
   const {
+    EventTarget,
     constructNative,
     defineNativeClass,
     describeValue,
@@ -188,12 +189,14 @@
     return c;
   }
 
-  class Drawable {
+  // 是 EventTarget：动图（图片组的 AnimatedImageDrawable）发 animationstart / animationend
+  class Drawable extends EventTarget {
     constructor() {
       if (nearestNative(new.target) === Drawable) {
         throw new TypeError('Illegal constructor: Drawable is abstract and cannot be constructed; ' +
                             'use ColorDrawable, GradientDrawable or RippleDrawable');
       }
+      super();
     }
   }
   addAccessors(Drawable.prototype, {
