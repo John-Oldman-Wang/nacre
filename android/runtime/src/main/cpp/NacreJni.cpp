@@ -92,6 +92,7 @@ struct Runtime {
   jmethodID create_blob = nullptr;
   jmethodID call_async = nullptr;
   jmethodID call_class_method = nullptr;
+  jmethodID call_class_object_method = nullptr;
   jmethodID read_object_async = nullptr;
   jmethodID fetch_start = nullptr;
   jmethodID fetch_read_body = nullptr;
@@ -204,6 +205,8 @@ Java_nacre_runtime_NacreRuntime_nativeCreate(JNIEnv* env, jclass, jobject self, 
   runtime->call_async = env->GetMethodID(bridge_class, "callAsync", "(JLjava/lang/String;[B[JI)V");
   runtime->call_class_method = env->GetMethodID(
       bridge_class, "callClassMethod", "(Ljava/lang/String;Ljava/lang/String;[B[J)[B");
+  runtime->call_class_object_method = env->GetMethodID(
+      bridge_class, "callClassObjectMethod", "(Ljava/lang/String;Ljava/lang/String;[B[J)J");
   runtime->read_object_async =
       env->GetMethodID(bridge_class, "readObjectAsync", "(JLjava/lang/String;I)V");
   runtime->fetch_start = env->GetMethodID(bridge_class, "fetchStart", "([B[BJI)I");
@@ -331,6 +334,20 @@ Java_nacre_runtime_NacreRuntime_nativeCreate(JNIEnv* env, jclass, jobject self, 
         env->NewStringUTF(name.c_str()), ToBytes(env, packed), ToIds(env, args)));
     if (TakeError(env, runtime, error)) return std::string("null");
     return FromBytes(env, json);
+  };
+
+  // 返回一个原生对象的类方法（Typeface.create）。null 是 0
+  host.call_class_object_method = [runtime](const std::string& class_name, const std::string& name,
+                                            const std::string& packed,
+                                            const std::vector<void*>& args, std::string* error) {
+    JNIEnv* env = CurrentEnv();
+    Frame frame(env);
+    jlong id = env->CallLongMethod(runtime->bridge, runtime->call_class_object_method,
+                                   env->NewStringUTF(class_name.c_str()),
+                                   env->NewStringUTF(name.c_str()), ToBytes(env, packed),
+                                   ToIds(env, args));
+    if (TakeError(env, runtime, error)) return nacre::NativeObjectRef{};
+    return RefOf(env, runtime, id);
   };
 
   // 返回 Promise 的方法（WebSocket 的 send、ping）：结果由 Kotlin 那边回主线程兑现

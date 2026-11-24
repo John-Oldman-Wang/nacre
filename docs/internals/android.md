@@ -225,7 +225,7 @@ iOS 真机连不到 Mac 上的本地测试服务（`acceptance/scripts/test-serv
 | `call` / `callObject` | 调方法，返回值或一个原生对象 | `null` / `NOT_MINE` |
 | `callAsync` | 返回 Promise 的方法，用 `host.settle` 兑现 | `false` |
 | `subscribe` | 某个事件的监听器从无到有、从有到无（有人订才装回调） | `false` |
-| `classObject` / `classCall` | 类级的属性和方法 | `NOT_MINE` / `null` |
+| `classObject` / `classCall` / `classCallObject` | 类级的属性、方法、返回一个对象的方法 | `NOT_MINE` / `null` / `NOT_MINE` |
 
 - **对象归哪个域问、用哪个 JS 类名**：按类的继承层级排，离对象最近的类先（`EditText` 的域排在 `TextView` 的前面），和登记的先后无关。
 - **参数**：`args` 是解好的值（`null`、`Boolean`、`Double`、`String`、`List`、`Map`），对象参数按下标在 `objects` 里。JS 那一侧已经照 Web IDL 转好了类型，原生只校验，不对就抛 `NacreTypeError`（JS 是 `TypeError`）；Java 自己抛的异常在 JS 里是 `name` 为异常类名的 `Error`。
@@ -233,7 +233,7 @@ iOS 真机连不到 Mac 上的本地测试服务（`acceptance/scripts/test-serv
 - **枚举**：用 `Enums.kt` 的 `EnumTable`，属性写错抛 `NacreWarning`（JS 打警告、值不变），参数写错抛 `NacreTypeError`，见下面「外观」一节。
 - **登记**：在 `Domains.kt` 的列表里加一行。
 
-现有的域：`ViewDomain`（竖切的那几个类）、`WindowInsetsDomain`、`BlobDomain`、`WebSocketDomain`、`IntlDomain`、`AppearanceDomain`、`LayoutDomain`（布局）、`ScrollDomain`、`AnimationDomain`。
+现有的域：`ViewDomain`（竖切的那几个类）、`WindowInsetsDomain`、`BlobDomain`、`WebSocketDomain`、`IntlDomain`、`AppearanceDomain`、`LayoutDomain`（布局）、`ScrollDomain`、`AnimationDomain`、`TextDomain`（文字）。
 
 ### JS：自己的内置脚本
 
@@ -323,7 +323,7 @@ Java 的属性大多是 `float`。照 `float` 最短的写法交给 JS（`Float.
 - **嵌套的类**：`defineNativeClass` 会把类挂到全局（名字带点），`31-layout.js` 摘掉再挂成静态成员。不改 `01-bridge.js`。
 - **`addView` 的重载**：在 `31-layout.js` 里换掉 `10-view.js` 的 `addView`，按参数的个数和类型分五种写法；原生那边用新的方法名（`addView@index` 这类），只传一个子视图的还走 `ViewDomain` 原来那条。父视图持有子视图（`children` 那条边），视图持有它的参数（`layoutParams` 那条边，持有的是系统真正用的那个对象）。
 - **事件的订阅**接在 `10-view.js` 的 `[kSubscribe]` 后面：`layoutchange` 告诉原生，别的交给原来那一个。别的组也往 `View` 上加事件时照这样接。
-- **属性里的枚举写错**走外观组补的那条路：域的 `write` 抛 `NacreWarning`，JS 那边打一条警告、值不变。简单的名字表用 `Enums.kt` 的 `EnumTable`；宽高（名字和像素混在一起）和 `Gravity`（每个方向一个取值）自己核，措辞和 `EnumTable` 一样。
+- **属性里的枚举写错**走外观组补的那条路：域的 `write` 抛 `NacreWarning`，JS 那边打一条警告、值不变。简单的名字表用 `Enums.kt` 的 `EnumTable`；宽高（名字和像素混在一起）自己核，`Gravity`（每个方向一个取值）用几组共用的 `Gravity.kt`，措辞都和 `EnumTable` 一样。
 - **赋一个父视图不认的参数**：视图已经在布局里时，下一次排版 Java 会在原生里抛 `ClassCastException`，整个 App 就没了。所以写 `layoutParams` 时先用父视图的 `checkLayoutParams`（protected 的公开接口，反射去调，按父视图的实际类型分派）问一次，不认就抛 `TypeError`。系统自己的 `updateViewLayout` 也是这么查的，它抛 `IllegalArgumentException`。
 - **下标越界**：`removeViewAt` 不查下标，按 AOSP 的源码是拿着 `getChildAt` 给的 `null` 往下走（没实测越界时会怎样）。`removeViewAt` 和 `removeViews` 都在原生先查，抛 `IndexOutOfBoundsException`，和 `addView` 越界时 Java 自己抛的一样。
 - **ConstraintLayout 2.2.2 的依赖排除了 appcompat。** 它的 pom 带着 appcompat，但 `widget` 包里的类一个都没用到（看过字节码；用到它的只有 `utils.widget` 下的几个视图，没接）。不排除的话会带进 AppCompat 的样式和资源。
@@ -418,6 +418,57 @@ Java 的属性大多是 `float`。照 `float` 最短的写法交给 JS（`Float.
 先在没有实现的运行时上跑了一遍：两步一开始就抛了（`ScrollView is not defined`、`LinearInterpolator is not defined`），判为失败。写实现时发现用例里有一条和定下的规矩不符：原来断言 `ValueAnimator.setInterpolator()` 返回自己，但 Java 的这个方法返回 `void`，按规矩只有属性。改成断言没有这个方法，API 没变。跑真机时又发现一条期望值写错了：`BounceInterpolator` 在 t = 1 不是正好 1，Android 的弹跳曲线用的是近似常数（t × 1.1226，最后一段 8(t − 1.0435)² + 0.95），照 float 算是 1.0000545，期望改成这个数。
 
 实现之后 2026-11-24 在 Pixel 6（Android 17，API 37）上 Debug 和 Release 都是 1482 条通过、0 条失败。Release 第一遍挂过一条网络那一组的耗时断言（对着公网的 httpbin，10 个并发请求的耗时），和这两组无关，重跑通过。
+
+## 文字
+
+落在已有的 `TextView` 上，加一个新类 `Typeface`。除了字号、颜色、字体、对齐、行数、省略号、行高、字间距、可选中、测量，还有字体特性（`fontFeatureSettings`，比如等宽数字）、可变字体的轴、按基线定高、自动缩字号、下划线和删除线、文字阴影。原生是 `TextDomain.kt`（`View`、`TextView` 在 `ViewDomain` 里已经登记过，这里再登记一次，JS 类名一样，为的是问到它们的成员时也问这个域），JS 是 `32-text.js`：往 `TextView`、`View` 的原型上加成员，不改 `10-view.js`。验收是 `steps/text.js`。
+
+### 成员怎么起名
+
+照「getter 和 setter 名字对得上才合成一个属性，和 Kotlin 一样」，结果有几处和直觉不同，都是照 Java 来的：
+
+- **`textSize` 只读，写走 `setTextSize()`**：唯一一处不照 Kotlin。`getTextSize()` 是像素，`setTextSize(16)` 是 sp，Kotlin 把它们合成一个属性，写 16 读出来是 42。所以属性只读（像素），写有两个方法，都和 Java 对得上：`setTextSize(size)`（sp）、`setTextSize(unit, size)`，单位是 `TypedValue.COMPLEX_UNIT_*` 去前缀：`'px' | 'dip' | 'sp' | 'pt' | 'in' | 'mm'`。`textSizeUnit` 只读。用户定的。
+- 没有 `getTextColor()`，所以是 `setTextColor(color)` 加只读的 `currentTextColor`。
+- `isTextSelectable()` 和 `setTextIsSelectable()` 名字对不上，所以是只读的 `isTextSelectable` 加方法。
+- `lineSpacingExtra`、`lineSpacingMultiplier` 只读，两个一起用 `setLineSpacing(add, mult)` 设。
+- `typeface` 的读走「返回对象的方法」那条通道（`getTypeface`）：Android 的桥上没有读对象属性的通道，也用不着加。
+- `setFontVariationSettings()` 有返回值（有没有字体文件用上了），Kotlin 不把它合成属性，所以是只读的 `fontVariationSettings` 加方法；`fontFeatureSettings` 是普通的可空字符串属性。
+- 自动缩字号：`autoSizeTextType` 只读（setter 叫 `setAutoSizeTextTypeWithDefaults`，名字对不上），另外两个方法照 Java 按位置传，单位和 `setTextSize` 一样。几个读数都是像素。
+
+枚举：`gravity` 是 `Gravity` 的位掩码，用字符串数组，规则和布局组（`LinearLayout.gravity`、`LayoutParams` 的 gravity）一样：每个方向最多一个名字，外加两个裁切的开关；不收 `center`、`fill` 这种两个方向合起来的名字（读出来总是拆开的，收了就写进去和读出来不一样）；读出的顺序是横向、竖直、裁切。表和规则在 `Gravity.kt`，布局组的 `LayoutDomain` 也用它（一开始两组各写了一份，规则和文案一样，文字组后合进来时收成了一份）。TextView 自己会给没写的方向补默认（只写 `['bottom']` 读出 `['start', 'bottom']`）。一开始文字组的规则不同（收 `center`、同一方向的名字照 Java 位或、竖直在前），和布局组对过之后用户定了照布局组。`ellipsize` 是 `TextUtils.TruncateAt`（Java 的 enum，照同一条规矩），`null` 是不加省略号。`paintFlags` 是 `Paint.*_FLAG` 的位掩码，去掉 `_FLAG` 转驼峰（`'underlineText'`、`'strikeThruText'`……），写的时候只换表里的这几位，表外的位原样留着（免得清掉系统私下设的）；实测 TextView 默认是 `['antiAlias', 'filterBitmap', 'devKernText', 'embeddedBitmapText']`。`textAlignment` 在 `View` 上。
+
+颜色照外观组：CSS 写法的字符串，用 `30-appearance.js` 放在 `ctx` 上的 `colorArgument` / `colorProperty` / `colorText` 解析和写回，原生收发 ARGB 的无符号数。枚举用 `Enums.kt` 的 `EnumTable`：属性位写错抛 `NacreWarning`（桥打警告、值不变），方法参数写错抛 `NacreTypeError`；文案里的名字是属性名或参数名，不带类名，和外观、布局两组一样。
+
+### 补上的通道：类方法返回一个原生对象
+
+`Typeface.create()` 这类静态工厂要它。引擎（`core/engine` 的 `classCall` → `host.call_class_object_method`）本来就有，iOS 在用，只是 Android 的 JNI 没接。补的四处都在 `android/` 里、只加不改：`NacreJni.cpp` 接上回调，`NativeBridge.callClassObjectMethod`，`Domain.classCallObject`（默认「不是我的」），`01-bridge.js` 的 `nativeClassCallObject`。
+
+### 从项目的 assets/ 读字体
+
+`Typeface.createFromAsset(path)` 同步，和 Java 一样，去掉了 `AssetManager` 参数（JS 里没有这个类），路径相对项目的 `assets/`。开发用的壳把项目的 `assets/` 拷到包里 assets 下的 `app/`（不和 `main.js`、`nacre/` 撞），`run-device.sh` 用 `-PnacreAssets` 把 `acceptance-android/assets/` 传进去。以后 CLI 生成 `android/` 时照这个位置放。
+
+验收用的字体是自己拼的（`acceptance-android/scripts/make-test-font.py`，不带任何现成字体的许可）：一个 em 是 1000，上伸 2000、下伸 1000，ASCII 全映射到一个方块。实测 40 像素的字号下系统字体行高 47，换上它是 120，正好 3 倍，证明字体真的换上了。
+
+### 实测到的 Android 的行为
+
+- `textAlignment` 读出的是**解析后的值**（`getTextAlignment()`；能读回写进去的值的 `getRawTextAlignment()` 是隐藏 API）。`'inherit'` 没有父视图时读出默认的 `'gravity'`，挂上之后读出父视图的；别的值没挂上也读得到。和网页不同：网页有两层，`el.style.textAlign` 写什么读什么，`getComputedStyle()` 是算出来的，元素不在文档里时是空串（Chromium 实测）。照 Android 原样，用户定的。
+- **App 不声明 `android:supportsRtl="true"`，`textAlignment` 完全不生效**：系统一律解析成 `'gravity'`。一开始壳没声明，验收里设什么都读出 `'gravity'`，加上之后才对。开发用的壳现在声明了，以后 CLI 生成 `android/` 也要写（Android Studio 新建的工程默认就有）。代价是系统语言从右往左时（阿拉伯语这类）start / end 对调、布局镜像，和网页的 `dir="rtl"` 一样。用户定的。
+- 测量（`lineCount`、`baseline`）也要排过版：之前是 0 和 -1。
+- `TextView` 的 `typeface` 默认不是 `null`。
+- `setFontVariationSettings()` 的返回值看的是这个视图背后的全部字体文件，**包括系统的后备字体**：测试字体没有轴，但后面接着的 Roboto 有 `wght`，照样返回 `true`。要 `false` 得写一个谁都没有的轴。
+- `firstBaselineToTopHeight`、`lastBaselineToBottomHeight` 是靠改上下内边距实现的，设了之后 `paddingTop`、`paddingBottom` 跟着变。
+- Java 自己抛的：`Typeface.create(family, 1001, false)` 是 `IllegalArgumentException`；`lineHeight = -1` 是 `IllegalArgumentException`；`createFromAsset` 找不到文件是 `RuntimeException`。
+- `letterSpacing`、`lineSpacingMultiplier` 这些是 Java 的 `float`，交给 JSON 时用 `Float.toString()` 的最短写法：写 0.1 读回 0.1，不是 0.10000000149011612。
+
+**未验证**：
+- `setLineHeight(unit, value)` 在 Android 14 以前没有带单位的版本，换成像素再设（之后用户改字体大小不会跟着变）。手机是 Android 17，这一支没跑过。
+- 自动缩字号真的缩了没有：要视图的宽高是定的才生效，那要布局组的 `layoutParams`。这一步只验了配置的读写。
+- 下划线、删除线、阴影在屏幕上的样子（只验了读写）。
+- 壳声明了 `configChanges` 里的 `fontScale`，用户在系统设置里调字体大小时页面不重建，用 sp 设的字号跟不跟着变没验（要改手机的系统设置）。
+
+### 没做的
+
+富文本（`Spannable`）以后单独一组。要新类的：按状态变色（`ColorStateList`）、测量（`Layout`）、不上屏测文字（`Paint`、`StaticLayout`）、`Typeface.Builder`，建议另开「文字（二）」先讨论形状。`createFromFile` 等文件系统。`breakStrategy`、`hyphenationFrequency`、`justificationMode`、`lineBreakStyle`、`allCaps`、`singleLine`、`textScaleX`、`fallbackLineSpacing`、`elegantTextHeight` 这一步没做，照现有规矩就能接。
 
 ## 构建
 
