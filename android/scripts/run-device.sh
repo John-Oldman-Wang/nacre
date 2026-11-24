@@ -51,7 +51,8 @@ echo "== 打包验收套件"
 BUNDLE="$REPO/acceptance-android/build/main.js"
 
 echo "== 编译（$VARIANT）"
-( cd "$ROOT" && ./gradlew --quiet ":shell:assemble$VARIANT" "-PnacreMainJs=$BUNDLE" )
+( cd "$ROOT" && ./gradlew --quiet ":shell:assemble$VARIANT" "-PnacreMainJs=$BUNDLE" \
+    "-PnacreAssets=$REPO/acceptance-android/assets" )
 APK="$(ls "$ROOT"/shell/build/outputs/apk/"$(echo "$VARIANT" | tr '[:upper:]' '[:lower:]')"/*.apk | head -1)"
 
 echo "== 安装 $(basename "$APK")"

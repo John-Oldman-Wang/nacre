@@ -59,4 +59,17 @@ val copyMainJs by tasks.registering(Copy::class) {
     inputs.property("mainJsPath", mainJs.map { it.absolutePath })
 }
 
-tasks.named("preBuild") { dependsOn(copyMainJs) }
+// 项目的 assets/（字体、图片这些）。放到包里 assets 下的 app/，不和 main.js、nacre/ 撞；
+// 运行时按这个位置找（Typeface.createFromAsset 的路径相对它）。
+// 验收时 scripts/run-device.sh 用 -PnacreAssets=<目录> 传进来；没给就不拷
+val projectAssets = providers.gradleProperty("nacreAssets").map { file(it) }
+
+val copyProjectAssets by tasks.registering(Sync::class) {
+    if (projectAssets.isPresent) from(projectAssets)
+    into(layout.buildDirectory.dir("generated/nacre-project-assets/app"))
+}
+
+android.sourceSets.getByName("main").assets.directories +=
+    layout.buildDirectory.dir("generated/nacre-project-assets").get().asFile.path
+
+tasks.named("preBuild") { dependsOn(copyMainJs, copyProjectAssets) }

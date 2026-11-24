@@ -57,6 +57,9 @@ internal abstract class Domain(protected val host: DomainHost) {
     // 类级的方法（返回值不是原生对象），返回 JSON 文本。不是这一组的返回 null
     open fun classCall(className: String, name: String, args: List<*>, objects: List<Any?>): String? = null
 
+    // 类级的方法（返回一个原生对象，可以是 null）。不是这一组的返回 NOT_MINE
+    open fun classCallObject(className: String, name: String, args: List<*>, objects: List<Any?>): Any? = NOT_MINE
+
     // 运行时关掉时
     open fun close() {}
 

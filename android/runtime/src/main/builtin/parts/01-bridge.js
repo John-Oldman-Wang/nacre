@@ -146,6 +146,12 @@
     const { values, handles } = splitArgs(args);
     return JSON.parse(native.classCallValue(className, name, values, handles));
   }
+  // 返回一个原生对象的类方法（Typeface.create）。null 是 null
+  function nativeClassCallObject(className, name, args) {
+    const { values, handles } = splitArgs(args);
+    const result = native.classCall(className, name, values, handles);
+    return result === undefined ? null : result;
+  }
   // 类级的对象属性：没有实例，用类名定位
   function nativeClassObject(className, name) {
     const result = native.classObjProp(className, name);
@@ -284,6 +290,7 @@
     nativeCallAsync,
     nativeCallObject,
     nativeClassNames,
+    nativeClassCallObject,
     nativeClassCallValue,
     nativeClassObject,
     nativeGet,

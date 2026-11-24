@@ -8,7 +8,6 @@
 package nacre.runtime
 
 import android.content.Context
-import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -62,7 +61,7 @@ internal class LayoutDomain(host: DomainHost) : Domain(host) {
                 else LLParams(width, height, (third as? Double)?.toFloat()
                     ?: throw NacreTypeError("new $className: weight must be a number"))
             "FrameLayout.LayoutParams" -> if (third == null) FLParams(width, height)
-                else FLParams(width, height, typeErrors { gravity(third, "gravity", GravityAxis.BOTH) })
+                else FLParams(width, height, typeErrors { gravity(third, "gravity", Gravities.Axis.BOTH) })
             "ConstraintLayout.LayoutParams" -> CLParams(width, height)
             else -> null
         }
@@ -223,13 +222,13 @@ internal class LayoutDomain(host: DomainHost) : Domain(host) {
                 if (name == "width") target.width = v else target.height = v
             }
             target is LLParams && name == "gravity" ->
-                target.gravity = if (value == null) -1 else gravity(value, name, GravityAxis.BOTH)
+                target.gravity = if (value == null) -1 else gravity(value, name, Gravities.Axis.BOTH)
             target is FLParams && name == "gravity" ->
-                target.gravity = if (value == null) FLParams.UNSPECIFIED_GRAVITY else gravity(value, name, GravityAxis.BOTH)
+                target.gravity = if (value == null) FLParams.UNSPECIFIED_GRAVITY else gravity(value, name, Gravities.Axis.BOTH)
             target is CLParams -> return writeConstraintEnum(target, name, value)
             target is LinearLayout -> when (name) {
                 "orientation" -> target.orientation = orientations.forProperty(name, value)
-                "gravity" -> target.gravity = gravity(value, name, GravityAxis.BOTH)
+                "gravity" -> target.gravity = gravity(value, name, Gravities.Axis.BOTH)
                 "showDividers" -> {
                     val list = value as? List<*> ?: throw NacreTypeError("$name: expected an array of names")
                     target.showDividers = list.fold(0) { acc, n -> acc or dividers.forProperty(name, n) }
@@ -254,11 +253,11 @@ internal class LayoutDomain(host: DomainHost) : Domain(host) {
                 if (target is ViewGroup) callGroup(target, name, args, objects)?.let { return it }
                 if (target is LinearLayout) when (name) {
                     "setHorizontalGravity" -> {
-                        target.setHorizontalGravity(typeErrors { gravity(args.getOrNull(0), "gravity", GravityAxis.HORIZONTAL) })
+                        target.setHorizontalGravity(typeErrors { gravity(args.getOrNull(0), "gravity", Gravities.Axis.HORIZONTAL) })
                         return "null"
                     }
                     "setVerticalGravity" -> {
-                        target.setVerticalGravity(typeErrors { gravity(args.getOrNull(0), "gravity", GravityAxis.VERTICAL) })
+                        target.setVerticalGravity(typeErrors { gravity(args.getOrNull(0), "gravity", Gravities.Axis.VERTICAL) })
                         return "null"
                     }
                 }
@@ -545,63 +544,19 @@ internal class LayoutDomain(host: DomainHost) : Domain(host) {
         else -> v.toString()
     }
 
-    // ---- Gravity：每个方向最多一个名字，外加两个裁切的开关 ----
+    // ---- Gravity：表和规则在 Gravity.kt（文字组的 TextView.gravity 也用）----
     //
-    // 横向的几个值不是单独的一位（LEFT = 3、START = 0x800003），按「每个方向一个取值」拆。
-    // 不收 center、fill 这种两个方向合起来的名字：读出来总是拆开的，收了就写进去和读出来不一样
+    // 名字写错换成这个文件自己的 EnumProblem，再由 typeErrors / warnings 按位置换成
+    // NacreTypeError 或 NacreWarning，和别的枚举走同一条路
 
-    private enum class GravityAxis { HORIZONTAL, VERTICAL, BOTH }
-
-    private val horizontalGravity = linkedMapOf(
-        "left" to Gravity.LEFT, "right" to Gravity.RIGHT, "centerHorizontal" to Gravity.CENTER_HORIZONTAL,
-        "fillHorizontal" to Gravity.FILL_HORIZONTAL, "start" to Gravity.START, "end" to Gravity.END,
-    )
-    private val verticalGravity = linkedMapOf(
-        "top" to Gravity.TOP, "bottom" to Gravity.BOTTOM, "centerVertical" to Gravity.CENTER_VERTICAL,
-        "fillVertical" to Gravity.FILL_VERTICAL,
-    )
-    private val clipGravity = linkedMapOf("clipHorizontal" to Gravity.CLIP_HORIZONTAL, "clipVertical" to Gravity.CLIP_VERTICAL)
-    private val horizontalMask = Gravity.RELATIVE_HORIZONTAL_GRAVITY_MASK
-
-    private fun gravity(value: Any?, where: String, axis: GravityAxis): Int {
-        val list = value as? List<*> ?: throw NacreTypeError("$where: expected an array of gravity names")
-        val allowed = when (axis) {
-            GravityAxis.HORIZONTAL -> horizontalGravity
-            GravityAxis.VERTICAL -> verticalGravity
-            GravityAxis.BOTH -> horizontalGravity + verticalGravity + clipGravity
-        }
-        var result = 0
-        var horizontal: String? = null
-        var vertical: String? = null
-        for (item in list) {
-            val name = item as? String ?: throw NacreTypeError("$where: gravity names must be strings")
-            val bits = allowed[name] ?: throw EnumProblem("$where has no value \"$name\"; " +
-                "expected one of: ${allowed.keys.joinToString(" / ")}")
-            if (name in horizontalGravity) {
-                if (horizontal != null && horizontal != name) throw EnumProblem(
-                    "$where: ${JSONObject.quote(horizontal)} and ${JSONObject.quote(name)} are both horizontal; " +
-                        "give at most one per direction")
-                horizontal = name
-            }
-            if (name in verticalGravity) {
-                if (vertical != null && vertical != name) throw EnumProblem(
-                    "$where: ${JSONObject.quote(vertical)} and ${JSONObject.quote(name)} are both vertical; " +
-                        "give at most one per direction")
-                vertical = name
-            }
-            result = result or bits
-        }
-        return result
+    private fun gravity(value: Any?, where: String, axis: Gravities.Axis): Int = try {
+        Gravities.parse(value, where, axis)
+    } catch (e: Gravities.Problem) {
+        throw EnumProblem(e.message ?: "invalid gravity")
     }
 
-    private fun gravityJson(value: Int): String {
-        if (value == -1) return "null"
-        val names = ArrayList<String>()
-        horizontalGravity.entries.firstOrNull { it.value == (value and horizontalMask) }?.let { names += it.key }
-        verticalGravity.entries.firstOrNull { it.value == (value and Gravity.VERTICAL_GRAVITY_MASK) }?.let { names += it.key }
-        for ((name, bit) in clipGravity) if ((value and bit) != 0) names += name
-        return names.joinToString(",", "[", "]") { JSONObject.quote(it) }
-    }
+    // -1 是 LinearLayout.LayoutParams 的「没设」
+    private fun gravityJson(value: Int): String = if (value == -1) "null" else Gravities.json(value)
 
     // ---- 名字 ↔ 数值 ----
 

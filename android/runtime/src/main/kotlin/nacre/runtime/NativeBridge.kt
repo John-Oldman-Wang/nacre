@@ -188,6 +188,17 @@ internal class NativeBridge(
         return json.toByteArray(Charsets.UTF_8)
     }
 
+    // 返回一个原生对象的类方法（Typeface.create）。null 交 0
+    fun callClassObjectMethod(className: String, name: String, packed: ByteArray, ptrs: LongArray): Long {
+        val args = argList(packed)
+        val objs = objectsOf(ptrs)
+        for (d in domains) {
+            val result = d.classCallObject(className, name, args, objs)
+            if (result !== Domain.NOT_MINE) return result?.let(::intern) ?: 0L
+        }
+        throw NacreTypeError("$className has no class method $name")
+    }
+
     // 返回 Promise 的方法。结果由域用 settle 兑现
     fun callAsync(id: Long, name: String, packed: ByteArray, ptrs: LongArray, callId: Int) {
         val target = obj(id)
