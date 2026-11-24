@@ -1,8 +1,9 @@
-# 每个 PR 上跑的检查。分三段：
+# 每个 PR 上跑的检查。分四段：
 #   static  不用编译的：类型检查、各组用例、文档链接。在 Linux 上跑——Mac 的机器
 #           常常排不上（第一次开 PR 时两个任务都因为分不到机器被取消了），
 #           这一段不该被它拖住
 #   docs    把文档站建一遍，只建不部署。也在 Linux 上
+#   android 把 Android 的运行时和壳编一遍，只编不跑。也在 Linux 上
 #   build   三边核对；用 Xcode 26 把运行时和能力包从源码编出来，再照用户的走法
 #           演练一遍。只能在 Mac 上跑
 #
@@ -74,6 +75,54 @@ jobs:
         run: |
           npm ci
           npm run build
+
+  # 把 Android 的运行时和开发用的壳编一遍（Debug 和 Release），壳里装的是验收套件
+  # 打出来的 main.js。只编不跑：验收要连着的手机，在本地跑。
+  # 版本都照 android/ 的构建文件：compileSdk 37、NDK r29（V8 那份预编译库是用 r29 编的，
+  # 大版本不同 libc++ 的 ABI 就对不上）、CMake 4.1.2。build-tools 由 Gradle 插件自己装
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # 核对仓库里的 gradle-wrapper.jar 是 Gradle 官方发的那份
+      - uses: gradle/actions/wrapper-validation@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+          cache-dependency-path: |
+            android/**/*.gradle.kts
+            android/gradle/wrapper/gradle-wrapper.properties
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 装 SDK 组件
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
+            'platforms;android-37.0' 'ndk;29.0.14206865' 'cmake;4.1.2' > /dev/null
+      - uses: actions/cache@v4
+        with:
+          path: android/Vendor/.v8-cache
+          key: android-v8-${{ hashFiles('android/scripts/fetch-v8.sh') }}
+      - name: 取 V8 和 ada
+        run: |
+          bash android/scripts/fetch-v8.sh
+          bash android/scripts/fetch-ada.sh
+      - name: 打包验收套件
+        working-directory: acceptance-android
+        run: |
+          npm ci
+          npm run build
+      - name: 编壳（Debug 和 Release）
+        working-directory: android
+        run: ./gradlew --no-daemon :shell:assembleDebug :shell:assembleRelease "-PnacreMainJs=$GITHUB_WORKSPACE/acceptance-android/build/main.js"
+      - name: 打出来了什么
+        if: always()
+        run: |
+          built="$(for f in android/shell/build/outputs/apk/*/*.apk; do [ -f "$f" ] && echo "$(basename "$f") $(du -h "$f" | cut -f1)"; done | tr '\n' ';')"
+          echo "::notice::打出来的 APK：${built:-一个都没有}"
 
   build:
     runs-on: macos-26

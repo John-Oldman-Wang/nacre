@@ -197,6 +197,7 @@ iOS 真机连不到 Mac 上的本地测试服务（`acceptance/scripts/test-serv
 - **拷内置脚本用 `Sync` 不用 `Copy`**：`Copy` 不删目标目录里的旧文件，从 `corePartsInUse` 里拿掉的脚本还留在包里。实际撞到过：拿掉 `23-fetch.js` 想看验收失败，`fetch` 却还在。
 - **两个模块都要写 `ndkVersion`。** 只在 `runtime` 里写时，Release 包里的 `libnacre.so` 没去掉调试符号，有 71 MB：打包时去符号的工具从 `shell` 的 NDK 里找，`shell` 没写版本就找不到，也不报错。两边都写之后是 45 MB。
 - 45 MB 里大部分是 V8：这份带完整的 JIT 和 WebAssembly。iOS 那份是 lite mode、不带 WebAssembly。要不要换一份更小的构建，以后再量。
+- **CI 在每个 PR 上编一遍。** `check.yml` 的 `android` 任务在 `ubuntu-latest` 上用 `sdkmanager` 装 `platforms;android-37.0`、`ndk;29.0.14206865`、`cmake;4.1.2`，取 V8 和 ada（V8 的下载缓存起来，哈希每次都校验），打包 `acceptance-android`，再用它当 `main.js` 编 `:shell:assembleDebug` 和 `:shell:assembleRelease`。只编不跑；仓库里的 `gradle-wrapper.jar` 由 Gradle 官方的 `wrapper-validation` 核对。
 
 ## 验收
 
