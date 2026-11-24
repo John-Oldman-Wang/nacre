@@ -131,10 +131,57 @@ for node in root.iter("node"):
   done
 }
 
+# JS 打「[acceptance] swipe <dx> <dy> 视图上的字」请求用手指划一下：找到写着这几个字的
+# 视图，从它看得见的那一块的正中，划到偏移 (dx, dy) 像素的地方，用 300 毫秒。每个请求只划一次。
+# 找视图的办法和点击一样（uiautomator dump，找不到隔一秒再找，最多 5 次）
+SWIPED=0
+swipe_requests() {
+  local requests count line dx dy text
+  requests="$(grep '^\[acceptance\] swipe ' "$LOG_FILE" | sed 's/^\[acceptance\] swipe //' || true)"
+  count="$(printf '%s' "$requests" | grep -c . || true)"
+  while [ "$SWIPED" -lt "$count" ]; do
+    SWIPED=$((SWIPED + 1))
+    line="$(printf '%s\n' "$requests" | sed -n "${SWIPED}p")"
+    dx="$(printf '%s' "$line" | awk '{print $1}')"
+    dy="$(printf '%s' "$line" | awk '{print $2}')"
+    text="$(printf '%s' "$line" | cut -d' ' -f3-)"
+    local point="" attempt
+    for attempt in 1 2 3 4 5; do
+      "$ADB" shell rm -f /sdcard/nacre-ui.xml
+      "$ADB" shell uiautomator dump /sdcard/nacre-ui.xml >/dev/null 2>&1 || true
+      point="$("$ADB" exec-out cat /sdcard/nacre-ui.xml 2>/dev/null | python3 -c '
+import sys, re, xml.etree.ElementTree as ET
+want = sys.argv[1]
+try:
+    root = ET.fromstring(sys.stdin.read())
+except ET.ParseError:
+    sys.exit(0)
+for node in root.iter("node"):
+    if node.get("text") == want:
+        x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.get("bounds")))
+        print((x1 + x2) // 2, (y1 + y2) // 2)
+        break
+' "$text")"
+      [ -n "$point" ] && break
+      sleep 1
+    done
+    if [ -z "$point" ]; then
+      echo "  （界面上没找到写着「$text」的视图，没划）"
+      continue
+    fi
+    local x y
+    x="${point% *}"
+    y="${point#* }"
+    echo "  划「$text」：$x $y → $((x + dx)) $((y + dy))"
+    "$ADB" shell input swipe "$x" "$y" "$((x + dx))" "$((y + dy))" 300
+  done
+}
+
 STATUS="timeout"
 for _ in $(seq 1 "$TIMEOUT"); do
   read_log
   tap_requests
+  swipe_requests
   if grep -q '^\[acceptance\] done ' "$LOG_FILE"; then STATUS="done"; break; fi
   if [ -z "$("$ADB" shell pidof "$PACKAGE" | tr -d '\r')" ]; then
     sleep 1; read_log

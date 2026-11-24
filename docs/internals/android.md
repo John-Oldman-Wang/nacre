@@ -2,7 +2,7 @@
 
 ← [实现原理](README.md)
 
-Android 这一侧现在有：最小的壳（引擎起来、执行 JS、`console` 进 logcat），事件循环，`core/builtin/` 里不依赖桥的 6 个 Web 标准内置脚本，第一条竖切（JS 拿到页面、建布局、放文字、点击收得到事件），安全区域（窗口边衬），网络（`fetch`、`Blob`、`WebSocket`），`Intl`，和外观（背景、阴影、圆角裁切、变换、Drawable、模糊）。`core/builtin/` 的 10 个内置脚本全部接上了。方向和顺序见 [`project.md` 第 4 节](../project.md#4-android2026-11-21-定的方向)。
+Android 这一侧现在有：最小的壳（引擎起来、执行 JS、`console` 进 logcat），事件循环，`core/builtin/` 里不依赖桥的 6 个 Web 标准内置脚本，第一条竖切（JS 拿到页面、建布局、放文字、点击收得到事件），安全区域（窗口边衬），网络（`fetch`、`Blob`、`WebSocket`），`Intl`，外观（背景、阴影、圆角裁切、变换、Drawable、模糊），滚动（`ScrollView`、`HorizontalScrollView`、`scroll` 事件）和动画（插值器、`ValueAnimator` / `ObjectAnimator`、`view.animate()`、`requestAnimationFrame`）。`core/builtin/` 的 10 个内置脚本全部接上了。方向和顺序见 [`project.md` 第 4 节](../project.md#4-android2026-11-21-定的方向)。
 
 ## 目录
 
@@ -13,12 +13,14 @@ android/
 │  └─ src/main/
 │     ├─ cpp/CMakeLists.txt   编 core/engine/ 加上 JNI，链 V8
 │     ├─ cpp/NacreJni.cpp     Kotlin 经 JNI 调到这里，再交给 core/engine；原生入口的实现
-│     ├─ builtin/parts/       Android 自己的内置脚本（00-core、01-bridge、09-insets、10-view、21-application、25-globals、30-appearance、31-layout）
+│     ├─ builtin/parts/       Android 自己的内置脚本（00-core、01-bridge、09-insets、10-view、21-application、25-globals、30-appearance、31-layout、36-scroll、37-animation）
 │     └─ kotlin/nacre/runtime/
 │        ├─ NacreRuntime.kt   Kotlin 这一侧的入口和事件循环
 │        ├─ NativeBridge.kt   身份表，按顺序问各个域（Domain.kt、Domains.kt）
 │        ├─ Enums.kt          整数常量 ↔ 字符串的枚举表
 │        ├─ AppearanceDomain.kt 外观
+│        ├─ ScrollDomain.kt   滚动
+│        ├─ AnimationDomain.kt 动画和帧时钟
 │        ├─ FetchService.kt、NacreBlob.kt、NacreWebSocket.kt、Network.kt   网络
 │        └─ Packed.kt         读引擎打包的参数
 ├─ shell/        开发用的最小壳：一个页面，启动时建运行时、执行 main.js
@@ -231,7 +233,7 @@ iOS 真机连不到 Mac 上的本地测试服务（`acceptance/scripts/test-serv
 - **枚举**：用 `Enums.kt` 的 `EnumTable`，属性写错抛 `NacreWarning`（JS 打警告、值不变），参数写错抛 `NacreTypeError`，见下面「外观」一节。
 - **登记**：在 `Domains.kt` 的列表里加一行。
 
-现有的域：`ViewDomain`（竖切的那几个类）、`WindowInsetsDomain`、`BlobDomain`、`WebSocketDomain`、`IntlDomain`、`AppearanceDomain`、`LayoutDomain`（布局）。
+现有的域：`ViewDomain`（竖切的那几个类）、`WindowInsetsDomain`、`BlobDomain`、`WebSocketDomain`、`IntlDomain`、`AppearanceDomain`、`LayoutDomain`（布局）、`ScrollDomain`、`AnimationDomain`。
 
 ### JS：自己的内置脚本
 
@@ -345,6 +347,78 @@ Java 的属性大多是 `float`。照 `float` 最短的写法交给 JS（`Float.
 - 根视图的 `parent` 是系统放内容的 `FrameLayout`，一直往上走，最外层视图的 `parent` 是 `null`（它上面是 `ViewRootImpl`，不是视图）。
 - 全屏的窗口里 `getLocationOnScreen()` 和 `getLocationInWindow()` 一样。
 
+## 滚动
+
+`View` 上的滚动位置、滚动条、越界效果、边缘渐隐、嵌套滚动和 `scroll` 事件；`ScrollView`、`HorizontalScrollView`。原生在 `ScrollDomain.kt`，JS 在 `36-scroll.js`，验收是 `steps/scroll.js`。不接 AndroidX 的 `NestedScrollView`（第 4 节只允许两个 AndroidX 的类）。
+
+- **任何视图都能滚。** Android 的滚动位置在 `View` 上（`scrollX` / `scrollY`、`scrollTo` / `scrollBy`），普通视图不限制范围（`scrollY` 可以是负的），`ScrollView` 覆写了 `scrollTo`，夹在内容的范围里。这些成员加在 `View.prototype` 上，没改 `10-view.js`。
+- **`scroll` 事件不带数据**，和 Web、iOS 一样，位置读 `scrollX` / `scrollY`。有人订才装 `setOnScrollChangeListener`，延后一轮派发；滚到同一个位置系统不通知。订阅接在 `View` 原来的 `kSubscribe` 后面（`click` 还是 `10-view.js` 管）。
+- **系统不通知的**：拖动开始和结束、滚动停下（Web 的 `scrollend`）。`ScrollView` 没有这几个回调，要靠覆写 `onTouchEvent` / `computeScroll`，按「继承」那条规矩不做。
+- **方向是字符串**：`fullScroll` / `pageScroll` / `arrowScroll` 的参数在 Java 里是焦点方向的常量（`FOCUS_UP` 这些），去掉前缀是 `'up'` / `'down'`（`ScrollView`）、`'left'` / `'right'`（`HorizontalScrollView`），给另一个方向的抛 `TypeError`。关了 `isSmoothScrollingEnabled` 它们当场到位，开着是带动画滚过去。
+- **`scrollIndicators` 是位掩码**，读写都是字符串数组，读出来按数值从小到大排；有一个名字不认识，整次赋值不生效，打一条警告。
+- **越界效果**：Android 12 起是拉伸，11 是光晕。拉伸只能用 `overScrollMode` 开关；`setEdgeEffectColor` 和四个边的颜色只对光晕有用（`ScrollView` 里拿着 `EdgeEffect` 的字段不是公开的接口）。
+- **父类**：Java 里两个滚动视图继承 `FrameLayout`。布局那一组定义了 `FrameLayout` 就接在它下面（那个 part 的文件名排在 `36` 前面），没定义就接在 `ViewGroup` 下面，合并时不用改代码。
+- **核对过签名**：照 `android.jar`（API 37）核对过每个成员。原来的候选里 `smoothScrollTo(x, y, 时长)` 不存在，去掉了；`ScrollView` 多出一个 `scrollToDescendant(view)`，补上。
+
+验收里用手指划了一下（见下面「验收」一节的 `swipe`）：从「往上滑我」的中间往上划 1000 像素，内容滚过去，一路收到 `scroll`。
+
+## 动画
+
+插值器（`BaseInterpolator` 和 10 个具体的类）；`Animator`（抽象）、`ValueAnimator`、`ObjectAnimator`；`view.animate()` 给的 `ViewPropertyAnimator`；全局的 `requestAnimationFrame` / `cancelAnimationFrame`；系统的动画时长缩放。原生在 `AnimationDomain.kt`，JS 在 `37-animation.js`，验收是 `steps/animation.js`。
+
+### 形状：照 Java 的链式写法，通知用事件（2026-11-24 定）
+
+- `view.animate().alpha(0).translationY(40).setDuration(300)`，参数照 Java 按位置传。
+- **通知是事件，不是 Promise**：animator 会反复用——`view.animate()` 每次给同一个对象（`View` 自己缓存着它），`ValueAnimator` 能重新 `start()`——结束是会发生好几次的事，按「重复的通知用事件」。iOS 的 `CAAnimation` 也是 `start` / `stop` 事件。Promise 只能挂在「某一次播放」上，Java 里没有代表一次播放的对象。
+- 事件名照 `AnimatorListener`：`start`、`end`、`cancel`、`repeat`、`pause`、`resume`、`update`。**被取消时先 `cancel` 再 `end`**，照 Android。Web 的 `finish`、CSS 的 `animationend` 被取消时不发，含义不同，不借。
+- `withStartAction` / `withEndAction`（传回调的）、`setListener` / `setUpdateListener` 不接，用事件。
+- **返回 `this` 的 setter 两种写法都给**：`a.duration = 300` 和 `a.setDuration(300).alpha(0)` 都行，不然 Android 文档里的链式写法就断了（Kotlin 也是两样都能用）。只限 Java 里返回自己的：`ViewPropertyAnimator` 的 `setDuration` / `setStartDelay` / `setInterpolator`，`ValueAnimator` 的 `setDuration`。`ValueAnimator.setInterpolator` / `setStartDelay` 在 Java 里返回 `void`，只有属性。
+
+### 事件什么时候发
+
+- `start`、`end`、`cancel`、`repeat`、`pause`、`resume` 不常发，JS 建的 `ValueAnimator` 一建好就装上监听、总是发：JS 要靠 `end` 放开正在跑的 animator。`update` 每帧一次，有人订才装。都排到下一轮派发，不可取消。
+- **正在跑的 animator，JS 拿着它的包装到 `end` 为止**（`start()` / `end()` / `reverse()` 时放进一个集合，收到 `end` 拿出来）。Java 的动画调度拿着正在跑的 animator，镜像过来就是这样；不拿的话，JS 不留变量的 animator 跑着跑着包装被回收、监听器跟着没了。验收里有一个不留变量的 animator，制造垃圾之后照样收到 `end`。
+- `ViewPropertyAnimator` 只有一个监听的位子（`setListener`），有人订 `start` / `end` / `cancel` 时装上、都摘了拆掉。回调里拿到的是它内部的那个 `Animator`，事件发在 `ViewPropertyAnimator` 上。视图持有它（所有权边 `animator`）。
+
+### 值和类型
+
+- `ofArgb` 的值是 CSS 的颜色字符串，`animatedValue` 读出来也是。Java 里颜色动画的值是 `Integer`，和 `ofInt` 分不开，所以原生记下哪些是颜色动画（`setFloatValues` / `setIntValues` 之后就不是了），交给 JS 时包成 `{"argb": n}`。
+- `repeatCount` 是次数或 `'infinite'`（`ValueAnimator.INFINITE` 这个哨兵），`totalDuration` 无限时是 `'infinite'`（`DURATION_INFINITE`）。
+- `interpolator` 写 `null` 时 Java 换成 `LinearInterpolator`，读出来就是它。
+- `ObjectAnimator` 的目标可以是任何原生对象，Java 用反射找 `setXxx`，属性名不存在时只打日志、不抛。Java 对目标是弱引用，所以不记所有权边。
+- 时长写负数由 Java 抛 `IllegalArgumentException`。`PathInterpolator` 的曲线往回绕也是 Java 抛的 `IllegalArgumentException`。
+
+### 插值器是原生类
+
+`new PathInterpolator(0.4, 0, 0.2, 1)`（三次贝塞尔，和 CSS 的 `cubic-bezier` 同一个写法）、`new OvershootInterpolator(2)`，构造参数照 Java，`getInterpolation(t)` 可以调。不认 `'ease-in'` 这样的字符串（那是上层的事）；JS 函数不能当插值器，因为 JS 不实现 Java 的类。`PathInterpolator(Path)` 要等 `Path` 接进来。JS 的类可以继承插值器，继承只在 JS 这一层，系统调的还是原生那个。
+
+### requestAnimationFrame
+
+- 全局的 `requestAnimationFrame(callback)` / `cancelAnimationFrame(handle)`，照 Web。不暴露 `Choreographer`：它的 `postFrameCallback` 要 JS 实现 Java 的接口。放在 Android 自己的脚本里，不进 `core/`：iOS 现在还是用 `CADisplayLink`。
+- 底下是一个帧时钟（`FrameClock`，JS 里是不挂在全局的 `NacreFrameClock`）。有回调在等时 JS 调一次 `request`，原生向 `Choreographer` 约下一帧；那一帧到了发一个 `frame` 事件，带这一帧的时刻（`frameTimeNanos`）。没有回调在等时不约，不花钱。
+- **时刻和 `performance.now()` 同一个起点**：`frameTimeNanos` 是 `System.nanoTime` 的时钟，`performance.now()` 是引擎里 libc++ 的 `steady_clock`，Android 上两个都是 `CLOCK_MONOTONIC`。JS 启动时各读一次，差是固定的，之后用它换算。验收里回调拿到的时刻不晚于回调里读的 `performance.now()`，差不到 100 毫秒。
+- 同一帧的回调拿到同一个时刻；回调里再请求的排到下一帧；一个回调抛了照未捕获的异常报，同一帧别的回调照样调；正在跑的这一帧里取消还没轮到的，就不再调（和 Web 一样）。
+- **延后一轮派发**：和 iOS 的 `CADisplayLink` 的 `tick` 一样，是普通事件，排到主线程队列的下一轮。代价是 JS 在回调里改的东西晚一帧画出来（`Choreographer` 这一帧的绘制已经做完了）。要当场派发得改 `NacreRuntime.kt` 的事件出口，按「能用就先用着」这次不改。
+- App 在后台时 `Choreographer` 不来叫，回调等着，和浏览器一样。
+
+实测：连续 30 帧的平均间隔是 11.1 毫秒（Pixel 6 的屏幕是 90 Hz）。
+
+### 动画时长缩放
+
+开发者选项里的「动画时长缩放」和无障碍里的「移除动画」改的都是它（相当于 Web 的 `prefers-reduced-motion`）。缩放是 0 时动画一开始就结束，`ViewPropertyAnimator` 也一样；`requestAnimationFrame` 不受它影响。
+
+- 读：静态的 `ValueAnimator.durationScale` 和 `ValueAnimator.areAnimatorsEnabled()`。Android 13 起用系统的 `ValueAnimator.getDurationScale()`；11、12 读系统设置 `Settings.Global.ANIMATOR_DURATION_SCALE`。11、12 那一支没有设备，**未验证**。
+- 变化：`application` 上的 `animatordurationscalechange`（全局的设置，挂在 App 这一层的对象上）。有人订时原生才盯着：13 起 `registerDurationScaleChangeListener`，11、12 用 `ContentObserver` 盯那条设置；值真的变了才发。订阅接在 `application` 原来的 `kSubscribe` 后面，没改 `21-application.js`。
+- 验收脚本不改手机的系统设置，所以变化事件是手动验的：2026-11-24 在 Pixel 6（Android 17）上装一段只订这个事件的脚本，用 `adb shell settings put global animator_duration_scale` 依次改成 0.5、0、1，三次都收到了，事件里读到的 `durationScale` 是 0.5、0、1，`areAnimatorsEnabled()` 在 0 时是 `false`。改完设回 1。
+
+### 验收
+
+`steps/animation.js` 和 `steps/scroll.js`，排在外观之后。时长相关的断言假设手机的动画时长缩放是 1（没改过）。
+
+先在没有实现的运行时上跑了一遍：两步一开始就抛了（`ScrollView is not defined`、`LinearInterpolator is not defined`），判为失败。写实现时发现用例里有一条和定下的规矩不符：原来断言 `ValueAnimator.setInterpolator()` 返回自己，但 Java 的这个方法返回 `void`，按规矩只有属性。改成断言没有这个方法，API 没变。跑真机时又发现一条期望值写错了：`BounceInterpolator` 在 t = 1 不是正好 1，Android 的弹跳曲线用的是近似常数（t × 1.1226，最后一段 8(t − 1.0435)² + 0.95），照 float 算是 1.0000545，期望改成这个数。
+
+实现之后 2026-11-24 在 Pixel 6（Android 17，API 37）上 Debug 和 Release 都是 1482 条通过、0 条失败。Release 第一遍挂过一条网络那一组的耗时断言（对着公网的 httpbin，10 个并发请求的耗时），和这两组无关，重跑通过。
+
 ## 构建
 
 - Android Gradle 插件 9.5.2 自带 Kotlin 编译，不用另外加 Kotlin 插件。
@@ -359,6 +433,8 @@ Java 的属性大多是 `float`。照 `float` 最短的写法交给 JS（`Float.
 `bash android/scripts/run-device.sh`（加 `--release` 是 Release，要先设 `ANDROID_HOME`）：打包 `acceptance-android/`，编壳时用 `-PnacreMainJs=` 把它换成壳执行的 `main.js`，装、打开，从 logcat 读 `Nacre` 标签的原文，交给 iOS 验收的 `report.mjs` 判定：等到结束标记、没有 ✗ 就是 0；期限内没等到、App 提前退出、有 ✗ 都是 1。
 
 **点击是脚本点的。** JS 打一行「`[acceptance] tap 视图上的字`」，脚本用 `uiautomator dump` 找到写着这几个字的视图，用 `adb shell input tap` 点它的正中。App 忙的时候（网络用例同时在跑）`uiautomator` 可能等不到界面空闲、写不出新文件，所以每次先删旧文件，找不到就隔一秒再 dump，最多 5 次；不这样会读到上一次的界面，点不到。跑的时候手机要**解锁、亮屏、别碰**：锁屏时点到的是锁屏；人手点的也会被如实收到，监听器会多触发（实际撞到过）。可以在开发者选项里打开「不锁定屏幕」，插着线就不会息屏。
+
+**划动也是脚本做的。** JS 打一行「`[acceptance] swipe <dx> <dy> 视图上的字`」，脚本同样用 `uiautomator dump` 找到那个视图，从它看得见的那一块的正中，用 `adb shell input swipe` 划到偏移 (dx, dy) 像素的地方，用 300 毫秒。滚动那一步用它验手指拖动时的 `scroll`。
 
 `acceptance-android/` 是从 iOS 的验收拷过来的 8 步（`console-basics`、`url`、`crypto`、`events`、`errors`、`web-globals`、`timers`、`performance`），去掉了用到 iOS 的类、`application`、`fetch`、`Blob`、`Intl` 的断言，留下的断言名字和期望值和 iOS 一字不差。`web-globals` 里「和网页逐条比对」那一段要 WebView，没拷。
 

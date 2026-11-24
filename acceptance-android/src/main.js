@@ -34,6 +34,8 @@ import { stepSafeArea, watchSafeArea } from './steps/safe-area.js';
 import { stepWebSocket } from './steps/websocket.js';
 import { stepAppearance } from './steps/appearance.js';
 import { stepLayout } from './steps/layout.js';
+import { stepScroll } from './steps/scroll.js';
+import { stepAnimation } from './steps/animation.js';
 
 /**
  * 各步共享的上下文。这一批只用得到断言。
@@ -110,6 +112,18 @@ const sliceDone = (async () => {
     await stepLayout(ctx);
   } catch (err) {
     console.log('  ✗ 步骤 stepLayout 中途抛了，它后面的断言没跑: ' +
+                (err instanceof Error ? err.message : String(err)));
+  }
+  try {
+    await stepScroll(ctx);
+  } catch (err) {
+    console.log('  ✗ 步骤 stepScroll 中途抛了，它后面的断言没跑: ' +
+                (err instanceof Error ? err.message : String(err)));
+  }
+  try {
+    await stepAnimation(ctx);
+  } catch (err) {
+    console.log('  ✗ 步骤 stepAnimation 中途抛了，它后面的断言没跑: ' +
                 (err instanceof Error ? err.message : String(err)));
   }
 })();

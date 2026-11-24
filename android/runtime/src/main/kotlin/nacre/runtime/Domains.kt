@@ -10,4 +10,6 @@ internal fun registeredDomains(host: DomainHost): List<Domain> = listOf(
     IntlDomain(host),
     AppearanceDomain(host),
     LayoutDomain(host),
+    ScrollDomain(host),
+    AnimationDomain(host),
 )
