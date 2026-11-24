@@ -64,3 +64,26 @@ export function runCase(fn) {
     return '抛 ' + (e && e.name);
   }
 }
+
+// 在一个对象上用一个它没有的事件名走一遍自定义事件：能注册、自己派发收得到、
+// 摘掉之后收不到。原生对象上不认识的事件名不拒绝，当自定义事件，和浏览器里的
+// EventTarget 一样（2026-11-17 定；在这之前是注册时抛 TypeError）
+/**
+ * @param {EventTarget} target
+ * @param {string} name
+ * @returns {string} 全对是「收到一次」
+ */
+export function customEventWorks(target, name) {
+  let got = 0;
+  const listener = () => { got++; };
+  const loose = /** @type {any} */ (target);
+  try {
+    loose.addEventListener(name, listener);
+    loose.dispatchEvent(new Event(name));
+    loose.removeEventListener(name, listener);
+    loose.dispatchEvent(new Event(name));
+  } catch (err) {
+    return '抛了：' + (err instanceof Error ? err.message : String(err));
+  }
+  return got === 1 ? '收到一次' : '收到 ' + got + ' 次';
+}

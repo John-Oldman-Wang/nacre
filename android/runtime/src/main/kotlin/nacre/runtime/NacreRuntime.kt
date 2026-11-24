@@ -33,13 +33,19 @@ class NacreRuntime private constructor(activity: Activity) : AutoCloseable {
         handler.post { if (handle != 0L) block() }
     }
 
-    private val bridge: NativeBridge = NativeBridge(activity, settle) { target, type ->
-        handler.post {
-            if (handle != 0L) {
-                nativeEmitObjectEvent(handle, bridge.intern(target), bridge.className(target), type)
-            }
+    private val bridge: NativeBridge = NativeBridge(activity, settle, object : NativeBridge.Emitter {
+        override fun plain(target: Any, type: String) = onMain {
+            nativeEmitObjectEvent(handle, bridge.intern(target), bridge.className(target), type)
         }
-    }
+        override fun json(target: Any, type: String, json: String, eventClass: String) = onMain {
+            nativeEmitObjectEventJson(handle, bridge.intern(target), bridge.className(target), type,
+                                      json.toByteArray(Charsets.UTF_8), eventClass)
+        }
+        override fun obj(target: Any, type: String, payload: Any, eventClass: String) = onMain {
+            nativeEmitObjectEventWith(handle, bridge.intern(target), bridge.className(target), type,
+                                      bridge.intern(payload), bridge.className(payload), eventClass)
+        }
+    })
 
     // 引擎的唤醒和投递都排在主线程的这个 Handler 上，和别的主线程消息在同一个队列里，
     // 先后是确定的（iOS 那边是主队列，道理一样）
@@ -147,6 +153,11 @@ class NacreRuntime private constructor(activity: Activity) : AutoCloseable {
         @JvmStatic private external fun nativeRunTask(handle: Long, id: Long)
         @JvmStatic private external fun nativeRunIdleTasks(handle: Long, seconds: Double)
         @JvmStatic private external fun nativeEmitObjectEvent(handle: Long, id: Long, className: String, type: String)
+        @JvmStatic private external fun nativeEmitObjectEventJson(
+            handle: Long, id: Long, className: String, type: String, json: ByteArray, eventClass: String)
+        @JvmStatic private external fun nativeEmitObjectEventWith(
+            handle: Long, id: Long, className: String, type: String,
+            payloadId: Long, payloadClass: String, eventClass: String)
         @JvmStatic private external fun nativeSettleJson(handle: Long, callId: Int, json: ByteArray)
         @JvmStatic private external fun nativeSettleBytes(handle: Long, callId: Int, data: ByteArray)
         @JvmStatic private external fun nativeSettleObject(handle: Long, callId: Int, id: Long, className: String)

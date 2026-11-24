@@ -27,6 +27,7 @@ import { stepFetchStream } from './steps/fetch-stream.js';
 import { stepSlice } from './steps/slice.js';
 import { stepInheritance } from './steps/inheritance.js';
 import { stepSafeArea, watchSafeArea } from './steps/safe-area.js';
+import { stepWebSocket } from './steps/websocket.js';
 
 /**
  * 各步共享的上下文。这一批只用得到断言。
@@ -57,6 +58,8 @@ run('stepErrors', () => stepErrors(ctx));
 run('stepWebGlobals', () => stepWebGlobals(ctx));
 run('stepTimers', () => stepTimers(ctx));
 run('stepPerformance', () => stepPerformance(ctx));
+// WebSocket 的异步部分各自等（和 iOS 一样不交出「做完了」），最长 10 秒一段，靠结束标记前的「5 秒没有新断言」兜着
+run('stepWebSocket', () => stepWebSocket(ctx));
 
 // 安全区域要在 onCreate 这一刻就订阅（窗口挂上时的第一次分发要接住），放在最前面
 try {

@@ -42,11 +42,11 @@ android {
 // 内置脚本：core/builtin/parts/ 里 Android 现在用的那几个，加上 Android 自己的
 // src/main/builtin/parts/，合到包里的 nacre/parts/，运行时按文件名顺序执行。
 //
-// core 里还没接的：06-websocket（WebSocket 是原生类）、26-intl 和 27-intl-date
-//（走调类方法的通道）。
+// core 里还没接的：26-intl 和 27-intl-date（走调类方法的通道）。
 val corePartsInUse = listOf(
     "05-dom-exception.js",
     "05-events.js",
+    "06-websocket.js",
     "22-url.js",
     "23-fetch.js",
     "24-timer.js",
