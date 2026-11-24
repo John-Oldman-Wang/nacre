@@ -2,7 +2,7 @@
 
 ← [实现原理](README.md)
 
-Android 这一侧现在有：最小的壳（引擎起来、执行 JS、`console` 进 logcat），事件循环，`core/builtin/` 里不依赖桥的 6 个 Web 标准内置脚本，第一条竖切（JS 拿到页面、建布局、放文字、点击收得到事件），安全区域（窗口边衬），网络（`fetch`、`Blob`、`WebSocket`），和 `Intl`。`core/builtin/` 的 10 个内置脚本全部接上了。方向和顺序见 [`project.md` 第 4 节](../project.md#4-android2026-11-21-定的方向)。
+Android 这一侧现在有：最小的壳（引擎起来、执行 JS、`console` 进 logcat），事件循环，`core/builtin/` 里不依赖桥的 6 个 Web 标准内置脚本，第一条竖切（JS 拿到页面、建布局、放文字、点击收得到事件），安全区域（窗口边衬），网络（`fetch`、`Blob`、`WebSocket`），`Intl`，和外观（背景、阴影、圆角裁切、变换、Drawable、模糊）。`core/builtin/` 的 10 个内置脚本全部接上了。方向和顺序见 [`project.md` 第 4 节](../project.md#4-android2026-11-21-定的方向)。
 
 ## 目录
 
@@ -13,10 +13,12 @@ android/
 │  └─ src/main/
 │     ├─ cpp/CMakeLists.txt   编 core/engine/ 加上 JNI，链 V8
 │     ├─ cpp/NacreJni.cpp     Kotlin 经 JNI 调到这里，再交给 core/engine；原生入口的实现
-│     ├─ builtin/parts/       Android 自己的内置脚本（00-core、01-bridge、09-insets、10-view、21-application、25-globals）
+│     ├─ builtin/parts/       Android 自己的内置脚本（00-core、01-bridge、09-insets、10-view、21-application、25-globals、30-appearance）
 │     └─ kotlin/nacre/runtime/
 │        ├─ NacreRuntime.kt   Kotlin 这一侧的入口和事件循环
-│        ├─ NativeBridge.kt   身份表、读写属性、调方法、造对象、订阅事件（现在是手写的小表）
+│        ├─ NativeBridge.kt   身份表，按顺序问各个域（Domain.kt、Domains.kt）
+│        ├─ Enums.kt          整数常量 ↔ 字符串的枚举表
+│        ├─ AppearanceDomain.kt 外观
 │        ├─ FetchService.kt、NacreBlob.kt、NacreWebSocket.kt、Network.kt   网络
 │        └─ Packed.kt         读引擎打包的参数
 ├─ shell/        开发用的最小壳：一个页面，启动时建运行时、执行 main.js
@@ -226,9 +228,10 @@ iOS 真机连不到 Mac 上的本地测试服务（`acceptance/scripts/test-serv
 - **对象归哪个域问、用哪个 JS 类名**：按类的继承层级排，离对象最近的类先（`EditText` 的域排在 `TextView` 的前面），和登记的先后无关。
 - **参数**：`args` 是解好的值（`null`、`Boolean`、`Double`、`String`、`List`、`Map`），对象参数按下标在 `objects` 里。JS 那一侧已经照 Web IDL 转好了类型，原生只校验，不对就抛 `NacreTypeError`（JS 是 `TypeError`）；Java 自己抛的异常在 JS 里是 `name` 为异常类名的 `Error`。
 - **事件**：`host.emitter.plain`（不带数据）、`.json`（带一个 JSON 值和事件类名）、`.obj`（带一个原生对象）。都排到下一轮派发；带数据的按 `core` 的 `05-events.js` 登记的事件类建，要新的事件类就在自己的内置脚本里用 `ctx.defineEventClass` 定义。
+- **枚举**：用 `Enums.kt` 的 `EnumTable`，属性写错抛 `NacreWarning`（JS 打警告、值不变），参数写错抛 `NacreTypeError`，见下面「外观」一节。
 - **登记**：在 `Domains.kt` 的列表里加一行。
 
-现有的域：`ViewDomain`（竖切的那几个类）、`WindowInsetsDomain`、`BlobDomain`、`WebSocketDomain`、`IntlDomain`。
+现有的域：`ViewDomain`（竖切的那几个类）、`WindowInsetsDomain`、`BlobDomain`、`WebSocketDomain`、`IntlDomain`、`AppearanceDomain`。
 
 ### JS：自己的内置脚本
 
@@ -243,6 +246,60 @@ iOS 真机连不到 Mac 上的本地测试服务（`acceptance/scripts/test-serv
 ### 规矩
 
 `project.md` 第 4 节「接类的规矩」：整数常量变字符串枚举、方法参数照 Java 按位置传、构造只传 `context`、覆写点「能用属性就用属性」。
+
+## 外观
+
+View 的背景、透明度、可见性、高度和阴影、轮廓和裁切、变换；Drawable 一族（`Drawable`、`ColorDrawable`、`GradientDrawable`、`RippleDrawable`）；`RenderEffect` 的模糊。原生在 `AppearanceDomain.kt`，JS 在 `30-appearance.js`，验收是 `steps/appearance.js`。任意阴影和自定义绘制不在这一组，等绘制指令那一步单独讨论。
+
+### 颜色：CSS 的字符串，在 JS 里解析（2026-11-24 定）
+
+Android 的颜色是一个 `int`（ARGB）。JS 里写成 CSS 的字符串：`'#rgb'`、`'#rgba'`、`'#rrggbb'`、`'#rrggbbaa'`、`rgb()` / `rgba()`（逗号写法和空格写法，分量可以是百分比）、`'transparent'`。超出范围的分量照 CSS 夹到范围里。读出来规范化成小写的 `'#rrggbb'`（不透明）或 `'#rrggbbaa'`。
+
+- **8 位十六进制的透明度在最后**，和 CSS 一样，和 Android 的 `Color.parseColor`（`#AARRGGBB`）相反。从 Android 的示例里抄来的 `'#80FF0000'` 会被读成另一种颜色。选 CSS 的顺序，是因为读者是做前端的人，而且和 iOS 写起来一样。
+- **不照 iOS「合法写入原样读回」**：Android 只存一个 int，没有 iOS 那种有名字的动态色要保住；原样读回得在 JS 这边另记一份，换来的只是大小写一致。
+- **解析在 JS 里**（纯文本运算），过桥的是 0–0xFFFFFFFF 的数，原生只校验。和 iOS 的 `16-color.js` 同一个分工。函数放在 `ctx` 上（`parseColor`、`colorText`、`colorProperty`、`colorArgument`），排在 `30` 后面的组可以用。
+- 写错：属性打一条警告（`[Nacre] color: "#GGG" is not a valid color, ignored`），值不变；方法参数和构造抛 `TypeError`。
+- 不认颜色名（`'red'`）、`hsl()`、系统的动态调色板（`system_accent1_500`）。深色模式下换颜色属于 App 层的配置变化。
+
+### 枚举属性写错：桥上补了警告这条路
+
+规矩是属性位写错打警告、值不变。Android 的桥原来只能抛：引擎的 `write_property` 有 `warning` 出参（iOS 在用），JNI 没接。补了三处共享文件：
+
+- `NativeBridge.kt`：新的异常 `NacreWarning`。域的 `write` 抛它，`writeProperty` 把文字交回去，不当成错。
+- `NacreJni.cpp`：`writeProperty` 返回警告的 UTF-8 字节（没有是空数组），填进 `warning`。
+- `01-bridge.js`：`nativeSet` 收到警告就 `console.warn('[Nacre] ' + 警告 + ', ignored')`，和 iOS 一样。
+
+枚举表在新文件 `Enums.kt`：`EnumTable("visible" to View.VISIBLE, …)`，`name()` 读，`forProperty()` 写属性（不认识抛 `NacreWarning`），`forArgument()` 方法参数（抛 `NacreTypeError`）。措辞照 iOS 的 `EnumError`：`visibility has no value "hidden"; expected one of: visible / invisible / gone`，按数值从小到大列。别的组直接用它。
+
+Java 的枚举（`GradientDrawable.Orientation`、`Shader.TileMode`）和静态对象（`ViewOutlineProvider.BACKGROUND`）也按这个规矩变成字符串：`TOP_BOTTOM` → `'topBottom'`，`TR_BL` → `'trBl'`；`ViewOutlineProvider` 的 `null` 是 `'none'`。`GradientDrawable.LINEAR_GRADIENT` 没有前缀可去，是 `'linearGradient'`。系统自己的视图装了别的轮廓实现时，`outlineProvider` 读出来是 `'custom'`，写不进去。
+
+### Drawable 是可以 new 的原生类
+
+`new GradientDrawable()` 建出来、设好属性，再 `view.background = d`。视图持有背景、前景和效果，水波持有内容和遮罩，都记所有权边。`setBackgroundColor` 建的 `ColorDrawable` 是原生先有的，所以 `background` 的 getter 读到之后也记一条边。
+
+- `Drawable` 是抽象类，自己和 JS 子类都不能 `new`（`ViewGroup` 那个助手的报错文字写的是布局，所以这里自己判断）。`GradientDrawable` 这些能继承，继承只在 JS 这一层。
+- `RippleDrawable` 的内容和遮罩只能在构造时给，照 Java 按位置传：`new RippleDrawable(color, content, mask)`，后两个可以不给或给 `null`。`radius` 是数或 `'auto'`（`RADIUS_AUTO` 这个哨兵）。中间那层 `LayerDrawable` 没接，JS 里 `RippleDrawable` 直接继承 `Drawable`；系统给的别的 Drawable（`InsetDrawable`、`StateListDrawable`……）包成 `Drawable`。
+- **两处在 JS 里先拦**：`setColors` 的位置和颜色个数不同、`cornerRadii` 不是 8 个数。Java 设的时候不检查，要到画的时候才用到这两个数组，那时出错就不在 JS 的调用里了（画的时候具体怎么出错没实测）。所以在 JS 里抛 `RangeError`，原生再挡一次。
+- `GradientDrawable.gradientRadius` 照 Android 的文档只对放射渐变有效，验收是在放射渐变下写读的；别的渐变类型下读出什么没验。
+- `View` 的这些成员加在 `View.prototype` 上，没改 `10-view.js`。这一组的 `classes` 也登记了 `View`，这样 `View` 的属性和方法会来问它；`new View()` 还是由 `ViewDomain` 建，因为它在 `Domains.kt` 里排在前面。
+
+### RenderEffect（Android 12 起）
+
+`RenderEffect.createBlurEffect(radiusX, radiusY, edgeTreatment?)`，不能 `new`，建出来不能改。`edgeTreatment` 是 `'clamp' | 'repeat' | 'mirror' | 'decal'`，Java 里必填，这里默认 `'clamp'`，和 Compose 的 `Modifier.blur` 一样。`view.setRenderEffect(effect | null)` 用方法不用属性：Java 只有 setter。
+
+工厂方法走的是造对象那条通道：JS 先建一个空的 `RenderEffect`（构造函数只认内部的记号，所以用户 `new` 会抛），再 `constructNative(effect, RenderEffect, 'RenderEffect', ['blur', …])`，原生按第一个参数调对应的 `create…`。不用改桥。
+
+**Android 11 上**：原生的 `classes` 里不放 `RenderEffect`（11 上连这个类都没有，写进表就是 `NoClassDefFoundError`），JS 问 `@appearance.hasRenderEffect` 得到 `false`，就不定义全局的 `RenderEffect`、也不往 `View` 上加 `setRenderEffect`，JS 用 `typeof RenderEffect` 检测。没有 Android 11 的设备，这一支**未验证**。
+
+### 浮点数怎么交回去
+
+Java 的属性大多是 `float`。照 `float` 最短的写法交给 JS（`Float.toString`），所以写 `0.3` 读回 `0.3`，不是 `0.30000001192092896`。
+
+### 验收
+
+`steps/appearance.js`，排在安全区域之后。全部成员的读写、默认值、Web IDL 的转换、写错时的警告和 `TypeError`、不能 `new` 的类；最后把带圆角边框阴影的卡片、带水波的按钮、模糊加变换的字挂到屏幕上画半秒，用脚本点一下水波那个，收到 `click`。阴影、水波、模糊在屏幕上的样子要人看，没看过。
+
+先在没有实现的运行时上跑了一遍：步骤一开始就抛了 `ColorDrawable is not defined`，判为失败。实现之后 2026-11-24 在 Pixel 6（Android 17，API 37）上 Debug 是 1142 条通过、0 条失败（这一组 220 条），Release 也是 1142 条通过、0 条失败。
 
 ## 构建
 
@@ -261,4 +318,4 @@ iOS 真机连不到 Mac 上的本地测试服务（`acceptance/scripts/test-serv
 
 `acceptance-android/` 是从 iOS 的验收拷过来的 8 步（`console-basics`、`url`、`crypto`、`events`、`errors`、`web-globals`、`timers`、`performance`），去掉了用到 iOS 的类、`application`、`fetch`、`Blob`、`Intl` 的断言，留下的断言名字和期望值和 iOS 一字不差。`web-globals` 里「和网页逐条比对」那一段要 WebView，没拷。
 
-先在第 1 步的运行时上跑过 Web 标准那批：没有 `setTimeout`，一条 ✓ 都没有、到不了结束标记，判为失败；竖切那一步在没有桥的运行时上跑，`application is not defined`，也判为失败。2026-11-24 在 Pixel 6（Android 17，API 37）上，Debug 和 Release 都是 922 条通过、0 条失败。
+先在第 1 步的运行时上跑过 Web 标准那批：没有 `setTimeout`，一条 ✓ 都没有、到不了结束标记，判为失败；竖切那一步在没有桥的运行时上跑，`application is not defined`，也判为失败。2026-11-24 在 Pixel 6（Android 17，API 37）上，Debug 和 Release 都是 922 条通过、0 条失败（外观之前；加上外观是 1142 条，见「外观」一节）。

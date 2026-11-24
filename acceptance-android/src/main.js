@@ -32,6 +32,7 @@ import { stepSlice } from './steps/slice.js';
 import { stepInheritance } from './steps/inheritance.js';
 import { stepSafeArea, watchSafeArea } from './steps/safe-area.js';
 import { stepWebSocket } from './steps/websocket.js';
+import { stepAppearance } from './steps/appearance.js';
 
 /**
  * 各步共享的上下文。这一批只用得到断言。
@@ -96,6 +97,12 @@ const sliceDone = (async () => {
     await stepSafeArea(ctx);
   } catch (err) {
     console.log('  ✗ 步骤 stepSafeArea 中途抛了，它后面的断言没跑: ' +
+                (err instanceof Error ? err.message : String(err)));
+  }
+  try {
+    await stepAppearance(ctx);
+  } catch (err) {
+    console.log('  ✗ 步骤 stepAppearance 中途抛了，它后面的断言没跑: ' +
                 (err instanceof Error ? err.message : String(err)));
   }
 })();

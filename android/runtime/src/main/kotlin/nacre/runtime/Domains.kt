@@ -8,4 +8,5 @@ internal fun registeredDomains(host: DomainHost): List<Domain> = listOf(
     BlobDomain(host),
     WebSocketDomain(host),
     IntlDomain(host),
+    AppearanceDomain(host),
 )
