@@ -205,6 +205,45 @@ iOS 真机连不到 Mac 上的本地测试服务（`acceptance/scripts/test-serv
 
 先把两个 `Intl` 脚本从包里拿掉跑过一遍，70 条失败。
 
+## 接一组类
+
+照 iOS 的「一组类一套新文件」（`internals/adding-classes.md`）：每组只加新文件，共享文件只在入口各加一行，几组可以分给几个会话同时做。
+
+### 原生：一个 Domain
+
+`Domain.kt` 定义了一个域要回答的问题，`NativeBridge` 只按顺序问「认不认领」，不认识任何具体的类：
+
+| 方法 | 问的是 | 不是我的 |
+| --- | --- | --- |
+| `classes` | 这一组管哪些 Java 类，各叫什么 JS 类名 | — |
+| `construct` | `new` 一个 JS 类 | 返回 `null` 表示建不了（JS 抛 `TypeError`） |
+| `read` / `write` | 读写属性，读返回 JSON 文本 | `null` / `false` |
+| `call` / `callObject` | 调方法，返回值或一个原生对象 | `null` / `NOT_MINE` |
+| `callAsync` | 返回 Promise 的方法，用 `host.settle` 兑现 | `false` |
+| `subscribe` | 某个事件的监听器从无到有、从有到无（有人订才装回调） | `false` |
+| `classObject` / `classCall` | 类级的属性和方法 | `NOT_MINE` / `null` |
+
+- **对象归哪个域问、用哪个 JS 类名**：按类的继承层级排，离对象最近的类先（`EditText` 的域排在 `TextView` 的前面），和登记的先后无关。
+- **参数**：`args` 是解好的值（`null`、`Boolean`、`Double`、`String`、`List`、`Map`），对象参数按下标在 `objects` 里。JS 那一侧已经照 Web IDL 转好了类型，原生只校验，不对就抛 `NacreTypeError`（JS 是 `TypeError`）；Java 自己抛的异常在 JS 里是 `name` 为异常类名的 `Error`。
+- **事件**：`host.emitter.plain`（不带数据）、`.json`（带一个 JSON 值和事件类名）、`.obj`（带一个原生对象）。都排到下一轮派发；带数据的按 `core` 的 `05-events.js` 登记的事件类建，要新的事件类就在自己的内置脚本里用 `ctx.defineEventClass` 定义。
+- **登记**：在 `Domains.kt` 的列表里加一行。
+
+现有的域：`ViewDomain`（竖切的那几个类）、`WindowInsetsDomain`、`BlobDomain`、`WebSocketDomain`、`IntlDomain`。
+
+### JS：自己的内置脚本
+
+在 `android/runtime/src/main/builtin/parts/` 加自己的文件（文件名的数字决定执行顺序，接在 `10-view.js` 之后的用 `3x`、`4x`……）。新类用 `ctx.defineNativeClass`；往已有的类（比如 `View`）上加成员，在自己的文件里往它的原型上加，不改 `10-view.js`。桥的助手（`nativeGet`、`nativeSet`、`nativeCall`、`nativeCallObject`、`nativeCallAsync`、`own` / `ownOne` / `disown`、`toInteger`、`toText`……）都在 `ctx` 上，见 `01-bridge.js`。持有关系（父视图持有子视图这类）要记所有权边。
+
+### 验收和文档
+
+- 验收：`acceptance-android/src/steps/` 加自己的步骤文件，`main.js` 加一行。先写用例、在没有实现的运行时上跑一遍看到失败，再写实现。要点击的用 `[acceptance] tap 视图上的字`。
+- 跑验收：`bash android/scripts/run-device.sh`（加 `--release` 是 Release）。手机只有一台，脚本用一把锁（`$TMPDIR/nacre-android-device.lock`）让几个会话排队，别的会话占着时会打「手机正被别的验收占着」并等着。
+- 文档：在这一页加自己的一节（怎么实现的、和 iOS 不同的地方、实测）。
+
+### 规矩
+
+`project.md` 第 4 节「接类的规矩」：整数常量变字符串枚举、方法参数照 Java 按位置传、构造只传 `context`、覆写点「能用属性就用属性」。
+
 ## 构建
 
 - Android Gradle 插件 9.5.2 自带 Kotlin 编译，不用另外加 Kotlin 插件。

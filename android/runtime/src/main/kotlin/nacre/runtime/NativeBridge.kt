@@ -1,16 +1,11 @@
-// 原生对象和引擎之间的那一层：身份表、读写属性、调方法、造对象、订阅事件。
+// 原生对象和引擎之间的那一层：身份表，加上按顺序问各个域（Domain.kt）「认不认领」。
 // 引擎经 JNI（NacreJni.cpp）调到这里；全部在主线程上。
 //
-// 现在是手写的一张小表，只有第一条竖切用到的几个类和成员。以后由 bindgen 生成。
+// 这里不认识任何一个具体的类：各组类在自己的域里处理，登记在 Domains.kt。
+// 只有引擎专门留的几个入口（建 Blob、读 Blob、fetch）在这里，它们是 core 的约定，不按类分。
 package nacre.runtime
 
 import android.app.Activity
-import android.content.Context
-import android.view.View
-import android.view.ViewGroup
-import android.view.WindowInsets
-import android.widget.LinearLayout
-import android.widget.TextView
 import org.json.JSONObject
 import java.util.IdentityHashMap
 
@@ -19,7 +14,7 @@ import java.util.IdentityHashMap
 internal class NacreTypeError(message: String) : RuntimeException(message)
 
 internal class NativeBridge(
-    private val activity: Activity,
+    activity: Activity,
     // 异步调用的兑现（fetch、Blob 的读取）
     private val settle: Settle,
     // 系统的回调进来了，排到下一轮派发给 JS（不当场进 JS）
@@ -78,40 +73,51 @@ internal class NativeBridge(
 
     private fun obj(id: Long): Any? = objects[id]
 
-    // JS 那边按这个名字找类。从具体到一般，第一个对上的就是
-    fun className(obj: Any): String = when (obj) {
-        is NacreBlob -> "Blob"
-        is NacreWebSocket -> "WebSocket"
-        is Activity -> "Activity"
-        is TextView -> "TextView"
-        is LinearLayout -> "LinearLayout"
-        is ViewGroup -> "ViewGroup"
-        is View -> "View"
-        is Context -> "Context"
-        else -> "Object"
+    // ---- 域 ----
+
+    private val domains: List<Domain> = registeredDomains(DomainHost(activity, settle, emitter))
+
+    // 所有域登记的「Java 类 → JS 类名」，按继承层级从深到浅排：一个对象用离它最近的那个
+    private class Entry(val type: Class<*>, val jsName: String, val domain: Domain, val depth: Int)
+    private val entries: List<Entry> = domains.flatMap { d ->
+        d.classes.map { (type, name) -> Entry(type, name, d, depthOf(type)) }
+    }.sortedByDescending { it.depth }
+
+    private fun depthOf(type: Class<*>): Int {
+        var depth = 0
+        var c: Class<*>? = type
+        while (c != null) { depth++; c = c.superclass }
+        return depth
     }
+
+    // JS 那边按这个名字找类：所有域里离这个对象最近的那个类
+    fun className(obj: Any): String = entries.firstOrNull { it.type.isInstance(obj) }?.jsName ?: "Object"
+
+    // 要问的域：管着这个对象的那些，离它最近的先问（子类所在的域排在父类前面，和 iOS 一样）
+    private fun domainsFor(target: Any): List<Domain> {
+        val out = ArrayList<Domain>()
+        for (e in entries) if (e.type.isInstance(target) && e.domain !in out) out.add(e.domain)
+        return out
+    }
+
+    private fun describe(target: Any?) = target?.let(::className) ?: "object"
+    private fun argList(packed: ByteArray): List<*> = Packed.decode(packed) as? List<*> ?: emptyList<Any?>()
+    private fun objectsOf(ptrs: LongArray): List<Any?> = ptrs.map { if (it == 0L) null else obj(it) }
 
     fun classNameOf(id: Long): String = obj(id)?.let(::className) ?: ""
 
     // ---- 造对象 ----
 
+    // 返回编号；建不了交 0（JS 那边抛 TypeError），或者域抛 NacreTypeError
     fun construct(className: String, args: ByteArray, ptrs: LongArray): Long {
-        if (className == "WebSocket") {
-            // new WebSocket(url, { protocols, headers })。网址不合法交 0，JS 那边抛 TypeError
-            val values = Packed.decode(args) as? List<*> ?: emptyList<Any?>()
-            val url = values.getOrNull(0) as? String ?: return 0L
-            return NacreWebSocket.open(url, values.getOrNull(1) as? Map<*, *>, webSocketEvents)
-                ?.let(::intern) ?: 0L
+        val values = argList(args)
+        val objs = objectsOf(ptrs)
+        for (d in domains) {
+            if (className !in d.classes.values) continue
+            val made = d.construct(className, values, objs) ?: return 0L
+            return intern(made)
         }
-        val context = ptrs.getOrNull(0)?.let(::obj) as? Context
-            ?: throw NacreTypeError("new $className: argument 1 must be a Context")
-        val view: View = when (className) {
-            "View" -> View(context)
-            "LinearLayout" -> LinearLayout(context)
-            "TextView" -> TextView(context)
-            else -> throw NacreTypeError("Illegal constructor: $className cannot be constructed")
-        }
-        return intern(view)
+        throw NacreTypeError("Illegal constructor: $className cannot be constructed")
     }
 
     // ---- 属性 ----
@@ -119,137 +125,78 @@ internal class NativeBridge(
     // 返回 JSON 的 UTF-8 字节（不走 Java 字符串交回 C++：JNI 的字符串是「改良 UTF-8」）
     fun readProperty(id: Long, name: String): ByteArray {
         val target = obj(id)
-        val json = when {
-            target is TextView && name == "text" -> JSONObject.quote(target.text.toString())
-            target is NacreWebSocket && name == "readyState" -> target.readyState.toString()
-            target is NacreWebSocket && name == "url" -> JSONObject.quote(target.url)
-            target is NacreWebSocket && name == "protocol" -> JSONObject.quote(target.protocol)
-            target is NacreWebSocket && name == "maximumMessageSize" -> target.maximumMessageSize.toString()
-            target is NacreBlob && name == "size" -> target.data.size.toString()
-            target is NacreBlob && name == "type" -> JSONObject.quote(target.type)
-            target is Activity && name == "windowInsets" ->
-                target.window.decorView.rootWindowInsets?.let(::insetsJson) ?: "null"
-            target is ViewGroup && name == "childCount" -> target.childCount.toString()
-            target is View && name == "paddingLeft" -> target.paddingLeft.toString()
-            target is View && name == "paddingTop" -> target.paddingTop.toString()
-            target is View && name == "paddingRight" -> target.paddingRight.toString()
-            target is View && name == "paddingBottom" -> target.paddingBottom.toString()
-            else -> "null"
-        }
+        val json = target?.let { t -> domainsFor(t).firstNotNullOfOrNull { it.read(t, name) } } ?: "null"
         return json.toByteArray(Charsets.UTF_8)
     }
 
     fun writeProperty(id: Long, name: String, packed: ByteArray) {
         val target = obj(id)
         val value = Packed.decode(packed)
-        when {
-            target is NacreWebSocket && name == "maximumMessageSize" -> {
-                target.maximumMessageSize = (value as? Double)?.toInt()
-                    ?: throw NacreTypeError("maximumMessageSize must be a number")
-            }
-            target is TextView && name == "text" -> {
-                // JS 那边已经照 Web IDL 转成字符串了，这里只校验
-                target.text = value as? String ?: throw NacreTypeError("text must be a string")
-            }
-            else -> throw NacreTypeError(
-                "${target?.let(::className) ?: "object"} has no writable property $name")
-        }
+        if (target != null && domainsFor(target).any { it.write(target, name, value) }) return
+        throw NacreTypeError("${describe(target)} has no writable property $name")
     }
 
-    // 类级的对象属性：没有实例，用名字定位。现在只有 application.activity
-    fun readClassObjectProperty(className: String, name: String): Long = when {
-        className == "@application" && name == "activity" -> intern(activity)
-        else -> 0L
+    // 类级的对象属性（application.activity）。没有交 0
+    fun readClassObjectProperty(className: String, name: String): Long {
+        for (d in domains) {
+            val found = d.classObject(className, name)
+            if (found !== Domain.NOT_MINE) return found?.let(::intern) ?: 0L
+        }
+        return 0L
     }
 
     // ---- 方法 ----
 
     fun callMethod(id: Long, name: String, packed: ByteArray, ptrs: LongArray): ByteArray {
         val target = obj(id)
-        when {
-            target is Activity && name == "setContentView" -> target.setContentView(viewArg(ptrs, name))
-            target is NacreWebSocket && name == "close" -> {
-                // JS 那边已经把 code 转成了整数（或者 null），reason 转成了字符串（或者 null）
-                val args = Packed.decode(packed) as? List<*> ?: emptyList<Any?>()
-                target.close((args.getOrNull(0) as? Double)?.toInt(), args.getOrNull(1) as? String)
-            }
-            target is ViewGroup && name == "addView" -> target.addView(viewArg(ptrs, name))
-            target is View && name == "setPadding" -> {
-                // JS 那边已经照 Web IDL 转成了四个整数，这里只校验
-                val args = Packed.decode(packed) as? List<*>
-                val ints = args?.map { (it as? Double)?.toInt() }
-                if (ints == null || ints.size != 4 || ints.any { it == null }) {
-                    throw NacreTypeError("setPadding: expected 4 numbers")
-                }
-                target.setPadding(ints[0]!!, ints[1]!!, ints[2]!!, ints[3]!!)
-            }
-            else -> throw NacreTypeError(
-                "${target?.let(::className) ?: "object"} has no method $name")
-        }
-        return NULL_JSON
+        val args = argList(packed)
+        val objs = objectsOf(ptrs)
+        val json = target?.let { t -> domainsFor(t).firstNotNullOfOrNull { it.call(t, name, args, objs) } }
+            ?: throw NacreTypeError("${describe(target)} has no method $name")
+        return json.toByteArray(Charsets.UTF_8)
     }
 
     // 返回原生对象的方法。null 交 0
     fun callObjectMethod(id: Long, name: String, packed: ByteArray, ptrs: LongArray): Long {
         val target = obj(id)
-        val args = Packed.decode(packed) as? List<*> ?: emptyList<Any?>()
-        return when {
-            target is ViewGroup && name == "getChildAt" -> {
-                // JS 那边已经照 Web IDL 转成整数了，这里只校验
-                val index = (args.getOrNull(0) as? Double)?.toInt()
-                    ?: throw NacreTypeError("getChildAt: index must be a number")
-                target.getChildAt(index)?.let(::intern) ?: 0L
+        val args = argList(packed)
+        val objs = objectsOf(ptrs)
+        if (target != null) {
+            for (d in domainsFor(target)) {
+                val result = d.callObject(target, name, args, objs)
+                if (result !== Domain.NOT_MINE) return result?.let(::intern) ?: 0L
             }
-            else -> throw NacreTypeError(
-                "${target?.let(::className) ?: "object"} has no method $name")
         }
+        throw NacreTypeError("${describe(target)} has no method $name")
     }
 
-    private fun viewArg(ptrs: LongArray, where: String): View =
-        ptrs.getOrNull(0)?.let(::obj) as? View
-            ?: throw NacreTypeError("$where: argument 1 must be a View")
-
-    // ---- 类方法（没有实例，用类名定位）----
-
-    // 返回值不是原生对象的类方法。现在只有 Intl 那一组（类名 NacreIntl 只是桥上的地址）
+    // 返回值不是原生对象的类方法（Intl 那一组）
     fun callClassMethod(className: String, name: String, packed: ByteArray, ptrs: LongArray): ByteArray {
-        if (className != "NacreIntl") throw NacreTypeError("$className has no class method $name")
-        val args = Packed.decode(packed) as? List<*> ?: emptyList<Any?>()
-        return NacreIntl.call(name, args).toByteArray(Charsets.UTF_8)
+        val args = argList(packed)
+        val objs = objectsOf(ptrs)
+        val json = domains.firstNotNullOfOrNull { it.classCall(className, name, args, objs) }
+            ?: throw NacreTypeError("$className has no class method $name")
+        return json.toByteArray(Charsets.UTF_8)
     }
 
-    // ---- 异步的方法（返回 Promise）----
-
-    // send 和 ping 都是「发出去，等一个结果」，所以 JS 那边是 Promise
+    // 返回 Promise 的方法。结果由域用 settle 兑现
     fun callAsync(id: Long, name: String, packed: ByteArray, ptrs: LongArray, callId: Int) {
         val target = obj(id)
-        if (target is NacreWebSocket) {
-            when (name) {
-                "send" -> {
-                    val blob = ptrs.getOrNull(0)?.let(::obj) as? NacreBlob
-                    val text = (Packed.decode(packed) as? List<*>)?.getOrNull(0) as? String
-                    target.send(text, blob, settle, callId)
-                }
-                // OkHttp 没有公开「手动发一个 ping、等 pong」的接口，只有定时自动发
-                "ping" -> settle.reject(callId, "NotSupportedError",
-                                        "ping: not supported on Android (OkHttp has no manual ping)")
-                else -> settle.reject(callId, "TypeError", "WebSocket has no method $name")
-            }
-            return
-        }
-        settle.reject(callId, "TypeError", "${target?.let(::className) ?: "object"} has no method $name")
+        val args = argList(packed)
+        val objs = objectsOf(ptrs)
+        if (target != null && domainsFor(target).any { it.callAsync(target, name, args, objs, callId) }) return
+        settle.reject(callId, "TypeError", "${describe(target)} has no method $name")
     }
 
-    // WebSocket 的事件：总是发，不看有没有人订（和 iOS 一样）
-    private val webSocketEvents = object : NacreWebSocket.Events {
-        override fun plain(socket: NacreWebSocket, type: String) = emitter.plain(socket, type)
-        override fun json(socket: NacreWebSocket, type: String, json: String, eventClass: String) =
-            emitter.json(socket, type, json, eventClass)
-        override fun blob(socket: NacreWebSocket, type: String, blob: NacreBlob, eventClass: String) =
-            emitter.obj(socket, type, blob, eventClass)
+    // ---- 事件 ----
+
+    // 某个事件类型的监听器从无到有、从有到无。没有域处理就是 JS 自己的自定义事件，什么都不做
+    fun setEventSubscription(id: Long, type: String, on: Boolean) {
+        val target = obj(id) ?: return
+        for (d in domainsFor(target)) if (d.subscribe(target, type, on)) return
     }
 
-    // ---- Blob 和 fetch（core/builtin/parts/23-fetch.js）----
+    // ---- Blob 和 fetch（core/builtin/parts/23-fetch.js 的专门入口）----
 
     private val fetch = FetchService(settle)
 
@@ -291,72 +238,7 @@ internal class NativeBridge(
     fun close() {
         fetch.close()
         readWork.shutdownNow()
-    }
-
-    // ---- 事件 ----
-
-    // 某个事件类型的监听器从无到有、从有到无。只有原生真的会发的类型才装回调；
-    // 不认识的名字是 JS 自己的自定义事件，什么都不做
-    fun setEventSubscription(id: Long, type: String, on: Boolean) {
-        val target = obj(id)
-        if (target is Activity && type == "windowinsetschange") {
-            subscribeWindowInsets(target, on)
-            return
-        }
-        val view = target as? View ?: return
-        if (type != "click") return
-        if (on) {
-            clickableBefore[view] = view.isClickable
-            // 回调里拿的是 View 本身，不是编号：JS 的包装可能早被回收了（界面上的
-            // 东西没人引用时），点击来了再重新发编号、重建包装
-            view.setOnClickListener { emitter.plain(it, "click") }
-        } else {
-            view.setOnClickListener(null)
-            // setOnClickListener 会顺手把视图设成可点的，拆掉时还原
-            clickableBefore.remove(view)?.let { view.isClickable = it }
-        }
-    }
-
-    private val clickableBefore = IdentityHashMap<View, Boolean>()
-
-    // ---- 窗口边衬（安全区域）----
-
-    // 系统每次分发窗口边衬都先经过页面最外层的视图。值变了才发事件（同样的值系统会
-    // 重复分发好几次）；分发本身原样交给它默认的处理，不替 JS 做任何排版决定
-    private var lastInsets: WindowInsets? = null
-
-    private fun subscribeWindowInsets(activity: Activity, on: Boolean) {
-        val decor = activity.window.decorView
-        if (on) {
-            lastInsets = null
-            decor.setOnApplyWindowInsetsListener { v, insets ->
-                if (insets != lastInsets) {
-                    lastInsets = insets
-                    emitter.plain(activity, "windowinsetschange")
-                }
-                v.onApplyWindowInsets(insets)
-            }
-        } else {
-            decor.setOnApplyWindowInsetsListener(null)
-            lastInsets = null
-        }
-    }
-
-    // 各类边衬照 WindowInsets.Type 的名字，每类是 [左, 上, 右, 下]，单位像素
-    private fun insetsJson(insets: WindowInsets): String {
-        val types = linkedMapOf(
-            "systemBars" to WindowInsets.Type.systemBars(),
-            "statusBars" to WindowInsets.Type.statusBars(),
-            "navigationBars" to WindowInsets.Type.navigationBars(),
-            "displayCutout" to WindowInsets.Type.displayCutout(),
-            "ime" to WindowInsets.Type.ime(),
-            "systemGestures" to WindowInsets.Type.systemGestures(),
-            "tappableElement" to WindowInsets.Type.tappableElement(),
-        )
-        return types.entries.joinToString(",", "{", "}") { (name, type) ->
-            val i = insets.getInsets(type)
-            "\"$name\":[${i.left},${i.top},${i.right},${i.bottom}]"
-        }
+        for (d in domains) d.close()
     }
 
     // 把一个异常写成引擎认的那句话：参数类的错是普通的说明（JS 那边抛 TypeError）；
@@ -368,9 +250,5 @@ internal class NativeBridge(
             "\u0001${error.javaClass.simpleName}\u0001${error.message ?: ""}"
         }
         return text.toByteArray(Charsets.UTF_8)
-    }
-
-    companion object {
-        private val NULL_JSON = "null".toByteArray(Charsets.UTF_8)
     }
 }
