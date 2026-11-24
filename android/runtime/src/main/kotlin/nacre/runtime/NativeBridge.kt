@@ -209,6 +209,15 @@ internal class NativeBridge(
         ptrs.getOrNull(0)?.let(::obj) as? View
             ?: throw NacreTypeError("$where: argument 1 must be a View")
 
+    // ---- 类方法（没有实例，用类名定位）----
+
+    // 返回值不是原生对象的类方法。现在只有 Intl 那一组（类名 NacreIntl 只是桥上的地址）
+    fun callClassMethod(className: String, name: String, packed: ByteArray, ptrs: LongArray): ByteArray {
+        if (className != "NacreIntl") throw NacreTypeError("$className has no class method $name")
+        val args = Packed.decode(packed) as? List<*> ?: emptyList<Any?>()
+        return NacreIntl.call(name, args).toByteArray(Charsets.UTF_8)
+    }
+
     // ---- 异步的方法（返回 Promise）----
 
     // send 和 ping 都是「发出去，等一个结果」，所以 JS 那边是 Promise

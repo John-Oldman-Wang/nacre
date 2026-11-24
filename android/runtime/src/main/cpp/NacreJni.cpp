@@ -91,6 +91,7 @@ struct Runtime {
   jmethodID error_text = nullptr;
   jmethodID create_blob = nullptr;
   jmethodID call_async = nullptr;
+  jmethodID call_class_method = nullptr;
   jmethodID read_object_async = nullptr;
   jmethodID fetch_start = nullptr;
   jmethodID fetch_read_body = nullptr;
@@ -201,6 +202,8 @@ Java_nacre_runtime_NacreRuntime_nativeCreate(JNIEnv* env, jclass, jobject self, 
   runtime->error_text = env->GetMethodID(bridge_class, "errorText", "(Ljava/lang/Throwable;)[B");
   runtime->create_blob = env->GetMethodID(bridge_class, "createBlob", "([B[[B[B)J");
   runtime->call_async = env->GetMethodID(bridge_class, "callAsync", "(JLjava/lang/String;[B[JI)V");
+  runtime->call_class_method = env->GetMethodID(
+      bridge_class, "callClassMethod", "(Ljava/lang/String;Ljava/lang/String;[B[J)[B");
   runtime->read_object_async =
       env->GetMethodID(bridge_class, "readObjectAsync", "(JLjava/lang/String;I)V");
   runtime->fetch_start = env->GetMethodID(bridge_class, "fetchStart", "([B[BJI)I");
@@ -309,6 +312,19 @@ Java_nacre_runtime_NacreRuntime_nativeCreate(JNIEnv* env, jclass, jobject self, 
     env->CallVoidMethod(runtime->bridge, runtime->set_event_subscription, IdOf(ptr),
                         env->NewStringUTF(type.c_str()), on ? JNI_TRUE : JNI_FALSE);
     TakeError(env, runtime, error);
+  };
+
+  // 返回值不是原生对象的类方法（Intl 那一组）
+  host.call_class_method = [runtime](const std::string& class_name, const std::string& name,
+                                     const std::string& packed, const std::vector<void*>& args,
+                                     std::string* error) {
+    JNIEnv* env = CurrentEnv();
+    Frame frame(env);
+    auto json = static_cast<jbyteArray>(env->CallObjectMethod(
+        runtime->bridge, runtime->call_class_method, env->NewStringUTF(class_name.c_str()),
+        env->NewStringUTF(name.c_str()), ToBytes(env, packed), ToIds(env, args)));
+    if (TakeError(env, runtime, error)) return std::string("null");
+    return FromBytes(env, json);
   };
 
   // 返回 Promise 的方法（WebSocket 的 send、ping）：结果由 Kotlin 那边回主线程兑现
