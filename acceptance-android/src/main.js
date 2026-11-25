@@ -38,6 +38,7 @@ import { stepScroll } from './steps/scroll.js';
 import { stepAnimation } from './steps/animation.js';
 import { stepText } from './steps/text.js';
 import { stepApp, watchApp } from './steps/app.js';
+import { stepImage } from './steps/image.js';
 
 /**
  * 各步共享的上下文。这一批只用得到断言。
@@ -139,6 +140,12 @@ const sliceDone = (async () => {
     await stepText(ctx);
   } catch (err) {
     console.log('  ✗ 步骤 stepText 中途抛了，它后面的断言没跑: ' +
+                (err instanceof Error ? err.message : String(err)));
+  }
+  try {
+    await stepImage(ctx);
+  } catch (err) {
+    console.log('  ✗ 步骤 stepImage 中途抛了，它后面的断言没跑: ' +
                 (err instanceof Error ? err.message : String(err)));
   }
 })();

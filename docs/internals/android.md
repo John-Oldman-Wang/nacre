@@ -13,7 +13,7 @@ android/
 │  └─ src/main/
 │     ├─ cpp/CMakeLists.txt   编 core/engine/ 加上 JNI，链 V8
 │     ├─ cpp/NacreJni.cpp     Kotlin 经 JNI 调到这里，再交给 core/engine；原生入口的实现
-│     ├─ builtin/parts/       Android 自己的内置脚本（00-core、01-bridge、09-insets、10-view、21-application、25-globals、30-appearance、31-layout、36-scroll、37-animation）
+│     ├─ builtin/parts/       Android 自己的内置脚本（00-core、01-bridge、09-insets、10-view、21-application、25-globals、30-appearance、31-layout、34-image、36-scroll、37-animation）
 │     └─ kotlin/nacre/runtime/
 │        ├─ NacreRuntime.kt   Kotlin 这一侧的入口和事件循环
 │        ├─ NativeBridge.kt   身份表，按顺序问各个域（Domain.kt、Domains.kt）
@@ -21,6 +21,7 @@ android/
 │        ├─ AppearanceDomain.kt 外观
 │        ├─ ScrollDomain.kt   滚动
 │        ├─ AnimationDomain.kt 动画和帧时钟
+│        ├─ ImageDomain.kt    图片
 │        ├─ FetchService.kt、NacreBlob.kt、NacreWebSocket.kt、Network.kt   网络
 │        └─ Packed.kt         读引擎打包的参数
 ├─ shell/        开发用的最小壳：一个页面，启动时建运行时、执行 main.js
@@ -233,7 +234,7 @@ iOS 真机连不到 Mac 上的本地测试服务（`acceptance/scripts/test-serv
 - **枚举**：用 `Enums.kt` 的 `EnumTable`，属性写错抛 `NacreWarning`（JS 打警告、值不变），参数写错抛 `NacreTypeError`，见下面「外观」一节。
 - **登记**：在 `Domains.kt` 的列表里加一行。
 
-现有的域：`ViewDomain`（竖切的那几个类）、`WindowInsetsDomain`、`BlobDomain`、`WebSocketDomain`、`IntlDomain`、`AppearanceDomain`、`LayoutDomain`（布局）、`ScrollDomain`、`AnimationDomain`、`TextDomain`（文字）、`AppDomain`（App 层）。
+现有的域：`ViewDomain`（竖切的那几个类）、`WindowInsetsDomain`、`BlobDomain`、`WebSocketDomain`、`IntlDomain`、`AppearanceDomain`、`LayoutDomain`（布局）、`ScrollDomain`、`AnimationDomain`、`TextDomain`（文字）、`AppDomain`（App 层）、`ImageDomain`（图片）。
 
 ### JS：自己的内置脚本
 
@@ -566,6 +567,53 @@ JS 打「`[acceptance] <命令> <参数>`」，`run-device.sh` 照做，和 `tap
 - 转屏、改字号、改语言时的 `configurationchange`：验收只切了深色模式。
 - Android 11 到 13 上的返回（没有预测性返回，只有 `back`）：手机只有 Android 17 的一台。
 - 别的 App 里点一条链接打开本 App：验收是 `am start -a VIEW -d` 带着网址打开的，没有走浏览器或者别的 App。冷启动带链接时的 `launchURL` 也只是照代码说，没跑过。启动时的 `start`、`resume` 不用外面帮忙：入口一开始就订阅，就接得住。
+
+## 图片
+
+`ImageDecoder`（来源、读头、解码成 `Bitmap` 或 `Drawable`）、`Bitmap`、`BitmapDrawable`、`AnimatedImageDrawable`（动图）、`ImageView`。原生在 `ImageDomain.kt`，JS 在 `34-image.js`，验收是 `steps/image.js`，测试图由 `acceptance-android/scripts/make-test-images.py` 自己拼（不带任何现成的图），放在 `acceptance-android/assets/images/`。
+
+### 定下来的几条（2026-11-24）
+
+| | 做法 | 理由 |
+| --- | --- | --- |
+| 解码用哪套 | 只接 `ImageDecoder`，不接 `BitmapFactory` | `ImageDecoder` 是 Android 9 起推荐的，格式全（含 HEIF、动图），能边解边缩。两套都接是同一件事两种写法 |
+| 同步还是异步 | 解码（`decodeHeader`、`decodeBitmap`、`decodeDrawable`）放到后台线程，返回 Promise；只动内存里像素的（`createScaledBitmap`、`createBitmap` 裁切）照 Java 同步 | Java 的解码是同步的，可 JS 在主线程，解大图会卡。原则 4：异步只有 Promise |
+| 解码时的设置 | Java 的回调 `OnHeaderDecodedListener` 换成第二个参数里的一个对象，键名是那些 `set…` 去掉 `set`：`targetSize`（`{ width, height }`）、`targetSampleSize`、`crop`（`{ left, top, right, bottom }`）、`allocator`、`mutableRequired`、`unpremultipliedRequired`、`memorySizePolicy`、`decodeAsAlphaMaskEnabled` | JS 不实现 Java 的接口；「能用属性就用属性」。回调里能先看到图多大，所以补了一个 Java 里没有的 `ImageDecoder.decodeHeader(source)`：只读头，结果是 `ImageDecoder.ImageInfo`（`size`、`mimeType`、`isAnimated`，快照） |
+| 来源 | `ImageDecoder.createSource(来源)`，来源是 `Blob`、`ArrayBuffer`、typed array 或 assets 里的路径，得到 `ImageDecoder.Source`，能解很多次 | 照 Java。`AssetManager` 参数去掉，路径相对项目的 `assets/`，和文字组的 `Typeface.createFromAsset` 一样（包里的 `app/`）。`ArrayBuffer` 在 JS 里先拷成 `Blob` 再过桥（桥上没有传字节的格式） |
+| 动图 | `decodeDrawable` 遇到动图得到 `AnimatedImageDrawable`：`start()`、`stop()`、只读的 `isRunning`、`repeatCount`（数或 `'infinite'`），事件 `animationstart`、`animationend`（名字借 Web 的，普通的 `Event`） | 一次一次发生的通知用事件。为此外观组的 `Drawable` 改成继承 `EventTarget`（`30-appearance.js` 一行，用户同意） |
+| `recycle()` | 暴露，连同只读的 `isRecycled` | 图的内存大，JS 的 GC 不知道它多大。代价照 Java：放掉之后还挂在视图上，系统画它时整个 App 崩 |
+| 着色 | 这一步只做 `ImageView.setColorFilter(color, mode = 'srcAtop')`、`clearColorFilter()` | `imageTintList` 要 `ColorStateList`，文字组也要它，等它单独定 |
+| 出错 | Promise 以 Java 异常的简单类名被拒：`DecodeException`、`FileNotFoundException`、`IllegalStateException`…… | 和同步调用时 Java 抛的一样 |
+
+照规矩接的：`Bitmap`（`width`、`height`、`config`、`density`、`byteCount`、`allocationByteCount`、`isMutable`、`isPremultiplied`、`isRecycled`、`hasAlpha()`、`getPixel()`）；`BitmapDrawable`（`new BitmapDrawable(bitmap)`，`Resources` 用页面的；`bitmap`、`tileModeX` / `tileModeY`、`setTileModeXY()`、`isFilterBitmap`）；`ImageView`（`setImageBitmap()`、`setImageDrawable()`、只读的 `drawable`、`scaleType`、`adjustViewBounds`、`maxWidth` / `maxHeight`、`imageAlpha`、`cropToPadding`）。`config`、`PorterDuff.Mode` 这些 Java 的枚举去掉下划线转驼峰（`ARGB_8888` → `'argb8888'`，`SRC_ATOP` → `'srcAtop'`）。表示「没设 / 不限」的哨兵读出 `null`、写 `null` 清掉：`density` 的 `DENSITY_NONE`、`maxWidth` 的 `Integer.MAX_VALUE`、平铺的不平铺。
+
+### 实现
+
+- **嵌套的类**：`ImageDecoder.Source` 照布局组的办法，`defineNativeClass` 之后从全局摘掉、挂成静态成员。`ImageDecoder` 自己不是原生类（没有 Java 对象），只挂在全局；`ImageInfo` 是纯 JS 的值类。
+- **类方法的通道**：没用文字组补的「类方法返回对象」。`createSource` 走造对象的通道（和外观组的 `RenderEffect` 一样）；解码挂在来源对象上走返回 Promise 的通道；`createScaledBitmap`、`createBitmap` 挂在原图上走返回对象的方法：Java 可能把原图原样还回来，同一个对象要是同一个包装，造对象的通道做不到。
+- **读头**：用 `decodeDrawable` 加回调，回调里把 `ImageInfo` 抄成 JSON（出了回调它就不能用了），再扔一个自己的异常中止，像素一个都不解。
+- **两条解码线程**：几张图能同时解，又不至于占满所有核。
+- **返回 Promise 的方法里不能往外抛**：一开始解码设置写错（`allocator: 'gpu'`）时，在原生的 `callAsync` 里抛了 `NacreTypeError`，Promise 就一直悬着，验收卡住等不到结束标记。改成在域里自己 `settle.reject`。这个坑在桥上是通的（`NativeBridge.callAsync` 不接异常），别的组写 `callAsync` 时也要自己拒。
+- 视图持有它显示的 `Drawable`（`image` 那条边），`BitmapDrawable` 持有它的图。
+
+### 实测到的 Android 的行为（Pixel 6，Android 17）
+
+- **不透明的图 `isPremultiplied` 是 `false`**：方案里以为默认是 `true`，实测不是。带透明度的图默认是 `true`，`unpremultipliedRequired` 之后是 `false`。所以验收加了一张半透明的图（`alpha.png`）。
+- `allocator: 'hardware'` 解出来 `config` 是 `'hardware'`、不可改、`getPixel` 抛 `IllegalStateException`。默认的 `allocator` 由系统定（文档：一般放显存，小图可能不是），验收不断言它。
+- `allocator: 'hardware'` 加 `mutableRequired` 以 `IllegalStateException` 被拒；`targetSize` 是 0×0 以 `IllegalArgumentException` 被拒。
+- `memorySizePolicy: 'lowRam'` 下不透明的图解成 `'rgb565'`；`decodeAsAlphaMaskEnabled` 对三通道的图不起作用。
+- `assets/` 里没有的文件到解码时才以 `FileNotFoundException` 被拒；不是图片的字节是 `DecodeException`。
+- `setImageBitmap(null)` 之后 `drawable` 不是 `null`，是一个不拿图的 `BitmapDrawable`：`ImageView` 一直用自己建的那一个。
+- 动图：`NETSCAPE2.0` 写着无限循环的 GIF，`repeatCount` 读出 `'infinite'`；写 −5 是 `IllegalArgumentException`。`repeatCount = 0` 时播一遍，`animationstart`、`animationend` 都来；无限循环时 `stop()` 也来 `animationend`。挂在屏幕上的视图里才真的动。
+- `BitmapDrawable` 默认 `isFilterBitmap` 是 `true`；密度没设（`null`）的图，固有宽就是像素宽。
+
+先在没有实现的运行时上跑了一遍：前 5 条断言（几个类不在）失败，步骤在 `ImageDecoder is not defined` 处中途抛了，判为失败。实现之后 2026-11-24 在 Pixel 6（Android 17，API 37）上 Debug 和 Release 都是 1334 条通过、0 条失败（这一组 192 条）。
+
+**没验的**：着色在屏幕上的样子、动图在屏幕上的样子（要人看）；`'decal'` 平铺在 Android 11 上没有（表里按版本去掉了），没有 11 的设备；动图 WebP（不好手拼，只验了 GIF）。
+
+### 没做的
+
+`imageTintList` / `imageTintMode`（等 `ColorStateList`）；`imageMatrix`（要 `Matrix` 类，所以 `scaleType = 'matrix'` 现在没用处）；`Bitmap.compress`（编码回 PNG / JPEG）、`copy`、读写一片像素；`BitmapDrawable.gravity`（要文字组的 `Gravity.kt`，合进来之后再接）、`antiAlias`、`mipMap`；`ImageDecoder` 的 `setTargetColorSpace`、`setPostProcessor`、`setOnPartialImageListener`（后两个是回调）；`ImageView` 的 `baseline` 一组。
 
 ## 构建
 

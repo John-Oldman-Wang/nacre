@@ -14,4 +14,5 @@ internal fun registeredDomains(host: DomainHost): List<Domain> = listOf(
     AnimationDomain(host),
     TextDomain(host),
     AppDomain(host),
+    ImageDomain(host),
 )
