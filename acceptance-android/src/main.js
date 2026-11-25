@@ -37,6 +37,7 @@ import { stepLayout } from './steps/layout.js';
 import { stepScroll } from './steps/scroll.js';
 import { stepAnimation } from './steps/animation.js';
 import { stepText } from './steps/text.js';
+import { stepApp, watchApp } from './steps/app.js';
 
 /**
  * 各步共享的上下文。这一批只用得到断言。
@@ -74,6 +75,13 @@ run('stepTimers', () => stepTimers(ctx));
 run('stepPerformance', () => stepPerformance(ctx));
 // WebSocket 的异步部分各自等（和 iOS 一样不交出「做完了」），最长 10 秒一段，靠结束标记前的「5 秒没有新断言」兜着
 run('stepWebSocket', () => stepWebSocket(ctx));
+
+// App 层：启动时的 start、resume 要在 onCreate 这一刻就订阅
+try {
+  watchApp();
+} catch (err) {
+  console.log('  ✗ watchApp 中途抛了: ' + (err instanceof Error ? err.message : String(err)));
+}
 
 // 安全区域要在 onCreate 这一刻就订阅（窗口挂上时的第一次分发要接住），放在最前面
 try {
@@ -165,4 +173,12 @@ const tick = () => {
   if (calm < 5) { setTimeout(tick, 1000); return; }
   console.log('[acceptance] done ' + JSON.stringify(assertStats()));
 };
-Promise.allSettled([sliceDone, networkDone]).then(() => { setTimeout(tick, 1000); });
+// App 层会离开 App 一次（打开浏览器），等点击和网络都跑完再跑
+Promise.allSettled([sliceDone, networkDone]).then(async () => {
+  try {
+    await stepApp(ctx);
+  } catch (err) {
+    console.log('  ✗ 步骤 stepApp 中途抛了，它后面的断言没跑: ' +
+                (err instanceof Error ? err.message : String(err)));
+  }
+}).then(() => { setTimeout(tick, 1000); });

@@ -80,4 +80,7 @@ dependencies {
     implementation("androidx.constraintlayout:constraintlayout:2.2.2") {
         exclude(group = "androidx.appcompat")
     }
+    // App 层：生命周期、返回、配置变化、新 intent、内存告警都是 ComponentActivity 给的（AppDomain.kt）。
+    // 版本和壳的一样
+    implementation("androidx.activity:activity:1.12.4")
 }

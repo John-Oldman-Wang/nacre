@@ -177,12 +177,80 @@ for node in root.iter("node"):
     "$ADB" shell input swipe "$x" "$y" "$((x + dx))" "$((y + dy))" 300
   done
 }
+# JS 打「[acceptance] <命令> <参数>」请求做一件 App 自己做不到的事，按打出来的顺序、
+# 每个只做一次：
+#   key back                按返回键
+#   backswipe commit|cancel 从左边缘往里滑：滑过去松手，或者滑出去又滑回边缘再松手
+#   relaunch                用 am start 把 App 切回前台
+#   open <网址>             带着网址打开 App（ACTION_VIEW）
+#   trim-memory <级别>      发一次内存告警（am send-trim-memory 的级别名）
+#   night yes|no            切深色模式。改的是手机的设置，脚本退出时还原
+ACTED=0
+NIGHT_BEFORE=""
+restore_night() {
+  [ -n "$NIGHT_BEFORE" ] && "$ADB" shell cmd uimode night "$NIGHT_BEFORE" >/dev/null 2>&1 || true
+}
+# 从左边缘往里滑。一次 input 要几百毫秒，滑得慢，系统一样认
+back_swipe() {
+  local size w h y
+  size="$("$ADB" shell wm size | tr -d '\r' | awk -F': ' '/size/ { s = $2 } END { print s }')"
+  w="${size%x*}"; h="${size#*x}"; y=$((h / 2))
+  local steps="input motionevent DOWN 2 $y; input motionevent MOVE $((w / 10)) $y;"
+  steps="$steps input motionevent MOVE $((w / 4)) $y; input motionevent MOVE $((w / 2)) $y;"
+  if [ "$1" = "cancel" ]; then
+    # 要一步一步慢慢滑回边缘、在边缘停一下再松手，系统才认成「放弃」；一下跳回边缘
+    # 松手，系统还是当成返回（实测，Pixel 6，Android 17）
+    local x
+    for x in $((w * 2 / 5)) $((w * 3 / 10)) $((w / 5)) $((w / 10)) $((w / 36)) 5 2 2; do
+      steps="$steps input motionevent MOVE $x $y;"
+    done
+    steps="$steps input motionevent UP 2 $y"
+  else
+    steps="$steps input motionevent MOVE $((w * 2 / 3)) $y; input motionevent UP $((w * 2 / 3)) $y"
+  fi
+  "$ADB" shell "$steps"
+}
+action_requests() {
+  local requests count line cmd arg
+  requests="$(grep -E '^\[acceptance\] (key|backswipe|relaunch|open|trim-memory|night)( |$)' "$LOG_FILE" |
+              sed 's/^\[acceptance\] //' || true)"
+  count="$(printf '%s' "$requests" | grep -c . || true)"
+  while [ "$ACTED" -lt "$count" ]; do
+    ACTED=$((ACTED + 1))
+    line="$(printf '%s\n' "$requests" | sed -n "${ACTED}p")"
+    cmd="${line%% *}"
+    arg=""
+    [ "$cmd" != "$line" ] && arg="${line#* }"
+    # 参数要拼进手机上的 shell 命令，只放行网址里常见的字符
+    if [ -n "$arg" ] && ! printf '%s\n' "$arg" | grep -Eq '^[A-Za-z0-9:/?&=._%-]+$'; then
+      echo "  （「$line」的参数里有不认的字符，没做）"
+      continue
+    fi
+    # 手机上的命令失败（比如系统不让发这一级内存告警）只打出来，不让整个脚本退出：
+    # JS 那边等不到事件，那条断言会失败
+    case "$cmd" in
+      key) "$ADB" shell input keyevent "KEYCODE_$(printf '%s' "$arg" | tr '[:lower:]' '[:upper:]')" ;;
+      backswipe) back_swipe "$arg" ;;
+      relaunch) "$ADB" shell am start -n "$PACKAGE/$ACTIVITY" >/dev/null ;;
+      open) "$ADB" shell "am start -n $PACKAGE/$ACTIVITY -a android.intent.action.VIEW -d '$arg'" >/dev/null ;;
+      trim-memory) "$ADB" shell am send-trim-memory "$PACKAGE" "$arg" ;;
+      night)
+        if [ -z "$NIGHT_BEFORE" ]; then
+          NIGHT_BEFORE="$("$ADB" shell cmd uimode night | tr -d '\r' | awk -F': ' '{ print $2 }')"
+        fi
+        "$ADB" shell cmd uimode night "$arg" >/dev/null ;;
+    esac || echo "  （「$line」在手机上失败了）"
+    echo "  $(date +%T) 做了「$line」"
+  done
+}
+trap 'rm -f "$LOG_FILE"; restore_night; cleanup_server; release_lock' EXIT
 
 STATUS="timeout"
 for _ in $(seq 1 "$TIMEOUT"); do
   read_log
   tap_requests
   swipe_requests
+  action_requests
   if grep -q '^\[acceptance\] done ' "$LOG_FILE"; then STATUS="done"; break; fi
   if [ -z "$("$ADB" shell pidof "$PACKAGE" | tr -d '\r')" ]; then
     sleep 1; read_log

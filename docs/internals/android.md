@@ -233,7 +233,7 @@ iOS 真机连不到 Mac 上的本地测试服务（`acceptance/scripts/test-serv
 - **枚举**：用 `Enums.kt` 的 `EnumTable`，属性写错抛 `NacreWarning`（JS 打警告、值不变），参数写错抛 `NacreTypeError`，见下面「外观」一节。
 - **登记**：在 `Domains.kt` 的列表里加一行。
 
-现有的域：`ViewDomain`（竖切的那几个类）、`WindowInsetsDomain`、`BlobDomain`、`WebSocketDomain`、`IntlDomain`、`AppearanceDomain`、`LayoutDomain`（布局）、`ScrollDomain`、`AnimationDomain`、`TextDomain`（文字）。
+现有的域：`ViewDomain`（竖切的那几个类）、`WindowInsetsDomain`、`BlobDomain`、`WebSocketDomain`、`IntlDomain`、`AppearanceDomain`、`LayoutDomain`（布局）、`ScrollDomain`、`AnimationDomain`、`TextDomain`（文字）、`AppDomain`（App 层）。
 
 ### JS：自己的内置脚本
 
@@ -469,6 +469,103 @@ Java 的属性大多是 `float`。照 `float` 最短的写法交给 JS（`Float.
 ### 没做的
 
 富文本（`Spannable`）以后单独一组。要新类的：按状态变色（`ColorStateList`）、测量（`Layout`）、不上屏测文字（`Paint`、`StaticLayout`）、`Typeface.Builder`，建议另开「文字（二）」先讨论形状。`createFromFile` 等文件系统。`breakStrategy`、`hyphenationFrequency`、`justificationMode`、`lineBreakStyle`、`allCaps`、`singleLine`、`textScaleX`、`fallbackLineSpacing`、`elegantTextHeight` 这一步没做，照现有规矩就能接。
+
+## App 层
+
+2026-11-24 定、做的。原生在 `AppDomain.kt`，JS 在 `33-app.js`，验收是 `acceptance-android/src/steps/app.js`。
+
+### 挂在哪：按 Android 的事实分
+
+页面自己的事挂在 `activity` 上，整个 App 的事挂在 `application` 上：
+
+| | 成员 |
+| --- | --- |
+| `application` | `packageName`、`versionName`、`versionCode`（只读，运行期间不变，没有变化事件）；`openURL(url)`；`trimmemory` 事件 |
+| `activity` | `lifecycleState` 和 `start` / `resume` / `pause` / `stop`；`handlesBack` 和 `back` / `backstart` / `backprogress` / `backcancel`；`configuration` 和 `configurationchange`；`launchURL` 和 `openurl` |
+
+生命周期、返回、配置变化、新的 intent 在 Android 上都是页面的回调，和已有的 `windowinsetschange` 放在一处。内存告警是整个 App 的事，但 `application` 在 Android 上是纯 JS 的对象，原生只能往原生对象的包装上发事件：原生把它发在页面上，用内部的名字 `@trimmemory`，`33-app.js` 转成 `application` 上的 `trimmemory`。
+
+成员加在已有的 `Application`、`Activity` 上，不改 `21-application.js`、`10-view.js`：`33-app.js` 往原型上加属性，并包一层 `Activity.prototype[kSubscribe]`，把这一组的事件名交给原生，别的照旧交给原来那一层。
+
+### 用的是 AndroidX 的 ComponentActivity
+
+运行时的依赖里加了 `androidx.activity:activity`（和壳同一个版本，App 里本来就有）。Android 11、12 上的返回回调、`onNewIntent` 的监听、页面级的配置变化，平台的接口都给不了，只有 `ComponentActivity` 有：
+
+| | 用的是 |
+| --- | --- |
+| 生命周期 | `lifecycle`（`LifecycleEventObserver`）。`addObserver` 会当场把已经发生过的事件补发给新的观察者，那些不是「现在发生了」，不发给 JS |
+| 返回 | `onBackPressedDispatcher` 上一个 `OnBackPressedCallback`。`handlesBack` 就是它开没开 |
+| 配置变化 | `addOnConfigurationChangedListener` |
+| 被链接打开 | `addOnNewIntentListener`，intent 带着地址才发 `openurl` |
+| 内存告警 | `addOnTrimMemoryListener` |
+
+都是有人订了才装回调，和别的事件一样延后一轮派发、不可取消。
+
+### 返回键：能用属性就用属性
+
+`targetSdk` 37 下预测性返回是强制开着的：系统在手势**开始之前**就要知道 App 接不接返回，好决定播「回到桌面」还是「留在 App 里」的动画。这一刻来不及问 JS，所以照「能用属性就用属性」：JS 提前把 `handlesBack` 设好，原生照着答。`handlesBack` 只有 JS 自己改，没有变化事件。
+
+**按键也走预测性返回那一套**（实测，Pixel 6，Android 17）：按返回键（三键导航，或者 `input keyevent`）时先来一个 `backstart`，`swipeEdge` 是 `'none'`、`progress` 是 0，紧接着 `back`，中间没有 `backprogress`。从边缘滑是 `backstart`、一串 `backprogress`、`back`（松手）或 `backcancel`（放弃）。Android 13 及以前没有预测性返回，只有 `back`（没在手机上验过）。
+
+`handlesBack` 为 `false` 时（默认）系统照它自己的做法处理，原生不替 JS 改：
+
+- **从桌面启动的**：Android 12 起根页面按返回是把 App 退到后台，页面不结束。系统只对「从桌面启动的任务」这么做。**没验过**：要人从桌面点开 App、按返回、再点开，看 `main.js` 有没有从头再跑。
+- **adb 启动的（验收就是这样）**：按返回会把页面结束，运行时跟着关掉，再打开时 `main.js` 从头再跑。实测过两种启动法都是这样：`am start -n`，和带上 `MAIN`、`LAUNCHER` 的 `am start`（调用方是 shell，不算桌面）。所以验收里没有「不接返回时按返回键」这一条：页面一结束，后面什么都报不出来。
+- Android 11 上根页面按返回也是结束页面（系统文档的说法，没验过）。
+
+### 配置变化不重建页面
+
+`project.md` 第 4 节定了配置变化不重建页面，改成给 JS 发事件。壳的 `configChanges` 原来漏了几项，没声明的配置一变，系统就重建页面，`main.js` 从头再跑一遍。这次补上了 `mcc`、`mnc`、`touchscreen`、`colorMode`、`fontWeightAdjustment`（系统设置里的粗体字）、`grammaticalGender`、`assetsPaths`，现在 `ActivityInfo` 里公开的 `CONFIG_` 都声明了。
+
+`configuration` 是一份快照（值类 `Configuration`，做法和 `WindowInsets` 一样：字段只读、不能 `new`、每次读是新的一份）。字段照 `android.content.res.Configuration`：`orientation`（`'portrait'`、`'landscape'`、`'undefined'`）、`screenWidthDp`、`screenHeightDp`、`smallestScreenWidthDp`、`densityDpi`、`fontScale`、`isNightModeActive`、`locales`（BCP 47 写法，冻结的数组）、`layoutDirection`（`'ltr'`、`'rtl'`）。系统只有一个 `onConfigurationChanged`，所以事件也只有一个 `configurationchange`，JS 读新值自己比。`fontScale` 是 `Float`，直接转 `Double` 会带出 `1.149999976` 这样的尾巴，按它写出来的样子转。
+
+### 被链接打开：壳改成 singleTask
+
+壳的页面原来是默认的启动方式，别的 App 打开一条指向它的链接会**再建一个页面**，也就再起一个运行时。改成 `singleTask` 之后，已经在跑的页面收到 `onNewIntent`，发 `openurl`。
+
+- `launchURL`：启动这个页面的 intent 带的地址，从桌面启动是 `null`。`ComponentActivity` 收到新 intent 时不调 `setIntent`，所以它一直是启动时的那个。
+- 冷启动带着的链接读 `launchURL`，运行中来的链接听 `openurl`，两条路不重叠。
+
+### openURL
+
+`ACTION_VIEW` 加 `FLAG_ACTIVITY_NEW_TASK`：打开的 App 放进它自己的任务，不叠在这个 App 的页面上面，切回来时回到的还是这个 App。`startActivity` 没抛就兑现为 `true`；没有 App 能处理（`ActivityNotFoundException`）或者不让打开（`SecurityException`）兑现为 `false`，不拒绝。不带参数当场抛 `TypeError`。没有 `canOpenURL`：Android 11 起要先在清单里声明包可见性才查得到别的 App。
+
+### 内存告警
+
+`level` 照 `ComponentCallbacks2` 的 `TRIM_MEMORY_` 常量，去掉前缀、首字母小写：`'uiHidden'`、`'background'`、`'moderate'`、`'complete'`、`'runningModerate'`、`'runningLow'`、`'runningCritical'`。系统以后加的级别按落在哪一档归过去。Android 14 起系统正常只发 `uiHidden`（界面全看不见了）和 `background`，别的级别要用 `am send-trim-memory` 才发得出来。
+
+### 明确不做的
+
+- `destroy` 事件：运行时跟着页面一起关掉，延后一轮派发的事件送不到。
+- `create` 事件：`main.js` 本身就在 `onCreate` 里执行。
+- 能取消的返回：系统等不了，由 `handlesBack` 提前答。
+- 进程级的前后台（`ProcessLifecycleOwner`）：只有一个页面，和页面的生命周期是一回事。
+
+订阅 `destroy`、`create` 不抛，当 JS 自己的自定义事件，永远不会来。
+
+### 和 iOS 的 application
+
+- **一样的**：`openURL()` 返回 `Promise<boolean>`、失败给 `false` 不拒绝；`openurl` 事件和 `OpenURLEvent` 的 `url`；系统通知都不可取消。
+- **不一样的**：状态和事件照 Android 的 Lifecycle（不是 `active` / `background`）；包信息照 Android 起名；内存告警带级别、叫 `trimmemory`；多了 `handlesBack` 和返回的四个事件、`configuration`、`launchURL`；没有场景、`info`、`state`；`OpenURLEvent` 只有 `url`。
+
+### 验收怎么触发系统事件
+
+JS 打「`[acceptance] <命令> <参数>`」，`run-device.sh` 照做，和 `tap` 并列：`key back`、`backswipe commit|cancel`（从左边缘注入一段手势）、`relaunch`（像从桌面点图标那样切回前台）、`open <网址>`（带着网址打开，触发 `openurl`）、`trim-memory <级别>`、`night yes|no`（切深色模式；改的是手机的设置，脚本退出时还原）。参数要拼进手机上的 shell 命令，只放行网址里常见的字符。
+
+这一步会离开 App 一次（`openURL` 打开浏览器），所以排在要点击的步骤和网络那两步之后。
+
+三处撞到的：
+
+- **一下跳回边缘松手，系统当成返回。** 注入的手势要一步一步慢慢滑回边缘、在边缘停一下再松手，系统才认成放弃，发 `backcancel`。
+- **`am send-trim-memory` 同一级只能发一次。** 进程已经收过某一级，再发同一级或者更低的，系统抛「Unable to set a higher trim level than current level」。脚本里手机上的命令失败只打出来，不让整个脚本退出。
+- **装新包时系统会把正在跑的 App 再打开一次**（Android 17 的 `PackageUpdateActivity`）。脚本装完包先强制停掉再打开，不受影响；但跑的时候页面要是被结束、运行时从头再跑一遍，脚本是按「第几条请求」计数的，新的一遍发来的请求会被当成已经做过，JS 那边就一条条等到超时。
+
+### 欠的验证
+
+- 从桌面启动时，不接返回按返回键是退到后台、不结束（见上面「返回键」）。
+- 转屏、改字号、改语言时的 `configurationchange`：验收只切了深色模式。
+- Android 11 到 13 上的返回（没有预测性返回，只有 `back`）：手机只有 Android 17 的一台。
+- 别的 App 里点一条链接打开本 App：验收是 `am start -a VIEW -d` 带着网址打开的，没有走浏览器或者别的 App。冷启动带链接时的 `launchURL` 也只是照代码说，没跑过。启动时的 `start`、`resume` 不用外面帮忙：入口一开始就订阅，就接得住。
 
 ## 构建
 
