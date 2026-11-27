@@ -47,7 +47,7 @@ import { stepWebSocket } from './steps/websocket.js';
 // import { stepLayout } from './steps/layout.js';
 // import { stepScroll } from './steps/scroll.js';
 // import { stepAnimation } from './steps/animation.js';
-// import { stepText } from './steps/text.js';
+import { stepText } from './steps/text.js';
 // import { stepApp, watchApp } from './steps/app.js';
 // import { stepImage } from './steps/image.js';
 
@@ -145,7 +145,7 @@ const sliceDone = (async () => {
   // await runAsync('stepLayout', () => stepLayout(ctx));
   // await runAsync('stepScroll', () => stepScroll(ctx));
   // await runAsync('stepAnimation', () => stepAnimation(ctx));
-  // await runAsync('stepText', () => stepText(ctx));
+  await runAsync('stepText', () => stepText(ctx));
   // await runAsync('stepImage', () => stepImage(ctx));
 })();
 

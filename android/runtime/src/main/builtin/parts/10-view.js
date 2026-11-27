@@ -123,6 +123,9 @@
   //   apply    (替身, 值, 页面, 视图) => 设到原生。替身交给 nativeSet / nativeCall；页面是
   //            { density, fontScale }；几个状态合成一次调用的（四个内边距）从视图上读别的
   //   units    'dp'：密度变了重设；'sp'：密度或系统字号变了重设；省略：不重设
+  //   applyInitial  true：没写过也按 initial 设到原生（挂上时、配置变化时）。给原生的默认值跟不上
+  //            配置变化的用：TextView 主题给的字号是建的时候按当时的密度和系统字号取整的像素，
+  //            之后系统字号变了它不跟着变（文字组实测）
   const ownStates = new Map();    // 原型 -> 这个原型自己登记的
   const statesCache = new Map();  // 原型 -> 连同继承来的，排好序
   let serial = 0;
@@ -148,6 +151,7 @@
       convert: spec.convert,
       apply: spec.apply,
       units: spec.units,
+      applyInitial: spec.applyInitial === true,
       serial: serial++,
     };
     const proto = Cls.prototype;
@@ -185,10 +189,11 @@
   // 每项单独 try：原生拒了（JS 没查住的）打一条警告跳过，不让挂上做到一半失败
   function applyStates(view, st, page, filter) {
     for (const entry of statesOf(Object.getPrototypeOf(view))) {
-      if (!st.values.has(entry.name)) continue;
+      const written = st.values.has(entry.name);
+      if (!written && !entry.applyInitial) continue;
       if (filter !== undefined && !filter(entry)) continue;
       try {
-        entry.apply(st.standIn, st.values.get(entry.name), page, view);
+        entry.apply(st.standIn, written ? st.values.get(entry.name) : entry.initial, page, view);
       } catch (err) {
         warnSkipped('could not apply ' + entry.name + ' to ' + view.constructor.name, err);
       }

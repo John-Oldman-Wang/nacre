@@ -29,6 +29,14 @@ internal object Gravities {
     private val clip = linkedMapOf("clipHorizontal" to Gravity.CLIP_HORIZONTAL, "clipVertical" to Gravity.CLIP_VERTICAL)
     private val all = horizontal + vertical + clip
 
+    // 名字表交给 JS（JS 在那边当场查写错的名字，见 32-text.js），按方向分开查「每个方向最多一个」。
+    // 表名在所有域里不能重复，只能一个域登记：现在是 TextDomain（布局组要用就直接取，不再登记）
+    val enums: Map<String, EnumTable<*>> = mapOf(
+        "gravityHorizontal" to EnumTable(*horizontal.toList().toTypedArray()),
+        "gravityVertical" to EnumTable(*vertical.toList().toTypedArray()),
+        "gravityClip" to EnumTable(*clip.toList().toTypedArray()),
+    )
+
     // 名字数组 → 数值。不是数组、名字不是字符串抛 NacreTypeError（JS 那边已经转过，到这里
     // 说明调错了）；名字写错、同一个方向两个抛 Problem
     fun parse(value: Any?, where: String, axis: Axis = Axis.BOTH): Int {

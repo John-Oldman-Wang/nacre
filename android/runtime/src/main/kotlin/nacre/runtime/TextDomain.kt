@@ -1,14 +1,14 @@
 // 文字这一组：TextView 上的字号、颜色、字体、对齐、行数、省略号、行高、字间距、可选中、
-// 测量、字体特性和可变字体的轴、按基线定高、自动缩字号、下划线和删除线（paintFlags）、
-// 文字阴影，View 上的 textAlignment，以及 Typeface。JS 那一侧在 builtin/parts/32-text.js。
+// 字体特性和可变字体的轴、按基线定高、自动缩字号、下划线和删除线、文字阴影、测量，
+// View 上的 textAlignment，以及 Typeface。JS 那一侧在 builtin/parts/32-text.js。
 //
 // TextView、View 这两个类 ViewDomain 也登记了，这里再登记一次（JS 类名一样），
 // 为的是 NativeBridge 问到它们的成员时也问这个域。
 //
-// 规矩（project.md 第 4 节「接类的规矩」）：整数常量 → 字符串枚举，名字和数值的映射只在
-// 这里（Enums.kt 的 EnumTable）：属性位写错抛 NacreWarning（JS 打警告、值不变），方法参数
-// 写错抛 NacreTypeError。颜色在 JS 那边从 CSS 的写法解析成 ARGB 的无符号数（30-appearance.js
-// 的 colorArgument / colorProperty），这里只收数。JS 那边已经照 Web IDL 转好了类型，这里只校验。
+// 照「接类的总则」（2026-11-26）：状态记在 JS 里，挂上时 JS 按登记的顺序设到这里。JS 那边已经
+// 当场查过类型、范围、枚举名、颜色，这里只校验。长度是 dp，跟着 fontScaling 的那几个（字号、
+// 行高、首末基线、自动缩字号）用 Java 自己的单位换算：fontScaling 为 true 是 sp（含 Android 14
+// 起的非线性放大），false 是 dp。@ 开头的是 32-text.js 内部用的，不是 API。
 package nacre.runtime
 
 import android.graphics.Paint
@@ -18,8 +18,7 @@ import android.text.TextUtils
 import android.util.TypedValue
 import android.view.View
 import android.widget.TextView
-import org.json.JSONArray
-import org.json.JSONObject
+import kotlin.math.max
 import kotlin.math.roundToInt
 
 internal class TextDomain(host: DomainHost) : Domain(host) {
@@ -31,24 +30,6 @@ internal class TextDomain(host: DomainHost) : Domain(host) {
     )
 
     // ---- 枚举 ----
-
-    // TypedValue.COMPLEX_UNIT_*：去掉前缀、小写
-    private val units = EnumTable(
-        "px" to TypedValue.COMPLEX_UNIT_PX,
-        "dip" to TypedValue.COMPLEX_UNIT_DIP,
-        "sp" to TypedValue.COMPLEX_UNIT_SP,
-        "pt" to TypedValue.COMPLEX_UNIT_PT,
-        "in" to TypedValue.COMPLEX_UNIT_IN,
-        "mm" to TypedValue.COMPLEX_UNIT_MM,
-    )
-
-    // Typeface.NORMAL / BOLD / ITALIC / BOLD_ITALIC
-    private val styles = EnumTable(
-        "normal" to Typeface.NORMAL,
-        "bold" to Typeface.BOLD,
-        "italic" to Typeface.ITALIC,
-        "boldItalic" to Typeface.BOLD_ITALIC,
-    )
 
     // TextUtils.TruncateAt（Java 的 enum，不是整数常量，照同一条规矩）；null 是不加省略号
     private val ellipsizes = EnumTable(
@@ -69,31 +50,9 @@ internal class TextDomain(host: DomainHost) : Domain(host) {
         "viewEnd" to View.TEXT_ALIGNMENT_VIEW_END,
     )
 
-    // TextView.AUTO_SIZE_TEXT_TYPE_*
-    private val autoSizeTypes = EnumTable(
-        "none" to TextView.AUTO_SIZE_TEXT_TYPE_NONE,
-        "uniform" to TextView.AUTO_SIZE_TEXT_TYPE_UNIFORM,
-    )
-
-    // Paint.*_FLAG：去掉 _FLAG、转驼峰。位掩码，JS 里是字符串数组
-    private val paintFlagTable = linkedMapOf(
-        "antiAlias" to Paint.ANTI_ALIAS_FLAG,
-        "filterBitmap" to Paint.FILTER_BITMAP_FLAG,
-        "dither" to Paint.DITHER_FLAG,
-        "underlineText" to Paint.UNDERLINE_TEXT_FLAG,
-        "strikeThruText" to Paint.STRIKE_THRU_TEXT_FLAG,
-        "fakeBoldText" to Paint.FAKE_BOLD_TEXT_FLAG,
-        "linearText" to Paint.LINEAR_TEXT_FLAG,
-        "subpixelText" to Paint.SUBPIXEL_TEXT_FLAG,
-        "devKernText" to Paint.DEV_KERN_TEXT_FLAG,
-        "embeddedBitmapText" to Paint.EMBEDDED_BITMAP_TEXT_FLAG,
-        "verticalText" to Paint.VERTICAL_TEXT_FLAG,
-    )
-    private val paintFlagMask = paintFlagTable.values.fold(0) { acc, v -> acc or v }
-    private val paintFlagNamesTable = EnumTable(*paintFlagTable.entries.map { it.key to it.value }.toTypedArray())
-
-    private fun paintFlagNames(value: Int) = paintFlagTable.filterValues { value and it != 0 }.keys.toList()
-
+    // Gravity 的三张表放在 Gravity.kt，由这里交出去（表名全局唯一，只能一个域登记）
+    override val enums: Map<String, EnumTable<*>> =
+        mapOf("ellipsize" to ellipsizes, "textAlignment" to alignments) + Gravities.enums
 
     // ---- 取参数（JS 那边已经转好了，这里只校验）----
 
@@ -102,6 +61,8 @@ internal class TextDomain(host: DomainHost) : Domain(host) {
         if (n == null || !n.isFinite()) throw NacreTypeError("$where: expected a finite number")
         return n
     }
+
+    private fun numberOrNull(value: Any?, where: String): Double? = if (value == null) null else number(value, where)
 
     // 颜色：JS 那边已经把 CSS 的写法解析成了 ARGB 的无符号数（0–0xFFFFFFFF）
     private fun color(value: Any?, where: String): Int {
@@ -112,185 +73,154 @@ internal class TextDomain(host: DomainHost) : Domain(host) {
         return n.toLong().toInt()
     }
 
-    // 读的时候交回无符号数，JS 那边写成 '#rrggbb' / '#rrggbbaa'
-    private fun colorJson(color: Int) = (color.toLong() and 0xFFFFFFFFL).toString()
-
     private fun bool(value: Any?, where: String): Boolean =
         value as? Boolean ?: throw NacreTypeError("$where: expected a boolean")
 
-    private fun quoted(name: String?) = if (name == null) "null" else JSONObject.quote(name)
+    private fun stringOrNull(value: Any?, where: String): String? {
+        if (value != null && value !is String) throw NacreTypeError("$where: expected a string or null")
+        return value as String?
+    }
 
     // Float 用它自己的最短写法交给 JSON：0.1f 读回来是 0.1，不是 0.10000000149011612
     private fun json(f: Float) = if (f.isFinite()) f.toString() else "null"
+
+    // 跟着 fontScaling 的长度：true 是 sp，false 是 dp
+    private fun unit(scaling: Any?) = if (bool(scaling, "fontScaling")) TypedValue.COMPLEX_UNIT_SP else TypedValue.COMPLEX_UNIT_DIP
+
+    private fun px(tv: TextView, unit: Int, value: Double): Float =
+        TypedValue.applyDimension(unit, value.toFloat(), tv.resources.displayMetrics)
+
+    private fun density(tv: TextView) = tv.resources.displayMetrics.density
+
+    private fun setPaintFlag(tv: TextView, flag: Int, on: Boolean) {
+        tv.paintFlags = if (on) tv.paintFlags or flag else tv.paintFlags and flag.inv()
+    }
 
     // ---- 属性 ----
 
     override fun read(target: Any, name: String): String? {
         if (target is Typeface) return when (name) {
-            "style" -> quoted(styles.name(target.style))
             "weight" -> target.weight.toString()
-            "isBold" -> target.isBold.toString()
             "isItalic" -> target.isItalic.toString()
             else -> null
         }
+        // 页面值：挂着的视图才问到这里。还没排过版（没有 layout）时 lineCount、baseline 是 null
         if (target is TextView) when (name) {
-            "textSize" -> return json(target.textSize)
-            "textSizeUnit" -> return quoted(units.name(target.textSizeUnit))
-            "currentTextColor" -> return colorJson(target.currentTextColor)
-            "highlightColor" -> return colorJson(target.highlightColor)
-            "gravity" -> return JSONArray(Gravities.names(target.gravity)).toString()
-            "maxLines" -> return target.maxLines.toString()
-            "minLines" -> return target.minLines.toString()
-            "ellipsize" -> return quoted(target.ellipsize?.let { ellipsizes.name(it) })
-            "lineHeight" -> return target.lineHeight.toString()
-            "lineSpacingExtra" -> return json(target.lineSpacingExtra)
-            "lineSpacingMultiplier" -> return json(target.lineSpacingMultiplier)
-            "letterSpacing" -> return json(target.letterSpacing)
-            "includeFontPadding" -> return target.includeFontPadding.toString()
-            "isTextSelectable" -> return target.isTextSelectable.toString()
-            "lineCount" -> return target.lineCount.toString()
-            "baseline" -> return target.baseline.toString()
-            "fontFeatureSettings" -> return quoted(target.fontFeatureSettings)
-            "fontVariationSettings" -> return quoted(target.fontVariationSettings)
-            "firstBaselineToTopHeight" -> return target.firstBaselineToTopHeight.toString()
-            "lastBaselineToBottomHeight" -> return target.lastBaselineToBottomHeight.toString()
-            "autoSizeTextType" -> return quoted(autoSizeTypes.name(target.autoSizeTextType))
-            "autoSizeMinTextSize" -> return target.autoSizeMinTextSize.toString()
-            "autoSizeMaxTextSize" -> return target.autoSizeMaxTextSize.toString()
-            "autoSizeStepGranularity" -> return target.autoSizeStepGranularity.toString()
-            "autoSizeTextAvailableSizes" -> return JSONArray(target.autoSizeTextAvailableSizes.toList()).toString()
-            "paintFlags" -> return JSONArray(paintFlagNames(target.paintFlags)).toString()
-            "shadowRadius" -> return json(target.shadowRadius)
-            "shadowDx" -> return json(target.shadowDx)
-            "shadowDy" -> return json(target.shadowDy)
-            "shadowColor" -> return colorJson(target.shadowColor)
+            "resolvedTextSize" -> return json(target.textSize / density(target))
+            "lineCount" -> return if (target.layout == null) "null" else target.lineCount.toString()
+            "baseline" -> return if (target.layout == null) "null" else json(target.baseline / density(target))
         }
-        if (target is View && name == "textAlignment") return quoted(alignments.name(target.textAlignment))
         return null
     }
 
     override fun write(target: Any, name: String, value: Any?): Boolean {
         if (target is TextView) when (name) {
-            "highlightColor" -> { target.highlightColor = color(value, "highlightColor"); return true }
-            "gravity" -> {
-                val list = value as? List<*> ?: throw NacreTypeError("gravity: expected an array of strings")
-                target.gravity = Gravities.forProperty(list, "gravity")
-                return true
-            }
-            "maxLines" -> { target.maxLines = number(value, "maxLines").toInt(); return true }
-            "minLines" -> { target.minLines = number(value, "minLines").toInt(); return true }
+            "textColor" -> { target.setTextColor(color(value, name)); return true }
+            "highlightColor" -> { target.highlightColor = color(value, name); return true }
+            "gravity" -> { target.gravity = Gravities.forProperty(value, name); return true }
+            // null 是不限：Java 用 Integer.MAX_VALUE
+            "maxLines" -> { target.maxLines = numberOrNull(value, name)?.toInt() ?: Int.MAX_VALUE; return true }
+            "minLines" -> { target.minLines = number(value, name).toInt(); return true }
             "ellipsize" -> {
-                target.ellipsize = if (value == null) null else ellipsizes.forProperty("ellipsize", value)
+                target.ellipsize = if (value == null) null else ellipsizes.forProperty(name, value)
                 return true
             }
-            "lineHeight" -> { target.lineHeight = number(value, "lineHeight").toInt(); return true }
-            "letterSpacing" -> {
-                target.letterSpacing = number(value, "letterSpacing").toFloat()
-                return true
-            }
-            "includeFontPadding" -> {
-                target.includeFontPadding = bool(value, "includeFontPadding")
-                return true
-            }
-            "fontFeatureSettings" -> {
-                if (value != null && value !is String) throw NacreTypeError("fontFeatureSettings: expected a string or null")
-                target.fontFeatureSettings = value as String?
-                return true
-            }
-            "firstBaselineToTopHeight" -> {
-                target.firstBaselineToTopHeight = number(value, "firstBaselineToTopHeight").toInt()
-                return true
-            }
-            "lastBaselineToBottomHeight" -> {
-                target.lastBaselineToBottomHeight = number(value, "lastBaselineToBottomHeight").toInt()
-                return true
-            }
-            "paintFlags" -> {
-                val list = value as? List<*> ?: throw NacreTypeError("paintFlags: expected an array of strings")
-                var bits = 0
-                for (name in list) bits = bits or paintFlagNamesTable.forProperty("paintFlags", name)
-                // 表外的位（系统私下设的）原样留着，只换表里的这几位
-                target.paintFlags = (target.paintFlags and paintFlagMask.inv()) or bits
-                return true
-            }
+            "letterSpacing" -> { target.letterSpacing = number(value, name).toFloat(); return true }
+            "includeFontPadding" -> { target.includeFontPadding = bool(value, name); return true }
+            "isTextSelectable" -> { target.setTextIsSelectable(bool(value, name)); return true }
+            "fontFeatureSettings" -> { target.fontFeatureSettings = stringOrNull(value, name); return true }
+            "isUnderlineText" -> { setPaintFlag(target, Paint.UNDERLINE_TEXT_FLAG, bool(value, name)); return true }
+            "isStrikeThruText" -> { setPaintFlag(target, Paint.STRIKE_THRU_TEXT_FLAG, bool(value, name)); return true }
         }
         if (target is View && name == "textAlignment") {
-            target.textAlignment = alignments.forProperty("textAlignment", value)
+            target.textAlignment = alignments.forProperty(name, value)
             return true
         }
         return false
     }
 
-    // ---- 方法 ----
+    // ---- 几项合成一次的设置（32-text.js 内部用）----
 
     override fun call(target: Any, name: String, args: List<*>, objects: List<Any?>): String? {
         val tv = target as? TextView ?: return null
         when (name) {
-            "setTextSize" -> when (args.size) {
-                1 -> tv.setTextSize(number(args[0], name).toFloat())
-                2 -> tv.setTextSize(units.forArgument("unit", args[0]),
-                                    number(args[1], name).toFloat())
-                else -> throw NacreTypeError("setTextSize: expected 1 or 2 arguments")
+            // 字体和可变字体的轴 [Typeface 或 null, 轴或 null]，总是一起设。Java 不替我们管这两样的关系：
+            // 换字体时轴不跟过去；轴的写法和上次一样时 setFontVariationSettings 什么都不做；清掉轴是在
+            // 当前（已经带着轴的）字体上再派生，留着上一次的。所以每次都先清掉、换回 JS 的字体，再设轴。
+            // 没有一个字体认得这些轴时 Java 返回 false、什么都不设，照 JS 的状态就是没设
+            "@font" -> {
+                val settings = stringOrNull(args.getOrNull(1), "fontVariationSettings")
+                tv.setFontVariationSettings(null)
+                tv.typeface = objects.getOrNull(0) as? Typeface
+                if (settings != null) tv.setFontVariationSettings(settings)
             }
-            "setTextColor" -> tv.setTextColor(color(args.getOrNull(0), "setTextColor"))
-            "setTypeface" -> {
-                // 第一个参数是 Typeface 或 null（JS 那边拦过了）
-                val typeface = objects.getOrNull(0) as? Typeface
-                if (args.size >= 2) tv.setTypeface(typeface, styles.forArgument("style", args[1]))
-                else tv.typeface = typeface
-            }
-            "setLines" -> tv.setLines(number(args.getOrNull(0), name).toInt())
-            "setLineHeight" -> when (args.size) {
-                1 -> tv.lineHeight = number(args[0], name).toInt()
-                2 -> {
-                    val unit = units.forArgument("unit", args[0])
-                    val value = number(args[1], name).toFloat()
-                    if (Build.VERSION.SDK_INT >= 34) {
-                        tv.setLineHeight(unit, value)
-                    } else {
-                        // Android 14 以前没有带单位的版本：换成像素再设，跟不上之后字体大小设置的变化
-                        tv.lineHeight = TypedValue.applyDimension(unit, value, tv.resources.displayMetrics).roundToInt()
-                    }
+            // 字号 [大小, fontScaling]。自动缩字号开着时 Java 不理，关掉时 JS 再设一次
+            "@textSize" -> tv.setTextSize(unit(args.getOrNull(1)), number(args.getOrNull(0), "textSize").toFloat())
+            // 行高 [dp 或 null, fontScaling]。null 是字体自己的行高
+            "@lineHeight" -> {
+                val value = numberOrNull(args.getOrNull(0), "lineHeight")
+                val unit = unit(args.getOrNull(1))
+                when {
+                    value == null -> tv.setLineSpacing(0f, 1f)
+                    Build.VERSION.SDK_INT >= 34 -> tv.setLineHeight(unit, value.toFloat())
+                    // Android 14 以前没有带单位的版本：换成像素再设（系统字号变了 JS 会重设）
+                    else -> tv.lineHeight = px(tv, unit, value).roundToInt()
                 }
-                else -> throw NacreTypeError("setLineHeight: expected 1 or 2 arguments")
             }
-            "setLineSpacing" -> {
-                if (args.size < 2) throw NacreTypeError("setLineSpacing: expected 2 arguments")
-                tv.setLineSpacing(number(args[0], name).toFloat(), number(args[1], name).toFloat())
+            // 首末基线 [首, 末, fontScaling, 上内边距, 下内边距]（内边距是 JS 里的值换成的像素）。
+            // 写了的一边按字体度量换成内边距，盖过 JS 的内边距；null 的一边用 JS 的内边距。照 Java 的
+            // setFirstBaselineToTopHeight 算，只是要的距离比字体自己的还小时内边距是 0（Java 不动它）
+            "@baselines" -> {
+                val first = numberOrNull(args.getOrNull(0), "firstBaselineToTopHeight")
+                val last = numberOrNull(args.getOrNull(1), "lastBaselineToBottomHeight")
+                val unit = unit(args.getOrNull(2))
+                var top = number(args.getOrNull(3), "paddingTop").toInt()
+                var bottom = number(args.getOrNull(4), "paddingBottom").toInt()
+                val metrics = tv.paint.fontMetricsInt
+                if (first != null) {
+                    val fontTop = if (tv.includeFontPadding) metrics.top else metrics.ascent
+                    top = max(0, px(tv, unit, first).roundToInt() + fontTop)
+                }
+                if (last != null) {
+                    val fontBottom = if (tv.includeFontPadding) metrics.bottom else metrics.descent
+                    bottom = max(0, px(tv, unit, last).roundToInt() - fontBottom)
+                }
+                tv.setPaddingRelative(tv.paddingStart, top, tv.paddingEnd, bottom)
             }
-            "setTextIsSelectable" -> tv.setTextIsSelectable(bool(args.getOrNull(0), name))
-            "setFontVariationSettings" -> {
-                val settings = args.getOrNull(0)
-                if (settings != null && settings !is String) throw NacreTypeError("$name: expected a string or null")
-                return tv.setFontVariationSettings(settings as String?).toString()
+            // 文字阴影 [null] 或 [半径, dx, dy（像素）, 颜色]
+            "@textShadow" -> {
+                if (args.getOrNull(0) == null) {
+                    tv.setShadowLayer(0f, 0f, 0f, 0)
+                } else {
+                    if (args.size < 4) throw NacreTypeError("textShadow: expected 4 values")
+                    tv.setShadowLayer(number(args[0], "radius").toFloat(), number(args[1], "dx").toFloat(),
+                                      number(args[2], "dy").toFloat(), color(args[3], "color"))
+                }
             }
-            "setAutoSizeTextTypeWithDefaults" ->
-                tv.setAutoSizeTextTypeWithDefaults(autoSizeTypes.forArgument("type", args.getOrNull(0)))
-            "setAutoSizeTextTypeUniformWithConfiguration" -> {
-                if (args.size < 4) throw NacreTypeError("$name: expected 4 arguments")
-                tv.setAutoSizeTextTypeUniformWithConfiguration(
-                    number(args[0], name).toInt(), number(args[1], name).toInt(), number(args[2], name).toInt(),
-                    units.forArgument("unit", args[3]))
-            }
-            "setAutoSizeTextTypeUniformWithPresetSizes" -> {
-                val sizes = args.getOrNull(0) as? List<*> ?: throw NacreTypeError("$name: sizes must be an array of numbers")
-                tv.setAutoSizeTextTypeUniformWithPresetSizes(
-                    sizes.map { number(it, name).toInt() }.toIntArray(),
-                    units.forArgument("unit", args.getOrNull(1)))
-            }
-            "setShadowLayer" -> {
-                if (args.size < 4) throw NacreTypeError("$name: expected 4 arguments")
-                tv.setShadowLayer(number(args[0], name).toFloat(), number(args[1], name).toFloat(),
-                                  number(args[2], name).toFloat(), color(args[3], name))
+            // 自动缩字号 [null]、['range', min, max, step, fontScaling] 或 ['sizes', [..], fontScaling]。
+            // Java 收的是某个单位下的整数，dp 可以是小数，所以先按单位换成像素再取整
+            "@autoSize" -> when (args.getOrNull(0)) {
+                null -> tv.setAutoSizeTextTypeWithDefaults(TextView.AUTO_SIZE_TEXT_TYPE_NONE)
+                "range" -> {
+                    val unit = unit(args.getOrNull(4))
+                    val min = max(1, px(tv, unit, number(args.getOrNull(1), "min")).roundToInt())
+                    val maxSize = px(tv, unit, number(args.getOrNull(2), "max")).roundToInt()
+                    val step = max(1, px(tv, unit, number(args.getOrNull(3), "step")).roundToInt())
+                    tv.setAutoSizeTextTypeUniformWithConfiguration(min, maxSize, step, TypedValue.COMPLEX_UNIT_PX)
+                }
+                "sizes" -> {
+                    val unit = unit(args.getOrNull(2))
+                    val sizes = args.getOrNull(1) as? List<*> ?: throw NacreTypeError("autoSize.sizes: expected an array")
+                    tv.setAutoSizeTextTypeUniformWithPresetSizes(
+                        sizes.map { max(1, px(tv, unit, number(it, "sizes")).roundToInt()) }.toIntArray(),
+                        TypedValue.COMPLEX_UNIT_PX)
+                }
+                else -> throw NacreTypeError("autoSize: unknown kind")
             }
             else -> return null
         }
         return "null"
     }
-
-    // typeface 的读：返回一个原生对象，走返回对象的方法通道
-    override fun callObject(target: Any, name: String, args: List<*>, objects: List<Any?>): Any? =
-        if (target is TextView && name == "getTypeface") target.typeface else NOT_MINE
 
     // ---- Typeface 的类级成员 ----
 
@@ -298,7 +228,6 @@ internal class TextDomain(host: DomainHost) : Domain(host) {
         if (className != "Typeface") return NOT_MINE
         return when (name) {
             "DEFAULT" -> Typeface.DEFAULT
-            "DEFAULT_BOLD" -> Typeface.DEFAULT_BOLD
             "SANS_SERIF" -> Typeface.SANS_SERIF
             "SERIF" -> Typeface.SERIF
             "MONOSPACE" -> Typeface.MONOSPACE
@@ -309,18 +238,16 @@ internal class TextDomain(host: DomainHost) : Domain(host) {
     override fun classCallObject(className: String, name: String, args: List<*>, objects: List<Any?>): Any? {
         if (className != "Typeface") return NOT_MINE
         return when (name) {
+            // create(family, { weight, italic })：family 是 Typeface、字体族的名字或 null（默认的字体族）。
+            // 没给的那一项照 family 自己的；两项都没给就是 family 本身
             "create" -> {
-                val family = objects.getOrNull(0) as? Typeface
-                when {
-                    family != null && args.size >= 3 ->
-                        Typeface.create(family, number(args[1], name).toInt(), bool(args[2], name))
-                    family != null -> Typeface.create(family, styles.forArgument("style", args.getOrNull(1)))
-                    args.size >= 3 -> throw NacreTypeError("Typeface.create(family, weight, italic): family must be a Typeface")
-                    else -> Typeface.create(args.getOrNull(0) as? String,
-                                            styles.forArgument("style", args.getOrNull(1)))
-                }
+                val base = objects.getOrNull(0) as? Typeface
+                    ?: Typeface.create(stringOrNull(args.getOrNull(0), "family"), Typeface.NORMAL)
+                val weight = numberOrNull(args.getOrNull(1), "weight")?.toInt()
+                val italic = args.getOrNull(2)?.let { bool(it, "italic") }
+                if (weight == null && italic == null) base
+                else Typeface.create(base, weight ?: base.weight, italic ?: base.isItalic)
             }
-            "defaultFromStyle" -> Typeface.defaultFromStyle(styles.forArgument("style", args.getOrNull(0)))
             "createFromAsset" -> {
                 val path = args.getOrNull(0) as? String ?: throw NacreTypeError("createFromAsset: path must be a string")
                 Typeface.createFromAsset(host.app.assets, "$PROJECT_ASSETS/$path")
