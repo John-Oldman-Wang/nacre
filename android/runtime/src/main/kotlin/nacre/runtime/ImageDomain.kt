@@ -111,15 +111,15 @@ internal class ImageDomain(host: DomainHost) : Domain(host) {
             val path = args.getOrNull(0) as? String
             when {
                 blob != null -> ImageDecoder.createSource(ByteBuffer.wrap(blob.data))
-                path != null -> ImageDecoder.createSource(host.activity.assets, "$PROJECT_ASSETS/$path")
+                path != null -> ImageDecoder.createSource(host.app.assets, "$PROJECT_ASSETS/$path")
                 else -> throw NacreTypeError("createSource: expected a Blob or a path")
             }
         }
-        // Resources 用页面的（JS 里没有这个类），图的密度照它换算
+        // Resources 用 App 的（JS 里没有这个类），图的密度照它换算
         "BitmapDrawable" -> {
             val o = objects.getOrNull(0)
             if (o != null && o !is Bitmap) throw NacreTypeError("new BitmapDrawable: argument 1 must be a Bitmap")
-            BitmapDrawable(host.activity.resources, o as Bitmap?)
+            BitmapDrawable(host.app.resources, o as Bitmap?)
         }
         "ImageView" -> ImageView(
             objects.getOrNull(0) as? android.content.Context

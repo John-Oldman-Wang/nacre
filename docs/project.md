@@ -29,6 +29,12 @@ Nacre 仓库包含一个**没有具体业务的 iOS App**，它覆盖常见 App 
 
 每一步的验收标准都包括：**功能可用，并且原生层没有新增任何调度代码，只新增了能力暴露代码。**
 
+### 运行时跟着 App 生死
+
+运行时的生命周期就是 App 进程的生命周期（2026-11-26 定）：进程一启动就建运行时、执行 `main.js`（iOS 在 `application(_:didFinishLaunchingWithOptions:)` 里，Android 在 `Application.onCreate` 里），进程没了它才没。
+
+页面、窗口、场景是运行时里来来去去的东西：系统建一个、毁一个，用事件告诉 JS，运行时不跟着它们建，也不跟着它们关。所以 JS 不能假设「`main.js` 跑的时候界面已经在了」，也不能假设「界面没了 JS 就停了」：界面在「页面（场景）来了」的事件里建；最后一个页面关了，要不要停由 JS 定。
+
 ## 2. API 设计原则
 
 Nacre 对 App 做的事，相当于 W3C 对浏览器做的事：**定义一套把系统能力暴露给 JS 的标准**。所以我们吸收 W3C 的**方法论**——它为这个问题积累了三十年——但不照搬它的具体设计。
@@ -312,8 +318,8 @@ WebView 留在核心：它不需要用户声明任何东西，拆了的净收益
 | --- | --- |
 | UI 框架 | Android View 体系；不用 Jetpack Compose，需要时用 `ComposeView` 嵌入（对应 iOS 不用 SwiftUI） |
 | 控件 | 平台 View，加上 AndroidX 里提供**能力**的两个：RecyclerView（大列表只建看得见的几行、滚动时复用）、ConstraintLayout（约束排版）。**不接现成的部件**，和 iOS 的「组件不接」一样：`Button`（就是 `TextView` 加主题样式）、Material Components、ViewPager2 都不接，样式和部件由 App 自己用底层能力做（2026-11-23 定） |
-| 页面 | 单 Activity 做启动壳，向 JS 暴露生命周期、窗口、窗口边衬、返回回调；页面栈由 JS 用 View 做；不用 Fragment；配置变化不重建 Activity，改成给 JS 发事件。壳继承 AndroidX 的 `ComponentActivity`（权限和选图的结果回调、Android 11、12 上的返回键回调只有 AndroidX 版；它不带样式，`AppCompatActivity` 才带），主题用 AOSP 自带的 `Theme.Material.Light.NoActionBar`（各家手机上一样，不带厂商的样式）。`Activity` 只能由系统建，JS 里不能 `new` |
-| 继承 | **JS 不实现 Java 的类。** JS 的类可以继承原生类，但**继承只在 JS 这一层**：`class Card extends TextView`，`new Card(ctx)` 时原生那边建的是原型链上最近的原生类（一个普通的 `TextView`），原生世界里没有 `Card`；子类覆写的方法只对 JS 自己的调用生效，系统不会来调。抽象类（`ViewGroup`）和系统建的类（`Activity`、`Context`）继承了也不能 `new`。iOS 那边还是「原生类一律 final」，要不要也放开以后单独讨论。只能靠覆写拿到的能力照「覆写点」那条规矩：运行时为每一处写好固定的原生实现，系统来通知的转成事件；系统当场要答案的，**能用属性就用属性**（JS 提前设好，原生照着答，比如列表一共几行），只有答案要看当次参数时才用当场派发、可写字段的事件（比如网页要跳到哪个网址）；系统要你提供实现的（`onDraw`、列表的内容）换成能力（绘制指令、属性）。这样原生永远不持有 JS 的对象，没有跨两个垃圾回收器的环（2026-11-23 定，取代原来「抽象类由中转子类承接、可重写的方法交给 JS」的打算） |
+| 页面 | 运行时在进程启动时建（壳的 `Application` 子类的 `onCreate` 里），不跟着页面建、关（第 1 节「运行时跟着 App 生死」）。单 Activity 做启动壳，向 JS 暴露生命周期、窗口、窗口边衬、返回回调；页面栈由 JS 用 View 做；不用 Fragment；配置变化不重建 Activity，改成给 JS 发事件。运行时提供一个空的 `NacreActivity`（继承 AndroidX 的 `ComponentActivity`：权限和选图的结果回调、Android 11、12 上的返回键回调只有 AndroidX 版；它不带样式，`AppCompatActivity` 才带），壳的页面继承它，**只有它和它的子类交给 JS**，第三方 SDK 自己的页面不交。主题用 AOSP 自带的 `Theme.Material.Light.NoActionBar`（各家手机上一样，不带厂商的样式）。`Activity` 只能由系统建，JS 里不能 `new`；页面建好（`onCreate` 跑完、第一帧之前）、销毁（`onDestroy` 里）时运行时在 `application` 上当场派发 `activitycreate` / `activitydestroy`，`application.activities` 是现在有的页面，页面的内容是可读写的 `activity.contentView`；销毁的页面 `contentView` 读出 `null`，写视图抛 `InvalidStateError`，它原来的内容变回自由的。最后一个页面关了运行时照常跑，从桌面再点开是同一个进程里的新页面，`main.js` 不再跑，所以**界面在 `activitycreate` 里建**（2026-11-26 定）。名字叫 `activity`，「页面」留给 JS 自己用视图做的页面栈 |
+| 继承 | **JS 不实现 Java 的类。** JS 的类可以继承原生类，但**继承只在 JS 这一层**：`class Card extends TextView`，`new Card()` 挂上时原生那边建的是原型链上最近的原生类（一个普通的 `TextView`），原生世界里没有 `Card`；子类覆写的方法只对 JS 自己的调用生效，系统不会来调。抽象类（`ViewGroup`）和系统建的类（`Activity`）继承了也不能 `new`。iOS 那边还是「原生类一律 final」，要不要也放开以后单独讨论。只能靠覆写拿到的能力照「覆写点」那条规矩：运行时为每一处写好固定的原生实现，系统来通知的转成事件；系统当场要答案的，**能用属性就用属性**（JS 提前设好，原生照着答，比如列表一共几行），只有答案要看当次参数时才用当场派发、可写字段的事件（比如网页要跳到哪个网址）；系统要你提供实现的（`onDraw`、列表的内容）换成能力（绘制指令、属性）。这样原生永远不持有 JS 的对象，没有跨两个垃圾回收器的环（2026-11-23 定，取代原来「抽象类由中转子类承接、可重写的方法交给 JS」的打算） |
 | 事件 | JS 里统一成 `EventTarget` 的发布订阅，原生那边有人订了才装回调。事件只来自两处：**用户做了什么**、**系统通知发生了什么**。一次性的结果用 Promise |
 | 最低版本 | Android 11（API 30）。新的窗口边衬体系从这一版齐全；31 起才有的模糊、系统启动屏、屏幕圆角，在 30 上如实告诉 JS 没有 |
 | 架构 | 只支持 arm64-v8a |
@@ -323,21 +329,36 @@ WebView 留在核心：它不需要用户声明任何东西，拆了的净收益
 | 语言 | Kotlin 写启动壳，C++ 写引擎和 JNI，Java 或 Kotlin 写中转类 |
 | 外观 | **样式全部由 JS 定**，运行时不预设任何外观。要接的能力当成一组：Drawable 一族（`GradientDrawable` 的背景、渐变、圆角、边框，`RippleDrawable` 的按下效果）、`Outline` 和圆角裁切、按高度投的阴影、`RenderEffect`（模糊，Android 12 起，11 上如实告诉 JS 没有）、`Typeface`。**任意阴影**（颜色、模糊、偏移都能调）和**自定义绘制**系统没有现成的，照「继承」那一行的做法给一套绘制指令能力让 JS 调（底下用 `RenderNode` / `Canvas`），不让 JS 覆写 `onDraw`，具体形状单独讨论（2026-11-23 定）。**颜色写成 CSS 的字符串**（`'#rrggbb'`、`'#rrggbbaa'`，透明度在最后，和 Android 的 `#AARRGGBB` 相反；`rgb()`、`'transparent'`），在 JS 里解析，读出规范化成小写的 `'#rrggbb'` / `'#rrggbbaa'`，写错和枚举一样按位置分；Drawable 是能 `new` 的原生类，构造参数照 Java 按位置传；`RenderEffect` 照 Android 用工厂方法建，Android 11 上不定义这个类（2026-11-24 定） |
 | 动画和滚动 | （2026-11-24 定）**动画照 Java 的链式写法**（`view.animate().alpha(0).setDuration(300)`），**通知是事件，不是 Promise**：animator 会反复用，结束是会发生好几次的事；事件名照 `AnimatorListener`（`start`、`end`、`cancel`、`repeat`、`pause`、`resume`、`update`，被取消时先 `cancel` 再 `end`），传回调的 `withEndAction` 这类不接。**Java 里返回 `this` 的 setter，属性和链式方法两种写法都给**（`a.duration = 300`、`a.setDuration(300)`）；返回 `void` 的只有属性。插值器是原生类，构造参数照 Java。逐帧回调是全局的 `requestAnimationFrame`（Web 的写法，不暴露 `Choreographer`），和 iOS 的 `tick` 一样延后一轮派发。系统的动画时长缩放读 `ValueAnimator.durationScale`，变了在 `application` 上发 `animatordurationscalechange`。滚动事件叫 `scroll`，不带数据，位置读 `scrollX` / `scrollY` |
-| 原生类的写法 | 用简单类名挂在全局（`TextView`、`LinearLayout`），不同包里同名的类怎么办第 4 步统计完再定；Java 的 getter / setter 合成一个属性（`getText()` / `setText()` → `text`），和 Kotlin 一样；入口是上层对象 `application`，现在只有 `application.activity`。Java 抛的异常先转成 JS 的 `Error`，`name` 是异常的简单类名，最终和第 4 步的规矩一起定（2026-11-23 定，第 3 步） |
-| 接类的规矩 | （2026-11-24 定）**整数常量 → 字符串枚举**，照 iOS：去掉前缀、首字母小写（`LinearLayout.VERTICAL` → `'vertical'`，`View.GONE` → `'gone'`），位掩码（`Gravity`）用字符串数组；写错时属性打警告、保持原值，方法参数抛 `TypeError`，都列出全部可选值。**方法的参数照 Java 原样按位置传**（`setPadding(l, t, r, b)`，和 Android 的文档对得上）；有重载的按参数个数和类型选，分不开的在那个成员的文档里写明；options 对象留给上层 API。**构造只传 `context`**：不接 XML 样式，外观一律用属性或方法设（Android 11 起基本都有代码里的接口），只能在构造时给的单独拿出来讨论。覆写点照「继承」那一行，每组落到具体的类上 |
+| 原生类的写法 | 用简单类名挂在全局（`TextView`、`LinearLayout`），不同包里同名的类怎么办第 4 步统计完再定；Java 的 getter / setter 合成一个属性（`getText()` / `setText()` → `text`），和 Kotlin 一样；入口是上层对象 `application`，页面从它的 `activitycreate` 拿。Java 抛的异常先转成 JS 的 `Error`，`name` 是异常的简单类名，最终和第 4 步的规矩一起定（2026-11-23 定，第 3 步） |
+| 接类的规矩 | 见下面的[接类的总则](#接类的总则2026-11-26-定)（2026-11-26 定，取代 2026-11-24 那四条：参数照 Java 按位置传、构造只传 `context` 都不要了）。不接 XML 样式，外观一律用属性设。覆写点照「继承」那一行，每组落到具体的类上 |
 | 一组类一套新文件 | 和 iOS 一样，接一组类只加新文件：原生是一个 `Domain`（`android/runtime/src/main/kotlin/nacre/runtime/XxxDomain.kt`），在 `Domains.kt` 里登记一行；JS 是自己的内置脚本（往已有的类上加成员也在自己的文件里加）；验收是自己的步骤文件，`acceptance-android/src/main.js` 里加一行；文档在 `docs/internals/android.md` 里加自己的一节。共享文件只在入口各加一行，几组可以分给几个会话同时做。手机只有一台，`run-device.sh` 用一把锁让几个会话的验收排队。怎么做见[Android 的运行时](internals/android.md#接一组类) |
 | 网络 | `fetch` 和 `WebSocket` 都用 OkHttp，和 React Native、Expo 一样；系统里没有 WebSocket 客户端（2026-11-23 定）。超时和 iOS 的系统网络库一样（60 秒没有数据才超时，不限总时长）；每个主机最多同时 64 个请求（OkHttp 默认 5 个，并发请求会被排成几轮）。`fetch()` 的兑现时机和截断的处理照网页标准，和 iOS 有两处不同；`WebSocket` 的 `ping()` 在 Android 上不支持（OkHttp 没有公开的手动 ping），见[Android 的运行时](internals/android.md#和-ios-不同的地方android-照网页标准) |
 | 工具链 | Gradle（用仓库里的 wrapper）、Android Gradle 插件 9.5.2（自带 Kotlin 编译）、compileSdk 37、NDK 29.0.14206865、CMake 4.1.2。版本都写死在 `android/` 的构建文件里 |
-| 单位 | 像素，照 Android 的 API 原样 |
+| 单位 | 屏幕上的长度是 dp，见下面总则第 5 条（2026-11-26 定，取代原来的「像素，照 Android 的 API 原样」） |
 | 能力包 | 另起包，按 Android 的 API 起名，一律带前缀（`@nacrejs/android-*`）；iOS 已发布的包不改名 |
 | 类型 | Android 的类型走单独的入口 `@nacrejs/types/android`，不进现在的默认入口 |
 | 验收 | 在连着的 Android 真机上跑：`android/scripts/run-device.sh` 把 `acceptance-android/`（单独一个项目）打包进开发用的壳，装、打开，按 logcat 判定，看退出码。判定和 iOS 共用 `acceptance/scripts/lib/report.mjs`。Web 标准那批步骤两边各放一份 |
 | URL 解析 | ada（网页标准的 URL 解析器，Node.js 用的就是它），胶水在 `core/url/`，`android/scripts/fetch-ada.sh` 下载。iOS 还是 `NSURLComponents`，iOS 要不要也换以后单独讨论（2026-11-23 定） |
 | 不影响 iOS | Android 的改动不碰 iOS 的运行时：iOS 的工程编 `core/engine/` 下的全部文件、执行 `core/builtin/parts/` 下的全部脚本，所以 Android 先用、iOS 还没用的东西不放这两个目录。`core/builtin/parts/` 里 Android 用哪几个，列在 `android/runtime/build.gradle.kts`（2026-11-23 定） |
 
-**接类的规矩已经定了**（见上面「接类的规矩」「一组类一套新文件」两行）。所有权的做法第 3 步定的：Java 对象发编号交给引擎，包装活着就持有，JS 侧做所有权镜像；JS 不实现 Java 的类，所以没有跨两个垃圾回收器的环。
+### 接类的总则（2026-11-26 定）
 
-**顺序**：最小壳、`core/builtin/` 里不依赖桥的 6 个、第一条竖切（包装、所有权、事件、JS 层的继承）、安全区域（`activity.windowInsets` 和 `windowinsetschange`）、`fetch` / `Blob`、`WebSocket`、`Intl`（`core/builtin/` 的 10 个全部接上）、按组登记的机制已经有了（`android/`：运行时 `runtime/`、开发用的壳 `shell/`）→ **按组接能力，几个会话并行**：外观、布局、文字、App 层先开，再是图片、触摸和手势、滚动和动画、输入框 → 列表、浮层、网页（覆写点最多，前几组用顺了再开）→ bindgen 读 `android.jar`，接剩下的类。CLI 生成 `android/`、`@nacrejs/android`、能力包排在最后。每一步照 SOP 单独讨论。
+**API 不要求和 Web 一样，但要整洁、符合语义**：同一件事只说一次，照搬 Java 的写法不是理由。JS 开发者也包括写 Node.js 的人。
+
+| | 规矩 |
+| --- | --- |
+| 1 对象不绑环境 | 视图建出来是**自由**的：`new` 不收参数，没有原生对象，不属于任何页面。放进某个页面的树（写 `activity.contentView`，或者加进挂着的父视图）才**挂上**，这时才用那个页面建原生对象；拿下来又按自由处理。`view.activity` 读得到，自由时是 `null`。树记在 JS 里：`children`、`parent`、`addView(child, { index })`、`removeView`、`removeAllViews`，自由的视图之间也能搭；`addView` 一个已经有父视图的视图是移过来 |
+| 2 状态以 JS 为准 | 每个成员归四类之一：**状态**（JS 设、JS 读，读回的永远是写进去的值，颜色也原样读回）；**页面值**（排版结果、测量结果这类要靠页面才有的，自由时是 `null`）；**动作**（自由时抛 `InvalidStateError`，能表达成状态的一律改成状态）；**事件**（监听器记在 JS，挂上时才装到原生上）。系统也会改的状态（滚动位置、被动画改的属性、按下）挂着时读原生，拿下来时读回 JS |
+| 3 一件事只说一次 | 只有 setter 的 Java 方法改成属性（`setRenderEffect` → `renderEffect`）；能从别的状态推出来的不单独给（`isPivotSet`、`isLaidOut`、`z`）；几个成员说一件事的合成一个（阴影 5 个成员 → `textShadow`，自动缩字号 7 个 → `autoSize`）；「子在父里怎么摆」写在子视图上（`view.layout`），不再有 LayoutParams 类 |
+| 4 参数按语义 | 不照搬 Java 的重载和按位置传参：超过两个参数或带可选项用 options；没有值用 `null`，不用 -1、`Integer.MAX_VALUE` 这类哨兵；同一个名字一种量程（`alpha` 一律 0–1） |
+| 5 单位 | 屏幕上的长度一律 **dp**（小数），挂上时按页面密度换成整数像素（四舍五入，不是 0 的至少 1 像素），页面的密度变了运行时重设；字号见文字组；位图自己的像素尺寸、解码尺寸是 px（那是像素数据的下标）；时间是毫秒，时刻和 `performance.now()` 同一个钟；角度是度；速度是 dp/秒 |
+| 6 当场校验 | 类型、枚举名、取值范围、参数组合都在 JS 里当场查，写错的那一行就报。属性位写错打警告、值不变；方法参数和构造写错抛 `TypeError` / `RangeError`。整数常量变成字符串枚举（去掉前缀、首字母小写：`LinearLayout.VERTICAL` → `'vertical'`；位掩码用字符串数组），写错时列出全部可选值；名字和数值的映射只在原生，启动时原生把各张表的**名字**交给 JS 来查 |
+| 7 报错的名字 | 树的结构不对：`DOMException` 的 `HierarchyRequestError`（成环）、`NotFoundError`（移除的不是子视图）；自由时调动作：`InvalidStateError`；其余照第 2 节「报错」那一行 |
+| 8 默认值照 Android | 视图的默认值（裁不裁子视图、文字换不换行、默认字号字色、图片怎么缩放）照 Android 自己的值，不和 iOS 对齐，也不改成 CSS 的默认；缺的是能力就补能力（比如让 JS 能关掉裁剪），默认值不动。建视图时不带系统主题的默认样式，默认值全是常数，取 Android 不带主题时的值，自由时也读得到（逐类实测） |
+
+机制怎么搭的（公开对象和替身、挂上的顺序、各组怎么登记状态）见[Android 的运行时](internals/android.md#自由和挂上)。所有权的做法第 3 步定的：Java 对象发编号交给引擎，包装活着就持有；视图的树记在 JS 里，树本身就持有子视图。JS 不实现 Java 的类，所以没有跨两个垃圾回收器的环。
+
+**顺序**：已经有了的：最小壳、`core/builtin/` 里不依赖桥的 6 个、第一条竖切、安全区域、`fetch` / `Blob`、`WebSocket`、`Intl`、按组登记的机制（`android/`：运行时 `runtime/`、开发用的壳 `shell/`）、外观、布局、文字、图片、滚动和动画、App 层（照旧写法接的）、桥上的自由和挂上和基础视图（新总则的第一步）→ **各组照新总则重写，几个会话并行**：外观、布局、文字、图片、触摸和手势、滚动和动画、App 层 → 输入框 → 列表、浮层、网页（覆写点最多，前几组用顺了再开）→ bindgen 读 `android.jar`，接剩下的类。CLI 生成 `android/`、`@nacrejs/android`、能力包排在最后。每一步照 SOP 单独讨论。
 
 ## 5. 目录约定
 
@@ -590,7 +611,7 @@ Commit message 格式：
 
 ### 要建设的能力
 
-**先做：** Android：按组接能力，几个会话并行（外观、布局、文字、App 层先开），见第 4 节的顺序。
+**先做：** Android：各组照第 4 节的新总则重写（外观、布局、文字、图片、触摸和手势、滚动和动画、App 层），几个会话并行。重写之前这几组在验收里先不跑（`acceptance-android/src/main.js` 里注释掉了），它们还没改的成员只在挂着的视图上能用；App 层的 `openURL`、`trimmemory` 用了已经删掉的 `application.activity`，现在是坏的。
 
 **留着，按需要做：**
 

@@ -11,6 +11,9 @@ internal class EnumTable<T>(vararg entries: Pair<String, T>) {
 
     val choices: String get() = entries.joinToString(" / ") { it.first }
 
+    // 全部名字，按数值从小到大。启动时交给 JS
+    val names: List<String> get() = entries.map { it.first }
+
     // 读：原生的值 → 名字。表里没有的给 null
     fun name(value: T): String? = entries.firstOrNull { it.second == value }?.first
 

@@ -421,7 +421,7 @@ internal class AnimationDomain(host: DomainHost) : Domain(host) {
 
     private fun durationScale(): Float =
         if (hasScaleApi) ValueAnimator.getDurationScale()
-        else Settings.Global.getFloat(host.activity.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+        else Settings.Global.getFloat(host.app.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
 
     // 值真的变了才发（系统可能重复通知同一个值）
     private fun scaleMaybeChanged(scale: Float) {
@@ -442,7 +442,7 @@ internal class AnimationDomain(host: DomainHost) : Domain(host) {
                 val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
                     override fun onChange(selfChange: Boolean) = scaleMaybeChanged(durationScale())
                 }
-                host.activity.contentResolver.registerContentObserver(
+                host.app.contentResolver.registerContentObserver(
                     Settings.Global.getUriFor(Settings.Global.ANIMATOR_DURATION_SCALE), false, observer)
                 scaleListener = observer
             }
@@ -451,7 +451,7 @@ internal class AnimationDomain(host: DomainHost) : Domain(host) {
             if (hasScaleApi && l is ValueAnimator.DurationScaleChangeListener) {
                 ValueAnimator.unregisterDurationScaleChangeListener(l)
             } else if (l is ContentObserver) {
-                host.activity.contentResolver.unregisterContentObserver(l)
+                host.app.contentResolver.unregisterContentObserver(l)
             }
             scaleListener = null
         }

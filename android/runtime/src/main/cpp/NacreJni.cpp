@@ -470,7 +470,8 @@ Java_nacre_runtime_NacreRuntime_nativeRunIdleTasks(JNIEnv*, jclass, jlong handle
   FromHandle(handle)->engine->RunIdleTasks(seconds);
 }
 
-// 系统的回调进来了（Kotlin 那边已经排到下一轮），派发给这个对象的 JS 包装
+// 系统的回调进来了，派发给这个对象的 JS 包装。多数是 Kotlin 那边排到下一轮再调的；
+// 页面的配置变化（密度、系统字号）是当场调的，运行时要赶在下一次排版之前重设视图的长度
 extern "C" JNIEXPORT void JNICALL
 Java_nacre_runtime_NacreRuntime_nativeEmitObjectEvent(JNIEnv* env, jclass, jlong handle, jlong id,
                                                       jstring class_name, jstring type) {
@@ -504,6 +505,18 @@ Java_nacre_runtime_NacreRuntime_nativeEmitObjectEventWith(JNIEnv* env, jclass, j
                                        FromAsciiString(env, type),
                                        {PtrOf(payload_id), FromAsciiString(env, payload_class)},
                                        FromAsciiString(env, event_class));
+  AfterTask(runtime);
+}
+
+// App 级的事件，带一个原生对象：页面建好（activitycreate）、要销毁（activitydestroy）时由
+// 壳当场调，负载是 { activity: 页面 }。走引擎给 App 级事件留的出口（iOS 的 sceneconnect 也走它）
+extern "C" JNIEXPORT void JNICALL
+Java_nacre_runtime_NacreRuntime_nativeEmitAppEventWithObject(JNIEnv* env, jclass, jlong handle,
+                                                             jstring type, jstring key, jlong id,
+                                                             jstring class_name) {
+  Runtime* runtime = FromHandle(handle);
+  runtime->engine->EmitAppEventWithObject(FromAsciiString(env, type), FromAsciiString(env, key),
+                                          {PtrOf(id), FromAsciiString(env, class_name)});
   AfterTask(runtime);
 }
 

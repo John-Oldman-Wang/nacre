@@ -1,9 +1,11 @@
 // 第一条竖切：JS 拿到页面、建布局、放两段文字、点文字收得到事件。
-// 盯的是包装（同一个 Java 对象是同一个 JS 对象）、所有权（界面上的东西没有变量
-// 引用也不丢）、事件（系统的点击回调变成 JS 的 click）三件事。
+// 盯的是页面怎么交给 JS（activitycreate）、视图建出来是自由的（不传页面）、挂上之后
+// 自由时加的监听器装到了原生上、界面上的东西没有变量引用也不丢。
 //
 // 点击由验收脚本完成：这里打一行「[acceptance] tap 视图上的字」，
 // android/scripts/run-device.sh 看到后用 uiautomator 找到它、用 adb 点一下。
+
+import { assert } from '../support.js';
 
 /** @param {string} text */
 function requestTap(text) {
@@ -47,37 +49,76 @@ function thrown(fn) {
 /** @param {number} ms */
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** activitycreate 的监听器里设的内容，竖切那一步看它挂上了没有 @type {View | null} */
+let firstContent = null;
+
+// activitycreate 的监听器里当场调（还在页面的 onCreate 里）
+/** @param {ActivityEvent} e */
+export function onActivityCreate(e) {
+  const activity = e.activity;
+  assert('activitycreate 是 ActivityEvent', e instanceof ActivityEvent && e.constructor === ActivityEvent, true);
+  assert('activitycreate 不可取消', e.cancelable, false);
+  assert('activitycreate 的 target 是 application', e.target === application, true);
+  assert('e.activity 是 Activity', activity instanceof Activity, true);
+  assert('派发时页面已经在 application.activities 里',
+         application.activities.length === 1 && application.activities[0] === activity, true);
+  // 窗口还没挂上（系统还没分发过窗口边衬），所以这里设的内容赶得上第一帧
+  assert('activitycreate 时窗口还没挂上（windowInsets 是 null）', activity.windowInsets, null);
+  assert('新页面的 contentView 是 null', activity.contentView, null);
+  const first = new TextView();
+  first.text = '第一帧的字';
+  activity.contentView = first;
+  firstContent = first;
+}
+
 /** @param {import("../main.js").StepContext} ctx */
 export async function stepSlice(ctx) {
-  const { assert } = ctx;
+  const activity = /** @type {Activity} */ (ctx.activity);
   console.log('  --- 竖切：页面、布局、文字、点击 ---');
 
-  // ===== 入口和身份 =====
-  const activity = application.activity;
-  assert('application.activity 是 Activity', activity instanceof Activity, true);
-  assert('Activity 也是 Context', activity instanceof Context, true);
-  assert('读两次是同一个包装', application.activity === activity, true);
+  // ===== 页面 =====
+  assert('activitycreate 里设的内容挂上了', firstContent !== null && firstContent.activity === activity, true);
+  assert('activitycreate 里设的内容就是 contentView', activity.contentView === firstContent, true);
+  const list = application.activities;
+  assert('application.activities 是冻结的', Object.isFrozen(list), true);
+  assert('application.activities 没变时读两次是同一个数组', application.activities === list, true);
+  assert('application.activities 里只有这一个页面', list.length === 1 && list[0] === activity, true);
+  assert('application.activities 不能写',
+         thrown(() => { /** @type {any} */ (application).activities = []; }), 'TypeError');
+  assert('application 上没有 activity 了', 'activity' in application, false);
   assert('application 是 EventTarget', application instanceof EventTarget, true);
+  assert('Activity 是 EventTarget', activity instanceof EventTarget, true);
+
+  // ===== ActivityEvent =====
+  const made = new ActivityEvent('x', { activity });
+  assert('new ActivityEvent 带页面能建', made.activity === activity, true);
+  assert('ActivityEvent 的 activity 只读',
+         thrown(() => { /** @type {any} */ (made).activity = null; }), 'TypeError');
+  assert('new ActivityEvent 不给页面抛 TypeError',
+         thrown(() => new ActivityEvent('x', /** @type {any} */ ({}))), 'TypeError');
+  assert('new ActivityEvent 的 activity 不是页面抛 TypeError',
+         thrown(() => new ActivityEvent('x', /** @type {any} */ ({ activity: {} }))), 'TypeError');
 
   // ===== 明确不支持的 =====
-  assert('new Activity() 抛 TypeError', thrown(() => new Activity()), 'TypeError');
-  assert('new Context() 抛 TypeError', thrown(() => new Context()), 'TypeError');
-  assert('new ViewGroup(activity) 抛 TypeError', thrown(() => new ViewGroup(activity)), 'TypeError');
-  assert('new View() 不给 context 抛 TypeError', thrown(() => new View()), 'TypeError');
-  assert('new TextView(123) 抛 TypeError', thrown(() => new TextView(/** @type {any} */ (123))), 'TypeError');
+  assert('new Activity() 抛 TypeError', thrown(() => new /** @type {any} */ (Activity)()), 'TypeError');
+  assert('new ViewGroup() 抛 TypeError', thrown(() => new /** @type {any} */ (ViewGroup)()), 'TypeError');
+  // 视图不再传页面，没人用 Context 了
+  assert('没有 Context 这个全局名字', 'Context' in globalThis, false);
   // Button 是现成的部件（TextView 加系统主题的样式），不接：任何视图都能点，样式由 App 自己定
   assert('没有 Button 这个全局名字', 'Button' in globalThis, false);
-  // 继承原生类的行为（JS 层的继承）在 inheritance.js 里测
+  assert('没有 setContentView 了', 'setContentView' in activity, false);
+  // 继承原生类的行为（JS 层的继承）在 inheritance.js 里测，树和内边距在 tree.js 里测
 
-  // ===== 建视图、文字 =====
-  const plain = new View(activity);
-  assert('new View(context) 能建', plain instanceof View, true);
+  // ===== 建视图、文字：不传页面，建出来是自由的 =====
+  const plain = new View();
+  assert('new View() 能建', plain instanceof View, true);
   assert('View 是 EventTarget', plain instanceof EventTarget, true);
+  assert('新建的视图是自由的：activity 是 null', plain.activity, null);
 
-  const layout = new LinearLayout(activity);
+  const layout = new LinearLayout();
   assert('LinearLayout 是 ViewGroup', layout instanceof ViewGroup, true);
 
-  const label = new TextView(activity);
+  const label = new TextView();
   assert('新建的 TextView 文字是空串', label.text, '');
   label.text = '还没点';
   assert('text 写了读回来', label.text, '还没点');
@@ -88,70 +129,55 @@ export async function stepSlice(ctx) {
   label.text = /** @type {any} */ (5);
   assert('text 写数字按 String() 转', label.text, '5');
   label.text = '带 emoji 😀 的字';
-  assert('text 过 JNI 不拆坏四字节字符', label.text, '带 emoji 😀 的字');
+  assert('text 自由时读回写进去的', label.text, '带 emoji 😀 的字');
   label.text = '还没点';
 
-  const button = new TextView(activity);
+  const button = new TextView();
   button.text = '点我';
 
-  // ===== 内边距 =====
-  // 安全区域（窗口边衬）还没交给 JS。Android 15 起内容强制铺满全屏，顶上被状态栏
-  // 盖着的地方点不到，所以先用内边距把布局里的东西往下挪
-  assert('新建的布局 paddingTop 是 0', layout.paddingTop, 0);
-  layout.setPadding(1.9, '2', 3, 4);
-  assert('setPadding 之后 paddingLeft（向零取整）', layout.paddingLeft, 1);
-  assert('setPadding 之后 paddingTop（字符串按 Number() 转）', layout.paddingTop, 2);
-  assert('setPadding 之后 paddingRight', layout.paddingRight, 3);
-  assert('setPadding 之后 paddingBottom', layout.paddingBottom, 4);
-  assert('setPadding 有一个不是有限数抛 TypeError',
-         thrown(() => layout.setPadding(0, NaN, 0, 0)), 'TypeError');
-  assert('setPadding 少给参数抛 TypeError',
-         thrown(() => /** @type {any} */ (layout).setPadding(0, 0, 0)), 'TypeError');
-  assert('抛了之后原来的内边距不变', layout.paddingTop, 2);
-  layout.setPadding(0, 400, 0, 0);
-
-  // ===== 子视图和所有权 =====
-  assert('空布局 childCount 是 0', layout.childCount, 0);
+  // ===== 搭树：自由的视图之间就能搭 =====
+  layout.orientation = 'vertical';
+  // 内容铺满全屏，顶上被状态栏盖着，往下挪一截（单位 dp）
+  layout.paddingTop = 160;
   layout.addView(label);
   layout.addView(button);
-  assert('加了两个 childCount 是 2', layout.childCount, 2);
-  assert('getChildAt(0) 是同一个包装', layout.getChildAt(0) === label, true);
-  assert('getChildAt(1) 是同一个包装', layout.getChildAt(1) === button, true);
-  assert('getChildAt(1.9) 向零取整', layout.getChildAt(1.9) === button, true);
-  assert('getChildAt 越界是 null', layout.getChildAt(5), null);
-  assert('getChildAt(NaN) 抛 TypeError', thrown(() => layout.getChildAt(NaN)), 'TypeError');
-  assert('addView 不是 View 抛 TypeError', thrown(() => layout.addView(/** @type {any} */ ('x'))), 'TypeError');
-  assert('同一个子视图加两次：Java 的异常带类名', thrown(() => layout.addView(label)), 'IllegalStateException');
-  assert('setContentView 不是 View 抛 TypeError',
-         thrown(() => activity.setContentView(/** @type {any} */ ({}))), 'TypeError');
+  assert('搭好的树还是自由的', layout.activity === null && button.activity === null, true);
 
-  activity.setContentView(layout);
-
-  // ===== 第一次点击 =====
+  // 监听器在自由时加：记在 JS 里，挂上时才装到原生上
   let clicks = 0;
   button.addEventListener('click', (e) => {
     clicks++;
     label.text = '点到了 ' + clicks;
     assert('click 是普通的 Event', e.constructor === Event, true);
     assert('click 不可取消', e.cancelable, false);
-    assert('click 的 target 是被点的视图', e.target === button, true);
+    assert('click 的 target 是被点的视图（公开的那个对象）', e.target === button, true);
   });
+
+  activity.contentView = layout;
+  assert('挂上之后 contentView 是它', activity.contentView === layout, true);
+  assert('挂上之后整棵树的 activity 是这个页面',
+         layout.activity === activity && label.activity === activity && button.activity === activity, true);
+  assert('换掉的内容拿下来了', firstContent !== null && firstContent.activity === null, true);
+  assert('挂上之后文字读回来不变', label.text, '还没点');
+
+  // ===== 第一次点击 =====
   const first = nextClick(button, 15000);
   requestTap('点我');
-  assert('点一下文字，JS 收到 click', await first, true);
+  assert('自由时加的监听器，挂上之后点一下收得到', await first, true);
   assert('监听器改的文字读得回来', label.text, '点到了 1');
 
   // ===== 所有权：没有变量引用的视图，包装和监听器都不丢 =====
-  // 第三个子视图只挂在布局上，JS 这边不留变量；包装上挂一个记号和一个监听器
+  // 第三个子视图只挂在树上，JS 这边不留变量；包装上挂一个记号和一个监听器。
+  // 监听器在它还自由时加，加进挂着的布局时装到原生上
   (() => {
-    const kept = new TextView(activity);
+    const kept = new TextView();
     kept.text = '再点我';
     /** @type {any} */ (kept).marker = '还在';
     kept.addEventListener('click', () => { /** @type {any} */ (kept).clicked = true; });
     layout.addView(kept);
   })();
-  // 对照组：没有任何所有者的包装。它被回收了，才说明这一轮 GC 真的跑过
-  let control = new WeakRef(new TextView(activity));
+  // 对照组：没有任何所有者的视图。它被回收了，才说明这一轮 GC 真的跑过
+  let control = new WeakRef(new TextView());
   for (let round = 0; round < 6 && control.deref() !== undefined; round++) {
     let junk = [];
     for (let i = 0; i < 200000; i++) junk.push({ i, s: 'x' + i });
@@ -161,8 +187,8 @@ export async function stepSlice(ctx) {
   if (control.deref() !== undefined) {
     console.log('  ! 所有权：对照组没被回收，这一轮 GC 没跑到，下面两条不算数');
   }
-  const kept = /** @type {any} */ (layout.getChildAt(2));
-  assert('没有变量引用的子视图，包装上的记号还在', kept !== null && kept.marker, '还在');
+  const kept = /** @type {any} */ (layout.children[2]);
+  assert('没有变量引用的子视图，包装上的记号还在', kept !== undefined && kept.marker, '还在');
   const second = nextClick(kept, 15000);
   requestTap('再点我');
   assert('它的监听器也还在：点了收得到', await second, true);

@@ -1,8 +1,11 @@
 // 安全区域：系统栏、开孔、键盘各占了多少（窗口边衬），变化时有事件。
 //
-// main.js 是在页面的 onCreate 里执行的，那时窗口还没挂到屏幕上，系统还没分发过窗口
+// activitycreate 是在页面的 onCreate 里派发的，那时窗口还没挂到屏幕上，系统还没分发过窗口
 // 边衬，读出来是 null；挂上去之后第一次分发会触发一次 windowinsetschange。所以订阅
-// 要在一开始就做（watchSafeArea），后面的断言等它。
+// 要在 activitycreate 里就做（watchSafeArea），后面的断言等它。
+//
+// 窗口边衬现在还是像素（改成 dp 是外观组第二步的事），摆字用的内边距是 dp，中间用
+// App 层的 configuration.densityDpi 换算（App 层第二步改成 density 时顺手改这里）。
 
 /**
  * 抛了什么：没抛是「没抛」，抛了是错误的 name
@@ -20,9 +23,9 @@ function thrown(fn) {
 /** @type {{ insetsAtStart: unknown, first: Promise<Event | null>, count: () => number } | null} */
 let watched = null;
 
-// 启动时就调：记下 onCreate 那一刻读到的值，订阅变化
-export function watchSafeArea() {
-  const activity = application.activity;
+// activitycreate 里就调：记下 onCreate 那一刻读到的值，订阅变化
+/** @param {Activity} activity */
+export function watchSafeArea(activity) {
   const insetsAtStart = activity.windowInsets;
   let count = 0;
   /** @type {(e: Event | null) => void} */
@@ -43,7 +46,7 @@ export function watchSafeArea() {
 export async function stepSafeArea(ctx) {
   const { assert } = ctx;
   console.log('  --- 安全区域 ---');
-  const activity = application.activity;
+  const activity = /** @type {Activity} */ (ctx.activity);
   if (watched === null) throw new Error('watchSafeArea() was not called at startup');
 
   assert('onCreate 时窗口还没挂上，windowInsets 是 null', watched.insetsAtStart, null);
@@ -88,12 +91,17 @@ export async function stepSafeArea(ctx) {
   assert('new WindowInsets() 抛 TypeError', thrown(() => new /** @type {any} */ (WindowInsets)()), 'TypeError');
 
   // ===== 按安全区域摆，点得到 =====
-  const screen = new LinearLayout(activity);
-  screen.setPadding(bars.left, bars.top, bars.right, bars.bottom);
-  const target = new TextView(activity);
+  // 像素换成 dp：1 dp 是 densityDpi / 160 个像素
+  const density = /** @type {any} */ (activity).configuration.densityDpi / 160;
+  const screen = new LinearLayout();
+  screen.paddingStart = bars.left / density;
+  screen.paddingTop = bars.top / density;
+  screen.paddingEnd = bars.right / density;
+  screen.paddingBottom = bars.bottom / density;
+  const target = new TextView();
   target.text = '安全区里的字';
   screen.addView(target);
-  activity.setContentView(screen);
+  activity.contentView = screen;
   const clicked = new Promise((resolve) => {
     const timer = setTimeout(() => resolve(false), 15000);
     target.addEventListener('click', () => { clearTimeout(timer); resolve(true); });
