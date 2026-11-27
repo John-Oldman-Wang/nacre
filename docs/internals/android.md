@@ -208,6 +208,7 @@ ctx.defineViewState(TextView, 'text', {
 - `initial` **必须等于新建的原生对象的默认值**：没写过的状态不设到原生，省掉每个视图几十次过桥。
 - `convert`：类型不对直接抛；属性位写错（枚举名）打警告后返回 `ctx.IGNORE`，值不变。
 - `apply(替身, 值, 页面, 视图)`：页面是 `{ density, fontScale }`；几个状态合成一次原生调用的（四个内边距是一个 `setPaddingRelative`）从视图上读别的，所以写入时先存、再设，原生拒了再还原。
+- `release(视图, 值)`（可以省略）：视图离开页面时（拿下来，或者页面销毁）调，放掉这一项在原生那边另外占着的东西。外观组加的：背景那个 Drawable 在这个页面上建的原生对象要放掉，见「外观」的[每处一个原生对象](#drawable-和-rendereffect每处一个原生对象)。挂着的视图在同一个页面里挪地方不算离开。
 - 另外几个助手：`ctx.attachedNative(view)`（挂着时是替身，不然 `null`，页面值用）、`ctx.requireAttached(view, what)`（动作用，自由时抛 `InvalidStateError`）、`ctx.px(page, dp)` / `ctx.dp(page, px)`。
 - 事件照旧：`[kSubscribe]` 接在原来那一个后面，调 `subscribeNative`。
 
@@ -253,13 +254,15 @@ ctx.defineViewState(TextView, 'text', {
 
 ### 过渡期
 
-第一步改了所有组都依赖的机制，已经合进来的外观、布局、文字、图片、滚动和动画、App 层第二步按新总则重写之前：
+第一步改了所有组都依赖的机制，已经合进来的布局、文字、图片、滚动和动画、App 层第二步按新总则重写之前（外观 2026-11-27 改完了）：
 
 - 它们的内置脚本照样加载，构造照样能用（多给的 `context` 不管）。
 - 还没改的成员在挂着的视图上照样能用：`nativeGet` / `nativeSet` / `nativeCall` 这几个助手碰到公开的视图，挂着就走它的替身；自由或拿下来时抛 `InvalidStateError`。对象参数是自由的视图时传 `null`，原生按类型不对拒掉。
 - 和新机制直接冲突的从 `31-layout.js` 里删了：`addView` 的五种写法、`removeView` / `removeViewAt` / `removeViews` / `removeAllViews`、`indexOfChild`、`bringChildToFront`、`updateViewLayout`（直接改原生的树，会和 JS 的对不上）、`View.parent`（读原生会把系统放内容的 `FrameLayout` 交出来）、`LinearLayout.orientation`（挪进了基础）。`LayoutDomain` 里对应的原生分支没动，现在走不到。
 - `33-app.js` 的 `openURL`、`trimmemory` 用了删掉的 `application.activity`，现在是坏的，App 层第二步改成不经过页面。
-- 验收里这 7 步先注释掉（`acceptance-android/src/main.js`），哪组改完打开自己那几行。
+- 外观改完之后，`Drawable` 没有原生对象了（每处一个，见「外观」）。还没改的组里收 `Drawable` 的成员收不了新写法的 `Drawable`：滚动的滚动条那几个、图片的 `setImageDrawable`（抛 `TypeError`）；图片组的 `BitmapDrawable`、`AnimatedImageDrawable` 还是旧写法，放不进 `background`。这几组重写时接「每处一个原生对象」那一套。
+- 外观的 `alpha`、`translationX`、`scaleX` 这些现在读的是 JS 写的值。动画（`view.animate()`、`ObjectAnimator`）在原生那边改了它们，JS 读不到；动画组重写时按「系统也会改的状态」处理（挂着时读原生）。
+- 验收里这几步先注释掉（`acceptance-android/src/main.js`），哪组改完打开自己那几行。外观已经打开了。
 
 ### 验收
 
@@ -275,11 +278,12 @@ ctx.defineViewState(TextView, 'text', {
 `targetSdk` 37 下系统强制内容铺满全屏，状态栏、导航条、摄像头开孔、键盘各占多少，由系统用「窗口边衬」分发给视图树。运行时把它交给 JS，由 JS 自己往里缩，不替 JS 做排版决定。
 
 - `activity.windowInsets`：读的时候问页面最外层的视图（`decorView.rootWindowInsets`），按 `WindowInsets.Type` 的七类各取一份 `Insets`，拼成 `[左, 上, 右, 下]` 交给 JS，JS 建成 `WindowInsets` / `Insets` 两个值类（`09-insets.js`）。它们是快照，字段只读（私有字段加 getter，严格模式下赋值抛 `TypeError`），不能 `new`。
+- **单位是 dp**（2026-11-27，外观组照总则改的，原来是像素）：原生按页面的密度除好再交（可以是小数），用的密度和 `@metrics` 交给 JS 的是同一个数，所以把边衬直接写进内边距，换回像素正好是原来的整数。
 - **`activitycreate` 那一刻是 `null`**：页面的 `onCreate` 刚跑完，窗口还没挂到屏幕上，系统还没分发过。这是 Android 的事实，照实交出去，不编一个值。
 - `windowinsetschange`：有人订阅时，在页面最外层的视图上装 `OnApplyWindowInsetsListener`。系统每次分发都先经过它，值和上次不一样才发事件（同样的值系统会重复分发好几次），分发本身原样交给视图默认的处理。窗口挂上时的第一次分发也算一次变化。
-- Pixel 6 上实测：`systemBars` 是 0、128、0、63（顶上状态栏 128，底下手势导航条 63），`displayCutout` 顶上 128。按 `systemBars` 给布局加内边距之后，顶上的字点得到。
+- Pixel 6 上实测：`systemBars` 是 0、128、0、63 像素（顶上状态栏 128，底下手势导航条 63），`displayCutout` 顶上 128。换成 dp（420 dpi，1 dp 是 2.625 像素）是 0、48.76…、0、24。按 `systemBars` 给布局加内边距之后，顶上的字点得到。
 
-**转屏（手动验的，2026-11-23）**：启动时第 1 次 `systemBars` 是 0、128、0、63；横过来第 2 次是 0、74、0、63（横屏的状态栏矮一截，手势导航条还在底边）；竖回去第 3 次回到 0、128、0、63。三次是同一个进程，页面没有被重建（壳的 `configChanges` 接住了配置变化），只是给 JS 发了事件。横屏时摄像头开孔转到侧边，而 `systemBars` 不含开孔，横屏要同时看 `systemBars` 和 `displayCutout`。验收脚本自己转不了屏（要改手机的系统设置），所以这一条是人手验的。
+**转屏（手动验的，2026-11-23，那时还是像素）**：启动时第 1 次 `systemBars` 是 0、128、0、63；横过来第 2 次是 0、74、0、63（横屏的状态栏矮一截，手势导航条还在底边）；竖回去第 3 次回到 0、128、0、63。三次是同一个进程，页面没有被重建（壳的 `configChanges` 接住了配置变化），只是给 JS 发了事件。横屏时摄像头开孔转到侧边，而 `systemBars` 不含开孔，横屏要同时看 `systemBars` 和 `displayCutout`。验收脚本自己转不了屏（要改手机的系统设置），所以这一条是人手验的。
 
 键盘弹出时跟着动画逐帧走的边衬（`WindowInsetsAnimation`）没做，留到做输入框和键盘的时候。
 
@@ -378,57 +382,146 @@ iOS 真机连不到 Mac 上的本地测试服务（`acceptance/scripts/test-serv
 
 ## 外观
 
-View 的背景、透明度、可见性、高度和阴影、轮廓和裁切、变换；Drawable 一族（`Drawable`、`ColorDrawable`、`GradientDrawable`、`RippleDrawable`）；`RenderEffect` 的模糊。原生在 `AppearanceDomain.kt`，JS 在 `30-appearance.js`，验收是 `steps/appearance.js`。任意阴影和自定义绘制不在这一组，等绘制指令那一步单独讨论。
+View 的背景、前景、透明度、可见性、高度和阴影、轮廓和裁切、变换、模糊；Drawable 一族（`Drawable`、`ColorDrawable`、`GradientDrawable`、`RippleDrawable`）；`RenderEffect` 的模糊。原生在 `AppearanceDomain.kt`，JS 在 `30-appearance.js`，验收是 `steps/appearance.js`。任意阴影和自定义绘制不在这一组，等绘制指令那一步单独讨论。
 
-### 颜色：CSS 的字符串，在 JS 里解析（2026-11-24 定）
+2026-11-27 照「接类的总则」重写：视图和 Drawable 都只在 JS 里记状态，原生那边只管设，不往回读。
 
-Android 的颜色是一个 `int`（ARGB）。JS 里写成 CSS 的字符串：`'#rgb'`、`'#rgba'`、`'#rrggbb'`、`'#rrggbbaa'`、`rgb()` / `rgba()`（逗号写法和空格写法，分量可以是百分比）、`'transparent'`。超出范围的分量照 CSS 夹到范围里。读出来规范化成小写的 `'#rrggbb'`（不透明）或 `'#rrggbbaa'`。
+### 成员（按四类）
 
+这一组没有页面值、动作和事件：全是状态。
+
+| 类 | 状态（默认值） |
+| --- | --- |
+| `View` | `background`、`foreground`（`Drawable` 或 `null`）；`renderEffect`（`RenderEffect` 或 `null`，Android 12 起）；`alpha`（1，0–1）；`visibility`（`'visible'`）；`elevation`、`translationX`、`translationY`、`translationZ`（0，dp）；`scaleX`、`scaleY`（1）；`rotation`、`rotationX`、`rotationY`（0，度）；`pivot`（`null` 是正中，或者 `{ x, y }`，dp）；`cameraDistance`（1280，dp）；`outlineProvider`（`'background'`）；`clipToOutline`（`false`）；`outlineAmbientShadowColor`、`outlineSpotShadowColor`（`'#000000'`） |
+| `Drawable`（抽象） | `alpha`（1，0–1） |
+| `ColorDrawable` | `color`（`'#00000000'`）。`new ColorDrawable(color?)` |
+| `GradientDrawable` | `shape`（`'rectangle'`）；填充：`color`（`null`）或者 `colors`（`null`，两个以上的颜色，或者两个以上的 `{ color, offset }`）；`gradientType`（`'linearGradient'`）、`orientation`（`'topBottom'`）、`gradientCenterX` / `gradientCenterY`（0.5）、`gradientRadius`（`null`，dp）；`cornerRadius`（0，dp）、`cornerRadii`（`null`，8 个 dp）；环：`innerRadius`、`thickness`（`null`，dp）、`innerRadiusRatio`（3）、`thicknessRatio`（9）、`useLevel`（`false`）；`intrinsicWidth` / `intrinsicHeight`（`null`，dp）；边框：`strokeWidth`（0，dp）、`strokeColor`（`'#000000'`）、`strokeDashWidth`、`strokeDashGap`（0，dp）。构造只有无参的 |
+| `RippleDrawable` | `color`（构造时给）、`radius`（`null` 是按视图的大小，dp）、`content`、`mask`（`Drawable` 或 `null`）。`new RippleDrawable(color)` |
+| `RenderEffect` | 建出来不能改，没有可读的成员（和 Java 一样）。`RenderEffect.createBlurEffect({ radiusX, radiusY, edgeTreatment? })`，半径是 dp，`edgeTreatment` 默认 `'clamp'` |
+
+`activity.windowInsets` 和 `windowinsetschange` 是页面值和事件，见上面「安全区域」，单位改成了 dp。
+
+### 定了什么
+
+照方案（已经确认的）：
+
+- `setBackgroundColor(c)` 删掉，写 `view.background = new ColorDrawable(c)`。
+- `pivotX` / `pivotY` / `isPivotSet` / `resetPivot()` 合成 `pivot`：`{ x, y }`（dp）或者 `null`。读出来是冻结的对象，不是写进去的那个；读两次是同一个。成员照 Web IDL 的字典转（`{ x: '5', y: 6 }` 得到 5、6），缺一个抛 `TypeError`。
+- `setRenderEffect` 改成 `renderEffect` 属性；`cameraDistance`、`elevation`、`translationX/Y/Z` 这类长度一律 dp。
+- `GradientDrawable`：构造只留无参（多给的参数不管）；`setColors(colors, offsets)` 并进 `colors`；`setStroke` 拆成 `strokeWidth` / `strokeColor` / `strokeDashWidth` / `strokeDashGap`；`setSize` 改成可写的 `intrinsicWidth` / `intrinsicHeight`；`setGradientCenter` 拆成 `gradientCenterX` / `gradientCenterY`；颜色少于 2 个当场抛 `RangeError`。
+- `RippleDrawable(color, content, mask)` 改成 `new RippleDrawable(color)`，另加 `content` / `mask`；`setColor` 改成 `color`。
+- `RenderEffect.createBlurEffect({ radiusX, radiusY, edgeTreatment })`，半径是 dp。照 Java 按位置传（`createBlurEffect(4, 4)`）抛 `TypeError`。
+- `Drawable.alpha` 改成 0–1；`ColorDrawable.color` 读回写进去的值（原来读原生，会把透明度乘进去）。
+
+照总则自己定的：
+
+- **`colors` 的写法**：每一项是颜色，或者 `{ color, offset }`（offset 是 0–1 的位置）。Java 里位置要么都给要么都不给，所以混着写抛 `TypeError`。读出来是冻结的数组，每一项照写进去的样子（颜色原样）。CSS 的渐变也是「颜色加可选的位置」一项一项写。
+- **纯色和渐变只能是一种**：写了非 `null` 的 `color`，`colors` 变 `null`，反过来也一样；写 `null` 只去掉自己那一种（渐变时写 `color = null`，渐变还在）。
+- **圆角**：`cornerRadii` 不是 `null` 时用它；写 `cornerRadius` 就是四个角一样，`cornerRadii` 变 `null`；写 `cornerRadii = null` 回到 `cornerRadius` 的值。和 Java 不同的一处：Java 的 `setCornerRadii(null)` 会把半径清成 0，这里读回的 `cornerRadius` 是原来写的，原生也设回它。
+- **哨兵换成 `null`**：`RippleDrawable.radius` 的 `RADIUS_AUTO`（原来是 `'auto'`）、`GradientDrawable` 的 `innerRadius` / `thickness` / `intrinsicWidth` / `intrinsicHeight` 的 −1、`gradientRadius` 没设时系统的 0.5 像素。
+- **`intrinsicWidth` / `intrinsicHeight` 只在 `GradientDrawable` 上**：原来在 `Drawable` 上只读。`ColorDrawable` 没有固有尺寸，`RippleDrawable` 的是从内容推出来的，按「推得出来的不单独给」去掉；`BitmapDrawable` 的由图片组定。
+- **`outlineProvider` 没有 `'custom'` 了**：原来读原生时，系统自己的视图装了别的实现会读出它。现在读的是 JS 写的，运行时建的视图默认都是 `'background'`（实测，见下面）。
+- **写错时**：Web IDL 转不过来的抛 `TypeError`（`alpha = 'abc'`）；类型对但超出范围、个数不对抛 `RangeError`（`alpha = 1.5`、负的长度、`colors` 只有一个、`cornerRadii` 不是 8 个）；颜色、枚举的名字写错，属性位打一条警告、值不变，构造的参数抛 `TypeError`。范围这一条在属性位也抛，是照着方案里「颜色少于 2 个抛 `RangeError`」和原来 `cornerRadii` 的做法定的。
+- **成环**：水波的 `content` / `mask` 是它自己、或者往下几层里有它，抛 `HierarchyRequestError`。
+
+### 和方案不一样的地方
+
+- **没有 `z`**（方案写的是「`z` 只读」）。总则第 3 条的例子里写明了 `z` 不单独给：它就是 `elevation + translationZ`。等用户定，要留的话加一个只读的 getter 就行。
+- **长度换成整数像素**，照总则第 5 条。`translationX`、`elevation`、模糊半径这些在 Java 里是 `float`，本来能给小数像素；四舍五入之后 JS 一帧一帧改 `translationX` 时最多差半个像素。要不要给 `float` 的属性留小数像素，没讨论过。
+
+### Drawable 和 RenderEffect：每处一个原生对象
+
+用户定的机制（2026-11-26）：JS 对象只记状态；每用在一个视图上，就按那个视图所在的页面建一个原生对象（「一处」），长度按那个页面的密度换算；JS 改了挨个同步到每一处；视图拿下来、换了别的，那一处丢掉；密度变了重建。
+
+为什么不是一个 Drawable 一个原生对象：Java 的 Drawable 只有一个回调（它画在哪个视图上），同一个 Drawable 设给两个视图，只有后设的那个会在它变了的时候重画；长度是像素，两个页面密度不同时也没法共用。
+
+实现在 `30-appearance.js`：
+
+- JS 对象身上挂 `kModel`：`{ values, places }`，`values` 是写过的状态，`places` 是现在的每一处。
+- 一处是 `{ obj, page, standIn, children, rebuild }`。`standIn` 和视图的替身一样，是带 `kHandle` 的内部对象（`kOwner` 指回 JS 对象，原生发给它的事件转到公开对象上）；`children` 是水波的内容、遮罩在这一处里的那几处；`rebuild` 是用它的地方给的：这一处的结构变了时调它，由用它的地方整个重建、装回去。
+- **建一处**（`realize`）：先建子 Drawable 的那几处，再 `native.construct` 建原生对象（构造参数由类登记的 `construct` 给，子 Drawable 的替身放进参数里就是原生对象），再按登记的顺序把写过的状态设上。
+- **状态变了**：能当场设的，挨个设到每一处（原生拒了：值还原、设过的设回去，抛给写的那一行）；结构变了的整个重建：水波换了内容或遮罩（Java 的 `LayerDrawable` 只能在构造时给），`GradientDrawable` 的填充从纯色变成渐变、渐变变成没有这一类（Java 从渐变换回纯色时，画渐变的那个 shader 会不会清掉，源码里看不出保证，不赌）。子 Drawable 的一处要重建时，往上一直重建到视图上的那一处。
+- **视图上的那一处**：`background`、`foreground`、`renderEffect` 用 `defineModelSlot` 登记成视图的状态（`units: 'dp'`，`release`）。设到原生时先建新的一处、装上，再放掉旧的；视图离开页面时（`10-view.js` 新加的 `release`，见「登记状态」）放掉；密度变了，基础的机制把 `dp` 状态重设一遍，就是在新密度下重建。放掉的一处没人拿着，替身被回收，原生对象跟着被回收。
+- 视图拿下来时原生的视图上还挂着旧的原生 Drawable，JS 改了不再同步过去；放回同一个页面时，写过的状态整个重设，背景按那时的状态重建。
+
+**给别的组用**（下一批图片组的 `BitmapDrawable`、`ImageView.drawable` 接它）：
+
+```js
+class BitmapDrawable extends Drawable {
+  constructor(bitmap) {
+    super();                                   // Drawable 的构造建好 kModel
+    this[ctx.kModel].values.set('bitmap', …);  // 构造时给的状态直接写进 values
+  }
+}
+defineNativeClass('BitmapDrawable', BitmapDrawable);
+ctx.defineModel(BitmapDrawable, {
+  nativeClass: 'BitmapDrawable',
+  // (JS 对象, 页面 { density, fontScale }, 子 Drawable 的替身) => 构造参数。原生对象（Bitmap 的包装）照常放进去
+  construct: (d, page, children) => [ctx.stateValue(d, 'bitmap')],
+});
+ctx.defineModelState(BitmapDrawable, 'tileModeX', {
+  order: 100, initial: null,
+  convert: (v, what) => …,                      // 和 defineViewState 一样：抛 TypeError / RangeError，名字写错返回 IGNORE
+  apply: (standIn, value, page, d) => ctx.nativeSet(standIn, 'tileModeX', value),
+  // after: (d, value) => …                     写完之后改别的状态（互斥的那种）
+  // child: true                                值是子 Drawable，变了整个重建
+  // rebuild: (d, 写之前的值表) => boolean        这次要不要整个重建
+});
+ctx.defineModelSlot(ImageView, 'drawable', {
+  order: 600, Cls: ctx.Drawable,
+  set: (viewStandIn, drawableStandIn) => ctx.nativeCall(viewStandIn, 'setImageDrawable', [drawableStandIn]),
+});
+```
+
+- `initial` 必须等于新建的原生对象的默认值：建一处时没写过的不设。
+- 几个状态合成一次原生调用的（边框的四个、中心点的两个），`apply` 用 `ctx.stateValue(d, 名字)` 读别的，不走 getter。
+- 要求参数是 Drawable 时用 `ctx.requireModel(v, Drawable, what)`。
+- **原生先有的 Drawable 套不进来**：`ImageDecoder.decodeDrawable` 解出来的 `AnimatedImageDrawable` 不是「按状态建」的，没法每处建一个。图片组要单独想（比如每处重新解一次，或者限定只能用在一处），这一步没定。
+
+### 颜色：CSS 的字符串，原样读回
+
+颜色写成 CSS 的字符串：`'#rgb'`、`'#rgba'`、`'#rrggbb'`、`'#rrggbbaa'`、`rgb()` / `rgba()`（逗号写法和空格写法，分量可以是百分比）、`'transparent'`。超出范围的分量照 CSS 夹到范围里。
+
+- **原样读回**（总则第 2 条，2026-11-26 改）：读出来的就是写进去的那个字符串（`String()` 之后，空格、大小写都不动）。原来读原生、规范化成小写的 `'#rrggbb'`；没写过的默认值还是那个写法（`'#000000'`、`'#00000000'`）。
 - **8 位十六进制的透明度在最后**，和 CSS 一样，和 Android 的 `Color.parseColor`（`#AARRGGBB`）相反。从 Android 的示例里抄来的 `'#80FF0000'` 会被读成另一种颜色。选 CSS 的顺序，是因为读者是做前端的人，而且和 iOS 写起来一样。
-- **不照 iOS「合法写入原样读回」**：Android 只存一个 int，没有 iOS 那种有名字的动态色要保住；原样读回得在 JS 这边另记一份，换来的只是大小写一致。
-- **解析在 JS 里**（纯文本运算），过桥的是 0–0xFFFFFFFF 的数，原生只校验。和 iOS 的 `16-color.js` 同一个分工。函数放在 `ctx` 上（`parseColor`、`colorText`、`colorProperty`、`colorArgument`），排在 `30` 后面的组可以用。
-- 写错：属性打一条警告（`[Nacre] color: "#GGG" is not a valid color, ignored`），值不变；方法参数和构造抛 `TypeError`。
+- **解析在 JS 里**（纯文本运算），过桥的是 0–0xFFFFFFFF 的数，原生只校验。和 iOS 的 `16-color.js` 同一个分工。函数放在 `ctx` 上：`parseColor`、`colorText`（ARGB → 字符串，原生交回来的颜色用）、`colorState`（新写法的属性：存字符串，写错打警告返回 `IGNORE`）、`colorArgument`（参数：写错抛 `TypeError`）；`colorProperty` 是旧写法的，还没改的组在用。
+- 写错：属性打一条警告（`[Nacre] color: "#GGG" is not a valid color, ignored`），值不变；构造的参数抛 `TypeError`。
 - 不认颜色名（`'red'`）、`hsl()`、系统的动态调色板（`system_accent1_500`）。深色模式下换颜色属于 App 层的配置变化。
 
-### 枚举属性写错：桥上补了警告这条路
+### 枚举
 
-规矩是属性位写错打警告、值不变。Android 的桥原来只能抛：引擎的 `write_property` 有 `warning` 出参（iOS 在用），JNI 没接。补了三处共享文件：
+名字和数值的映射在 `AppearanceDomain` 的 `EnumTable` 里，表交给 JS（`enums`）：`visibility`、`outlineProvider`、`gradientShape`、`gradientType`、`gradientOrientation`、`edgeTreatment`（只有 Android 12 起才有）。表名加了前缀的几个是怕和别的组撞（`orientation` 已经是 `LinearLayout` 的）；警告里说的是属性名，用户看不到表名。
 
-- `NativeBridge.kt`：新的异常 `NacreWarning`。域的 `write` 抛它，`writeProperty` 把文字交回去，不当成错。
-- `NacreJni.cpp`：`writeProperty` 返回警告的 UTF-8 字节（没有是空数组），填进 `warning`。
-- `01-bridge.js`：`nativeSet` 收到警告就 `console.warn('[Nacre] ' + 警告 + ', ignored')`，和 iOS 一样。
+Java 的枚举（`GradientDrawable.Orientation`、`Shader.TileMode`）和静态对象（`ViewOutlineProvider.BACKGROUND`）也按这个规矩变成字符串：`TOP_BOTTOM` → `'topBottom'`，`TR_BL` → `'trBl'`；`ViewOutlineProvider` 的 `null` 是 `'none'`。`GradientDrawable.LINEAR_GRADIENT` 没有前缀可去，是 `'linearGradient'`。
 
-枚举表在新文件 `Enums.kt`：`EnumTable("visible" to View.VISIBLE, …)`，`name()` 读，`forProperty()` 写属性（不认识抛 `NacreWarning`），`forArgument()` 方法参数（抛 `NacreTypeError`）。措辞照 iOS 的 `EnumError`：`visibility has no value "hidden"; expected one of: visible / invisible / gone`，按数值从小到大列。别的组直接用它。
-
-Java 的枚举（`GradientDrawable.Orientation`、`Shader.TileMode`）和静态对象（`ViewOutlineProvider.BACKGROUND`）也按这个规矩变成字符串：`TOP_BOTTOM` → `'topBottom'`，`TR_BL` → `'trBl'`；`ViewOutlineProvider` 的 `null` 是 `'none'`。`GradientDrawable.LINEAR_GRADIENT` 没有前缀可去，是 `'linearGradient'`。系统自己的视图装了别的轮廓实现时，`outlineProvider` 读出来是 `'custom'`，写不进去。
-
-### Drawable 是可以 new 的原生类
-
-`new GradientDrawable()` 建出来、设好属性，再 `view.background = d`。视图持有背景、前景和效果，水波持有内容和遮罩，都记所有权边。`setBackgroundColor` 建的 `ColorDrawable` 是原生先有的，所以 `background` 的 getter 读到之后也记一条边。
-
-- `Drawable` 是抽象类，自己和 JS 子类都不能 `new`（`ViewGroup` 那个助手的报错文字写的是布局，所以这里自己判断）。`GradientDrawable` 这些能继承，继承只在 JS 这一层。
-- `RippleDrawable` 的内容和遮罩只能在构造时给，照 Java 按位置传：`new RippleDrawable(color, content, mask)`，后两个可以不给或给 `null`。`radius` 是数或 `'auto'`（`RADIUS_AUTO` 这个哨兵）。中间那层 `LayerDrawable` 没接，JS 里 `RippleDrawable` 直接继承 `Drawable`；系统给的别的 Drawable（`InsetDrawable`、`StateListDrawable`……）包成 `Drawable`。
-- **两处在 JS 里先拦**：`setColors` 的位置和颜色个数不同、`cornerRadii` 不是 8 个数。Java 设的时候不检查，要到画的时候才用到这两个数组，那时出错就不在 JS 的调用里了（画的时候具体怎么出错没实测）。所以在 JS 里抛 `RangeError`，原生再挡一次。
-- `GradientDrawable.gradientRadius` 照 Android 的文档只对放射渐变有效，验收是在放射渐变下写读的；别的渐变类型下读出什么没验。
-- `View` 的这些成员加在 `View.prototype` 上，没改 `10-view.js`。这一组的 `classes` 也登记了 `View`，这样 `View` 的属性和方法会来问它；`new View()` 还是由 `ViewDomain` 建，因为它在 `Domains.kt` 里排在前面。
+`NacreWarning`（属性写错时原生交回一句话、JS 打成警告）是这一组原来补的，现在 JS 先查了，这一组不再走到它；别的组还在用。
 
 ### RenderEffect（Android 12 起）
 
-`RenderEffect.createBlurEffect(radiusX, radiusY, edgeTreatment?)`，不能 `new`，建出来不能改。`edgeTreatment` 是 `'clamp' | 'repeat' | 'mirror' | 'decal'`，Java 里必填，这里默认 `'clamp'`，和 Compose 的 `Modifier.blur` 一样。`view.setRenderEffect(effect | null)` 用方法不用属性：Java 只有 setter。
+不能 `new`，建出来不能改。工厂方法 `createBlurEffect` 在 JS 里只记下参数，每用在一个视图上按那个页面建一个原生的（半径按密度换成像素）。
 
-工厂方法走的是造对象那条通道：JS 先建一个空的 `RenderEffect`（构造函数只认内部的记号，所以用户 `new` 会抛），再 `constructNative(effect, RenderEffect, 'RenderEffect', ['blur', …])`，原生按第一个参数调对应的 `create…`。不用改桥。
+**Android 11 上**：原生的 `classes` 里不放 `RenderEffect`（11 上连这个类都没有，写进表就是 `NoClassDefFoundError`），`edgeTreatment` 的表也不交（`DECAL` 是 12 才有的）；JS 问 `@appearance.hasRenderEffect` 得到 `false`，就不定义全局的 `RenderEffect`、也不往 `View` 上加 `renderEffect`，JS 用 `typeof RenderEffect` 检测。没有 Android 11 的设备，这一支**没验过**。
 
-**Android 11 上**：原生的 `classes` 里不放 `RenderEffect`（11 上连这个类都没有，写进表就是 `NoClassDefFoundError`），JS 问 `@appearance.hasRenderEffect` 得到 `false`，就不定义全局的 `RenderEffect`、也不往 `View` 上加 `setRenderEffect`，JS 用 `typeof RenderEffect` 检测。没有 Android 11 的设备，这一支**未验证**。
+### 实测（Pixel 6，Android 17，420 dpi）
 
-### 浮点数怎么交回去
+`initial` 必须等于新建的原生对象的默认值，所以用一个临时的探针（`AppearanceDomain` 里读原生、验收里打出来，量完删了）在页面上挂了运行时现在能建的 8 个视图类，读原生的值：
 
-Java 的属性大多是 `float`。照 `float` 最短的写法交给 JS（`Float.toString`），所以写 `0.3` 读回 `0.3`，不是 `0.30000001192092896`。
+- **8 个类完全一样**（`View`、`LinearLayout`、`TextView`、`FrameLayout`、`ConstraintLayout`、`ScrollView`、`HorizontalScrollView`、`ImageView`）：`alpha` 1、`VISIBLE`、`elevation` 和三个 `translation` 0、`scale` 1、三个 `rotation` 0、没设中心点、`cameraDistance` 3360 像素（= 1280 dp：Java 存的是英寸，默认 8 × `densityDpi` 像素，换成 dp 和密度无关）、`outlineProvider` 是 `BACKGROUND`、`clipToOutline` 是 `false`、两个阴影颜色 `0xFF000000`、没有背景和前景、没有 `stateListAnimator`、内边距 0。其中 `TextView`、`ScrollView`、`HorizontalScrollView` 现在还是带着主题的默认样式建的（`X(context)`），主题在这几项上没给值；它们改成不带默认样式之后只会少、不会多。
+- **`GradientDrawable()`**：`RECTANGLE`、`LINEAR_GRADIENT`、`TOP_BOTTOM`、中心 0.5 / 0.5、圆角 0、`cornerRadii` 是 `null`、`innerRadius` −1、`innerRadiusRatio` 3、`thickness` −1、`thicknessRatio` 9、`useLevel` 是 `false`、alpha 255、固有尺寸 −1、没有纯色也没有渐变。`gradientRadius` 读出 0：Java 在渐变不是放射的时候总是返回 0；状态里的默认值是 0.5 像素（源码里的 `GradientState.mGradientRadius`），没在放射渐变下量过，`null` 时设回 0.5 是照源码。
+- **`RippleDrawable(color, null, null)`**：`radius` −1（`RADIUS_AUTO`）、0 层、alpha 255。
+- **`ColorDrawable()`**：颜色 0。它的 `getAlpha()` 读出 0：Java 的 `ColorDrawable` 把颜色自己的透明度当 alpha 交出来。JS 的 `alpha` 是「再乘上去的透明度」，默认 1 对应 `setAlpha(255)`，什么都不变。
+- 三个 Drawable 都没有内边距（`getPadding` 是 `false`），所以现在设背景不会改视图的内边距。背景照方案排在内边距前面，以后有带内边距的 Drawable（点九图）时用得上。
 
 ### 验收
 
-`steps/appearance.js`，排在安全区域之后。全部成员的读写、默认值、Web IDL 的转换、写错时的警告和 `TypeError`、不能 `new` 的类；最后把带圆角边框阴影的卡片、带水波的按钮、模糊加变换的字挂到屏幕上画半秒，用脚本点一下水波那个，收到 `click`。阴影、水波、模糊在屏幕上的样子要人看，没看过。
+`steps/appearance.js`，排在页面那几步的最后（用关了再开之后的新页面）。
 
-先在没有实现的运行时上跑了一遍：步骤一开始就抛了 `ColorDrawable is not defined`，判为失败。实现之后 2026-11-24 在 Pixel 6（Android 17，API 37）上 Debug 是 1142 条通过、0 条失败（这一组 220 条），Release 也是 1142 条通过、0 条失败。
+- JS 这一侧：全部成员的读写、默认值、Web IDL 的转换、写错时的 `TypeError` / `RangeError` / 警告、删掉的成员不在了、不能 `new` 的类、成环。
+- 挂上：每个外观的状态都写过的一棵树挂上去，没有警告、没有抛（建一处、设状态这条路走通了）；挂着时把视图和 Drawable 的每个状态都改一遍，没有警告、没有抛（当场同步）；换水波的内容和遮罩、换背景、拿下来改了再放回去、整页拿下来再放回去；密度改成 560 dpi 再还原（等 `windowinsetschange` 确认配置变了），重建时没有警告。最后用脚本点一下带水波的那个，收到 `click`。
+- **原生那边设的值对不对，验收读不到**：状态以 JS 为准，没有读原生的成员。开发时另在本机用 node 加一个假的原生，把 `00-core`、`05-dom-exception`、`05-events`、`01-bridge`、`09-insets`、`10-view`、`30-appearance` 原样跑起来，核对交给原生的值（12 dp 的圆角在 420 dpi 下是 32 像素、−2.5 dp 是 −7、0.1 dp 至少 1 像素、`cameraDistance` 1280 dp 是 3360、颜色是 ARGB）、两个视图用一个 Drawable 是两个原生对象、改了同步到每一处、拿下来的那一处放掉不再同步、放回去按那时的状态重建、纯色换渐变和换水波的内容整个重建（子 Drawable 往上一直重建到视图）、密度改成 3.5 之后按新密度重建、整页拿下来和页面销毁之后一处都不剩。这个测试架不在仓库里。
+- 阴影、水波、模糊、渐变在屏幕上的样子要人看，没看过。
+
+先在没有实现的运行时上跑了一遍：1101 条通过、23 条失败（安全区域那条：边衬还是像素；颜色不原样读回；`Drawable.alpha` 是 0–255；`ColorDrawable` 还有固有尺寸），外观这一步在自由的视图上读 `background` 时抛 `InvalidStateError`，中途停了。实现之后 2026-11-27 在 Pixel 6（Android 17）上 Debug 和 Release 都是 1387 条通过、0 条失败（这一组 320 条，安全区域多了 1 条）。
 
 ## 布局
 

@@ -123,6 +123,8 @@
   //   apply    (替身, 值, 页面, 视图) => 设到原生。替身交给 nativeSet / nativeCall；页面是
   //            { density, fontScale }；几个状态合成一次调用的（四个内边距）从视图上读别的
   //   units    'dp'：密度变了重设；'sp'：密度或系统字号变了重设；省略：不重设
+  //   release  (视图, 值) => 视图离开页面时（拿下来，或者页面销毁）放掉这一项在原生那边另外占着的
+  //            东西（外观组：背景那个 Drawable 在这个页面上建的原生对象）。省略：没有要放的
   const ownStates = new Map();    // 原型 -> 这个原型自己登记的
   const statesCache = new Map();  // 原型 -> 连同继承来的，排好序
   let serial = 0;
@@ -148,6 +150,7 @@
       convert: spec.convert,
       apply: spec.apply,
       units: spec.units,
+      release: spec.release,
       serial: serial++,
     };
     const proto = Cls.prototype;
@@ -191,6 +194,19 @@
         entry.apply(st.standIn, st.values.get(entry.name), page, view);
       } catch (err) {
         warnSkipped('could not apply ' + entry.name + ' to ' + view.constructor.name, err);
+      }
+    }
+  }
+
+  // 视图离开页面：写过的状态里登记了 release 的，放掉它在原生那边另外占着的东西
+  function releaseStates(view) {
+    const st = view[kView];
+    for (const entry of statesOf(Object.getPrototypeOf(view))) {
+      if (entry.release === undefined || !st.values.has(entry.name)) continue;
+      try {
+        entry.release(view, st.values.get(entry.name));
+      } catch (err) {
+        warnSkipped('could not release ' + entry.name + ' of ' + view.constructor.name, err);
       }
     }
   }
@@ -280,7 +296,10 @@
   }
 
   function markDetached(view) {
-    walk(view, (v) => { v[kView].activity = null; });
+    walk(view, (v) => {
+      v[kView].activity = null;
+      releaseStates(v);
+    });
   }
 
   // 把一个视图从它现在待的地方（父视图，或者页面的内容）拿出来。只动 JS 的记录
@@ -331,6 +350,7 @@
           st.standIn = null;
         }
         st.activity = null;
+        releaseStates(v);
       });
     }
     activity.removeEventListener('@metricschange', onMetricsChange);

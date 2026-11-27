@@ -1,5 +1,5 @@
 // 安全区域：activity.windowInsets 和 windowinsetschange。JS 那一侧在 builtin/parts/09-insets.js
-// 和 10-view.js 的 Activity。
+// 和 10-view.js 的 Activity。单位是 dp（按页面的密度从像素换过来，可以是小数）。
 package nacre.runtime
 
 import android.app.Activity
@@ -12,7 +12,7 @@ internal class WindowInsetsDomain(host: DomainHost) : Domain(host) {
 
     override fun read(target: Any, name: String): String? =
         if (target is Activity && name == "windowInsets") {
-            target.window.decorView.rootWindowInsets?.let(::insetsJson) ?: "null"
+            target.window.decorView.rootWindowInsets?.let { insetsJson(it, densityOf(target)) } ?: "null"
         } else null
 
     override fun subscribe(target: Any, type: String, on: Boolean): Boolean {
@@ -38,8 +38,13 @@ internal class WindowInsetsDomain(host: DomainHost) : Domain(host) {
     // 每个页面上次发出去的边衬（页面可能同时有几个）。键是弱引用，页面没了这一项跟着没了
     private val lastInsets = WeakHashMap<Activity, WindowInsets>()
 
-    // 各类边衬照 WindowInsets.Type 的名字，每类是 [左, 上, 右, 下]，单位像素
-    private fun insetsJson(insets: WindowInsets): String {
+    // 页面的密度（1 dp 是几个像素）。Float 直接转 Double 会带出尾巴，按它写出来的样子转，
+    // 和 ViewDomain 交给 JS 的 @metrics 是同一个数，JS 按它把 dp 换回像素时对得上
+    private fun densityOf(activity: Activity): Double =
+        activity.resources.displayMetrics.density.toString().toDouble()
+
+    // 各类边衬照 WindowInsets.Type 的名字，每类是 [左, 上, 右, 下]，单位 dp
+    private fun insetsJson(insets: WindowInsets, density: Double): String {
         val types = linkedMapOf(
             "systemBars" to WindowInsets.Type.systemBars(),
             "statusBars" to WindowInsets.Type.statusBars(),
@@ -51,7 +56,7 @@ internal class WindowInsetsDomain(host: DomainHost) : Domain(host) {
         )
         return types.entries.joinToString(",", "{", "}") { (name, type) ->
             val i = insets.getInsets(type)
-            "\"$name\":[${i.left},${i.top},${i.right},${i.bottom}]"
+            "\"$name\":[${i.left / density},${i.top / density},${i.right / density},${i.bottom / density}]"
         }
     }
 }
