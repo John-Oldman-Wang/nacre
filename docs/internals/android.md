@@ -101,6 +101,8 @@ iOS 的 URL 验收（34 条，期望值是照 iOS 写的）在 Android 上原样
 
 JS 拿到页面（`application.activity`）、建 `LinearLayout` 和两个 `TextView`、`addView`、`setContentView`，点文字收到 `click`；JS 的类可以继承原生类（只在 JS 这一层）。引擎给宿主留的接口 iOS 全在用，Android 照着实现，`core/engine/` 没改。
 
+2026-11-26 起视图改成挂上树才建原生对象，页面从 `activitycreate` 拿、内容写 `contentView`，见下面[自由和挂上](#自由和挂上)。这一节下面几段说的是第一条竖切当时的做法，身份表、事件的订阅、参数的过桥现在照旧，视图那部分以「自由和挂上」为准。
+
 ### 身份：交给引擎的「指针」是编号
 
 引擎按指针认原生对象：同一个指针永远是同一个包装。Java 对象没有固定的地址，JNI 的引用每拿一次都不一样，所以 `NativeBridge` 放一张身份表（`IdentityHashMap`），给每个 Java 对象发一个编号，交给引擎的就是这个编号。同一个对象永远是同一个编号，`layout.getChildAt(0) === label` 成立。
@@ -126,7 +128,7 @@ JS 第一次给视图加 `click` 监听时，引擎经 `set_event_subscription` 
 
 ### JS 层的继承
 
-`class Card extends TextView {}`，`new Card(ctx)`：构造链上每个原生类都调一次 `constructNative`，只有「`new.target` 在原型链上最近的原生类」那一层真的去建（`01-bridge.js` 的 `nearestNative`），所以原生那边建的是一个普通的 `TextView`。JS 这边的包装就是 `Card` 的实例，子类的方法、字段、私有字段都在；身份表里那个编号对应的就是它，从原生读回来（`getChildAt`）还是同一个 `Card`。抽象类（最近的原生类是 `ViewGroup`）和系统建的类（`Activity`、`Context`）继承了也不能 `new`。
+`class Card extends TextView {}`，`new Card(ctx)`（现在是 `new Card()`，挂上时才建原生对象）：构造链上每个原生类都调一次 `constructNative`，只有「`new.target` 在原型链上最近的原生类」那一层真的去建（`01-bridge.js` 的 `nearestNative`），所以原生那边建的是一个普通的 `TextView`。JS 这边的包装就是 `Card` 的实例，子类的方法、字段、私有字段都在；身份表里那个编号对应的就是它，从原生读回来（`getChildAt`）还是同一个 `Card`。抽象类（最近的原生类是 `ViewGroup`）和系统建的类（`Activity`、`Context`）继承了也不能 `new`。
 
 子类覆写的方法系统看不见：用例里一个写了 `onDraw()` 的子类挂在屏幕上画了半秒，那个方法一次都没被调过。系统要告诉 JS 什么只走事件，原生不持有任何 JS 对象。
 
@@ -144,12 +146,136 @@ JS 第一次给视图加 `click` 监听时，引擎经 `set_event_subscription` 
 
 `constructNative(wrapper, builtAs, className)` 的第二个参数要传 `new.target`（正在被 `new` 的类），不是类本身：构造链上每个类都调一次，只有「被 new 的就是我」的那一层真的去建。传类本身的话，`new TextView()` 在 `View` 那一层就建了一次，到 `TextView` 那一层再定义句柄时报「Cannot redefine property」。
 
+## 自由和挂上
+
+2026-11-26，Android API 重新设计的第一步（总则见 [`project.md` 第 4 节「接类的总则」](../project.md#接类的总则2026-11-26-定)）：桥上的机制，加上基础的几个类 `View`、`ViewGroup`、`LinearLayout`、`TextView`，`activity.contentView`，`application.activities` 和 `activitycreate` / `activitydestroy`。运行时改成跟着 App 的进程生死（在 `Application.onCreate` 里建，页面来去用事件告诉 JS）。JS 在 `01-bridge.js`、`10-view.js`、`21-application.js`，原生在 `NacreRuntime.kt`、`NacreActivity.kt`、`NativeBridge.kt`、`ViewDomain.kt`，壳是 `ShellApplication.kt`、`MainActivity.kt`，验收是 `steps/slice.js`、`inheritance.js`、`tree.js`、`activity-lifecycle.js`。
+
+为什么这么改：原来照搬 Java，`new TextView(activity)`。一个对象建出来只能用在那个页面上，却还要再 `addView` 一次才算放进去，同一件事说了两遍。现在视图建出来不属于任何页面，放进哪个页面的树才属于哪个页面。
+
+### 每个视图两个对象
+
+- **引擎的包装一旦绑上原生对象就换不了**：`kHandle` 是不可写、不可配置的属性，引擎也没有解绑（`BindWrapper` 只会新发句柄）。放进另一个页面要用那个页面重建原生对象，就得换。
+- 所以 JS 拿着的**公开对象**永远不带 `kHandle`，身上挂着 `kView`（它的记录：自由还是挂着、替身、树、写过的状态）。挂上时建一个内部的**替身**（`Object.create(null)`，带 `kHandle` 和指回公开对象的 `kOwner`），用 `native.construct` 绑原生对象，参数里的对象是页面：各域的 `construct` 本来就从第一个对象参数拿 `Context`，一行没改。重建就是丢掉旧替身、建新的。`core/engine/` 没改。
+- 公开对象持有替身，替身活着原生对象就活着（引擎 retain），拿下来时不用另外保留原生对象。
+- 原生发来的事件到替身上，`setObjectEventSink` 换成公开对象再派发；原生交回来的对象（`nativeCallObject` 这几条）是替身的也换成公开对象。替身不会被 JS 拿到。
+- `View` 的构造只记下「挂上时建哪个原生类」（原型链上最近的那个，`nearestNative`）。各组的类在构造里调的 `constructNative` 碰到视图什么都不做。
+
+### 三种状态
+
+| | 自由 | 挂着 | 拿下来 |
+| --- | --- | --- | --- |
+| 原生对象 | 没有 | 替身绑着 | 替身留着 |
+| `activity` | `null` | 那个页面 | `null` |
+| 写状态 | 只写 JS | 写 JS，也当场设到原生（原生拒了抛给调用的那一行，值不变） | 只写 JS |
+| 读状态 | JS 的值 | JS 的值 | JS 的值 |
+| 动作、页面值 | 抛 `InvalidStateError` / `null` | 走替身 | 同自由 |
+| 加监听器 | 只记在 JS | 装到原生 | 装到替身上（挂回去时重装） |
+
+放回同一个页面：复用替身，把写过的状态整个重设一遍（拿下来时写的只在 JS 里）。放进别的页面：丢掉替身（摘监听器、从原生的父视图上拿下来），在那个页面重建。现在只有一个页面，**这一支走不到，没验过**。
+
+### 挂上那一刻
+
+写 `activity.contentView`、或者往挂着的父视图里 `addView` 时，整棵子树从下往上（`build`）：
+
+1. 建替身。已经挂在这个页面上的（挂着的视图挪个地方）整棵跳过：原生那边是好的，只挪原生的位置。
+2. 先把子视图都建好，再按登记的顺序把**写过的**状态设到原生。每项单独 try，原生拒了（JS 没查住的）打一条 `[Nacre] could not apply 名字 to 类名 (…), skipped`，不让挂上做到一半失败。
+3. 把原生的子视图排成 JS 的那一串（`@setChildren`）。
+4. 把 JS 里记着的监听器装到原生上：调各组的 `[kSubscribe](type, true)`，它们照旧调 `subscribeNative`，看到视图有替身就订在替身上。先状态、后事件：装 `click` 会顺手把视图设成可点。复用的替身先摘掉再装，保证这个先后。
+5. 调用方最后把子树的根挂到页面（`@setContent`）或者挂着的父视图上（`@setChildren`），整棵子树只挂一次窗口，然后整棵标成挂着。
+
+### 树在 JS 里
+
+- `kView` 里记着 `parent`、`children`、`contentOf`（是哪个页面的内容）。`children` 返回冻结的快照，树没变时是同一个数组。
+- 原生的树只在挂着时跟着变。`@setChildren` 让原生的子视图正好是给的这一串：已经一样的位置不动，不一样的先从它原来的父视图上拿下来（可能就是这一个）再插进来，最后去掉多出来的。拿下来用 `@detach`，页面的内容用 `@setContent`（`null` 是清空系统放内容的那个 `FrameLayout`）。
+- 拿下来的子树里，JS 的树怎么变都只改 JS；下次挂上时 `@setChildren` 再对齐，原生上留着的旧父子关系由它拆掉。
+- 成环在 JS 里查（`HierarchyRequestError`）：Java 不查，排版时栈溢出。`addView` 一个已经有父视图（或者是某个页面内容）的视图是移过来；`index` 是「加完之后排第几」，所以同一个父视图里挪位置时上限少一个。
+
+### 登记状态（给各组用）
+
+视图上的状态在各组自己的文件里登记，不碰共享文件：
+
+```js
+ctx.defineViewState(TextView, 'text', {
+  order: 500,                                  // 挂上时设到原生的先后，小的先
+  initial: '',                                 // 没写过时读到的值
+  convert: (v) => toText(v),                   // 写入时在 JS 里转换、校验
+  apply: (standIn, value) => nativeSet(standIn, 'text', value),   // 设到原生
+  // units: 'dp' | 'sp'                        // 配置变化时要不要重设
+});
+```
+
+- `order`：基础用了方向 100、内边距 300、文字 500，留着空隙。背景要排在内边距前面（换背景会改掉内边距）。一样的按登记的先后。
+- `initial` **必须等于新建的原生对象的默认值**：没写过的状态不设到原生，省掉每个视图几十次过桥。
+- `convert`：类型不对直接抛；属性位写错（枚举名）打警告后返回 `ctx.IGNORE`，值不变。
+- `apply(替身, 值, 页面, 视图)`：页面是 `{ density, fontScale }`；几个状态合成一次原生调用的（四个内边距是一个 `setPaddingRelative`）从视图上读别的，所以写入时先存、再设，原生拒了再还原。
+- 另外几个助手：`ctx.attachedNative(view)`（挂着时是替身，不然 `null`，页面值用）、`ctx.requireAttached(view, what)`（动作用，自由时抛 `InvalidStateError`）、`ctx.px(page, dp)` / `ctx.dp(page, px)`。
+- 事件照旧：`[kSubscribe]` 接在原来那一个后面，调 `subscribeNative`。
+
+第二步才用得到的几样第一步没做，由第一个用到的组加进 `10-view.js`、用自己的成员验：系统也会改的状态（挂着读原生、拿下来时把原生的值读回 JS）、排完版才能设的（ScrollView 的滚动位置）、子视图的布局参数随父视图重设。
+
+### 枚举的名字
+
+名字和数值的映射还是只在原生（`Enums.kt` 的 `EnumTable`）。域在 `enums` 里交出自己的表（表名 → 表，表名全局唯一），`01-bridge.js` 启动时调一次 `@bridge.enumNames` 拿到全部名字。属性位用 `ctx.enumProperty(表名, 值, 名字)`：认识的返回名字，不认识的打 `[Nacre] orientation has no value "diagonal"; expected one of: horizontal / vertical, ignored`、返回 `IGNORE`；参数位用 `ctx.enumArgument`，抛 `TypeError`。措辞和 `EnumTable` 的一样。视图自由时没有原生对象，写错的名字也是当场查出来的。
+
+`LinearLayout.orientation` 从布局组挪进了基础：基础里要有一个枚举来验名表，它又是 `LinearLayout` 最基本的属性。
+
+### 长度、密度和系统字号
+
+- 状态存 dp，设到原生时按页面密度换成整数像素：四舍五入（正负对称），不是 0 的至少 1 像素。
+- `ViewDomain` 订页面（`ComponentActivity`）的配置变化，`density` 或 `fontScale` 和上次不一样，就**当场**发内部的 `@metricschange`（`Emitter.plainNow`，不排到下一轮：要赶在下一次排版之前）。JS 把这个页面上挂着的整棵树里写过的 `dp` 状态（密度变了）和 `sp` 状态（密度或字号变了）重设一遍。拿下来的视图不在树上，放回去时整个重设，用的是那时的密度。
+- 壳不用改：页面是 `ComponentActivity`，壳的 `configChanges` 早就接住了 `density` 和 `fontScale`，页面不重建。
+- 实测（Pixel 6，Android 17）：手机本来是 420 dpi（1 dp = 2.625 像素）。上 10、下 20.5 dp 的空布局量出来 80 像素；`wm density 560` 之后同一个视图变成 177 像素（上边先改成了 30 dp），拿下来时密度变了、放回去的那个按 3.5 设成 35；还原之后回到 133。基础里没有读得出像素的成员，验收借了布局组的 `measuredHeight` 和 App 层的 `configuration.densityDpi`（这两组第二步改成 `frame`、`density` 时顺手改）。
+- `sp` 那一支（字号）基础里没有成员用，文字组第二步验。
+
+### 页面的事件：运行时跟着 App 生死
+
+运行时不跟着页面建、关（`project.md` 第 1 节「运行时跟着 App 生死」）：
+
+- **在进程启动时建。** 壳的 `ShellApplication`（清单里 `android:name`）在 `Application.onCreate` 里 `NacreRuntime.create(this)`、执行 `main.js`，运行时一直留着，不关（`close()` 还在，进程里不用）。`create` 里订 `registerActivityLifecycleCallbacks`：系统在 `Application.onCreate` 返回之后才建第一个页面，所以第一个页面也走这条路，不用壳手动通知，`main.js` 一定先跑完。壳的页面 `MainActivity` 是空的。
+- **只认 `NacreActivity`。** 运行时提供 `open class NacreActivity : ComponentActivity()`，只有它和它的子类发事件、进 `activities`。生命周期回调对进程里所有的页面都来，以后第三方 SDK 自己的页面（支付、登录）不交给 JS。`androidx.activity` 在运行时的依赖里改成 `api`：壳要继承 `NacreActivity`，它的父类得露出去。
+- **`activitycreate` 用 `onActivityPostCreated`，当场派发**：页面的 `onCreate`（含壳自己的代码）整个跑完之后、`onStart` 之前。先把页面加进 `activities`，再派发。实测（Pixel 6，Android 17，冷启动）：这一刻 `lifecycleState` 是 `created`、`windowInsets` 是 `null`（窗口还没挂上）；监听器里订的 `start`、`resume` 都收到了；设的 `contentView` 赶得上第一帧（在 `decorView` 上挂一次性的绘制回调，第一次绘制时页面里已经有它，3 遍都是）。
+- **当场派发是为了 `start`、`resume`，不是为了第一帧。** 临时改成延后一轮（`handler.post`）也赶得上第一帧，同样 3 遍都是。原来读源码以为赶不上（系统排第一次绘制时在消息队列上放一道屏障），实测推翻了；按源码，这条消息是在挂窗口、放屏障之前投的，排在屏障前面。但延后一轮的监听器排在整个启动之后：启动、`onStart`、`onResume` 在主线程的同一条消息里做完，那时这两个已经过了，监听器里订的收不到。这一条是读源码推的，延后那一半的实测被打断了，**没验过**。
+- **`activitydestroy` 用 `onActivityDestroyed`，当场派发**：页面的 `onDestroy` 里，视图都还在。先派发（`activities` 里还有它，`contentView` 还是那棵树），再把内容拿下来、丢掉替身（内容变回自由的），最后从 `activities` 里拿掉。
+- **销毁的页面**：`contentView` 读出 `null`；写一个视图抛 `InvalidStateError`（写不进去的视图不动），写 `null` 什么都不做；写不是视图的值照样先抛 `TypeError`。拿下来时还留着这个页面替身的视图不在树上，下次挂上时 `build` 发现替身是别的页面的，丢掉重建。
+- **最后一个页面关了运行时照常跑**：定时器、网络照旧，直到系统回收进程。从桌面再点开是同一个进程里的新页面，`main.js` 不再跑，界面要在 `activitycreate` 里建。进程也可能被别的原因拉起（以后的推送、广播），那时 `main.js` 跑了，一个页面都没有。
+- **原生里「只有一个页面」的假设去掉了**：`DomainHost.activity` 换成 `app`（`Application`）。App 层（`AppDomain`）的返回、生命周期、配置、链接、内存告警的状态按页面分开存（`WeakHashMap`，`Page` 只弱引用着页面），包信息用 App 的；安全区域（`WindowInsetsDomain`）上次的边衬按页面分开存；动画读时长缩放、图片和文字读项目的 assets、建 `BitmapDrawable` 用 App 级的 `contentResolver`、`assets`、`resources`。只做了编得过、行为不变的最小改动，这几组的 API 没动。
+- 走引擎现成的 `EmitAppEventWithObject`（iOS 的 `sceneconnect` 也走它），JNI 加了一个入口；`21-application.js` 装了 App 级事件的出口（`setEventSink`），原来 Android 上没装。出口的返回值是「有没有人 `preventDefault`」，返回 `false` 才是调了。`error`、`unhandledrejection` 返回 `true`：Android 上还没有派发给 `application`，照原来的样子打默认的日志。
+- `ActivityEvent` 的 `activity` 必填，不是页面抛 `TypeError`。
+- 验收：`steps/activity-lifecycle.js` 按返回让页面结束（adb 启动的页面按返回会结束），验 `activitydestroy` 和销毁的页面、没有页面时定时器照跑；再 `relaunch`，验新的 `activitycreate`，把旧页面上的树放进新页面点得到，拿下来时留着旧替身的视图也在新页面上重建、点得到。
+
+### 关掉系统的视图状态恢复
+
+运行时建的每个视图 `isSaveEnabled = false`（`NativeBridge.construct`）：进程被杀之后系统会按 id 把旧的滚动位置这类灌回新建的视图，和「状态以 JS 为准」冲突。做在运行时里不靠壳，以后换成 CLI 的模板也不会漏。验收里验不了（要杀掉进程再从最近任务回来），**没验过**。
+
+### 顺手修的
+
+`ViewDomain` 记「订 `click` 之前可不可点」的表原来是强引用，带着监听器的视图被丢掉时（没走取消订阅）这一项留着，连带视图和页面。改成 `WeakHashMap`。还原的是订阅那一刻的值，订阅期间 JS 写的 `isClickable` 会被盖掉，这一条留给触摸组（`isClickable` 变成登记的状态时一起改）。
+
+### 过渡期
+
+第一步改了所有组都依赖的机制，已经合进来的外观、布局、文字、图片、滚动和动画、App 层第二步按新总则重写之前：
+
+- 它们的内置脚本照样加载，构造照样能用（多给的 `context` 不管）。
+- 还没改的成员在挂着的视图上照样能用：`nativeGet` / `nativeSet` / `nativeCall` 这几个助手碰到公开的视图，挂着就走它的替身；自由或拿下来时抛 `InvalidStateError`。对象参数是自由的视图时传 `null`，原生按类型不对拒掉。
+- 和新机制直接冲突的从 `31-layout.js` 里删了：`addView` 的五种写法、`removeView` / `removeViewAt` / `removeViews` / `removeAllViews`、`indexOfChild`、`bringChildToFront`、`updateViewLayout`（直接改原生的树，会和 JS 的对不上）、`View.parent`（读原生会把系统放内容的 `FrameLayout` 交出来）、`LinearLayout.orientation`（挪进了基础）。`LayoutDomain` 里对应的原生分支没动，现在走不到。
+- `33-app.js` 的 `openURL`、`trimmemory` 用了删掉的 `application.activity`，现在是坏的，App 层第二步改成不经过页面。
+- 验收里这 7 步先注释掉（`acceptance-android/src/main.js`），哪组改完打开自己那几行。
+
+### 验收
+
+先在没有这一步的运行时上跑了一遍：`application.activities` 不存在、`activitycreate` 等不到，页面那几步一步都没跑，判为失败。做完之后 2026-11-26 在 Pixel 6（Android 17）上 Debug 和 Release 都是 1032 条通过、0 条失败（外观等 7 组的步骤没跑）。同一天改成运行时跟着 App 生死：先用改之前的实现跑新的页面那一步，销毁的页面写视图那 3 条失败，运行时跟着页面关了，后面的「没有页面」「再打开」一段都没跑到；改完之后 2026-11-27 Debug 和 Release 都是 1066 条通过、0 条失败。
+
+- `slice.js`：`activitycreate` 的事件和时机、`activities`、不能 `new` 的、`Context` 和 `Button` 没有了、自由时加的监听器挂上之后收得到点击、只挂在树上的视图 GC 之后监听器还在。
+- `inheritance.js`：子类不传参数、自由时写状态、在树里是同一个子类实例、系统不调 `onDraw`。
+- `tree.js`：树的全部操作和报错、内边距和方向的转换和警告、挂上和拿下来（拿下来时写的字放回去点得到）、移来移去、像素和密度。也量了 `TextView` 带着系统主题建时的内边距：没写过的和四边写了 0 的宽高一样（148×54 像素），主题给的是 0。
+- 验收脚本加了 `density <dpi>|restore`（`adb shell wm density`），和 `night` 一样，脚本退出时（含中途失败）一定还原。
+
 ## 安全区域（窗口边衬）
 
 `targetSdk` 37 下系统强制内容铺满全屏，状态栏、导航条、摄像头开孔、键盘各占多少，由系统用「窗口边衬」分发给视图树。运行时把它交给 JS，由 JS 自己往里缩，不替 JS 做排版决定。
 
 - `activity.windowInsets`：读的时候问页面最外层的视图（`decorView.rootWindowInsets`），按 `WindowInsets.Type` 的七类各取一份 `Insets`，拼成 `[左, 上, 右, 下]` 交给 JS，JS 建成 `WindowInsets` / `Insets` 两个值类（`09-insets.js`）。它们是快照，字段只读（私有字段加 getter，严格模式下赋值抛 `TypeError`），不能 `new`。
-- **`onCreate` 那一刻是 `null`**：`main.js` 在页面的 `onCreate` 里执行，窗口还没挂到屏幕上，系统还没分发过。这是 Android 的事实，照实交出去，不编一个值。
+- **`activitycreate` 那一刻是 `null`**：页面的 `onCreate` 刚跑完，窗口还没挂到屏幕上，系统还没分发过。这是 Android 的事实，照实交出去，不编一个值。
 - `windowinsetschange`：有人订阅时，在页面最外层的视图上装 `OnApplyWindowInsetsListener`。系统每次分发都先经过它，值和上次不一样才发事件（同样的值系统会重复分发好几次），分发本身原样交给视图默认的处理。窗口挂上时的第一次分发也算一次变化。
 - Pixel 6 上实测：`systemBars` 是 0、128、0、63（顶上状态栏 128，底下手势导航条 63），`displayCutout` 顶上 128。按 `systemBars` 给布局加内边距之后，顶上的字点得到。
 
@@ -248,7 +374,7 @@ iOS 真机连不到 Mac 上的本地测试服务（`acceptance/scripts/test-serv
 
 ### 规矩
 
-`project.md` 第 4 节「接类的规矩」：整数常量变字符串枚举、方法参数照 Java 按位置传、构造只传 `context`、覆写点「能用属性就用属性」。
+`project.md` 第 4 节「接类的总则」（2026-11-26 定，取代原来的「接类的规矩」）。视图上的状态用 `ctx.defineViewState` 在自己的文件里登记，枚举表放进域的 `enums`，见上面[自由和挂上](#自由和挂上)。覆写点「能用属性就用属性」照旧。
 
 ## 外观
 
@@ -511,7 +637,7 @@ Java 的属性大多是 `float`。照 `float` 最短的写法交给 JS（`Float.
 `handlesBack` 为 `false` 时（默认）系统照它自己的做法处理，原生不替 JS 改：
 
 - **从桌面启动的**：Android 12 起根页面按返回是把 App 退到后台，页面不结束。系统只对「从桌面启动的任务」这么做。**没验过**：要人从桌面点开 App、按返回、再点开，看 `main.js` 有没有从头再跑。
-- **adb 启动的（验收就是这样）**：按返回会把页面结束，运行时跟着关掉，再打开时 `main.js` 从头再跑。实测过两种启动法都是这样：`am start -n`，和带上 `MAIN`、`LAUNCHER` 的 `am start`（调用方是 shell，不算桌面）。所以验收里没有「不接返回时按返回键」这一条：页面一结束，后面什么都报不出来。
+- **adb 启动的（验收就是这样）**：按返回会把页面结束。实测过两种启动法都是这样：`am start -n`，和带上 `MAIN`、`LAUNCHER` 的 `am start`（调用方是 shell，不算桌面）。运行时不跟着页面关（见「自由和挂上」里的「页面的事件」），再打开是同一个进程里的新页面，`main.js` 不再跑；基础那几步的最后一步 `steps/activity-lifecycle.js` 就是这样把页面关掉再打开的。
 - Android 11 上根页面按返回也是结束页面（系统文档的说法，没验过）。
 
 ### 配置变化不重建页面
@@ -522,7 +648,7 @@ Java 的属性大多是 `float`。照 `float` 最短的写法交给 JS（`Float.
 
 ### 被链接打开：壳改成 singleTask
 
-壳的页面原来是默认的启动方式，别的 App 打开一条指向它的链接会**再建一个页面**，也就再起一个运行时。改成 `singleTask` 之后，已经在跑的页面收到 `onNewIntent`，发 `openurl`。
+壳的页面原来是默认的启动方式，别的 App 打开一条指向它的链接会**再建一个页面**。改成 `singleTask` 之后，已经在跑的页面收到 `onNewIntent`，发 `openurl`。
 
 - `launchURL`：启动这个页面的 intent 带的地址，从桌面启动是 `null`。`ComponentActivity` 收到新 intent 时不调 `setIntent`，所以它一直是启动时的那个。
 - 冷启动带着的链接读 `launchURL`，运行中来的链接听 `openurl`，两条路不重叠。
@@ -537,8 +663,7 @@ Java 的属性大多是 `float`。照 `float` 最短的写法交给 JS（`Float.
 
 ### 明确不做的
 
-- `destroy` 事件：运行时跟着页面一起关掉，延后一轮派发的事件送不到。
-- `create` 事件：`main.js` 本身就在 `onCreate` 里执行。
+- 页面上的 `create`、`destroy` 事件：页面建好、销毁由 `application` 的 `activitycreate` / `activitydestroy` 报告（基础里做的），页面上不再发一份。
 - 能取消的返回：系统等不了，由 `handlesBack` 提前答。
 - 进程级的前后台（`ProcessLifecycleOwner`）：只有一个页面，和页面的生命周期是一回事。
 
@@ -559,7 +684,7 @@ JS 打「`[acceptance] <命令> <参数>`」，`run-device.sh` 照做，和 `tap
 
 - **一下跳回边缘松手，系统当成返回。** 注入的手势要一步一步慢慢滑回边缘、在边缘停一下再松手，系统才认成放弃，发 `backcancel`。
 - **`am send-trim-memory` 同一级只能发一次。** 进程已经收过某一级，再发同一级或者更低的，系统抛「Unable to set a higher trim level than current level」。脚本里手机上的命令失败只打出来，不让整个脚本退出。
-- **装新包时系统会把正在跑的 App 再打开一次**（Android 17 的 `PackageUpdateActivity`）。脚本装完包先强制停掉再打开，不受影响；但跑的时候页面要是被结束、运行时从头再跑一遍，脚本是按「第几条请求」计数的，新的一遍发来的请求会被当成已经做过，JS 那边就一条条等到超时。
+- **装新包时系统会把正在跑的 App 再打开一次**（Android 17 的 `PackageUpdateActivity`）。脚本装完包先强制停掉再打开，不受影响；但跑的时候进程要是被杀掉重来、`main.js` 从头再跑一遍，脚本是按「第几条请求」计数的，新的一遍发来的请求会被当成已经做过，JS 那边就一条条等到超时。页面结束不会这样：运行时不跟着页面关。
 
 ### 欠的验证
 
@@ -627,6 +752,8 @@ JS 打「`[acceptance] <命令> <参数>`」，`run-device.sh` 照做，和 `tap
 ## 验收
 
 `bash android/scripts/run-device.sh`（加 `--release` 是 Release，要先设 `ANDROID_HOME`）：打包 `acceptance-android/`，编壳时用 `-PnacreMainJs=` 把它换成壳执行的 `main.js`，装、打开，从 logcat 读 `Nacre` 标签的原文，交给 iOS 验收的 `report.mjs` 判定：等到结束标记、没有 ✗ 就是 0；期限内没等到、App 提前退出、有 ✗ 都是 1。
+
+**日志从打开那一刻起一直存进文件**（后台的 `adb logcat`），不每秒用 `logcat -d` 现读。手机的日志缓冲只有 256 KiB，原来现读时，页面那一步关掉页面再打开，系统的日志一多，前面的内容就被挤掉：下面的点击、动作请求是按「日志里一共几条」认的，条数变少，新的请求就不再执行（实际撞到过：新页面上的两次点击没点，「通过」只数到 80 条）。
 
 **点击是脚本点的。** JS 打一行「`[acceptance] tap 视图上的字`」，脚本用 `uiautomator dump` 找到写着这几个字的视图，用 `adb shell input tap` 点它的正中。App 忙的时候（网络用例同时在跑）`uiautomator` 可能等不到界面空闲、写不出新文件，所以每次先删旧文件，找不到就隔一秒再 dump，最多 5 次；不这样会读到上一次的界面，点不到。跑的时候手机要**解锁、亮屏、别碰**：锁屏时点到的是锁屏；人手点的也会被如实收到，监听器会多触发（实际撞到过）。可以在开发者选项里打开「不锁定屏幕」，插着线就不会息屏。
 

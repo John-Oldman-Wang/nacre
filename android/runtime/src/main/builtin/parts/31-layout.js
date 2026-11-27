@@ -1,12 +1,16 @@
 // 布局这一组：ViewGroup.LayoutParams 一族、LinearLayout 的成员、FrameLayout、ConstraintLayout，
-// View 上读布局结果的成员、ViewGroup 的层级操作、layoutchange 事件。原生那一侧是
+// View 上读布局结果的成员、layoutchange 事件。原生那一侧是
 // android/runtime 的 LayoutDomain.kt。单位都是像素，照 Android 原样。
 //
 // 这是内置脚本的一个 part：整个文件就是一个函数表达式，运行时按文件名
 // 顺序编译执行，拿到函数之后用共享的 ctx 调一次。
 //
 // 往 10-view.js 的类（View、ViewGroup、LinearLayout）上加成员在这里加，不改那个文件。
-// addView 在这里换成认全部重载的那一个。
+//
+// 过渡期（2026-11-26）：视图树挪到了 JS 里（10-view.js），这里原来那几个直接改原生的树的
+// 方法（addView 的五种写法、removeView 一族、indexOfChild、bringChildToFront、updateViewLayout）、
+// View.parent、LinearLayout.orientation 和新机制冲突，已经去掉；剩下的还是旧写法，只在挂着的
+// 视图上能用，第二步按新规矩重写。
 (function (ctx) {
   'use strict';
 
@@ -17,7 +21,6 @@
     defineEventClass,
     defineNativeClass,
     describeValue,
-    disown,
     kHandle,
     kSubscribe,
     nativeCall,
@@ -27,7 +30,6 @@
     nativeGet,
     nativeSet,
     own,
-    ownOne,
     requireInstance,
     subscribeNative,
     toInteger,
@@ -218,9 +220,6 @@
       own(this, 'layoutParams', params);
     });
 
-  // 父视图。最外层的视图上面是系统的东西，不是视图，给 null
-  getter(View, 'parent', function () { return nativeCallObject(this, 'getParent', []); });
-
   method(View, 'measure', function measure(widthMeasureSpec, heightMeasureSpec) {
     requireArgs('measure', arguments.length, 2);
     nativeCall(this, 'measure', [toInteger(widthMeasureSpec, 'measure'), toInteger(heightMeasureSpec, 'measure')]);
@@ -271,80 +270,8 @@
     else subscribeBefore.call(this, type, on);
   };
 
-  // ---- ViewGroup：层级操作 ----
-  //
-  // 父视图持有子视图（children 那条边），视图持有它的参数（layoutParams 那条边）
-
-  // 五种写法：(child)、(child, index)、(child, params)、(child, width, height)、(child, index, params)
-  method(ViewGroup, 'addView', function addView(child, a, b) {
-    requireArgs('addView', arguments.length, 1);
-    requireInstance(child, View, 'addView');
-    let withParams = false;
-    if (arguments.length < 2 || a === undefined) {
-      nativeCall(this, 'addView', [child]);
-    } else if (arguments.length < 3 || b === undefined) {
-      if (a instanceof LayoutParams) {
-        requireInstance(a, LayoutParams, 'addView');
-        nativeCall(this, 'addView@params', [child, a]);
-        withParams = true;
-      } else {
-        nativeCall(this, 'addView@index', [child, toInteger(a, 'addView')]);
-      }
-    } else if (b instanceof LayoutParams) {
-      requireInstance(b, LayoutParams, 'addView');
-      nativeCall(this, 'addView@indexParams', [child, toInteger(a, 'addView'), b]);
-      withParams = true;
-    } else {
-      nativeCall(this, 'addView@size', [child, toDimension(a, 'addView'), toDimension(b, 'addView')]);
-    }
-    ownOne(this, 'children', child);
-    // 类型不对时系统换了一个新的，持有的是它真正用的那个
-    if (withParams) own(child, 'layoutParams', nativeCallObject(child, 'getLayoutParams', []));
-  });
-
-  method(ViewGroup, 'removeView', function removeView(view) {
-    requireInstance(view, View, 'removeView');
-    nativeCall(this, 'removeView', [view]);
-    disown(this, 'children', view);
-  });
-  method(ViewGroup, 'removeViewAt', function removeViewAt(index) {
-    const i = toInteger(index, 'removeViewAt');
-    const child = this.getChildAt(i);
-    nativeCall(this, 'removeViewAt', [i]);
-    if (child !== null) disown(this, 'children', child);
-  });
-  method(ViewGroup, 'removeViews', function removeViews(start, count) {
-    requireArgs('removeViews', arguments.length, 2);
-    const s = toInteger(start, 'removeViews');
-    const n = toInteger(count, 'removeViews');
-    const removed = [];
-    for (let i = s; i < s + n; i++) removed.push(this.getChildAt(i));
-    nativeCall(this, 'removeViews', [s, n]);
-    for (const child of removed) if (child !== null) disown(this, 'children', child);
-  });
-  method(ViewGroup, 'removeAllViews', function removeAllViews() {
-    nativeCall(this, 'removeAllViews', []);
-    own(this, 'children', null);
-  });
-  method(ViewGroup, 'indexOfChild', function indexOfChild(view) {
-    requireInstance(view, View, 'indexOfChild');
-    return nativeCall(this, 'indexOfChild', [view]);
-  });
-  method(ViewGroup, 'bringChildToFront', function bringChildToFront(view) {
-    requireInstance(view, View, 'bringChildToFront');
-    nativeCall(this, 'bringChildToFront', [view]);
-  });
-  method(ViewGroup, 'updateViewLayout', function updateViewLayout(view, params) {
-    requireArgs('updateViewLayout', arguments.length, 2);
-    requireInstance(view, View, 'updateViewLayout');
-    requireInstance(params, LayoutParams, 'updateViewLayout');
-    nativeCall(this, 'updateViewLayout', [view, params]);
-    own(view, 'layoutParams', params);
-  });
-
   // ---- LinearLayout ----
 
-  enumProp(LinearLayout, 'orientation');
   getter(LinearLayout, 'gravity',
     function () { return nativeGet(this, 'gravity'); },
     function (v) { nativeSet(this, 'gravity', toNameList(v, 'gravity')); });

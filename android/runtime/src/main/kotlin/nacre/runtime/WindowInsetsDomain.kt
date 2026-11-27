@@ -4,6 +4,7 @@ package nacre.runtime
 
 import android.app.Activity
 import android.view.WindowInsets
+import java.util.WeakHashMap
 
 internal class WindowInsetsDomain(host: DomainHost) : Domain(host) {
 
@@ -19,11 +20,11 @@ internal class WindowInsetsDomain(host: DomainHost) : Domain(host) {
         // 系统每次分发窗口边衬都先经过页面最外层的视图。值变了才发事件（同样的值系统会
         // 重复分发好几次）；分发本身原样交给它默认的处理，不替 JS 做任何排版决定
         val decor = target.window.decorView
-        lastInsets = null
+        lastInsets.remove(target)
         if (on) {
             decor.setOnApplyWindowInsetsListener { v, insets ->
-                if (insets != lastInsets) {
-                    lastInsets = insets
+                if (insets != lastInsets[target]) {
+                    lastInsets[target] = insets
                     host.emitter.plain(target, "windowinsetschange")
                 }
                 v.onApplyWindowInsets(insets)
@@ -34,7 +35,8 @@ internal class WindowInsetsDomain(host: DomainHost) : Domain(host) {
         return true
     }
 
-    private var lastInsets: WindowInsets? = null
+    // 每个页面上次发出去的边衬（页面可能同时有几个）。键是弱引用，页面没了这一项跟着没了
+    private val lastInsets = WeakHashMap<Activity, WindowInsets>()
 
     // 各类边衬照 WindowInsets.Type 的名字，每类是 [左, 上, 右, 下]，单位像素
     private fun insetsJson(insets: WindowInsets): String {

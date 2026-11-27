@@ -81,6 +81,7 @@ dependencies {
         exclude(group = "androidx.appcompat")
     }
     // App 层：生命周期、返回、配置变化、新 intent、内存告警都是 ComponentActivity 给的（AppDomain.kt）。
+    // 交给 JS 的页面的基类 NacreActivity 继承它，壳要继承 NacreActivity，所以用 api 往外露。
     // 版本和壳的一样
-    implementation("androidx.activity:activity:1.12.4")
+    api("androidx.activity:activity:1.12.4")
 }

@@ -1,15 +1,20 @@
 // 运行时在 Kotlin 这一侧的入口：建引擎、跑内置脚本、执行 App 的脚本、关掉引擎，
 // 外加事件循环的那几根线（定时器的唤醒、投递的任务、主线程空闲时的 GC）。
 // 不做任何调度：App 做什么全由 JS 决定。
+//
+// 运行时跟着 App 的进程生死（project.md 第 1 节）：壳在 Application.onCreate 里建，页面来来去去，
+// 建好、销毁时在 application 上发 activitycreate / activitydestroy，运行时不跟着页面关。
 package nacre.runtime
 
 import android.app.Activity
+import android.app.Application
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.MessageQueue
 import kotlin.math.ceil
 
-class NacreRuntime private constructor(activity: Activity) : AutoCloseable {
+class NacreRuntime private constructor(private val app: Application) : AutoCloseable {
     private var handle = 0L
 
     // 原生对象和引擎之间那一层。系统的回调（比如点击）进来，排到下一轮再派发给 JS：
@@ -33,7 +38,7 @@ class NacreRuntime private constructor(activity: Activity) : AutoCloseable {
         handler.post { if (handle != 0L) block() }
     }
 
-    private val bridge: NativeBridge = NativeBridge(activity, settle, object : NativeBridge.Emitter {
+    private val bridge: NativeBridge = NativeBridge(app, settle, object : NativeBridge.Emitter {
         override fun plain(target: Any, type: String) = onMain {
             nativeEmitObjectEvent(handle, bridge.intern(target), bridge.className(target), type)
         }
@@ -44,6 +49,9 @@ class NacreRuntime private constructor(activity: Activity) : AutoCloseable {
         override fun obj(target: Any, type: String, payload: Any, eventClass: String) = onMain {
             nativeEmitObjectEventWith(handle, bridge.intern(target), bridge.className(target), type,
                                       bridge.intern(payload), bridge.className(payload), eventClass)
+        }
+        override fun plainNow(target: Any, type: String) {
+            if (handle != 0L) nativeEmitObjectEvent(handle, bridge.intern(target), bridge.className(target), type)
         }
     })
 
@@ -65,6 +73,32 @@ class NacreRuntime private constructor(activity: Activity) : AutoCloseable {
         true
     }
 
+    // ---- 页面的来去 ----
+    //
+    // 只认 NacreActivity 和它的子类。两个都当场派发：
+    //   建好：onActivityPostCreated，页面的 onCreate（含壳自己的代码）整个跑完之后、onStart 之前。
+    //         监听器里订的 start、resume 收得到，设的内容赶得上第一帧（实测见 internals/android.md）
+    //   销毁：onActivityDestroyed，页面的 onDestroy 里，视图都还在
+    private val activityCallbacks = object : Application.ActivityLifecycleCallbacks {
+        override fun onActivityPostCreated(activity: Activity, savedInstanceState: Bundle?) {
+            if (activity is NacreActivity) emitActivityEvent("activitycreate", activity)
+        }
+        override fun onActivityDestroyed(activity: Activity) {
+            if (activity is NacreActivity) emitActivityEvent("activitydestroy", activity)
+        }
+        override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+        override fun onActivityStarted(activity: Activity) {}
+        override fun onActivityResumed(activity: Activity) {}
+        override fun onActivityPaused(activity: Activity) {}
+        override fun onActivityStopped(activity: Activity) {}
+        override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+    }
+
+    private fun emitActivityEvent(type: String, activity: Activity) {
+        if (handle == 0L) return
+        nativeEmitAppEventWithObject(handle, type, "activity", bridge.intern(activity), bridge.className(activity))
+    }
+
     // 执行一段脚本。有没捕获的异常时，错误已经打进 logcat，返回 false
     fun evaluate(name: String, source: ByteArray): Boolean {
         checkOpen()
@@ -74,6 +108,7 @@ class NacreRuntime private constructor(activity: Activity) : AutoCloseable {
     override fun close() {
         checkThread()
         if (handle == 0L) return
+        app.unregisterActivityLifecycleCallbacks(activityCallbacks)
         Looper.myQueue().removeIdleHandler(idleHandler)
         handler.removeCallbacksAndMessages(null)
         bridge.close()
@@ -115,11 +150,15 @@ class NacreRuntime private constructor(activity: Activity) : AutoCloseable {
         private const val IDLE_SECONDS = 0.005
 
         // 建一个运行时，并按文件名顺序跑完全部内置脚本。JS 跑在主线程上，
-        // 引擎的每个方法都只能在主线程调
-        fun create(activity: Activity): NacreRuntime {
+        // 引擎的每个方法都只能在主线程调。
+        //
+        // 壳在 Application.onCreate 里调，一个进程一个，之后壳 evaluate main.js。页面的来去是
+        // 在这里订的：系统在 Application.onCreate 返回之后才建第一个页面，所以第一个页面也走
+        // 这条路，main.js 一定先跑
+        fun create(app: Application): NacreRuntime {
             checkThread()
-            val assets = activity.assets
-            val runtime = NacreRuntime(activity)
+            val assets = app.assets
+            val runtime = NacreRuntime(app)
             runtime.handle = nativeCreate(runtime, runtime.bridge)
             val names = assets.list(PARTS_DIR).orEmpty().filter { it.endsWith(".js") }.sorted()
             for (name in names) {
@@ -133,6 +172,7 @@ class NacreRuntime private constructor(activity: Activity) : AutoCloseable {
             }
             nativeFinishBuiltinParts(runtime.handle)
             Looper.myQueue().addIdleHandler(runtime.idleHandler)
+            app.registerActivityLifecycleCallbacks(runtime.activityCallbacks)
             return runtime
         }
 
@@ -158,6 +198,8 @@ class NacreRuntime private constructor(activity: Activity) : AutoCloseable {
         @JvmStatic private external fun nativeEmitObjectEventWith(
             handle: Long, id: Long, className: String, type: String,
             payloadId: Long, payloadClass: String, eventClass: String)
+        @JvmStatic private external fun nativeEmitAppEventWithObject(
+            handle: Long, type: String, key: String, id: Long, className: String)
         @JvmStatic private external fun nativeSettleJson(handle: Long, callId: Int, json: ByteArray)
         @JvmStatic private external fun nativeSettleBytes(handle: Long, callId: Int, data: ByteArray)
         @JvmStatic private external fun nativeSettleObject(handle: Long, callId: Int, id: Long, className: String)

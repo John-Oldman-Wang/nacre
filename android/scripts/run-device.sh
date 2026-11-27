@@ -80,14 +80,20 @@ cleanup_server() {
 echo "== 打开"
 "$ADB" shell am force-stop "$PACKAGE"
 "$ADB" logcat -c
+# 从一开始就把日志一直存进文件，不每次用 logcat -d 现读：手机的日志缓冲只有几百 KB，关掉页面、
+# 再打开时系统的日志很多，前面的内容会被挤掉（下面的请求按条数认，少了就不再点）。
+# 只要这个标签的内容，去掉「I/Nacre( pid): 」这样的前缀，剩下的就是 console 打的原文
+LOG_RAW="$(mktemp)"
+"$ADB" logcat -v raw -s "$TAG:V" > "$LOG_RAW" 2>/dev/null &
+LOGCAT_PID=$!
 "$ADB" shell am start -W -n "$PACKAGE/$ACTIVITY" >/dev/null
 
 LOG_FILE="$(mktemp)"
-trap 'rm -f "$LOG_FILE"; cleanup_server; release_lock' EXIT
+stop_log() { kill "$LOGCAT_PID" 2>/dev/null || true; wait "$LOGCAT_PID" 2>/dev/null || true; rm -f "$LOG_RAW" "$LOG_FILE"; }
+trap 'stop_log; cleanup_server; release_lock' EXIT
 
-# 只要这个标签的内容，去掉「I/Nacre( pid): 」这样的前缀，剩下的就是 console 打的原文
 read_log() {
-  "$ADB" logcat -d -v raw -s "$TAG:V" | grep -v '^---------' > "$LOG_FILE" || true
+  grep -v '^---------' "$LOG_RAW" > "$LOG_FILE" || true
 }
 
 # JS 打「[acceptance] tap 按钮上的字」请求点一下：用 uiautomator 找到写着这几个字的
@@ -185,10 +191,21 @@ for node in root.iter("node"):
 #   open <网址>             带着网址打开 App（ACTION_VIEW）
 #   trim-memory <级别>      发一次内存告警（am send-trim-memory 的级别名）
 #   night yes|no            切深色模式。改的是手机的设置，脚本退出时还原
+#   density <dpi>|restore   改显示密度（wm density），restore 改回原来的。改的是手机的设置，脚本退出时还原
 ACTED=0
 NIGHT_BEFORE=""
 restore_night() {
   [ -n "$NIGHT_BEFORE" ] && "$ADB" shell cmd uimode night "$NIGHT_BEFORE" >/dev/null 2>&1 || true
+}
+# 原来的显示密度：手机上设过覆盖值就是那个数，没设过是 reset
+DENSITY_BEFORE=""
+restore_density() {
+  [ -z "$DENSITY_BEFORE" ] && return 0
+  if [ "$DENSITY_BEFORE" = "reset" ]; then
+    "$ADB" shell wm density reset >/dev/null 2>&1 || true
+  else
+    "$ADB" shell wm density "$DENSITY_BEFORE" >/dev/null 2>&1 || true
+  fi
 }
 # 从左边缘往里滑。一次 input 要几百毫秒，滑得慢，系统一样认
 back_swipe() {
@@ -212,7 +229,7 @@ back_swipe() {
 }
 action_requests() {
   local requests count line cmd arg
-  requests="$(grep -E '^\[acceptance\] (key|backswipe|relaunch|open|trim-memory|night)( |$)' "$LOG_FILE" |
+  requests="$(grep -E '^\[acceptance\] (key|backswipe|relaunch|open|trim-memory|night|density)( |$)' "$LOG_FILE" |
               sed 's/^\[acceptance\] //' || true)"
   count="$(printf '%s' "$requests" | grep -c . || true)"
   while [ "$ACTED" -lt "$count" ]; do
@@ -239,11 +256,17 @@ action_requests() {
           NIGHT_BEFORE="$("$ADB" shell cmd uimode night | tr -d '\r' | awk -F': ' '{ print $2 }')"
         fi
         "$ADB" shell cmd uimode night "$arg" >/dev/null ;;
+      density)
+        if [ -z "$DENSITY_BEFORE" ]; then
+          DENSITY_BEFORE="$("$ADB" shell wm density | tr -d '\r' | awk -F': ' '/Override density/ { print $2 }')"
+          [ -z "$DENSITY_BEFORE" ] && DENSITY_BEFORE="reset"
+        fi
+        if [ "$arg" = "restore" ]; then restore_density; else "$ADB" shell wm density "$arg" >/dev/null; fi ;;
     esac || echo "  （「$line」在手机上失败了）"
     echo "  $(date +%T) 做了「$line」"
   done
 }
-trap 'rm -f "$LOG_FILE"; restore_night; cleanup_server; release_lock' EXIT
+trap 'stop_log; restore_night; restore_density; cleanup_server; release_lock' EXIT
 
 STATUS="timeout"
 for _ in $(seq 1 "$TIMEOUT"); do

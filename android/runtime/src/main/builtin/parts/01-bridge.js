@@ -6,10 +6,19 @@
 // 照 iOS 的 01-bridge.js 写的，只留第一条竖切用到的那几样。原生那一侧是
 // android/runtime 的 NativeBridge.kt：交给引擎的「指针」是它发的编号，同一个
 // Java 对象永远是同一个编号，所以这里拿到的永远是同一个包装。
+//
+// 视图是例外（2026-11-26，见 10-view.js）：JS 拿着的视图（公开对象）不绑原生，挂上页面时
+// 才建一个内部的替身绑原生对象。这里的助手碰到公开的视图时，挂着就走它的替身，自由或者
+// 拿下来时抛 InvalidStateError；原生交回来的替身换成公开对象再交出去。
 (function (ctx) {
   'use strict';
 
   const { define, initWrapper, kHandle, native } = ctx;
+
+  // 公开的视图身上挂着它的状态（10-view.js 定义）：自由还是挂着、替身、树、写过的状态
+  const kView = Symbol('view');
+  // 替身指回它的公开对象
+  const kOwner = Symbol('owner');
 
   const nativeClasses = Object.create(null);
   // 反查：类 → 原生类名。构造时用它判断「被 new 的是不是运行时自己的类」
@@ -86,9 +95,9 @@
     }
     return Math.trunc(n);
   }
-  // 要求是某个原生类的实例
+  // 要求是某个原生类的实例（公开的视图自由时也算）
   function requireInstance(v, Cls, where) {
-    if (!(v instanceof Cls) || v[kHandle] === undefined) {
+    if (!(v instanceof Cls) || (v[kHandle] === undefined && v[kView] === undefined)) {
       throw new TypeError(where + ': expected a ' + nativeClassNames.get(Cls) + ', got ' + describeValue(v));
     }
     return v;
@@ -96,16 +105,39 @@
 
   // ---- 过桥 ----
 
-  // 「没有原生对象」：绕过构造函数建出来的（Object.create(X.prototype)），和 Chrome 一样报
-  // Illegal invocation
-  function requireNative(obj, what) {
-    if (obj == null || obj[kHandle] === undefined) throw new TypeError(what + ': Illegal invocation');
+  // 自由（或者拿下来了）的视图上调要原生对象的成员
+  function notAttached(what) {
+    return new ctx.DOMException("Failed to execute '" + what + "': the view is not attached to an activity",
+                                'InvalidStateError');
   }
 
+  // 过桥用的句柄。公开的视图挂着时是它替身的；自由时抛 InvalidStateError。
+  // 「没有原生对象」：绕过构造函数建出来的（Object.create(X.prototype)），和 Chrome 一样报
+  // Illegal invocation
+  function handleOf(obj, what) {
+    if (obj != null && obj[kHandle] !== undefined) return obj[kHandle];
+    const view = obj == null ? undefined : obj[kView];
+    if (view !== undefined) {
+      if (view.activity === null) throw notAttached(what);
+      return view.standIn[kHandle];
+    }
+    throw new TypeError(what + ': Illegal invocation');
+  }
+  function requireNative(obj, what) {
+    handleOf(obj, what);
+  }
+
+  // 对象参数换成句柄。公开的视图挂着时给它的替身，不然给 null（原生按类型不对拒掉）
   function splitArgs(args) {
     const values = [];
     const handles = [];
     for (const a of args) {
+      const view = a == null ? undefined : a[kView];
+      if (view !== undefined) {
+        values.push(null);
+        handles.push(view.activity !== null ? view.standIn[kHandle] : 0);
+        continue;
+      }
       const isObject = a != null && a[kHandle] !== undefined;
       values.push(isObject ? null : a);
       handles.push(isObject ? a[kHandle] : 0);
@@ -113,33 +145,36 @@
     return { values, handles };
   }
 
+  // 原生交回来的是替身时，换成它的公开对象
+  function publicOf(v) {
+    return v != null && v[kOwner] !== undefined ? v[kOwner] : v;
+  }
+
   function nativeGet(obj, name) {
-    requireNative(obj, name);
-    return JSON.parse(native.getProp(obj[kHandle], name));
+    return JSON.parse(native.getProp(handleOf(obj, name), name));
   }
   // 写不进去时原生自己抛。枚举属性写了不认识的值：原生不抛，把那句话交回来，值没动，
   // 打成警告（和 iOS 一样）
   function nativeSet(obj, name, value) {
-    requireNative(obj, name);
-    const warning = native.setProp(obj[kHandle], name, value);
+    const warning = native.setProp(handleOf(obj, name), name, value);
     if (warning !== undefined) console.warn('[Nacre] ' + warning + ', ignored');
   }
   function nativeCall(obj, name, args) {
-    requireNative(obj, name);
+    const handle = handleOf(obj, name);
     const { values, handles } = splitArgs(args);
-    return JSON.parse(native.call(obj[kHandle], name, values, handles));
+    return JSON.parse(native.call(handle, name, values, handles));
   }
   // 返回 Promise 的方法：结果由原生在后台做完之后兑现
   function nativeCallAsync(obj, name, args) {
-    requireNative(obj, name);
+    const handle = handleOf(obj, name);
     const { values, handles } = splitArgs(args);
-    return native.callAsync(obj[kHandle], name, values, handles);
+    return native.callAsync(handle, name, values, handles);
   }
   function nativeCallObject(obj, name, args) {
-    requireNative(obj, name);
+    const handle = handleOf(obj, name);
     const { values, handles } = splitArgs(args);
-    const result = native.callObj(obj[kHandle], name, values, handles);
-    return result === undefined ? null : result;
+    const result = native.callObj(handle, name, values, handles);
+    return result === undefined ? null : publicOf(result);
   }
   // 返回值不是原生对象的类方法（core 的 Intl 用它，类名 NacreIntl 只是桥上的地址）
   function nativeClassCallValue(className, name, args) {
@@ -150,17 +185,54 @@
   function nativeClassCallObject(className, name, args) {
     const { values, handles } = splitArgs(args);
     const result = native.classCall(className, name, values, handles);
-    return result === undefined ? null : result;
+    return result === undefined ? null : publicOf(result);
   }
   // 类级的对象属性：没有实例，用类名定位
   function nativeClassObject(className, name) {
     const result = native.classObjProp(className, name);
-    return result === undefined ? null : result;
+    return result === undefined ? null : publicOf(result);
   }
-  // 某个事件类型的监听器从无到有、从有到无时告诉原生。只管通知，不碰对象的寿命
+  // 某个事件类型的监听器从无到有、从有到无时告诉原生。只管通知，不碰对象的寿命。
+  // 公开的视图还没有替身时只记在 JS（监听器本来就在它的表里），挂上建替身时 10-view.js 补订；
+  // 有替身（挂着，或者拿下来了）就订在替身上
   function subscribeNative(target, type, on) {
-    requireNative(target, 'addEventListener');
+    const view = target == null ? undefined : target[kView];
+    if (view !== undefined) {
+      if (view.standIn !== null) native.subscribe(view.standIn[kHandle], type, on);
+      return;
+    }
+    if (target == null || target[kHandle] === undefined) throw new TypeError('addEventListener: Illegal invocation');
     native.subscribe(target[kHandle], type, on);
+  }
+
+  // ---- 枚举的名字（2026-11-26）----
+  //
+  // 名字和数值的映射只在原生；名字在启动时由原生交过来一次，写错的名字在 JS 里当场查，
+  // 视图自由时也查得到。措辞和 Enums.kt 一样
+  const enumTables = JSON.parse(native.classCallValue('@bridge', 'enumNames', [], []));
+  // 属性位写错时 convert 返回它：打过警告了，值不变
+  const IGNORE = Symbol('ignore');
+
+  function enumNames(table) {
+    const names = enumTables[table];
+    if (names === undefined) throw new Error('internal: no enum table named ' + table);
+    return names;
+  }
+  function enumMessage(table, what, name) {
+    return what + ' has no value ' + JSON.stringify(name) + '; expected one of: ' + enumNames(table).join(' / ');
+  }
+  // 属性位：先 String()，认识的返回名字；不认识的打警告、返回 IGNORE
+  function enumProperty(table, v, what) {
+    const name = String(v);
+    if (enumNames(table).includes(name)) return name;
+    console.warn('[Nacre] ' + enumMessage(table, what, name) + ', ignored');
+    return IGNORE;
+  }
+  // 方法参数、构造参数：不认识的抛 TypeError
+  function enumArgument(table, v, what) {
+    const name = String(v);
+    if (enumNames(table).includes(name)) return name;
+    throw new TypeError(enumMessage(table, what, name));
   }
 
   // ---- 构造 ----
@@ -199,8 +271,10 @@
   }
 
   // JS 构造原生对象：先有 this，再让原生造出对象并和 this 绑定。构造链上每个原生类
-  // 都调一次，只有「new.target 最近的原生类」那一层真的去建
+  // 都调一次，只有「new.target 最近的原生类」那一层真的去建。
+  // 视图不在这里建：建出来是自由的，挂上页面时 10-view.js 才建原生对象
   function constructNative(wrapper, newTarget, className, args) {
+    if (wrapper[kView] !== undefined) return;
     if (nativeClassNames.get(nearestNative(newTarget)) !== className) return;
     const { values, handles } = splitArgs(args);
     const handle = native.construct(className, values, handles, wrapper);
@@ -238,8 +312,10 @@
   // 这几类的事件原生总是发，不看有没有人订
   const alwaysEmitted = new Set(['WebSocket']);
 
-  native.setObjectEventSink(function (wrapper, type, payload, rebuilt, cancelable, answerField,
+  native.setObjectEventSink(function (nativeWrapper, type, payload, rebuilt, cancelable, answerField,
                                       eventClass) {
+    // 视图的事件到它的替身上，转给公开对象
+    const wrapper = publicOf(nativeWrapper);
     // 包装是为这次派发现建的，说明原来那个已经被回收，挂在上面的监听器也没了。
     // 正常不该发生：原生还在发事件，就说明有人持有它，镜像里却没有对应的边
     if (rebuilt && !alwaysEmitted.has(wrapper.constructor.name)) {
@@ -280,12 +356,20 @@
   });
 
   Object.assign(ctx, {
+    IGNORE,
     abstractOnly,
     constructNative,
     defineNativeClass,
     describeValue,
     disown,
+    enumArgument,
+    enumNames,
+    enumProperty,
     finalCheck,
+    kOwner,
+    kView,
+    nearestNative,
+    notAttached,
     nativeCall,
     nativeCallAsync,
     nativeCallObject,

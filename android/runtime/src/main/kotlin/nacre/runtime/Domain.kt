@@ -6,12 +6,13 @@
 // 由 NativeBridge 去问下一个。接一组类的办法见 docs/internals/android.md「接一组类」。
 package nacre.runtime
 
-import android.app.Activity
+import android.app.Application
 
 // 域能用到的运行时的东西
 internal class DomainHost(
-    // App 唯一的那个页面
-    val activity: Activity,
+    // App 本身（进程级的环境：assets、resources、contentResolver、包信息）。运行时跟着 App 生死，
+    // 页面来来去去，可能同时有几个：页面级的东西用成员的那个对象（target）自己的
+    val app: Application,
     // 异步调用的兑现（哪个线程都能调，实现里排到主线程）
     val settle: Settle,
     // 事件的出口（排到下一轮再派发）
@@ -25,6 +26,10 @@ internal abstract class Domain(protected val host: DomainHost) {
     //   对象交给引擎时用哪个 JS 类名建包装：所有域里离它最近（继承层级最深）的那个类。
     // JS 类名是 JS 那一侧 defineNativeClass 登记的名字，两边要对上
     abstract val classes: Map<Class<*>, String>
+
+    // 要交给 JS 的枚举表：表名 → 表。JS 启动时取一次名字，写错的名字当场在 JS 里查
+    //（见 01-bridge.js 的 enumProperty）。表名在所有域里不能重复
+    open val enums: Map<String, EnumTable<*>> = emptyMap()
 
     // new 一个 JS 类（className 是 JS 类名，是这一组 classes 里的名字才会问到）。
     // objects 是参数里的原生对象，按下标对齐 args（不是对象的位置是 null）。

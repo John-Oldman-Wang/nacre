@@ -5,7 +5,9 @@
 // 只有引擎专门留的几个入口（建 Blob、读 Blob、fetch）在这里，它们是 core 的约定，不按类分。
 package nacre.runtime
 
-import android.app.Activity
+import android.app.Application
+import android.view.View
+import org.json.JSONArray
 import org.json.JSONObject
 import java.util.IdentityHashMap
 
@@ -18,7 +20,7 @@ internal class NacreTypeError(message: String) : RuntimeException(message)
 internal class NacreWarning(message: String) : RuntimeException(message)
 
 internal class NativeBridge(
-    activity: Activity,
+    app: Application,
     // 异步调用的兑现（fetch、Blob 的读取）
     private val settle: Settle,
     // 系统的回调进来了，排到下一轮派发给 JS（不当场进 JS）
@@ -32,6 +34,9 @@ internal class NativeBridge(
         fun json(target: Any, type: String, json: String, eventClass: String)
         // 带一个原生对象的事件（WebSocket 收到的二进制消息是一个 Blob）
         fun obj(target: Any, type: String, payload: Any, eventClass: String)
+        // 当场派发、不带数据（不排到下一轮）：系统这一刻在做一件 JS 要跟着做的事，
+        // 比如页面的密度变了，视图的长度要赶在下一次排版之前重设
+        fun plainNow(target: Any, type: String)
     }
 
     // ---- 身份表 ----
@@ -79,7 +84,7 @@ internal class NativeBridge(
 
     // ---- 域 ----
 
-    private val domains: List<Domain> = registeredDomains(DomainHost(activity, settle, emitter))
+    private val domains: List<Domain> = registeredDomains(DomainHost(app, settle, emitter))
 
     // 所有域登记的「Java 类 → JS 类名」，按继承层级从深到浅排：一个对象用离它最近的那个
     private class Entry(val type: Class<*>, val jsName: String, val domain: Domain, val depth: Int)
@@ -119,6 +124,9 @@ internal class NativeBridge(
         for (d in domains) {
             if (className !in d.classes.values) continue
             val made = d.construct(className, values, objs) ?: return 0L
+            // 视图的状态以 JS 为准：不让系统在进程被杀之后按 id 把旧的状态（滚动位置这类）
+            // 灌回新建的视图
+            if (made is View) made.isSaveEnabled = false
             return intern(made)
         }
         throw NacreTypeError("Illegal constructor: $className cannot be constructed")
@@ -145,7 +153,7 @@ internal class NativeBridge(
         throw NacreTypeError("${describe(target)} has no writable property $name")
     }
 
-    // 类级的对象属性（application.activity）。没有交 0
+    // 类级的对象属性（没有实例，用类名定位）。没有交 0
     fun readClassObjectProperty(className: String, name: String): Long {
         for (d in domains) {
             val found = d.classObject(className, name)
@@ -181,6 +189,7 @@ internal class NativeBridge(
 
     // 返回值不是原生对象的类方法（Intl 那一组）
     fun callClassMethod(className: String, name: String, packed: ByteArray, ptrs: LongArray): ByteArray {
+        if (className == "@bridge" && name == "enumNames") return enumNames().toByteArray(Charsets.UTF_8)
         val args = argList(packed)
         val objs = objectsOf(ptrs)
         val json = domains.firstNotNullOfOrNull { it.classCall(className, name, args, objs) }
@@ -206,6 +215,19 @@ internal class NativeBridge(
         val objs = objectsOf(ptrs)
         if (target != null && domainsFor(target).any { it.callAsync(target, name, args, objs, callId) }) return
         settle.reject(callId, "TypeError", "${describe(target)} has no method $name")
+    }
+
+    // 各个域的枚举表的名字：{ 表名: [名字…] }。JS 在启动时取一次，写错的名字当场查；
+    // 名字和数值的映射只在原生这一侧
+    private fun enumNames(): String {
+        val out = JSONObject()
+        for (d in domains) {
+            for ((table, enum) in d.enums) {
+                check(!out.has(table)) { "enum table \"$table\" is registered twice" }
+                out.put(table, JSONArray(enum.names))
+            }
+        }
+        return out.toString()
     }
 
     // ---- 事件 ----

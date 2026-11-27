@@ -323,7 +323,7 @@ internal class TextDomain(host: DomainHost) : Domain(host) {
             "defaultFromStyle" -> Typeface.defaultFromStyle(styles.forArgument("style", args.getOrNull(0)))
             "createFromAsset" -> {
                 val path = args.getOrNull(0) as? String ?: throw NacreTypeError("createFromAsset: path must be a string")
-                Typeface.createFromAsset(host.activity.assets, "$PROJECT_ASSETS/$path")
+                Typeface.createFromAsset(host.app.assets, "$PROJECT_ASSETS/$path")
             }
             else -> NOT_MINE
         }
