@@ -222,7 +222,7 @@ ctx.defineViewState(TextView, 'text', {
 
 ### 长度、密度和系统字号
 
-- 状态存 dp，设到原生时按页面密度换成整数像素：四舍五入（正负对称），不是 0 的至少 1 像素。
+- 状态存 dp，设到原生时按页面密度换成像素。Java 收整数（`int`）的取整，用 `ctx.px`：四舍五入（正负对称），不是 0 的至少 1 像素。收小数（`float`）的直接给小数，用 `ctx.pxFloat`（dp × 密度）。2026-11-27 改的，原来一律取整：逐帧改 `translationX` 这类做动画时，取整会让动画一顿一顿的。
 - `ViewDomain` 订页面（`ComponentActivity`）的配置变化，`density` 或 `fontScale` 和上次不一样，就**当场**发内部的 `@metricschange`（`Emitter.plainNow`，不排到下一轮：要赶在下一次排版之前）。JS 把这个页面上挂着的整棵树里写过的 `dp` 状态（密度变了）和 `sp` 状态（密度或字号变了）重设一遍。拿下来的视图不在树上，放回去时整个重设，用的是那时的密度。
 - 壳不用改：页面是 `ComponentActivity`，壳的 `configChanges` 早就接住了 `density` 和 `fontScale`，页面不重建。
 - 实测（Pixel 6，Android 17）：手机本来是 420 dpi（1 dp = 2.625 像素）。上 10、下 20.5 dp 的空布局量出来 80 像素；`wm density 560` 之后同一个视图变成 177 像素（上边先改成了 30 dp），拿下来时密度变了、放回去的那个按 3.5 设成 35；还原之后回到 133。基础里没有读得出像素的成员，验收借了布局组的 `measuredHeight` 和 App 层的 `configuration.densityDpi`（这两组第二步改成 `frame`、`density` 时顺手改）。
@@ -418,6 +418,7 @@ View 的背景、前景、透明度、可见性、高度和阴影、轮廓和裁
 - **`colors` 的写法**：每一项是颜色，或者 `{ color, offset }`（offset 是 0–1 的位置）。Java 里位置要么都给要么都不给，所以混着写抛 `TypeError`。读出来是冻结的数组，每一项照写进去的样子（颜色原样）。CSS 的渐变也是「颜色加可选的位置」一项一项写。
 - **纯色和渐变只能是一种**：写了非 `null` 的 `color`，`colors` 变 `null`，反过来也一样；写 `null` 只去掉自己那一种（渐变时写 `color = null`，渐变还在）。
 - **圆角**：`cornerRadii` 不是 `null` 时用它；写 `cornerRadius` 就是四个角一样，`cornerRadii` 变 `null`；写 `cornerRadii = null` 回到 `cornerRadius` 的值。和 Java 不同的一处：Java 的 `setCornerRadii(null)` 会把半径清成 0，这里读回的 `cornerRadius` 是原来写的，原生也设回它。
+- **长度**：Java 收小数的直接给小数像素：`elevation`、`translationX` / `translationY` / `translationZ`、`pivot`、`cameraDistance`、`cornerRadius` / `cornerRadii`、`gradientRadius`、虚线的线段和间隔、模糊的半径。收整数的取整，不是 0 的至少 1 像素：边框的粗细、`innerRadius`、`thickness`、`intrinsicWidth` / `intrinsicHeight`、水波的 `radius`。
 - **哨兵换成 `null`**：`RippleDrawable.radius` 的 `RADIUS_AUTO`（原来是 `'auto'`）、`GradientDrawable` 的 `innerRadius` / `thickness` / `intrinsicWidth` / `intrinsicHeight` 的 −1、`gradientRadius` 没设时系统的 0.5 像素。
 - **`intrinsicWidth` / `intrinsicHeight` 只在 `GradientDrawable` 上**：原来在 `Drawable` 上只读。`ColorDrawable` 没有固有尺寸，`RippleDrawable` 的是从内容推出来的，按「推得出来的不单独给」去掉；`BitmapDrawable` 的由图片组定。
 - **`outlineProvider` 没有 `'custom'` 了**：原来读原生时，系统自己的视图装了别的实现会读出它。现在读的是 JS 写的，运行时建的视图默认都是 `'background'`（实测，见下面）。
@@ -426,8 +427,7 @@ View 的背景、前景、透明度、可见性、高度和阴影、轮廓和裁
 
 ### 和方案不一样的地方
 
-- **没有 `z`**（方案写的是「`z` 只读」）。总则第 3 条的例子里写明了 `z` 不单独给：它就是 `elevation + translationZ`。等用户定，要留的话加一个只读的 getter 就行。
-- **长度换成整数像素**，照总则第 5 条。`translationX`、`elevation`、模糊半径这些在 Java 里是 `float`，本来能给小数像素；四舍五入之后 JS 一帧一帧改 `translationX` 时最多差半个像素。要不要给 `float` 的属性留小数像素，没讨论过。
+- **没有 `z`**（方案写的是「`z` 只读」）。总则第 3 条的例子里写明了 `z` 不单独给：它就是 `elevation + translationZ`。用户 2026-11-27 定了照总则不给。
 
 ### Drawable 和 RenderEffect：每处一个原生对象
 
@@ -518,10 +518,10 @@ Java 的枚举（`GradientDrawable.Orientation`、`Shader.TileMode`）和静态�
 
 - JS 这一侧：全部成员的读写、默认值、Web IDL 的转换、写错时的 `TypeError` / `RangeError` / 警告、删掉的成员不在了、不能 `new` 的类、成环。
 - 挂上：每个外观的状态都写过的一棵树挂上去，没有警告、没有抛（建一处、设状态这条路走通了）；挂着时把视图和 Drawable 的每个状态都改一遍，没有警告、没有抛（当场同步）；换水波的内容和遮罩、换背景、拿下来改了再放回去、整页拿下来再放回去；密度改成 560 dpi 再还原（等 `windowinsetschange` 确认配置变了），重建时没有警告。最后用脚本点一下带水波的那个，收到 `click`。
-- **原生那边设的值对不对，验收读不到**：状态以 JS 为准，没有读原生的成员。开发时另在本机用 node 加一个假的原生，把 `00-core`、`05-dom-exception`、`05-events`、`01-bridge`、`09-insets`、`10-view`、`30-appearance` 原样跑起来，核对交给原生的值（12 dp 的圆角在 420 dpi 下是 32 像素、−2.5 dp 是 −7、0.1 dp 至少 1 像素、`cameraDistance` 1280 dp 是 3360、颜色是 ARGB）、两个视图用一个 Drawable 是两个原生对象、改了同步到每一处、拿下来的那一处放掉不再同步、放回去按那时的状态重建、纯色换渐变和换水波的内容整个重建（子 Drawable 往上一直重建到视图）、密度改成 3.5 之后按新密度重建、整页拿下来和页面销毁之后一处都不剩。这个测试架不在仓库里。
+- **原生那边设的值对不对，验收读不到**：状态以 JS 为准，没有读原生的成员。开发时另在本机用 node 加一个假的原生，把 `00-core`、`05-dom-exception`、`05-events`、`01-bridge`、`09-insets`、`10-view`、`30-appearance` 原样跑起来，核对交给原生的值（Java 收小数的不取整：420 dpi 下 12 dp 的圆角是 31.5 像素、−2.5 dp 的 `translationX` 是 −6.5625、0.1 dp 的模糊半径是 0.2625、`cameraDistance` 1280 dp 是 3360；收整数的取整：1.5 dp 的边框是 4 像素、0.1 dp 的环内半径至少 1 像素；颜色是 ARGB）、两个视图用一个 Drawable 是两个原生对象、改了同步到每一处、拿下来的那一处放掉不再同步、放回去按那时的状态重建、纯色换渐变和换水波的内容整个重建（子 Drawable 往上一直重建到视图）、密度改成 3.5 之后按新密度重建、整页拿下来和页面销毁之后一处都不剩。这个测试架不在仓库里。
 - 阴影、水波、模糊、渐变在屏幕上的样子要人看，没看过。
 
-先在没有实现的运行时上跑了一遍：1101 条通过、23 条失败（安全区域那条：边衬还是像素；颜色不原样读回；`Drawable.alpha` 是 0–255；`ColorDrawable` 还有固有尺寸），外观这一步在自由的视图上读 `background` 时抛 `InvalidStateError`，中途停了。实现之后 2026-11-27 在 Pixel 6（Android 17）上 Debug 和 Release 都是 1387 条通过、0 条失败（这一组 320 条，安全区域多了 1 条）。
+先在没有实现的运行时上跑了一遍：1101 条通过、23 条失败（安全区域那条：边衬还是像素；颜色不原样读回；`Drawable.alpha` 是 0–255；`ColorDrawable` 还有固有尺寸），外观这一步在自由的视图上读 `background` 时抛 `InvalidStateError`，中途停了。实现之后 2026-11-27 在 Pixel 6（Android 17）上 Debug 和 Release 都是 1387 条通过、0 条失败（这一组 320 条，安全区域多了 1 条）。同一天把 Java 收小数的长度改成不取整（先在测试架里改交给原生的值，看到 13 条失败再改实现），之后重跑，Debug 和 Release 还是都是 1387 条通过、0 条失败。
 
 ## 布局
 

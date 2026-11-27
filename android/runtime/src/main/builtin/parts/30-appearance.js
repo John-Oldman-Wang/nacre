@@ -9,7 +9,7 @@
 //
 // - 视图上的外观是登记的状态（ctx.defineViewState）：读回的就是写进去的值，颜色也原样读回。
 // - Drawable 和 RenderEffect 也只在 JS 里记状态。每用在一个挂着的视图上，就按那个视图所在的
-//   页面建一个原生对象（这里叫「一处」），长度按那个页面的密度换成像素；JS 改了挨个同步到每一处。
+//   页面建一个原生对象（这里叫「一处」），长度按那个页面的密度换成像素（Java 收小数的给小数，收整数的取整）；JS 改了挨个同步到每一处。
 //   视图拿下来、换了背景，那一处跟着丢掉；密度变了重建。图片组的 BitmapDrawable、ImageView 的
 //   drawable 也接这一套，用法见 docs/internals/android.md「外观」。
 // - 长度是 dp，角度是度，透明度一律 0–1。
@@ -39,6 +39,7 @@
     nativeSet,
     nearestNative,
     px,
+    pxFloat,
     toText,
   } = ctx;
   // 10-view.js 定义的，挂在全局
@@ -573,15 +574,15 @@
     order: 124,
     initial: null,
     convert: nullable(nonNegative),
-    apply: (standIn, value, page) => nativeSet(standIn, 'gradientRadius', value === null ? 0.5 : px(page, value)),
+    apply: (standIn, value, page) => nativeSet(standIn, 'gradientRadius', value === null ? 0.5 : pxFloat(page, value)),
   });
 
   // 圆角，dp。cornerRadii 是四个角各两个半径（横、竖，从左上角顺时针），不是 null 时用它；
   // 写 cornerRadius 就是四个角一样，cornerRadii 变回 null
   const applyCorners = (standIn, value, page, d) => {
     const radii = stateValue(d, 'cornerRadii');
-    if (radii !== null) nativeSet(standIn, 'cornerRadii', radii.map((r) => px(page, r)));
-    else nativeSet(standIn, 'cornerRadius', px(page, stateValue(d, 'cornerRadius')));
+    if (radii !== null) nativeSet(standIn, 'cornerRadii', radii.map((r) => pxFloat(page, r)));
+    else nativeSet(standIn, 'cornerRadius', pxFloat(page, stateValue(d, 'cornerRadius')));
   };
   defineModelState(GradientDrawable, 'cornerRadius', {
     order: 130,
@@ -640,8 +641,8 @@
   const applyStroke = (standIn, value, page, d) => nativeCall(standIn, 'setStroke', [
     px(page, stateValue(d, 'strokeWidth')),
     argbOfText(stateValue(d, 'strokeColor')),
-    px(page, stateValue(d, 'strokeDashWidth')),
-    px(page, stateValue(d, 'strokeDashGap')),
+    pxFloat(page, stateValue(d, 'strokeDashWidth')),
+    pxFloat(page, stateValue(d, 'strokeDashGap')),
   ]);
   defineModelState(GradientDrawable, 'strokeWidth', { order: 160, initial: 0, convert: nonNegative, apply: applyStroke });
   defineModelState(GradientDrawable, 'strokeColor', { order: 161, initial: '#000000', convert: colorState, apply: applyStroke });
@@ -731,7 +732,7 @@
       initial,
       units,
       convert,
-      apply: (standIn, value, page) => nativeSet(standIn, name, units === 'dp' ? px(page, value) : value),
+      apply: (standIn, value, page) => nativeSet(standIn, name, units === 'dp' ? pxFloat(page, value) : value),
     });
   }
   viewNumber('alpha', { initial: 1, convert: unit });
@@ -770,7 +771,7 @@
     },
     apply: (standIn, value, page) => {
       if (value === null) nativeCall(standIn, 'resetPivot', []);
-      else nativeCall(standIn, 'setPivot', [px(page, value.x), px(page, value.y)]);
+      else nativeCall(standIn, 'setPivot', [pxFloat(page, value.x), pxFloat(page, value.y)]);
     },
   });
 
@@ -830,7 +831,7 @@
       nativeClass: 'RenderEffect',
       construct: (effect, page) => {
         const p = effect[kModel].params;
-        return ['blur', px(page, p.radiusX), px(page, p.radiusY), p.edgeTreatment];
+        return ['blur', pxFloat(page, p.radiusX), pxFloat(page, p.radiusY), p.edgeTreatment];
       },
     });
 

@@ -63,6 +63,11 @@
     const n = Math.round(Math.abs(dp) * page.density);
     return Math.sign(dp) * (dp !== 0 && n === 0 ? 1 : n);
   }
+  // Java 收小数（float）的长度用这个：不取整，逐帧改 translationX 这类做动画时不会一顿一顿的。
+  // 收整数（int）的用上面的 px
+  function pxFloat(page, dp) {
+    return dp * page.density;
+  }
   function dp(page, pixels) {
     return pixels / page.density;
   }
@@ -595,6 +600,7 @@
     dp,
     pageOf,
     px,
+    pxFloat,
     releaseActivity,
     requireAttached,
   });
