@@ -178,8 +178,8 @@ JS 第一次给视图加 `click` 监听时，引擎经 `set_event_subscription` 
 写 `activity.contentView`、或者往挂着的父视图里 `addView` 时，整棵子树从下往上（`build`）：
 
 1. 建替身。已经挂在这个页面上的（挂着的视图挪个地方）整棵跳过：原生那边是好的，只挪原生的位置。
-2. 先把子视图都建好，再按登记的顺序把**写过的**状态设到原生。每项单独 try，原生拒了（JS 没查住的）打一条 `[Nacre] could not apply 名字 to 类名 (…), skipped`，不让挂上做到一半失败。
-3. 把原生的子视图排成 JS 的那一串（`@setChildren`）。
+2. 先把子视图都建好，再按登记的顺序把**写过的**状态设到原生。每项单独 try，原生拒了（JS 没查住的）打一条 `[Nacre] could not apply 名字 to 类名 (…), skipped`，不让挂上做到一半失败。给父视图读的状态（`placement`，布局组的 `view.layout`）这一轮不设。
+3. 把原生的子视图排成 JS 的那一串（`@setChildren`），再给每个子视图设它的 placement 状态（没写过的也设，见[布局](#机制子视图的布局参数随父视图重设)）。
 4. 把 JS 里记着的监听器装到原生上：调各组的 `[kSubscribe](type, true)`，它们照旧调 `subscribeNative`，看到视图有替身就订在替身上。先状态、后事件：装 `click` 会顺手把视图设成可点。复用的替身先摘掉再装，保证这个先后。
 5. 调用方最后把子树的根挂到页面（`@setContent`）或者挂着的父视图上（`@setChildren`），整棵子树只挂一次窗口，然后整棵标成挂着。
 
@@ -211,8 +211,10 @@ ctx.defineViewState(TextView, 'text', {
 - `release(视图, 值)`（可以省略）：视图离开页面时（拿下来，或者页面销毁）调，放掉这一项在原生那边另外占着的东西。外观组加的：背景那个 Drawable 在这个页面上建的原生对象要放掉，见「外观」的[每处一个原生对象](#drawable-和-rendereffect每处一个原生对象)。挂着的视图在同一个页面里挪地方不算离开。
 - 另外几个助手：`ctx.attachedNative(view)`（挂着时是替身，不然 `null`，页面值用）、`ctx.requireAttached(view, what)`（动作用，自由时抛 `InvalidStateError`）、`ctx.px(page, dp)` / `ctx.dp(page, px)`。
 - 事件照旧：`[kSubscribe]` 接在原来那一个后面，调 `subscribeNative`。
+- `placement: true`：给父视图读的状态（布局组的 `view.layout`）。挂上时不和别的状态一起设，子视图放进父视图、原生排好之后由 `place` 设，没写过的也设；`apply` 自己判断有没有父视图。见[布局](#机制子视图的布局参数随父视图重设)。
+- 在挂上的半途（别的视图的 `apply` 里）写一个也在这次挂上里的视图的状态：它有替身、但还没标成挂着，值只记在 JS 里，这一次不会设到原生；之后它要是走「已经挂着、只挪位置」那条路，也不会再设。布局组发 id 时碰到过，自己当场设了一次，见[布局](#constraints)。
 
-第二步才用得到的几样第一步没做，由第一个用到的组加进 `10-view.js`、用自己的成员验：系统也会改的状态（挂着读原生、拿下来时把原生的值读回 JS）、排完版才能设的（ScrollView 的滚动位置）、子视图的布局参数随父视图重设。
+第二步才用得到的几样第一步没做，由第一个用到的组加进 `10-view.js`、用自己的成员验：系统也会改的状态（挂着读原生、拿下来时把原生的值读回 JS）、排完版才能设的（ScrollView 的滚动位置）。子视图的布局参数随父视图重设是布局组加的（上面的 `placement`）。
 
 ### 枚举的名字
 
@@ -225,7 +227,7 @@ ctx.defineViewState(TextView, 'text', {
 - 状态存 dp，设到原生时按页面密度换成像素。Java 收整数（`int`）的取整，用 `ctx.px`：四舍五入（正负对称），不是 0 的至少 1 像素。收小数（`float`）的直接给小数，用 `ctx.pxFloat`（dp × 密度）。2026-11-27 改的，原来一律取整：逐帧改 `translationX` 这类做动画时，取整会让动画一顿一顿的。
 - `ViewDomain` 订页面（`ComponentActivity`）的配置变化，`density` 或 `fontScale` 和上次不一样，就**当场**发内部的 `@metricschange`（`Emitter.plainNow`，不排到下一轮：要赶在下一次排版之前）。JS 把这个页面上挂着的整棵树里写过的 `dp` 状态（密度变了）和 `sp` 状态（密度或字号变了）重设一遍。拿下来的视图不在树上，放回去时整个重设，用的是那时的密度。
 - 壳不用改：页面是 `ComponentActivity`，壳的 `configChanges` 早就接住了 `density` 和 `fontScale`，页面不重建。
-- 实测（Pixel 6，Android 17）：手机本来是 420 dpi（1 dp = 2.625 像素）。上 10、下 20.5 dp 的空布局量出来 80 像素；`wm density 560` 之后同一个视图变成 177 像素（上边先改成了 30 dp），拿下来时密度变了、放回去的那个按 3.5 设成 35；还原之后回到 133。基础里没有读得出像素的成员，验收借了布局组的 `measuredHeight`（布局组第二步改成 `frame` 时顺手改），密度读 App 层的 `configuration.density`。
+- 实测（Pixel 6，Android 17）：手机本来是 420 dpi（1 dp = 2.625 像素）。上 10、下 20.5 dp 的空布局量出来 80 像素；`wm density 560` 之后同一个视图变成 177 像素（上边先改成了 30 dp），拿下来时密度变了、放回去的那个按 3.5 设成 35；还原之后回到 133。基础里没有读得出像素的成员，验收借了布局组的 `frame`（dp，期望值照「像素除以页面的密度」算），密度读 App 层的 `configuration.density`。
 - `sp` 那一支（字号）基础里没有成员用，文字组第二步验。
 
 ### 页面的事件：运行时跟着 App 生死
@@ -254,14 +256,13 @@ ctx.defineViewState(TextView, 'text', {
 
 ### 过渡期
 
-第一步改了所有组都依赖的机制，已经合进来的布局、文字、图片、滚动和动画第二步按新总则重写之前（外观、App 层 2026-11-27 改完了）：
+第一步改了所有组都依赖的机制，已经合进来的文字、图片、滚动和动画第二步按新总则重写之前（布局、外观、App 层 2026-11-27 改完了）：
 
 - 它们的内置脚本照样加载，构造照样能用（多给的 `context` 不管）。
 - 还没改的成员在挂着的视图上照样能用：`nativeGet` / `nativeSet` / `nativeCall` 这几个助手碰到公开的视图，挂着就走它的替身；自由或拿下来时抛 `InvalidStateError`。对象参数是自由的视图时传 `null`，原生按类型不对拒掉。
-- 和新机制直接冲突的从 `31-layout.js` 里删了：`addView` 的五种写法、`removeView` / `removeViewAt` / `removeViews` / `removeAllViews`、`indexOfChild`、`bringChildToFront`、`updateViewLayout`（直接改原生的树，会和 JS 的对不上）、`View.parent`（读原生会把系统放内容的 `FrameLayout` 交出来）、`LinearLayout.orientation`（挪进了基础）。`LayoutDomain` 里对应的原生分支没动，现在走不到。
 - 外观改完之后，`Drawable` 没有原生对象了（每处一个，见「外观」）。还没改的组里收 `Drawable` 的成员收不了新写法的 `Drawable`：滚动的滚动条那几个、图片的 `setImageDrawable`（抛 `TypeError`）；图片组的 `BitmapDrawable`、`AnimatedImageDrawable` 还是旧写法，放不进 `background`。这几组重写时接「每处一个原生对象」那一套。
 - 外观的 `alpha`、`translationX`、`scaleX` 这些现在读的是 JS 写的值。动画（`view.animate()`、`ObjectAnimator`）在原生那边改了它们，JS 读不到；动画组重写时按「系统也会改的状态」处理（挂着时读原生）。
-- 验收里这几步先注释掉（`acceptance-android/src/main.js`），哪组改完打开自己那几行。外观、App 层已经打开了。
+- 验收里这几组的步骤先注释掉（`acceptance-android/src/main.js`），哪组改完打开自己那几行。布局、外观、App 层已经打开了。
 
 ### 验收
 
@@ -524,47 +525,126 @@ Java 的枚举（`GradientDrawable.Orientation`、`Shader.TileMode`）和静态�
 
 ## 布局
 
-`ViewGroup.LayoutParams` 一族、`LinearLayout`、`FrameLayout`、`ConstraintLayout`，`View` 上读布局结果的成员、`ViewGroup` 的层级操作、`layoutchange` 事件。原生在 `LayoutDomain.kt`，JS 在 `31-layout.js`，验收在 `steps/layout.js`。单位都是像素。
+子视图在父视图里怎么摆（`view.layout`），读排版结果（`frame`、`locationInWindow` / `locationOnScreen`、`measure()`），`layoutchange` 事件；`LinearLayout`、`FrameLayout`、`ConstraintLayout` 自己的状态，`ViewGroup` 的 `clipChildren` / `clipToPadding`。原生在 `LayoutDomain.kt`，JS 在 `31-layout.js`，验收在 `steps/layout.js`。长度都是 dp。
 
-### 定下来的几条（2026-11-24）
+2026-11-27 照「接类的总则」重写（第二步）。原来照搬 Java 的那一套去掉了：`ViewGroup.LayoutParams` 一族 5 个类、`View.MeasureSpec`、`id` 和 `View.generateViewId()`、`left` / `top` / `right` / `bottom` / `width` / `height`、`measuredWidth` / `measuredHeight`、`isLaidOut`、`isLayoutRequested`、`requestLayout()`、`forceLayout()`、`getLocationOnScreen()` / `getLocationInWindow()`、`LayoutChangeEvent`、`LinearLayout` 的 `setHorizontalGravity()` / `setVerticalGravity()` / `baselineAlignedChildIndex`（改成 `baselineChild` 也不接，见下面「没做的」）。树的操作（`addView` 这些）和 `LinearLayout.orientation` 在基础里。
 
-| | 做法 | 理由 |
+### 成员
+
+| 类 | 成员 | 归哪类 | 说明 |
+| --- | --- | --- | --- |
+| `View` | `layout` | 状态 | 子视图在父视图里怎么摆，活对象，见下面。父视图读它 |
+| `View` | `minimumWidth`、`minimumHeight` | 状态 | dp，不小于 0，默认 0。`wrapContent` 时至少这么大 |
+| `View` | `frame` | 页面值 | `{ x, y, width, height }`，相对父视图，dp，冻结的。自由时、还没排过版是 `null` |
+| `View` | `locationInWindow`、`locationOnScreen` | 页面值 | `{ x, y }`，dp，冻结的。同上 |
+| `View` | `measure(options)` | 页面值（带参数） | 按给的条件量一次，交回 `{ width, height }`（dp）；自由时是 `null` |
+| `View` | `layoutchange` | 事件 | 位置或大小变了，延后一轮派发，不可取消，普通的 `Event`，不带数据 |
+| `ViewGroup` | `clipChildren`、`clipToPadding` | 状态 | 布尔，默认 `true`（照 Android） |
+| `LinearLayout` | `gravity` | 状态 | 字符串数组，默认 `['start', 'top']` |
+| `LinearLayout` | `weightSum` | 状态 | 大于 0 的数，或 `null`（按子视图的权重加起来算），默认 `null` |
+| `LinearLayout` | `isBaselineAligned`、`isMeasureWithLargestChildEnabled` | 状态 | 布尔，默认 `true`、`false` |
+| `LinearLayout` | `showDividers` | 状态 | `'beginning'` / `'middle'` / `'end'` 的数组，默认 `[]` |
+| `LinearLayout` | `dividerPadding` | 状态 | dp，默认 0 |
+| `FrameLayout` | `measureAllChildren` | 状态 | 布尔，默认 `false` |
+| `ConstraintLayout` | `minWidth`、`minHeight` | 状态 | dp，默认 0 |
+| `ConstraintLayout` | `maxWidth`、`maxHeight` | 状态 | 大于 0 的 dp，或 `null`（不限），默认 `null` |
+
+没有动作：原来的 `requestLayout()` 不要了，写布局的状态时运行时自己请求排版（Java 的 setter 本来就会）。
+
+### view.layout
+
+一个活对象，用法像 `el.style`：每个视图一个，`view.layout === view.layout`，读写的都是那个视图现在的值。
+
+```js
+badge.layout.width = 'wrapContent';
+badge.layout.margin = { start: 8 };
+title.layout = { width: 'matchConstraint', height: 'wrapContent',
+                 constraints: { start: 'parent', end: { to: badge, edge: 'start' }, baseline: badge } };
+```
+
+| 字段 | 取值 | 默认 | 谁读 |
+| --- | --- | --- | --- |
+| `width`、`height` | dp（不小于 0）、`'matchParent'`、`'wrapContent'`、`'matchConstraint'`、`null` | `null`：父视图给默认值（竖向 `LinearLayout` 是 `matchParent` × `wrapContent`，横向是 `wrapContent` × `wrapContent`，`FrameLayout` 是 `matchParent` × `matchParent`，`ConstraintLayout` 是 `wrapContent` × `wrapContent`） | 全部 |
+| `margin` | 一个数（四边一样），或 `{ top, bottom, start, end }`（没给的是 0）；dp，可以是负数。读出来总是冻结的 `{ top, bottom, start, end }` | 四个 0 | 全部 |
+| `weight` | 不小于 0 的数 | 0 | `LinearLayout` |
+| `gravity` | 字符串数组，或 `null`（跟着父视图自己的 `gravity`） | `null` | `LinearLayout`、`FrameLayout` |
+| `constraints` | 见下面；读出来是冻结的、整理过的副本 | 没有约束 | `ConstraintLayout` |
+
+- **整个写**（`view.layout = { … }`）：没给的回到默认值；写 `null` 是全部回到默认值。只改几项用 `Object.assign(view.layout, { … })` 或者一项项写。拿别的视图的 `layout` 写过来是拷它现在的值。
+- **写错**：名字不认识（`'wrap'`、`['left']`、边的名字）打一条警告，整次赋值不生效，一次写好几项时有一项不对整个不写；类型不对抛 `TypeError`；超出范围（负的尺寸、权重，偏移比例不在 0–1）抛 `RangeError`。拼错的键照 Web IDL 的字典不管。
+- **父视图不读的字段留着**，不报错，换到读它的父视图下面再生效：`weight` 在 `FrameLayout` 下面不起作用，挪进 `LinearLayout` 就起作用。`'matchConstraint'` 只有 `ConstraintLayout` 认，别的父视图下当成 `null`。
+- **页面的 `contentView` 没有父视图**，它的 `layout` 不用：系统让它铺满页面。
+- **水平方向只有 start / end**：`margin` 没有 left / right，`gravity` 不收 `left` / `right`。
+- `margin`、`gravity`、`constraints` 读出来的对象是冻结的，没变时读两次是同一个；改其中一项要整个写回去（`view.layout.margin = { ...view.layout.margin, top: 4 }`）。
+
+`gravity` 的名字（`LinearLayout.gravity` 也一样）：水平 `centerHorizontal` / `fillHorizontal` / `start` / `end`，竖直 `top` / `bottom` / `centerVertical` / `fillVertical`，加上 `clipHorizontal` / `clipVertical`。每个方向最多一个，两个方向合起来的 `center`、`fill` 不收（照原来定的）。照写进去的样子读回来：`LinearLayout.gravity = ['centerHorizontal']` 读回来就是这一个，原生那边按 Android 的规则把竖向补成 `top`。
+
+名字表和文字组共用一份：`Gravity.kt` 的 `Gravities.enums`，三张（`gravityHorizontal`、`gravityVertical`、`gravityClip`），水平那张里有 `left` / `right`（文字组的 `TextView.gravity` 用），布局这边在 JS 里挑掉。表名在所有域里只能登记一次，`LayoutDomain` 和文字组的 `TextDomain` 现在各登记了一次，谁先合进 main 谁留着，后合的 rebase 时删掉自己那行（`LayoutDomain` 里是 `+ Gravities.enums`）。名字换成数值用 `Gravities.forArgument`。JS 的检查是 `31-layout.js` 的 `toGravity`，也放在了 `ctx` 上。
+
+#### constraints
+
+一条边一个目标，直接写视图：
+
+| 字段 | 取值 | 默认 |
 | --- | --- | --- |
-| LayoutParams 的形状 | 原生对象的包装，挂成静态的嵌套类：`ViewGroup.LayoutParams`、`ViewGroup.MarginLayoutParams`、`LinearLayout.LayoutParams`、`FrameLayout.LayoutParams`、`ConstraintLayout.LayoutParams`，继承关系照 Java | 和 Android 的文档、Kotlin 的写法对得上；做成值对象的话「取出来、改字段、设回去」的习惯就没了 |
-| 写到视图上 | 同一个对象。改字段不会自己重新排版，要 `requestLayout()` 或者再赋一次 `layoutParams` | 照 Android。`addView` 时类型不对，系统换成父视图要的类型（新对象），也照实 |
-| ConstraintLayout 的约束 | 写在参数的字段上，指向视图用 id，指向父视图写 `'parent'`；不接 `ConstraintSet` | `ConstraintSet.applyTo` 最后也是写这些字段，它只是帮手，JS 能自己写。不收视图对象：写进去是视图、读出来是数，对不上 |
-| 哨兵值 | 有含义的用字符串（`matchParent`、`wrapContent`、`matchConstraint`、`parent`）；表示「没设」的（`NO_ID`、`UNSET`、`GONE_UNSET`、gravity 的 −1）读出来是 `null`，写 `null` 清掉 | 「没设」做成 `'unset'` 这种字符串，读的人会当成一个取值 |
-| 布局事件 | `layoutchange`，`LayoutChangeEvent` 带 `left` / `top` / `right` / `bottom` 和四个 `old…`，延后一轮派发，不可取消；**四边变了才发** | Android 的回调每次排版都来，四边没变也来。不滤的话 JS 在监听器里 `requestLayout` 一次就排个没完。和 `windowinsetschange` 只在值变了才发一样 |
-| `Gravity` | 字符串数组，每个方向最多一个名字，外加 `clipHorizontal` / `clipVertical`。没有 `center`、`fill` | 横向的几个值不是单独的一位（`LEFT` 是 3，`START` 是 `0x800003`），按「每个方向一个取值」拆。合起来的名字照 iOS 位掩码的规矩不收：读出来总是拆开的，收了就写进去和读出来不一样 |
+| `start`、`end`、`top`、`bottom`、`baseline` | `'parent'`；一个视图（对齐它的同一条边）；`{ to, edge }`（对齐它的另一条边；`to` 是视图或 `'parent'`，`edge` 不写是同一条边） | `null` |
+| `horizontalBias`、`verticalBias` | 0–1 | 0.5 |
+| `horizontalChainStyle`、`verticalChainStyle` | `'spread'` / `'spreadInside'` / `'packed'` | `'spread'` |
+| `horizontalWeight`、`verticalWeight` | 不小于 0 的数，或 `null` | `null` |
+| `dimensionRatio` | `'2:1'`、`'H,16:9'`、`'0.5'` 这样的字符串，或 `null` | `null` |
+| `constrainedWidth`、`constrainedHeight` | 布尔：`wrapContent` 时也夹在两个锚点之间 | `false` |
+| `minWidth`、`minHeight`、`maxWidth`、`maxHeight` | `matchConstraint` 时的最小、最大，dp；最大是 `null` 不限 | 0、`null` |
+| `widthPercent`、`heightPercent` | `matchConstraint` 时占父视图的比例，或 `null`（填满两个锚点之间） | `null` |
+| `circle` | `{ to, radius, angle }`：中心在 `to` 的中心的这个方向、这个距离（dp；度，0 朝上，顺时针），或 `null` | `null` |
+| `goneMargin` | `{ top, bottom, start, end, baseline }`：目标隐藏时用的外边距，每项 dp 或 `null` | 全 `null` |
+| `baselineMargin` | dp | 0 |
+| `wrapBehaviorInParent` | `'included'` / `'horizontalOnly'` / `'verticalOnly'` / `'skipped'` | `'included'` |
 
-### 实现
+`edge` 能写哪些看是哪条边：`start` / `end` 对 `start` / `end`，`top` / `bottom` 对 `top` / `bottom`，`baseline` 对 `baseline` / `top` / `bottom`；不对的打警告。
 
-- **嵌套的类**：`defineNativeClass` 会把类挂到全局（名字带点），`31-layout.js` 摘掉再挂成静态成员。不改 `01-bridge.js`。
-- **`addView` 的重载**：在 `31-layout.js` 里换掉 `10-view.js` 的 `addView`，按参数的个数和类型分五种写法；原生那边用新的方法名（`addView@index` 这类），只传一个子视图的还走 `ViewDomain` 原来那条。父视图持有子视图（`children` 那条边），视图持有它的参数（`layoutParams` 那条边，持有的是系统真正用的那个对象）。
-- **事件的订阅**接在 `10-view.js` 的 `[kSubscribe]` 后面：`layoutchange` 告诉原生，别的交给原来那一个。别的组也往 `View` 上加事件时照这样接。
-- **属性里的枚举写错**走外观组补的那条路：域的 `write` 抛 `NacreWarning`，JS 那边打一条警告、值不变。简单的名字表用 `Enums.kt` 的 `EnumTable`；宽高（名字和像素混在一起）自己核，`Gravity`（每个方向一个取值）用几组共用的 `Gravity.kt`，措辞都和 `EnumTable` 一样。
-- **赋一个父视图不认的参数**：视图已经在布局里时，下一次排版 Java 会在原生里抛 `ClassCastException`，整个 App 就没了。所以写 `layoutParams` 时先用父视图的 `checkLayoutParams`（protected 的公开接口，反射去调，按父视图的实际类型分派）问一次，不认就抛 `TypeError`。系统自己的 `updateViewLayout` 也是这么查的，它抛 `IllegalArgumentException`。
-- **下标越界**：`removeViewAt` 不查下标，按 AOSP 的源码是拿着 `getChildAt` 给的 `null` 往下走（没实测越界时会怎样）。`removeViewAt` 和 `removeViews` 都在原生先查，抛 `IndexOutOfBoundsException`，和 `addView` 越界时 Java 自己抛的一样。
-- **ConstraintLayout 2.2.2 的依赖排除了 appcompat。** 它的 pom 带着 appcompat，但 `widget` 包里的类一个都没用到（看过字节码；用到它的只有 `utils.widget` 下的几个视图，没接）。不排除的话会带进 AppCompat 的样式和资源。
+ConstraintLayout.LayoutParams 的字段怎么合进来的（「一件事只说一次」）：15 个 `xxxToYyy` 合成 5 条边（left / right 那几个不要了，只留 start / end）；`matchConstraintDefaultWidth` 不单独给，给了 `widthPercent` 就是 percent，不给是 spread（`wrap` 是 ConstraintLayout 自己废弃了的，用 `wrapContent` 加 `constrainedWidth`）；`circleConstraint` / `circleRadius` / `circleAngle` 合成 `circle`；7 个 `goneXxxMargin` 合成 `goneMargin`（只留 start / end）。
 
-### 和方案不同的一处
+**约束的目标不在同一个 ConstraintLayout 里**（在别的父视图下、自由的、还没放进来）：这一条约束不生效，当成没写，不报错；读出来还是写进去的视图。目标后来放进了这个 ConstraintLayout，下一次排版就生效。这是 ConstraintLayout 自己的行为：约束按 id 在自己的子视图里找目标，找不到就不管，所以运行时不用另外做什么。写的时候查不了（视图可能还是自由的，树之后还会变），所以不在写的时候报。指向父视图本身等于 `'parent'`，指向自己当成没写。
 
-`LinearLayout.dividerWidth` 没做：`getDividerWidth()` 在 SDK 里是隐藏的接口（`android.jar` 里没有），不是公开 API。
+**id**：放进 ConstraintLayout 的视图、被约束指着的视图，第一次用到时发一个（`View.generateViewId()`），同一个视图一直用这一个，JS 看不见。id 要在放进原生的父视图**之前**设好：ConstraintLayout 在子视图加进来那一刻（`onViewAdded`）按当时的 id 记一张表，基线约束按这张表找目标（别的边用每次排版时重建的表），之后再改 id 它不知道。第一版是放进去之后（`@layout` 里）才设，实测基线约束不生效、别的约束正常。所以 id 登记成一个普通的状态（名字是 Symbol，不公开），挂上时和别的状态一起、在 `@setChildren` 之前设；`ConstraintLayout.addView` 先发 id 再交给基础的 `addView`，视图已经有替身的当场设到原生。后面这一句也是实测出来的：别处挂着的目标挪进来时，基础的 `addView` 不再设一遍状态（原生那边是好的，只挪位置）；而它的 id 是在整棵树挂上的半途、给指着它的那个视图设约束时发的，那一刻它还没标成挂着，状态只记在了 JS 里。没有这一句，挪进来之后约束不生效。
+
+### 机制：子视图的布局参数随父视图重设
+
+第一步留给第一个用到的组加进 `10-view.js` 的机制，布局组加了：`defineViewState` 多一个选项 `placement: true`，表示「这个状态是给父视图读的」。`view.layout` 是现在唯一的一个。
+
+- **什么时候设**：子视图放进一个父视图、原生那边也排好之后（`build` 里父视图 `@setChildren` 之后，给它的每个子视图；`addView` 往挂着的父视图里加时，给加进来的那个），调 `place`，把 placement 状态设到原生。挂上时和别的状态一起设的那一轮（`applyStates`）跳过它们。
+- **没写过的也设**（用初始值）。原生换父视图时，Java 的 `addView` 会把它原来的参数转换成新父视图的类型（宽高、外边距带过来），不是新父视图的默认值：从竖向 `LinearLayout` 挪进 `FrameLayout`，没写过 `layout` 的子视图高还是 `wrapContent`，按「`null` 是父视图的默认值」应该是 `matchParent`。所以每次放进父视图都设一遍，代价是每个子视图挂上时多一次过桥。
+- **挂着时写**：和别的状态一样当场设（登记的 setter）。**密度变了**：`units: 'dp'`，和别的 dp 状态一起重设。
+- **页面的 `contentView` 没有父视图**：`applyLayout` 自己跳过。
+- **方向改了**：`LinearLayout.orientation` 改了，宽高是 `null` 的子视图换成新方向的默认值。Java 只在 `addView` 时给一次默认值，这里照「`null` 是父视图的默认值」重设。这个在 `31-layout.js` 里包了一层 `orientation` 的 setter，没动 `10-view.js` 的那一行。
+- 原生那边（`@layout`）每次建一个新的 LayoutParams：父视图自己的 `generateLayoutParams(ViewGroup.LayoutParams)`（protected 的公开接口，反射去调，按父视图的实际类型分派）把宽高转成它的类型，再填外边距和各个类型自己的字段；宽高是 `null` 时用父视图的 `generateDefaultLayoutParams()`。认不出来的父视图（以后别的组的 `ViewGroup`）只设宽高和外边距。
+- `10-view.js` 里只改了这几处：`defineViewState` 记下 `placement`、`place` 函数、`build` 和 `addView` 各调一次、`build` 的 `applyStates` 跳过 placement。别的组这一批不改这部分。
+
+### 页面值和事件
+
+- **`frame` 还没排过版也是 `null`**（方案只说了自由时）：刚挂上、第一次排版之前，Android 给的是 0，分不出「没排过」和「排成了 0」。所以原来的 `isLaidOut` 也不用单独给：`frame !== null` 就是。`locationInWindow` / `locationOnScreen` 一样。
+- **dp 是像素除以页面的密度**，不取整：宽写 100，在 420 dpi（1 dp = 2.625 像素）上排出来是 263 像素，`frame.width` 读出来是 100.19。尺寸取 8 dp 的倍数时常见的密度下都是整数像素，验收靠这个把期望值写成和密度无关的整数。
+- **`measure()`**：`{ width, height }` 是正好这么大（`EXACTLY`），`{ maxWidth, maxHeight }` 是最多这么大（`AT_MOST`），都不给是不限（`UNSPECIFIED`）；同一个方向两个都给抛 `TypeError`。方案只写了 `{ width, height }`，没有 `maxWidth` 就量不了「最宽多少时要多高」这种最常用的情况，所以加了。量完之后量出来的和原来不一样，原生请求一次排版：父视图摆子视图时用的是量出来的大小，不重新量的话下一次只挪位置不重量时会按这次的结果摆。自由时参数照样当场查，然后给 `null`。
+- **`layoutchange`**：有人订才装 `OnLayoutChangeListener`，四边变了才发（系统每次排版都来调，四边没变也调；不滤的话 JS 在监听器里改一次 `layout` 就会一直排下去）。不带数据，位置读 `frame`。要在挂上之前装监听器，才收得到第一次排版：自由时装的监听器挂上时由基础补订。
 
 ### 没做的
 
-`dividerDrawable`（要外观组的 `Drawable`，合进来之后再接）；`ConstraintSet` 和辅助线、屏障、分组、`Flow`；`optimizationLevel`；`layoutDirection`；`RelativeLayout`、`GridLayout`；`ViewTreeObserver` 的几个回调（「画之前」的回调要等需要时再做：`layoutchange` 是延后一轮派发的，在监听器里调整会晚一帧）；Android 的类型定义（`@nacrejs/types/android` 还没有）。
+- **`baselineChild` 不接**（方案里 `baselineAlignedChildIndex` 改成给一个视图，2026-11-27 用户定不接）。设了下标以后，基线子视图被拿掉、或者子视图全拿光，原生的下标越界，下一次排版 App 直接崩（见下面实测）；Java 那边设了也清不回「没有」（`setBaselineAlignedChildIndex` 只收 0 以上），JS 跟着树同步下标也挡不住。要按基线对齐，用 `ConstraintLayout` 的 `constraints.baseline`。横向 `LinearLayout` 本身按基线对齐子视图（`isBaselineAligned`）照常有。验收断言 `LinearLayout` 上没有 `baselineChild`、`baselineAlignedChildIndex`。
+- `dividerDrawable`：要外观组的 `Drawable`，等外观组照新总则改完再接。`dividerWidth` 不接（`getDividerWidth()` 是隐藏的接口）。
+- `ConstraintSet` 和辅助线、屏障、分组、`Flow`；`optimizationLevel`；`layoutDirection`；`RelativeLayout`、`GridLayout`；`ViewTreeObserver` 的几个回调（「画之前」的回调要等需要时再做：`layoutchange` 是延后一轮派发的，在监听器里调整会晚一帧）；Android 的类型定义（`@nacrejs/types/android` 还没有）。
 
 ### 实测（Pixel 6，Android 17）
 
-验收里的位置全是照 Android 的排版规则先算好的期望值，第一次跑就对上了：
+- **不带系统样式时的默认值**（视图用页面建、`defStyleAttr` 是 0，挂上之后直接读原生）：`View` 的最小尺寸 0；`LinearLayout` 的 `gravity` 是 `START | TOP`、`weightSum` −1、`isBaselineAligned` true、`baselineAlignedChildIndex` −1、`isMeasureWithLargestChildEnabled` false、`showDividers` 0、`dividerPadding` 0；`FrameLayout` 的 `measureAllChildren` false；`ConstraintLayout` 的最小尺寸 0、最大尺寸 `Integer.MAX_VALUE`；三个布局类的 `clipChildren`、`clipToPadding` 都是 true。都是 AOSP 源码里的常数，主题没有改任何一个，和 JS 的初始值对得上。
+- **基线子视图**：用旧的 `baselineAlignedChildIndex` 量的。指向量不出基线的普通 `View`（下标 1）、触发重新排版，不崩（按源码以为会抛「points to a View that doesn't know how to get its baseline」，Android 17 上没有）；设了下标之后把子视图拿光，下一次排版 App 直接崩：`RuntimeException: mBaselineAlignedChildIndex of LinearLayout set to an index that is out of bounds`（在外层横向 `LinearLayout` 的 `measureHorizontal` 里调 `getBaseline()` 时）。只设下标不会请求排版，要到下一次排版才崩。
+- **普通 `View` 的 `wrapContent` 会占满上限**：`View.onMeasure` 在「最多这么大」（AT_MOST）下取上限，所以普通 `View` 写 `wrapContent` 和 `matchParent` 排出来一样大（ConstraintLayout 里没写 `layout` 的普通 `View` 是整个 320 × 160）。第一版用例拿普通 `View` 验 `wrapContent`、最小尺寸，6 条期望值写错了，改成用 `TextView`（有内容尺寸），断言的意思没变。
+- 位置的期望值都是照 Android 的排版规则先算好的：240 宽的横向 `LinearLayout`，固定 48 宽排最后，剩下 192 按 1 : 2 分成 64 和 128；`weightSum` 4 时 1 份是 256 的四分之一；`ConstraintLayout` 里居中、`horizontalBias` 0.25、`dimensionRatio` 2:1、`packed` 链、`widthPercent` 0.5、`maxWidth`、链的权重 1 : 3、环形定位、基线对齐、`constrainedWidth`，都对上了。
+- 换父视图：`FrameLayout` 里靠右下的（`gravity: ['end', 'bottom']`）挪进竖向 `LinearLayout` 是靠右，挪进 `ConstraintLayout` 在左上，拿下来再放回 `FrameLayout` 又靠右下；没写 `layout` 的从竖向 `LinearLayout`（`matchParent` × `wrapContent`）挪进 `FrameLayout` 变成铺满；`weight` 在 `FrameLayout` 里不起作用，挪进 `LinearLayout` 起作用；`LinearLayout` 从竖向改成横向，没写宽的子视图从铺满变成文字那么宽。
+- 改 `layout` 的一项、改约束，下一轮就重新排版、来 `layoutchange`；`ConstraintLayout` 整个重排、某个子视图没动时它不发。
+- 密度从 420 dpi 改成 560 dpi 再还原，`layout` 写的 dp 不变，排出来的 `frame` 还是这么多 dp（像素跟着变了）。
+- `measure()`：普通 `View` 的最小尺寸 40 × 24，不给条件量出来是 40 × 24；给 64 × 16 是 64 × 16；`maxWidth` 32、`maxHeight` 200 是 32 × 200（普通 `View` 取满上限）；量完之后排出来的还是原来的 48 × 48。
 
-- 600 宽的横向 `LinearLayout`，一个固定 100 宽，另外两个权重 1 和 2：分到 166 和 334（剩下的 500 按 `(int)(权重 × 剩余 / 剩余权重)` 依次分，余数落在后面的那个）。
-- 竖向 `LinearLayout` 默认给子视图的参数是 `matchParent` × `wrapContent`；`gravity` 只给横向时，竖向补成 `top`，给空数组读回来是 `start`、`top`。
-- `ConstraintLayout`（1000 × 500）：上下左右都连父视图的 200 × 100 居中在 (400, 200)；`horizontalBias` 0.25 在 x = 200；宽 100、高 `matchConstraint`、`dimensionRatio` 2:1 的高是 50；两个 100 宽的 `packed` 链在 x = 400、500。
-- 只改参数的字段，300 毫秒后宽还是原来的；`requestLayout()` 之后 `isLayoutRequested` 立刻是 `true`，下一轮来了 `layoutchange`，旧的四边是改之前的。
-- 根视图的 `parent` 是系统放内容的 `FrameLayout`，一直往上走，最外层视图的 `parent` 是 `null`（它上面是 `ViewRootImpl`，不是视图）。
-- 全屏的窗口里 `getLocationOnScreen()` 和 `getLocationInWindow()` 一样。
+验收：先在没有这一步的运行时上跑，布局这一步一开始就抛（`view.layout` 不存在），`tree.js` 读 `frame` 抛，去掉的成员都还在，8 条失败。做完之后 2026-11-27 Debug 和 Release 都是 1300 条通过、0 条失败（外观、滚动、动画、文字、App 层、图片几步还没打开）。
 
 ## 滚动
 

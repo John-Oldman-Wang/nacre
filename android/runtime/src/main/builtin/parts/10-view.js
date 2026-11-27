@@ -130,6 +130,8 @@
   //   units    'dp'：密度变了重设；'sp'：密度或系统字号变了重设；省略：不重设
   //   release  (视图, 值) => 视图离开页面时（拿下来，或者页面销毁）放掉这一项在原生那边另外占着的
   //            东西（外观组：背景那个 Drawable 在这个页面上建的原生对象）。省略：没有要放的
+  //   placement true：给父视图读的（布局组的 view.layout）。挂上时不和别的状态一起设，等原生的
+  //            父视图排好之后由 place 设；没写过也设（用 initial），见 place
   const ownStates = new Map();    // 原型 -> 这个原型自己登记的
   const statesCache = new Map();  // 原型 -> 连同继承来的，排好序
   let serial = 0;
@@ -156,6 +158,7 @@
       apply: spec.apply,
       units: spec.units,
       release: spec.release,
+      placement: spec.placement === true,
       serial: serial++,
     };
     const proto = Cls.prototype;
@@ -212,6 +215,22 @@
         entry.release(view, st.values.get(entry.name));
       } catch (err) {
         warnSkipped('could not release ' + entry.name + ' of ' + view.constructor.name, err);
+      }
+    }
+  }
+
+  // 给父视图读的状态（placement）：子视图放进一个父视图、原生那边也排好之后，按父视图的类型设到原生。
+  // 没写过的也设（用初始值）：原生换父视图时会把旧父视图的参数转换过来，不是新父视图的默认值。
+  // 页面的 contentView 没有父视图，各组的 apply 自己跳过
+  const notPlacement = (entry) => !entry.placement;
+  function place(view, page) {
+    const st = view[kView];
+    for (const entry of statesOf(Object.getPrototypeOf(view))) {
+      if (!entry.placement) continue;
+      try {
+        entry.apply(st.standIn, st.values.has(entry.name) ? st.values.get(entry.name) : entry.initial, page, view);
+      } catch (err) {
+        warnSkipped('could not apply ' + entry.name + ' to ' + view.constructor.name, err);
       }
     }
   }
@@ -291,8 +310,11 @@
     if (reused) listen(view, false);
     else createStandIn(view, st, activity);
     for (const child of st.children) build(child, activity, page);
-    applyStates(view, st, page, undefined);
-    if (view instanceof ViewGroup && (reused || st.children.length > 0)) syncChildren(view, st);
+    applyStates(view, st, page, notPlacement);
+    if (view instanceof ViewGroup && (reused || st.children.length > 0)) {
+      syncChildren(view, st);
+      for (const child of st.children) place(child, page);
+    }
     listen(view, true);
   }
 
@@ -529,8 +551,10 @@
       cst.parent = this;
       const activity = st.activity;
       if (activity !== null) {
-        build(child, activity, pageOf(activity));
+        const page = pageOf(activity);
+        build(child, activity, page);
         syncChildren(this, st);
+        place(child, page);
         markAttached(child, activity);
       } else if (wasAttached) {
         // 从挂着的地方移到自由的父视图下：原生那边拿下来
