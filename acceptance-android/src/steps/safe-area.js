@@ -5,7 +5,7 @@
 // 要在 activitycreate 里就做（watchSafeArea），后面的断言等它。
 //
 // 窗口边衬现在还是像素（改成 dp 是外观组第二步的事），摆字用的内边距是 dp，中间用
-// App 层的 configuration.densityDpi 换算（App 层第二步改成 density 时顺手改这里）。
+// App 层的 configuration.density 换算。
 
 /**
  * 抛了什么：没抛是「没抛」，抛了是错误的 name
@@ -91,8 +91,8 @@ export async function stepSafeArea(ctx) {
   assert('new WindowInsets() 抛 TypeError', thrown(() => new /** @type {any} */ (WindowInsets)()), 'TypeError');
 
   // ===== 按安全区域摆，点得到 =====
-  // 像素换成 dp：1 dp 是 densityDpi / 160 个像素
-  const density = /** @type {any} */ (activity).configuration.densityDpi / 160;
+  // 像素换成 dp：1 dp 是 density 个像素
+  const density = activity.configuration.density;
   const screen = new LinearLayout();
   screen.paddingStart = bars.left / density;
   screen.paddingTop = bars.top / density;

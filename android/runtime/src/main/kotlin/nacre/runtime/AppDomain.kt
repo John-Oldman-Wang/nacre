@@ -1,18 +1,25 @@
-// App 层：application 的包信息、openURL()、trimmemory；activity 的生命周期、返回、配置、
+// App 层：application 的包信息、openURL()、trimmemory；页面（activity）的生命周期、返回、配置、
 // 被链接打开。JS 那一侧在 builtin/parts/33-app.js。
 //
-// 这些都是 AndroidX 的 ComponentActivity 给的能力（Lifecycle、OnBackPressedDispatcher、
+// 运行时跟着 App 生死，页面来来去去，可能同时有几个，也可能一个都没有：
+// - 整个 App 的事不经过页面。JS 的 application 绑在这个进程的 Application 对象上（construct 交回
+//   App 本身），包信息、openURL()、内存告警都用 App 级的环境。
+// - 页面自己的事（生命周期、返回、配置变化、收到链接）按页面分开存。
+//
+// 页面上的能力都是 AndroidX 的 ComponentActivity 给的（Lifecycle、OnBackPressedDispatcher、
 // 配置变化和新 intent 的监听），壳必须继承它（project.md 第 4 节「页面」）。
 // 只把系统发生了什么告诉 JS，不替 JS 做任何决定：返回键接不接由 JS 提前写进 handlesBack，
 // 原生照着答。
 package nacre.runtime
 
 import android.app.Activity
+import android.app.Application
 import android.content.ActivityNotFoundException
 import android.content.ComponentCallbacks2
 import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
+import android.os.Bundle
 import android.view.View
 import androidx.activity.BackEventCompat
 import androidx.activity.ComponentActivity
@@ -27,9 +34,19 @@ import java.util.WeakHashMap
 
 internal class AppDomain(host: DomainHost) : Domain(host) {
 
-    override val classes: Map<Class<*>, String> = mapOf(Activity::class.java to "Activity")
+    override val classes: Map<Class<*>, String> = mapOf(
+        Activity::class.java to "Activity",
+        Application::class.java to "Application",
+    )
 
-    // 页面可能同时有几个，也可能一个都没有（运行时跟着 App 生死），这一组的状态按页面分开存。
+    // 33-app.js 启动时 new 一次，把 JS 的 application 绑在 App 本身上：之后原生发给 App 的事件
+    // 就到 application 上，application 上的调用也到这里
+    override fun construct(className: String, args: List<*>, objects: List<Any?>): Any? =
+        if (className == "Application") host.app else null
+
+    // ---- 页面 ----
+
+    // 页面可能同时有几个，也可能一个都没有，这一组的状态按页面分开存。
     // 键是弱引用，Page 也只弱引用着页面：页面销毁、JS 也不再拿着它时，这一项跟着没了
     private val pages = WeakHashMap<Activity, Page>()
 
@@ -61,19 +78,19 @@ internal class AppDomain(host: DomainHost) : Domain(host) {
         }
         var backCallbackAdded = false
 
+        // 手指的位置交 dp。按返回键这类没有边的（EDGE_NONE）没有手指，交 null
         private fun emitBack(type: String, e: BackEventCompat) {
             if (type !in subscribed) return
-            val edge = when (e.swipeEdge) {
-                BackEventCompat.EDGE_LEFT -> "left"
-                BackEventCompat.EDGE_RIGHT -> "right"
-                else -> "none"
-            }
-            val json = JSONObject()
-                .put("progress", e.progress.toString().toDouble())
-                .put("touchX", e.touchX.toString().toDouble())
-                .put("touchY", e.touchY.toString().toDouble())
-                .put("swipeEdge", edge)
             val a = ref.get() ?: return
+            val json = JSONObject().put("progress", num(e.progress))
+            if (e.swipeEdge == BackEventCompat.EDGE_NONE) {
+                json.put("touchX", JSONObject.NULL).put("touchY", JSONObject.NULL).put("swipeEdge", "none")
+            } else {
+                val density = num(a.resources.displayMetrics.density)
+                json.put("touchX", num(e.touchX) / density)
+                    .put("touchY", num(e.touchY) / density)
+                    .put("swipeEdge", if (e.swipeEdge == BackEventCompat.EDGE_RIGHT) "right" else "left")
+            }
             host.emitter.json(a, type, json.toString(), "BackEvent")
         }
 
@@ -85,26 +102,14 @@ internal class AppDomain(host: DomainHost) : Domain(host) {
             if (!addingObserver) lifecycleEvents[event]?.let(::emit)
         }
 
-        // ---- 配置变化、新的 intent、内存告警 ----
+        // ---- 配置变化、运行中收到的链接 ----
 
         val configurationListener = Consumer<Configuration> { emit("configurationchange") }
 
         val newIntentListener = Consumer<Intent> { intent ->
             val url = intent.data?.toString() ?: return@Consumer
-            val a = ref.get()
-            if (a != null && "openurl" in subscribed) {
-                host.emitter.json(a, "openurl", JSONObject().put("url", url).toString(), "OpenURLEvent")
-            }
-        }
-
-        // 内存告警是整个 App 的事，JS 那边挂在 application 上；application 没有原生对象，
-        // 所以发在页面上，用内部的名字，33-app.js 转过去
-        val trimMemoryListener = Consumer<Int> { level ->
-            val a = ref.get()
-            if (a != null && TRIM_EVENT in subscribed) {
-                host.emitter.json(a, TRIM_EVENT, JSONObject().put("level", trimLevelName(level)).toString(),
-                                  "TrimMemoryEvent")
-            }
+            val a = ref.get() ?: return@Consumer
+            if (OPEN_URL_EVENT in subscribed) emitOpenURL(a, url)
         }
 
         fun close() {
@@ -113,21 +118,68 @@ internal class AppDomain(host: DomainHost) : Domain(host) {
                 a.lifecycle.removeObserver(lifecycleObserver)
                 a.removeOnConfigurationChangedListener(configurationListener)
                 a.removeOnNewIntentListener(newIntentListener)
-                a.removeOnTrimMemoryListener(trimMemoryListener)
             }
             subscribed.clear()
         }
     }
 
-    override fun read(target: Any, name: String): String? {
-        if (target !is Activity) return null
-        return when (name) {
+    // 收到链接的是哪个页面：发在那个页面上，33-app.js 转成 application 上的 openurl，带上页面
+    private fun emitOpenURL(activity: Activity, url: String) {
+        host.emitter.json(activity, OPEN_URL_EVENT, JSONObject().put("url", url).toString(), OPEN_URL_CLASS)
+    }
+
+    // ---- 页面建好时带着的链接 ----
+    //
+    // 冷启动（或者没有页面时被链接打开）带着的地址也走 openurl：页面建好时发，排到下一轮，在
+    // activitycreate（当场派发）之后，activitycreate 的监听器里订的收得到。那时 JS 还没订，
+    // 所以不看订没订，没人订 JS 那边就丢掉。
+    // 系统把页面重建出来的不算（进程被杀之后从最近任务回来，带的还是原来那条链接）：
+    // savedInstanceState 不是 null，或者 intent 带着 FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY
+    private val activityCallbacks = object : Application.ActivityLifecycleCallbacks {
+        override fun onActivityPostCreated(activity: Activity, savedInstanceState: Bundle?) {
+            if (activity !is NacreActivity || savedInstanceState != null) return
+            val intent = activity.intent ?: return
+            if (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
+            val url = intent.data?.toString() ?: return
+            emitOpenURL(activity, url)
+        }
+        override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+        override fun onActivityStarted(activity: Activity) {}
+        override fun onActivityResumed(activity: Activity) {}
+        override fun onActivityPaused(activity: Activity) {}
+        override fun onActivityStopped(activity: Activity) {}
+        override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+        override fun onActivityDestroyed(activity: Activity) {}
+    }
+
+    init {
+        host.app.registerActivityLifecycleCallbacks(activityCallbacks)
+    }
+
+    // ---- 内存告警：整个 App 的事，订在 App 上，没有页面时也来 ----
+
+    private var trimSubscribed = false
+    private val trimCallbacks = object : ComponentCallbacks2 {
+        override fun onTrimMemory(level: Int) {
+            host.emitter.json(host.app, "trimmemory", JSONObject().put("level", trimLevelName(level)).toString(),
+                              "TrimMemoryEvent")
+        }
+        override fun onConfigurationChanged(newConfig: Configuration) {}
+        @Deprecated("Deprecated in Java")
+        override fun onLowMemory() {}
+    }
+
+    // ---- 属性、方法、事件 ----
+
+    override fun read(target: Any, name: String): String? = when (target) {
+        is Activity -> when (name) {
             "lifecycleState" -> JSONObject.quote(componentOf(target).lifecycle.currentState.name.lowercase())
-            "launchURL" -> target.intent?.data?.toString()?.let(JSONObject::quote) ?: "null"
-            "configuration" -> configurationJson(target.resources.configuration)
+            "configuration" -> configurationJson(target)
             "handlesBack" -> pageOf(target).backCallback.isEnabled.toString()
             else -> null
         }
+        is Application -> if (name == "packageInfo") packageInfoJson() else null
+        else -> null
     }
 
     override fun write(target: Any, name: String, value: Any?): Boolean {
@@ -142,10 +194,11 @@ internal class AppDomain(host: DomainHost) : Domain(host) {
         return true
     }
 
+    // openURL：用 App 的环境打开，不经过页面
     override fun callAsync(target: Any, name: String, args: List<*>, objects: List<Any?>, callId: Int): Boolean {
-        if (target !is Activity || name != "openURL") return false
+        if (target !is Application || name != "openURL") return false
         val url = args.getOrNull(0) as? String ?: throw NacreTypeError("openURL: expected a string")
-        // 打开的 App 放进它自己的任务，不叠在这个 App 的页面上面
+        // 打开的 App 放进它自己的任务，不叠在这个 App 的页面上面（从 App 的环境打开也必须带这个标志）
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         val opened = try {
             target.startActivity(intent)
@@ -160,6 +213,13 @@ internal class AppDomain(host: DomainHost) : Domain(host) {
     }
 
     override fun subscribe(target: Any, type: String, on: Boolean): Boolean {
+        if (target is Application) {
+            if (type != "trimmemory") return false
+            if (on && !trimSubscribed) target.registerComponentCallbacks(trimCallbacks)
+            if (!on && trimSubscribed) target.unregisterComponentCallbacks(trimCallbacks)
+            trimSubscribed = on
+            return true
+        }
         if (target !is Activity) return false
         val a = componentOf(target)
         val page = pageOf(target)
@@ -184,14 +244,9 @@ internal class AppDomain(host: DomainHost) : Domain(host) {
                 else a.removeOnConfigurationChangedListener(page.configurationListener)
                 if (on) subscribed += type else subscribed -= type
             }
-            "openurl" -> {
+            OPEN_URL_EVENT -> {
                 if (on) a.addOnNewIntentListener(page.newIntentListener)
                 else a.removeOnNewIntentListener(page.newIntentListener)
-                if (on) subscribed += type else subscribed -= type
-            }
-            TRIM_EVENT -> {
-                if (on) a.addOnTrimMemoryListener(page.trimMemoryListener)
-                else a.removeOnTrimMemoryListener(page.trimMemoryListener)
                 if (on) subscribed += type else subscribed -= type
             }
             else -> return false
@@ -199,9 +254,15 @@ internal class AppDomain(host: DomainHost) : Domain(host) {
         return true
     }
 
-    // 包信息：application 没有原生对象，走类级的调用（类名 @application 只是桥上的地址）
-    override fun classCall(className: String, name: String, args: List<*>, objects: List<Any?>): String? {
-        if (className != "@application" || name != "packageInfo") return null
+    override fun close() {
+        host.app.unregisterActivityLifecycleCallbacks(activityCallbacks)
+        if (trimSubscribed) host.app.unregisterComponentCallbacks(trimCallbacks)
+        trimSubscribed = false
+        for (page in pages.values) page.close()
+        pages.clear()
+    }
+
+    private fun packageInfoJson(): String {
         val app = host.app
         val info = app.packageManager.getPackageInfo(app.packageName, 0)
         return JSONObject()
@@ -211,28 +272,28 @@ internal class AppDomain(host: DomainHost) : Domain(host) {
             .toString()
     }
 
-    override fun close() {
-        for (page in pages.values) page.close()
-        pages.clear()
-    }
-
-    private fun configurationJson(c: Configuration): String {
-        val orientation = when (c.orientation) {
+    // 长度是 dp（系统给的就是整数 dp）；density 是 1 dp 几个像素，和运行时换算视图长度用的是同一个数。
+    // 系统说「没定」的（*_UNDEFINED）给 null
+    private fun configurationJson(activity: Activity): String {
+        val res = activity.resources
+        val c = res.configuration
+        val orientation: Any = when (c.orientation) {
             Configuration.ORIENTATION_PORTRAIT -> "portrait"
             Configuration.ORIENTATION_LANDSCAPE -> "landscape"
-            else -> "undefined"
+            else -> JSONObject.NULL
         }
+        fun dp(value: Int, undefined: Int): Any = if (value == undefined) JSONObject.NULL else value
         val tags = c.locales.toLanguageTags()
         val locales = JSONArray()
         if (tags.isNotEmpty()) tags.split(',').forEach { locales.put(it) }
         return JSONObject()
             .put("orientation", orientation)
-            .put("screenWidthDp", c.screenWidthDp)
-            .put("screenHeightDp", c.screenHeightDp)
-            .put("smallestScreenWidthDp", c.smallestScreenWidthDp)
-            .put("densityDpi", c.densityDpi)
-            // Float 直接转 Double 会带出 1.149999976 这样的尾巴，按它写出来的样子转
-            .put("fontScale", c.fontScale.toString().toDouble())
+            .put("screenWidth", dp(c.screenWidthDp, Configuration.SCREEN_WIDTH_DP_UNDEFINED))
+            .put("screenHeight", dp(c.screenHeightDp, Configuration.SCREEN_HEIGHT_DP_UNDEFINED))
+            .put("smallestScreenWidth", dp(c.smallestScreenWidthDp, Configuration.SMALLEST_SCREEN_WIDTH_DP_UNDEFINED))
+            .put("density", if (c.densityDpi == Configuration.DENSITY_DPI_UNDEFINED) JSONObject.NULL
+                            else num(res.displayMetrics.density))
+            .put("fontScale", num(c.fontScale))
             .put("isNightModeActive", c.isNightModeActive)
             .put("locales", locales)
             .put("layoutDirection", if (c.layoutDirection == View.LAYOUT_DIRECTION_RTL) "rtl" else "ltr")
@@ -240,7 +301,9 @@ internal class AppDomain(host: DomainHost) : Domain(host) {
     }
 
     companion object {
-        private const val TRIM_EVENT = "@trimmemory"
+        // 页面上的内部事件：收到了一条链接（33-app.js 转成 application 上的 openurl）
+        private const val OPEN_URL_EVENT = "@openurl"
+        private const val OPEN_URL_CLASS = "@OpenURLNotice"
 
         private val lifecycleEvents = mapOf(
             Lifecycle.Event.ON_START to "start",
@@ -248,6 +311,9 @@ internal class AppDomain(host: DomainHost) : Domain(host) {
             Lifecycle.Event.ON_PAUSE to "pause",
             Lifecycle.Event.ON_STOP to "stop",
         )
+
+        // Float 直接转 Double 会带出 1.149999976 这样的尾巴，按它写出来的样子转
+        private fun num(f: Float): Double = f.toString().toDouble()
 
         // 常量去掉 TRIM_MEMORY_ 前缀、首字母小写。系统以后加的级别按落在哪一档归过去
         @Suppress("DEPRECATION")

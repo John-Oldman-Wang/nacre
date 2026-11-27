@@ -758,8 +758,10 @@ export async function stepLayout(ctx) {
   assert('量过之后，下一次排版还是原来的大小', frameOf(probe), '0,0,48,48');
 
   // ===== 密度变了：layout 里的 dp 按新密度重设 =====
-  const startDpi = /** @type {any} */ (activity).configuration?.densityDpi;
-  if (typeof startDpi === 'number') {
+  // 页面的密度是 App 层的 configuration.density（1 dp 是几个像素）
+  const startDensity = /** @type {any} */ (activity).configuration?.density;
+  if (typeof startDensity === 'number') {
+    const startDpi = Math.round(startDensity * 160);
     const targetDpi = startDpi === 560 ? 480 : 560;
     const changed = nextEvent(box1, 'layoutchange', 10000);
     console.log('[acceptance] density ' + targetDpi);
@@ -772,6 +774,6 @@ export async function stepLayout(ctx) {
     await sleep(500);
     assert('密度还原之后也是', frameOf(box1), '8,8,80,48');
   } else {
-    console.log('  ! 布局：读不到页面的 dpi，密度那一段没跑');
+    console.log('  ! 布局：读不到页面的密度，密度那一段没跑');
   }
 }
