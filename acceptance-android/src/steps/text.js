@@ -7,8 +7,8 @@
 // 屏幕上的长度是 dp，字号是 textSize 加 fontScaling（true 时跟着系统字号放大）。
 // 类型不对抛 TypeError、超出范围抛 RangeError；枚举名、颜色、可变字体轴的写法写错打警告、值不变。
 //
-// 原生那边排出来的像素，文字组里没有成员读得出来，借了布局组还没改到新规矩的 measuredWidth /
-// measuredHeight（挂着的视图上能用，2026-11-26 过渡期；tree.js 也借了）。布局组改成 frame 时顺手改。
+// 排出来的大小用布局组的 frame（相对父视图的位置和大小，dp；没排过版是 null）量，密度读 App 层的
+// configuration.density（1 dp 是几个像素）。
 //
 // 最后一段改手机的系统字号：打「[acceptance] fontscale 2.0」，android/scripts/run-device.sh 用
 // adb shell settings put system font_scale 改，「fontscale restore」还原；脚本退出时（含中途失败）也会还原。
@@ -62,10 +62,10 @@ async function waitFor(fn, ms) {
   return fn();
 }
 
-/** 布局组的旧成员：挂着时读原生排出来的像素 @param {View} v @returns {number} */
-const measuredHeight = (v) => /** @type {any} */ (v).measuredHeight;
-/** @param {View} v @returns {number} */
-const measuredWidth = (v) => /** @type {any} */ (v).measuredWidth;
+/** 布局组的 frame：排出来的高，dp；还没排过版是 null @param {View} v @returns {number | null} */
+const frameHeight = (v) => { const f = /** @type {any} */ (v).frame; return f === null ? null : f.height; };
+/** 排出来的宽，dp @param {View} v @returns {number | null} */
+const frameWidth = (v) => { const f = /** @type {any} */ (v).frame; return f === null ? null : f.width; };
 
 /** @param {import("../main.js").StepContext} ctx */
 export async function stepText(ctx) {
@@ -384,16 +384,9 @@ export async function stepText(ctx) {
   screen.paddingTop = 160;
   activity.contentView = screen;
 
-  // 页面的密度：只有内边距的空布局，高度就是内边距换成的像素（不能比屏幕高，不然被父视图截短）
-  const ruler = new LinearLayout();
-  ruler.paddingTop = 400;
-  screen.addView(ruler);
-  await sleep(300);
-  const density = measuredHeight(ruler) / 400;
-  screen.removeView(ruler);
+  // 页面的密度：1 dp 是几个像素
+  const density = /** @type {any} */ (activity).configuration.density;
   console.log('  实测：1 dp = ' + density + ' 像素');
-  /** @param {number} dp */
-  const px = (dp) => Math.round(dp * density);
 
   // 没写过的和每一项都写成默认值的，排出来一样：initial 等于新建的原生对象的默认值
   const row = new LinearLayout();
@@ -416,11 +409,11 @@ export async function stepText(ctx) {
   assert('挂上之后 lineCount 是 1', untouched.lineCount, 1);
   assert('挂上之后 baseline 是大于 0 的 dp', (untouched.baseline ?? 0) > 0, true);
   assert('没写过的和写成默认值的：宽高一样',
-         measuredWidth(untouched) + 'x' + measuredHeight(untouched), measuredWidth(explicit) + 'x' + measuredHeight(explicit));
+         frameWidth(untouched) + 'x' + frameHeight(untouched), frameWidth(explicit) + 'x' + frameHeight(explicit));
   assert('没写过的和写成默认值的：baseline 一样', untouched.baseline, explicit.baseline);
   assert('没写过的和写成默认值的：resolvedTextSize 一样', untouched.resolvedTextSize, explicit.resolvedTextSize);
-  console.log('  实测：默认的 TextView 排出来 ' + measuredWidth(untouched) + 'x' + measuredHeight(untouched) +
-              ' 像素，baseline ' + untouched.baseline + ' dp');
+  console.log('  实测：默认的 TextView 排出来 ' + frameWidth(untouched) + 'x' + frameHeight(untouched) +
+              ' dp，baseline ' + untouched.baseline + ' dp');
   screen.removeView(row);
   assert('拿下来之后页面值又是 null',
          [untouched.resolvedTextSize, untouched.lineCount, untouched.baseline].join(','), ',,');
@@ -448,16 +441,16 @@ export async function stepText(ctx) {
   screen.addView(one);
   screen.addView(three);
   await sleep(300);
-  /** 两行之间的距离（像素） */
-  const lineStep = () => (measuredHeight(three) - measuredHeight(one)) / 2;
-  assert('lineHeight = 50：每行 50 dp', near(lineStep(), px(50), 1), true);
+  /** 两行之间的距离（dp） */
+  const lineStep = () => ((frameHeight(three) ?? 0) - (frameHeight(one) ?? 0)) / 2;
+  assert('lineHeight = 50：每行 50 dp', near(lineStep(), 50, 0.5), true);
   for (const v of [one, three]) v.textSize = 30;
   await sleep(300);
-  assert('挂着时改了字号，行高还是 50 dp（跟着重设）', near(lineStep(), px(50), 1), true);
+  assert('挂着时改了字号，行高还是 50 dp（跟着重设）', near(lineStep(), 50, 0.5), true);
   for (const v of [one, three]) v.lineHeight = null;
   await sleep(300);
-  console.log('  实测：30 dp 的字，字体自己的行高 ' + lineStep() + ' 像素');
-  assert('lineHeight = null：回到字体自己的行高（不是 50 dp 了）', near(lineStep(), px(50), 1), false);
+  console.log('  实测：30 dp 的字，字体自己的行高 ' + lineStep() + ' dp');
+  assert('lineHeight = null：回到字体自己的行高（不是 50 dp 了）', near(lineStep(), 50, 0.5), false);
   screen.removeView(one);
   screen.removeView(three);
 
@@ -499,7 +492,7 @@ export async function stepText(ctx) {
   assert('firstBaselineToTopHeight = null：回到 paddingTop 定的位置', based.baseline, reference.baseline);
   based.lastBaselineToBottomHeight = 40;
   await sleep(300);
-  const below = measuredHeight(based) / density - (based.baseline ?? 0);
+  const below = (frameHeight(based) ?? 0) - (based.baseline ?? 0);
   assert('lastBaselineToBottomHeight = 40：最后一行的基线到底边 40 dp', near(below, 40, 0.6), true);
   screen.removeView(based);
   screen.removeView(reference);
@@ -518,21 +511,21 @@ export async function stepText(ctx) {
   spaced.letterSpacing = 0.5;
   screen.addView(widths);
   await sleep(300);
-  const normalWidth = measuredWidth(normal);
-  console.log('  实测：MMMMMM 宽 ' + normalWidth + ' 像素，wght 900 宽 ' + measuredWidth(heavy));
-  assert("fontVariationSettings = \"'wght' 900\"：字变宽了", measuredWidth(heavy) > normalWidth, true);
-  assert('letterSpacing = 0.5：字变宽了', measuredWidth(spaced) > normalWidth, true);
+  const normalWidth = frameWidth(normal);
+  console.log('  实测：MMMMMM 宽 ' + normalWidth + ' dp，wght 900 宽 ' + frameWidth(heavy));
+  assert("fontVariationSettings = \"'wght' 900\"：字变宽了", frameWidth(heavy) > normalWidth, true);
+  assert('letterSpacing = 0.5：字变宽了', frameWidth(spaced) > normalWidth, true);
   heavy.typeface = Typeface.create('sans-serif');
   await sleep(300);
-  assert('挂着时换了字体，可变字体的轴跟着重设：还是宽的', measuredWidth(heavy) > normalWidth, true);
+  assert('挂着时换了字体，可变字体的轴跟着重设：还是宽的', frameWidth(heavy) > normalWidth, true);
   heavy.fontVariationSettings = "'zzzz' 1";
   await sleep(300);
-  assert('换成谁都没有的轴：和没设一样宽（不留着上一次的）', measuredWidth(heavy), normalWidth);
+  assert('换成谁都没有的轴：和没设一样宽（不留着上一次的）', frameWidth(heavy), normalWidth);
   heavy.fontVariationSettings = "'wght' 900";
   await sleep(300);
   heavy.fontVariationSettings = null;
   await sleep(300);
-  assert('fontVariationSettings = null：和没设一样宽', measuredWidth(heavy), normalWidth);
+  assert('fontVariationSettings = null：和没设一样宽', frameWidth(heavy), normalWidth);
   screen.removeView(widths);
 
   // assets 里的字体：上伸 2 em、下伸 1 em，比系统字体高得多
@@ -546,8 +539,8 @@ export async function stepText(ctx) {
   screen.addView(tallText);
   screen.addView(plainText);
   await sleep(300);
-  console.log('  实测：20 dp 的字，系统字体高 ' + measuredHeight(plainText) + '，测试字体高 ' + measuredHeight(tallText));
-  assert('换上 assets 里的字体：高度是系统字体的两倍多', measuredHeight(tallText) > 2 * measuredHeight(plainText), true);
+  console.log('  实测：20 dp 的字，系统字体高 ' + frameHeight(plainText) + ' dp，测试字体高 ' + frameHeight(tallText));
+  assert('换上 assets 里的字体：高度是系统字体的两倍多', (frameHeight(tallText) ?? 0) > 2 * (frameHeight(plainText) ?? 0), true);
   screen.removeView(tallText);
   screen.removeView(plainText);
 
@@ -621,8 +614,8 @@ export async function stepText(ctx) {
   dpLine.fontScaling = false;
   for (const v of [scaled, written14, big, fixed, spLine, dpLine]) screen.addView(v);
   await sleep(300);
-  const spLineBefore = measuredHeight(spLine);
-  const dpLineBefore = measuredHeight(dpLine);
+  const spLineBefore = frameHeight(spLine);
+  const dpLineBefore = frameHeight(dpLine);
   assert('系统字号是 1 时：100 的 resolvedTextSize 是 100', near(big.resolvedTextSize, 100, 0.01), true);
 
   console.log('[acceptance] fontscale 2.0');
@@ -636,8 +629,8 @@ export async function stepText(ctx) {
   assert('非线性放大：大字放大的倍数比小字小', r100 / 100 < r14 / 14, true);
   assert('textSize 还是写进去的 14', written14.textSize, 14);
   assert('fontScaling = false 的不放大', near(fixed.resolvedTextSize, 14, 0.01), true);
-  assert('fontScaling 为 true 时行高跟着放大', measuredHeight(spLine) > spLineBefore, true);
-  assert('fontScaling = false 时行高不变', measuredHeight(dpLine), dpLineBefore);
+  assert('fontScaling 为 true 时行高跟着放大', frameHeight(spLine) > spLineBefore, true);
+  assert('fontScaling = false 时行高不变', frameHeight(dpLine), dpLineBefore);
   const fresh = new TextView();
   fresh.text = '后挂上的';
   fresh.textSize = 14;
@@ -650,6 +643,6 @@ export async function stepText(ctx) {
   assert('系统字号还原之后回到 14', back, true);
   await sleep(500);
   assert('没写过字号的也回到 14', near(scaled.resolvedTextSize, 14, 0.01), true);
-  assert('行高也回来了', measuredHeight(spLine), spLineBefore);
+  assert('行高也回来了', frameHeight(spLine), spLineBefore);
   activity.contentView = null;
 }

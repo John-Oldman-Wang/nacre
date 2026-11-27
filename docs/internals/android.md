@@ -178,8 +178,8 @@ JS 第一次给视图加 `click` 监听时，引擎经 `set_event_subscription` 
 写 `activity.contentView`、或者往挂着的父视图里 `addView` 时，整棵子树从下往上（`build`）：
 
 1. 建替身。已经挂在这个页面上的（挂着的视图挪个地方）整棵跳过：原生那边是好的，只挪原生的位置。
-2. 先把子视图都建好，再按登记的顺序把**写过的**状态设到原生。每项单独 try，原生拒了（JS 没查住的）打一条 `[Nacre] could not apply 名字 to 类名 (…), skipped`，不让挂上做到一半失败。
-3. 把原生的子视图排成 JS 的那一串（`@setChildren`）。
+2. 先把子视图都建好，再按登记的顺序把**写过的**状态设到原生。每项单独 try，原生拒了（JS 没查住的）打一条 `[Nacre] could not apply 名字 to 类名 (…), skipped`，不让挂上做到一半失败。给父视图读的状态（`placement`，布局组的 `view.layout`）这一轮不设。
+3. 把原生的子视图排成 JS 的那一串（`@setChildren`），再给每个子视图设它的 placement 状态（没写过的也设，见[布局](#机制子视图的布局参数随父视图重设)）。
 4. 把 JS 里记着的监听器装到原生上：调各组的 `[kSubscribe](type, true)`，它们照旧调 `subscribeNative`，看到视图有替身就订在替身上。先状态、后事件：装 `click` 会顺手把视图设成可点。复用的替身先摘掉再装，保证这个先后。
 5. 调用方最后把子树的根挂到页面（`@setContent`）或者挂着的父视图上（`@setChildren`），整棵子树只挂一次窗口，然后整棵标成挂着。
 
@@ -212,8 +212,10 @@ ctx.defineViewState(TextView, 'text', {
 - `apply(替身, 值, 页面, 视图)`：页面是 `{ density, fontScale }`；几个状态合成一次原生调用的（四个内边距是一个 `setPaddingRelative`）从视图上读别的，所以写入时先存、再设，原生拒了再还原。
 - 另外几个助手：`ctx.attachedNative(view)`（挂着时是替身，不然 `null`，页面值用）、`ctx.requireAttached(view, what)`（动作用，自由时抛 `InvalidStateError`）、`ctx.px(page, dp)` / `ctx.dp(page, px)`。
 - 事件照旧：`[kSubscribe]` 接在原来那一个后面，调 `subscribeNative`。
+- `placement: true`：给父视图读的状态（布局组的 `view.layout`）。挂上时不和别的状态一起设，子视图放进父视图、原生排好之后由 `place` 设，没写过的也设；`apply` 自己判断有没有父视图。见[布局](#机制子视图的布局参数随父视图重设)。
+- 在挂上的半途（别的视图的 `apply` 里）写一个也在这次挂上里的视图的状态：它有替身、但还没标成挂着，值只记在 JS 里，这一次不会设到原生；之后它要是走「已经挂着、只挪位置」那条路，也不会再设。布局组发 id 时碰到过，自己当场设了一次，见[布局](#constraints)。
 
-第二步才用得到的几样第一步没做，由第一个用到的组加进 `10-view.js`、用自己的成员验：系统也会改的状态（挂着读原生、拿下来时把原生的值读回 JS）、排完版才能设的（ScrollView 的滚动位置）、子视图的布局参数随父视图重设。
+第二步才用得到的几样第一步没做，由第一个用到的组加进 `10-view.js`、用自己的成员验：系统也会改的状态（挂着读原生、拿下来时把原生的值读回 JS）、排完版才能设的（ScrollView 的滚动位置）。子视图的布局参数随父视图重设是布局组加的（上面的 `placement`）。
 
 ### 枚举的名字
 
@@ -226,7 +228,7 @@ ctx.defineViewState(TextView, 'text', {
 - 状态存 dp，设到原生时按页面密度换成整数像素：四舍五入（正负对称），不是 0 的至少 1 像素。
 - `ViewDomain` 订页面（`ComponentActivity`）的配置变化，`density` 或 `fontScale` 和上次不一样，就**当场**发内部的 `@metricschange`（`Emitter.plainNow`，不排到下一轮：要赶在下一次排版之前）。JS 把这个页面上挂着的整棵树里写过的 `dp` 状态（密度变了）和 `sp` 状态（密度或字号变了）重设一遍。拿下来的视图不在树上，放回去时整个重设，用的是那时的密度。
 - 壳不用改：页面是 `ComponentActivity`，壳的 `configChanges` 早就接住了 `density` 和 `fontScale`，页面不重建。
-- 实测（Pixel 6，Android 17）：手机本来是 420 dpi（1 dp = 2.625 像素）。上 10、下 20.5 dp 的空布局量出来 80 像素；`wm density 560` 之后同一个视图变成 177 像素（上边先改成了 30 dp），拿下来时密度变了、放回去的那个按 3.5 设成 35；还原之后回到 133。基础里没有读得出像素的成员，验收借了布局组的 `measuredHeight` 和 App 层的 `configuration.densityDpi`（这两组第二步改成 `frame`、`density` 时顺手改）。
+- 实测（Pixel 6，Android 17）：手机本来是 420 dpi（1 dp = 2.625 像素）。上 10、下 20.5 dp 的空布局量出来 80 像素；`wm density 560` 之后同一个视图变成 177 像素（上边先改成了 30 dp），拿下来时密度变了、放回去的那个按 3.5 设成 35；还原之后回到 133。基础里没有读得出像素的成员，验收借了布局组的 `frame`（dp，期望值照「像素除以页面的密度」算），密度读 App 层的 `configuration.density`。
 - `sp` 那一支文字组验了：系统字号改成 2，跟着 `fontScaling` 的字号、行高都按新的字号重设，见「文字」。
 
 ### 页面的事件：运行时跟着 App 生死
@@ -255,12 +257,10 @@ ctx.defineViewState(TextView, 'text', {
 
 ### 过渡期
 
-第一步改了所有组都依赖的机制，已经合进来的外观、布局、图片、滚动和动画、App 层第二步按新总则重写之前（文字组已经重写完，见「文字」）：
+第一步改了所有组都依赖的机制，已经合进来的外观、图片、滚动和动画第二步按新总则重写之前（布局、App 层、文字已经改完）：
 
 - 它们的内置脚本照样加载，构造照样能用（多给的 `context` 不管）。
 - 还没改的成员在挂着的视图上照样能用：`nativeGet` / `nativeSet` / `nativeCall` 这几个助手碰到公开的视图，挂着就走它的替身；自由或拿下来时抛 `InvalidStateError`。对象参数是自由的视图时传 `null`，原生按类型不对拒掉。
-- 和新机制直接冲突的从 `31-layout.js` 里删了：`addView` 的五种写法、`removeView` / `removeViewAt` / `removeViews` / `removeAllViews`、`indexOfChild`、`bringChildToFront`、`updateViewLayout`（直接改原生的树，会和 JS 的对不上）、`View.parent`（读原生会把系统放内容的 `FrameLayout` 交出来）、`LinearLayout.orientation`（挪进了基础）。`LayoutDomain` 里对应的原生分支没动，现在走不到。
-- `33-app.js` 的 `openURL`、`trimmemory` 用了删掉的 `application.activity`，现在是坏的，App 层第二步改成不经过页面。
 - 验收里这几步先注释掉（`acceptance-android/src/main.js`），哪组改完打开自己那几行。
 
 ### 验收
@@ -434,47 +434,126 @@ Java 的属性大多是 `float`。照 `float` 最短的写法交给 JS（`Float.
 
 ## 布局
 
-`ViewGroup.LayoutParams` 一族、`LinearLayout`、`FrameLayout`、`ConstraintLayout`，`View` 上读布局结果的成员、`ViewGroup` 的层级操作、`layoutchange` 事件。原生在 `LayoutDomain.kt`，JS 在 `31-layout.js`，验收在 `steps/layout.js`。单位都是像素。
+子视图在父视图里怎么摆（`view.layout`），读排版结果（`frame`、`locationInWindow` / `locationOnScreen`、`measure()`），`layoutchange` 事件；`LinearLayout`、`FrameLayout`、`ConstraintLayout` 自己的状态，`ViewGroup` 的 `clipChildren` / `clipToPadding`。原生在 `LayoutDomain.kt`，JS 在 `31-layout.js`，验收在 `steps/layout.js`。长度都是 dp。
 
-### 定下来的几条（2026-11-24）
+2026-11-27 照「接类的总则」重写（第二步）。原来照搬 Java 的那一套去掉了：`ViewGroup.LayoutParams` 一族 5 个类、`View.MeasureSpec`、`id` 和 `View.generateViewId()`、`left` / `top` / `right` / `bottom` / `width` / `height`、`measuredWidth` / `measuredHeight`、`isLaidOut`、`isLayoutRequested`、`requestLayout()`、`forceLayout()`、`getLocationOnScreen()` / `getLocationInWindow()`、`LayoutChangeEvent`、`LinearLayout` 的 `setHorizontalGravity()` / `setVerticalGravity()` / `baselineAlignedChildIndex`（改成 `baselineChild` 也不接，见下面「没做的」）。树的操作（`addView` 这些）和 `LinearLayout.orientation` 在基础里。
 
-| | 做法 | 理由 |
+### 成员
+
+| 类 | 成员 | 归哪类 | 说明 |
+| --- | --- | --- | --- |
+| `View` | `layout` | 状态 | 子视图在父视图里怎么摆，活对象，见下面。父视图读它 |
+| `View` | `minimumWidth`、`minimumHeight` | 状态 | dp，不小于 0，默认 0。`wrapContent` 时至少这么大 |
+| `View` | `frame` | 页面值 | `{ x, y, width, height }`，相对父视图，dp，冻结的。自由时、还没排过版是 `null` |
+| `View` | `locationInWindow`、`locationOnScreen` | 页面值 | `{ x, y }`，dp，冻结的。同上 |
+| `View` | `measure(options)` | 页面值（带参数） | 按给的条件量一次，交回 `{ width, height }`（dp）；自由时是 `null` |
+| `View` | `layoutchange` | 事件 | 位置或大小变了，延后一轮派发，不可取消，普通的 `Event`，不带数据 |
+| `ViewGroup` | `clipChildren`、`clipToPadding` | 状态 | 布尔，默认 `true`（照 Android） |
+| `LinearLayout` | `gravity` | 状态 | 字符串数组，默认 `['start', 'top']` |
+| `LinearLayout` | `weightSum` | 状态 | 大于 0 的数，或 `null`（按子视图的权重加起来算），默认 `null` |
+| `LinearLayout` | `isBaselineAligned`、`isMeasureWithLargestChildEnabled` | 状态 | 布尔，默认 `true`、`false` |
+| `LinearLayout` | `showDividers` | 状态 | `'beginning'` / `'middle'` / `'end'` 的数组，默认 `[]` |
+| `LinearLayout` | `dividerPadding` | 状态 | dp，默认 0 |
+| `FrameLayout` | `measureAllChildren` | 状态 | 布尔，默认 `false` |
+| `ConstraintLayout` | `minWidth`、`minHeight` | 状态 | dp，默认 0 |
+| `ConstraintLayout` | `maxWidth`、`maxHeight` | 状态 | 大于 0 的 dp，或 `null`（不限），默认 `null` |
+
+没有动作：原来的 `requestLayout()` 不要了，写布局的状态时运行时自己请求排版（Java 的 setter 本来就会）。
+
+### view.layout
+
+一个活对象，用法像 `el.style`：每个视图一个，`view.layout === view.layout`，读写的都是那个视图现在的值。
+
+```js
+badge.layout.width = 'wrapContent';
+badge.layout.margin = { start: 8 };
+title.layout = { width: 'matchConstraint', height: 'wrapContent',
+                 constraints: { start: 'parent', end: { to: badge, edge: 'start' }, baseline: badge } };
+```
+
+| 字段 | 取值 | 默认 | 谁读 |
+| --- | --- | --- | --- |
+| `width`、`height` | dp（不小于 0）、`'matchParent'`、`'wrapContent'`、`'matchConstraint'`、`null` | `null`：父视图给默认值（竖向 `LinearLayout` 是 `matchParent` × `wrapContent`，横向是 `wrapContent` × `wrapContent`，`FrameLayout` 是 `matchParent` × `matchParent`，`ConstraintLayout` 是 `wrapContent` × `wrapContent`） | 全部 |
+| `margin` | 一个数（四边一样），或 `{ top, bottom, start, end }`（没给的是 0）；dp，可以是负数。读出来总是冻结的 `{ top, bottom, start, end }` | 四个 0 | 全部 |
+| `weight` | 不小于 0 的数 | 0 | `LinearLayout` |
+| `gravity` | 字符串数组，或 `null`（跟着父视图自己的 `gravity`） | `null` | `LinearLayout`、`FrameLayout` |
+| `constraints` | 见下面；读出来是冻结的、整理过的副本 | 没有约束 | `ConstraintLayout` |
+
+- **整个写**（`view.layout = { … }`）：没给的回到默认值；写 `null` 是全部回到默认值。只改几项用 `Object.assign(view.layout, { … })` 或者一项项写。拿别的视图的 `layout` 写过来是拷它现在的值。
+- **写错**：名字不认识（`'wrap'`、`['left']`、边的名字）打一条警告，整次赋值不生效，一次写好几项时有一项不对整个不写；类型不对抛 `TypeError`；超出范围（负的尺寸、权重，偏移比例不在 0–1）抛 `RangeError`。拼错的键照 Web IDL 的字典不管。
+- **父视图不读的字段留着**，不报错，换到读它的父视图下面再生效：`weight` 在 `FrameLayout` 下面不起作用，挪进 `LinearLayout` 就起作用。`'matchConstraint'` 只有 `ConstraintLayout` 认，别的父视图下当成 `null`。
+- **页面的 `contentView` 没有父视图**，它的 `layout` 不用：系统让它铺满页面。
+- **水平方向只有 start / end**：`margin` 没有 left / right，`gravity` 不收 `left` / `right`。
+- `margin`、`gravity`、`constraints` 读出来的对象是冻结的，没变时读两次是同一个；改其中一项要整个写回去（`view.layout.margin = { ...view.layout.margin, top: 4 }`）。
+
+`gravity` 的名字（`LinearLayout.gravity` 也一样）：水平 `centerHorizontal` / `fillHorizontal` / `start` / `end`，竖直 `top` / `bottom` / `centerVertical` / `fillVertical`，加上 `clipHorizontal` / `clipVertical`。每个方向最多一个，两个方向合起来的 `center`、`fill` 不收（照原来定的）。照写进去的样子读回来：`LinearLayout.gravity = ['centerHorizontal']` 读回来就是这一个，原生那边按 Android 的规则把竖向补成 `top`。
+
+名字表和文字组共用一份：`Gravity.kt` 的 `Gravities.enums`，三张（`gravityHorizontal`、`gravityVertical`、`gravityClip`），水平那张里有 `left` / `right`（文字组的 `TextView.gravity` 用），布局这边在 JS 里挑掉。表名在所有域里只能登记一次，`LayoutDomain` 和文字组的 `TextDomain` 现在各登记了一次，谁先合进 main 谁留着，后合的 rebase 时删掉自己那行（`LayoutDomain` 里是 `+ Gravities.enums`）。名字换成数值用 `Gravities.forArgument`。JS 的检查是 `31-layout.js` 的 `toGravity`，也放在了 `ctx` 上。
+
+#### constraints
+
+一条边一个目标，直接写视图：
+
+| 字段 | 取值 | 默认 |
 | --- | --- | --- |
-| LayoutParams 的形状 | 原生对象的包装，挂成静态的嵌套类：`ViewGroup.LayoutParams`、`ViewGroup.MarginLayoutParams`、`LinearLayout.LayoutParams`、`FrameLayout.LayoutParams`、`ConstraintLayout.LayoutParams`，继承关系照 Java | 和 Android 的文档、Kotlin 的写法对得上；做成值对象的话「取出来、改字段、设回去」的习惯就没了 |
-| 写到视图上 | 同一个对象。改字段不会自己重新排版，要 `requestLayout()` 或者再赋一次 `layoutParams` | 照 Android。`addView` 时类型不对，系统换成父视图要的类型（新对象），也照实 |
-| ConstraintLayout 的约束 | 写在参数的字段上，指向视图用 id，指向父视图写 `'parent'`；不接 `ConstraintSet` | `ConstraintSet.applyTo` 最后也是写这些字段，它只是帮手，JS 能自己写。不收视图对象：写进去是视图、读出来是数，对不上 |
-| 哨兵值 | 有含义的用字符串（`matchParent`、`wrapContent`、`matchConstraint`、`parent`）；表示「没设」的（`NO_ID`、`UNSET`、`GONE_UNSET`、gravity 的 −1）读出来是 `null`，写 `null` 清掉 | 「没设」做成 `'unset'` 这种字符串，读的人会当成一个取值 |
-| 布局事件 | `layoutchange`，`LayoutChangeEvent` 带 `left` / `top` / `right` / `bottom` 和四个 `old…`，延后一轮派发，不可取消；**四边变了才发** | Android 的回调每次排版都来，四边没变也来。不滤的话 JS 在监听器里 `requestLayout` 一次就排个没完。和 `windowinsetschange` 只在值变了才发一样 |
-| `Gravity` | 字符串数组，每个方向最多一个名字，外加 `clipHorizontal` / `clipVertical`。没有 `center`、`fill` | 横向的几个值不是单独的一位（`LEFT` 是 3，`START` 是 `0x800003`），按「每个方向一个取值」拆。合起来的名字照 iOS 位掩码的规矩不收：读出来总是拆开的，收了就写进去和读出来不一样 |
+| `start`、`end`、`top`、`bottom`、`baseline` | `'parent'`；一个视图（对齐它的同一条边）；`{ to, edge }`（对齐它的另一条边；`to` 是视图或 `'parent'`，`edge` 不写是同一条边） | `null` |
+| `horizontalBias`、`verticalBias` | 0–1 | 0.5 |
+| `horizontalChainStyle`、`verticalChainStyle` | `'spread'` / `'spreadInside'` / `'packed'` | `'spread'` |
+| `horizontalWeight`、`verticalWeight` | 不小于 0 的数，或 `null` | `null` |
+| `dimensionRatio` | `'2:1'`、`'H,16:9'`、`'0.5'` 这样的字符串，或 `null` | `null` |
+| `constrainedWidth`、`constrainedHeight` | 布尔：`wrapContent` 时也夹在两个锚点之间 | `false` |
+| `minWidth`、`minHeight`、`maxWidth`、`maxHeight` | `matchConstraint` 时的最小、最大，dp；最大是 `null` 不限 | 0、`null` |
+| `widthPercent`、`heightPercent` | `matchConstraint` 时占父视图的比例，或 `null`（填满两个锚点之间） | `null` |
+| `circle` | `{ to, radius, angle }`：中心在 `to` 的中心的这个方向、这个距离（dp；度，0 朝上，顺时针），或 `null` | `null` |
+| `goneMargin` | `{ top, bottom, start, end, baseline }`：目标隐藏时用的外边距，每项 dp 或 `null` | 全 `null` |
+| `baselineMargin` | dp | 0 |
+| `wrapBehaviorInParent` | `'included'` / `'horizontalOnly'` / `'verticalOnly'` / `'skipped'` | `'included'` |
 
-### 实现
+`edge` 能写哪些看是哪条边：`start` / `end` 对 `start` / `end`，`top` / `bottom` 对 `top` / `bottom`，`baseline` 对 `baseline` / `top` / `bottom`；不对的打警告。
 
-- **嵌套的类**：`defineNativeClass` 会把类挂到全局（名字带点），`31-layout.js` 摘掉再挂成静态成员。不改 `01-bridge.js`。
-- **`addView` 的重载**：在 `31-layout.js` 里换掉 `10-view.js` 的 `addView`，按参数的个数和类型分五种写法；原生那边用新的方法名（`addView@index` 这类），只传一个子视图的还走 `ViewDomain` 原来那条。父视图持有子视图（`children` 那条边），视图持有它的参数（`layoutParams` 那条边，持有的是系统真正用的那个对象）。
-- **事件的订阅**接在 `10-view.js` 的 `[kSubscribe]` 后面：`layoutchange` 告诉原生，别的交给原来那一个。别的组也往 `View` 上加事件时照这样接。
-- **属性里的枚举写错**走外观组补的那条路：域的 `write` 抛 `NacreWarning`，JS 那边打一条警告、值不变。简单的名字表用 `Enums.kt` 的 `EnumTable`；宽高（名字和像素混在一起）自己核，`Gravity`（每个方向一个取值）用几组共用的 `Gravity.kt`，措辞都和 `EnumTable` 一样。
-- **赋一个父视图不认的参数**：视图已经在布局里时，下一次排版 Java 会在原生里抛 `ClassCastException`，整个 App 就没了。所以写 `layoutParams` 时先用父视图的 `checkLayoutParams`（protected 的公开接口，反射去调，按父视图的实际类型分派）问一次，不认就抛 `TypeError`。系统自己的 `updateViewLayout` 也是这么查的，它抛 `IllegalArgumentException`。
-- **下标越界**：`removeViewAt` 不查下标，按 AOSP 的源码是拿着 `getChildAt` 给的 `null` 往下走（没实测越界时会怎样）。`removeViewAt` 和 `removeViews` 都在原生先查，抛 `IndexOutOfBoundsException`，和 `addView` 越界时 Java 自己抛的一样。
-- **ConstraintLayout 2.2.2 的依赖排除了 appcompat。** 它的 pom 带着 appcompat，但 `widget` 包里的类一个都没用到（看过字节码；用到它的只有 `utils.widget` 下的几个视图，没接）。不排除的话会带进 AppCompat 的样式和资源。
+ConstraintLayout.LayoutParams 的字段怎么合进来的（「一件事只说一次」）：15 个 `xxxToYyy` 合成 5 条边（left / right 那几个不要了，只留 start / end）；`matchConstraintDefaultWidth` 不单独给，给了 `widthPercent` 就是 percent，不给是 spread（`wrap` 是 ConstraintLayout 自己废弃了的，用 `wrapContent` 加 `constrainedWidth`）；`circleConstraint` / `circleRadius` / `circleAngle` 合成 `circle`；7 个 `goneXxxMargin` 合成 `goneMargin`（只留 start / end）。
 
-### 和方案不同的一处
+**约束的目标不在同一个 ConstraintLayout 里**（在别的父视图下、自由的、还没放进来）：这一条约束不生效，当成没写，不报错；读出来还是写进去的视图。目标后来放进了这个 ConstraintLayout，下一次排版就生效。这是 ConstraintLayout 自己的行为：约束按 id 在自己的子视图里找目标，找不到就不管，所以运行时不用另外做什么。写的时候查不了（视图可能还是自由的，树之后还会变），所以不在写的时候报。指向父视图本身等于 `'parent'`，指向自己当成没写。
 
-`LinearLayout.dividerWidth` 没做：`getDividerWidth()` 在 SDK 里是隐藏的接口（`android.jar` 里没有），不是公开 API。
+**id**：放进 ConstraintLayout 的视图、被约束指着的视图，第一次用到时发一个（`View.generateViewId()`），同一个视图一直用这一个，JS 看不见。id 要在放进原生的父视图**之前**设好：ConstraintLayout 在子视图加进来那一刻（`onViewAdded`）按当时的 id 记一张表，基线约束按这张表找目标（别的边用每次排版时重建的表），之后再改 id 它不知道。第一版是放进去之后（`@layout` 里）才设，实测基线约束不生效、别的约束正常。所以 id 登记成一个普通的状态（名字是 Symbol，不公开），挂上时和别的状态一起、在 `@setChildren` 之前设；`ConstraintLayout.addView` 先发 id 再交给基础的 `addView`，视图已经有替身的当场设到原生。后面这一句也是实测出来的：别处挂着的目标挪进来时，基础的 `addView` 不再设一遍状态（原生那边是好的，只挪位置）；而它的 id 是在整棵树挂上的半途、给指着它的那个视图设约束时发的，那一刻它还没标成挂着，状态只记在了 JS 里。没有这一句，挪进来之后约束不生效。
+
+### 机制：子视图的布局参数随父视图重设
+
+第一步留给第一个用到的组加进 `10-view.js` 的机制，布局组加了：`defineViewState` 多一个选项 `placement: true`，表示「这个状态是给父视图读的」。`view.layout` 是现在唯一的一个。
+
+- **什么时候设**：子视图放进一个父视图、原生那边也排好之后（`build` 里父视图 `@setChildren` 之后，给它的每个子视图；`addView` 往挂着的父视图里加时，给加进来的那个），调 `place`，把 placement 状态设到原生。挂上时和别的状态一起设的那一轮（`applyStates`）跳过它们。
+- **没写过的也设**（用初始值）。原生换父视图时，Java 的 `addView` 会把它原来的参数转换成新父视图的类型（宽高、外边距带过来），不是新父视图的默认值：从竖向 `LinearLayout` 挪进 `FrameLayout`，没写过 `layout` 的子视图高还是 `wrapContent`，按「`null` 是父视图的默认值」应该是 `matchParent`。所以每次放进父视图都设一遍，代价是每个子视图挂上时多一次过桥。
+- **挂着时写**：和别的状态一样当场设（登记的 setter）。**密度变了**：`units: 'dp'`，和别的 dp 状态一起重设。
+- **页面的 `contentView` 没有父视图**：`applyLayout` 自己跳过。
+- **方向改了**：`LinearLayout.orientation` 改了，宽高是 `null` 的子视图换成新方向的默认值。Java 只在 `addView` 时给一次默认值，这里照「`null` 是父视图的默认值」重设。这个在 `31-layout.js` 里包了一层 `orientation` 的 setter，没动 `10-view.js` 的那一行。
+- 原生那边（`@layout`）每次建一个新的 LayoutParams：父视图自己的 `generateLayoutParams(ViewGroup.LayoutParams)`（protected 的公开接口，反射去调，按父视图的实际类型分派）把宽高转成它的类型，再填外边距和各个类型自己的字段；宽高是 `null` 时用父视图的 `generateDefaultLayoutParams()`。认不出来的父视图（以后别的组的 `ViewGroup`）只设宽高和外边距。
+- `10-view.js` 里只改了这几处：`defineViewState` 记下 `placement`、`place` 函数、`build` 和 `addView` 各调一次、`build` 的 `applyStates` 跳过 placement。别的组这一批不改这部分。
+
+### 页面值和事件
+
+- **`frame` 还没排过版也是 `null`**（方案只说了自由时）：刚挂上、第一次排版之前，Android 给的是 0，分不出「没排过」和「排成了 0」。所以原来的 `isLaidOut` 也不用单独给：`frame !== null` 就是。`locationInWindow` / `locationOnScreen` 一样。
+- **dp 是像素除以页面的密度**，不取整：宽写 100，在 420 dpi（1 dp = 2.625 像素）上排出来是 263 像素，`frame.width` 读出来是 100.19。尺寸取 8 dp 的倍数时常见的密度下都是整数像素，验收靠这个把期望值写成和密度无关的整数。
+- **`measure()`**：`{ width, height }` 是正好这么大（`EXACTLY`），`{ maxWidth, maxHeight }` 是最多这么大（`AT_MOST`），都不给是不限（`UNSPECIFIED`）；同一个方向两个都给抛 `TypeError`。方案只写了 `{ width, height }`，没有 `maxWidth` 就量不了「最宽多少时要多高」这种最常用的情况，所以加了。量完之后量出来的和原来不一样，原生请求一次排版：父视图摆子视图时用的是量出来的大小，不重新量的话下一次只挪位置不重量时会按这次的结果摆。自由时参数照样当场查，然后给 `null`。
+- **`layoutchange`**：有人订才装 `OnLayoutChangeListener`，四边变了才发（系统每次排版都来调，四边没变也调；不滤的话 JS 在监听器里改一次 `layout` 就会一直排下去）。不带数据，位置读 `frame`。要在挂上之前装监听器，才收得到第一次排版：自由时装的监听器挂上时由基础补订。
 
 ### 没做的
 
-`dividerDrawable`（要外观组的 `Drawable`，合进来之后再接）；`ConstraintSet` 和辅助线、屏障、分组、`Flow`；`optimizationLevel`；`layoutDirection`；`RelativeLayout`、`GridLayout`；`ViewTreeObserver` 的几个回调（「画之前」的回调要等需要时再做：`layoutchange` 是延后一轮派发的，在监听器里调整会晚一帧）；Android 的类型定义（`@nacrejs/types/android` 还没有）。
+- **`baselineChild` 不接**（方案里 `baselineAlignedChildIndex` 改成给一个视图，2026-11-27 用户定不接）。设了下标以后，基线子视图被拿掉、或者子视图全拿光，原生的下标越界，下一次排版 App 直接崩（见下面实测）；Java 那边设了也清不回「没有」（`setBaselineAlignedChildIndex` 只收 0 以上），JS 跟着树同步下标也挡不住。要按基线对齐，用 `ConstraintLayout` 的 `constraints.baseline`。横向 `LinearLayout` 本身按基线对齐子视图（`isBaselineAligned`）照常有。验收断言 `LinearLayout` 上没有 `baselineChild`、`baselineAlignedChildIndex`。
+- `dividerDrawable`：要外观组的 `Drawable`，等外观组照新总则改完再接。`dividerWidth` 不接（`getDividerWidth()` 是隐藏的接口）。
+- `ConstraintSet` 和辅助线、屏障、分组、`Flow`；`optimizationLevel`；`layoutDirection`；`RelativeLayout`、`GridLayout`；`ViewTreeObserver` 的几个回调（「画之前」的回调要等需要时再做：`layoutchange` 是延后一轮派发的，在监听器里调整会晚一帧）；Android 的类型定义（`@nacrejs/types/android` 还没有）。
 
 ### 实测（Pixel 6，Android 17）
 
-验收里的位置全是照 Android 的排版规则先算好的期望值，第一次跑就对上了：
+- **不带系统样式时的默认值**（视图用页面建、`defStyleAttr` 是 0，挂上之后直接读原生）：`View` 的最小尺寸 0；`LinearLayout` 的 `gravity` 是 `START | TOP`、`weightSum` −1、`isBaselineAligned` true、`baselineAlignedChildIndex` −1、`isMeasureWithLargestChildEnabled` false、`showDividers` 0、`dividerPadding` 0；`FrameLayout` 的 `measureAllChildren` false；`ConstraintLayout` 的最小尺寸 0、最大尺寸 `Integer.MAX_VALUE`；三个布局类的 `clipChildren`、`clipToPadding` 都是 true。都是 AOSP 源码里的常数，主题没有改任何一个，和 JS 的初始值对得上。
+- **基线子视图**：用旧的 `baselineAlignedChildIndex` 量的。指向量不出基线的普通 `View`（下标 1）、触发重新排版，不崩（按源码以为会抛「points to a View that doesn't know how to get its baseline」，Android 17 上没有）；设了下标之后把子视图拿光，下一次排版 App 直接崩：`RuntimeException: mBaselineAlignedChildIndex of LinearLayout set to an index that is out of bounds`（在外层横向 `LinearLayout` 的 `measureHorizontal` 里调 `getBaseline()` 时）。只设下标不会请求排版，要到下一次排版才崩。
+- **普通 `View` 的 `wrapContent` 会占满上限**：`View.onMeasure` 在「最多这么大」（AT_MOST）下取上限，所以普通 `View` 写 `wrapContent` 和 `matchParent` 排出来一样大（ConstraintLayout 里没写 `layout` 的普通 `View` 是整个 320 × 160）。第一版用例拿普通 `View` 验 `wrapContent`、最小尺寸，6 条期望值写错了，改成用 `TextView`（有内容尺寸），断言的意思没变。
+- 位置的期望值都是照 Android 的排版规则先算好的：240 宽的横向 `LinearLayout`，固定 48 宽排最后，剩下 192 按 1 : 2 分成 64 和 128；`weightSum` 4 时 1 份是 256 的四分之一；`ConstraintLayout` 里居中、`horizontalBias` 0.25、`dimensionRatio` 2:1、`packed` 链、`widthPercent` 0.5、`maxWidth`、链的权重 1 : 3、环形定位、基线对齐、`constrainedWidth`，都对上了。
+- 换父视图：`FrameLayout` 里靠右下的（`gravity: ['end', 'bottom']`）挪进竖向 `LinearLayout` 是靠右，挪进 `ConstraintLayout` 在左上，拿下来再放回 `FrameLayout` 又靠右下；没写 `layout` 的从竖向 `LinearLayout`（`matchParent` × `wrapContent`）挪进 `FrameLayout` 变成铺满；`weight` 在 `FrameLayout` 里不起作用，挪进 `LinearLayout` 起作用；`LinearLayout` 从竖向改成横向，没写宽的子视图从铺满变成文字那么宽。
+- 改 `layout` 的一项、改约束，下一轮就重新排版、来 `layoutchange`；`ConstraintLayout` 整个重排、某个子视图没动时它不发。
+- 密度从 420 dpi 改成 560 dpi 再还原，`layout` 写的 dp 不变，排出来的 `frame` 还是这么多 dp（像素跟着变了）。
+- `measure()`：普通 `View` 的最小尺寸 40 × 24，不给条件量出来是 40 × 24；给 64 × 16 是 64 × 16；`maxWidth` 32、`maxHeight` 200 是 32 × 200（普通 `View` 取满上限）；量完之后排出来的还是原来的 48 × 48。
 
-- 600 宽的横向 `LinearLayout`，一个固定 100 宽，另外两个权重 1 和 2：分到 166 和 334（剩下的 500 按 `(int)(权重 × 剩余 / 剩余权重)` 依次分，余数落在后面的那个）。
-- 竖向 `LinearLayout` 默认给子视图的参数是 `matchParent` × `wrapContent`；`gravity` 只给横向时，竖向补成 `top`，给空数组读回来是 `start`、`top`。
-- `ConstraintLayout`（1000 × 500）：上下左右都连父视图的 200 × 100 居中在 (400, 200)；`horizontalBias` 0.25 在 x = 200；宽 100、高 `matchConstraint`、`dimensionRatio` 2:1 的高是 50；两个 100 宽的 `packed` 链在 x = 400、500。
-- 只改参数的字段，300 毫秒后宽还是原来的；`requestLayout()` 之后 `isLayoutRequested` 立刻是 `true`，下一轮来了 `layoutchange`，旧的四边是改之前的。
-- 根视图的 `parent` 是系统放内容的 `FrameLayout`，一直往上走，最外层视图的 `parent` 是 `null`（它上面是 `ViewRootImpl`，不是视图）。
-- 全屏的窗口里 `getLocationOnScreen()` 和 `getLocationInWindow()` 一样。
+验收：先在没有这一步的运行时上跑，布局这一步一开始就抛（`view.layout` 不存在），`tree.js` 读 `frame` 抛，去掉的成员都还在，8 条失败。做完之后 2026-11-27 Debug 和 Release 都是 1300 条通过、0 条失败（外观、滚动、动画、文字、App 层、图片几步还没打开）。
 
 ## 滚动
 
@@ -589,7 +668,7 @@ Java 的属性大多是 `float`。照 `float` 最短的写法交给 JS（`Float.
 
 删掉的：`setTextSize`、`textSizeUnit`、`setTextColor`、`currentTextColor`、`setTypeface(tf, style)`、`setLines`、`setLineHeight`、`setLineSpacing`、`lineSpacingExtra` / `Multiplier`、`setTextIsSelectable`、`setFontVariationSettings`、自动缩字号的 7 个成员、`paintFlags`、`setShadowLayer` 和四个 `shadow*`；`Typeface` 的 `DEFAULT_BOLD`、`defaultFromStyle`、`style`、`isBold`。验收里逐个断言它们不在了。
 
-写错时：类型不对抛 `TypeError`（`textSize = 'abc'`、`gravity = 'top'`、`autoSize` 少了一项、同时给 `sizes` 和 `min`）；超出范围抛 `RangeError`（负的字号、行高、行数，`autoSize` 的 `max` 不比 `min` 大）；枚举名、颜色、可变字体轴的写法写错打警告、值不变，措辞和别的组一样。`Gravity` 的规则还是布局组那一套（每个方向最多一个名字，外加两个裁切的开关，不收 `center`、`fill`），在 JS 里查，名字表在 `Gravity.kt` 的 `Gravities.enums`，由 `TextDomain` 交出去（三张表 `gravityHorizontal` / `gravityVertical` / `gravityClip`，表名全局唯一，布局组要用直接取，不再登记）。
+写错时：类型不对抛 `TypeError`（`textSize = 'abc'`、`gravity = 'top'`、`autoSize` 少了一项、同时给 `sizes` 和 `min`）；超出范围抛 `RangeError`（负的字号、行高、行数，`autoSize` 的 `max` 不比 `min` 大）；枚举名、颜色、可变字体轴的写法写错打警告、值不变，措辞和别的组一样。`Gravity` 的规则还是布局组那一套（每个方向最多一个名字，外加两个裁切的开关，不收 `center`、`fill`），在 JS 里查，名字表在 `Gravity.kt` 的 `Gravities.enums`（三张表 `gravityHorizontal` / `gravityVertical` / `gravityClip`），表名全局唯一，由布局组的 `LayoutDomain` 登记，文字组直接取。
 
 ### 字体那几项的先后和牵连
 
@@ -641,7 +720,7 @@ Java 不替我们管这几样之间的关系，都是实测撞到的（Pixel 6�
 
 ### 验收
 
-`steps/text.js`，排在页面那几步的最后（页面关掉再打开之后，用 `ctx.activity`）：自由时全部成员的默认值、读写、转换、报错和警告，旧成员都不在了；`Typeface`；挂上之后没写过的和写成默认值的排出来一样，行高、首末基线、可变字体、字间距、换字体、自动缩字号、行数用排出来的像素验；最后改系统字号。排出来的像素借了布局组还没改的 `measuredWidth` / `measuredHeight`（基础的 `tree.js` 也借了），布局组改成新写法时顺手改。
+`steps/text.js`，排在页面那几步的最后（页面关掉再打开之后，用 `ctx.activity`）：自由时全部成员的默认值、读写、转换、报错和警告，旧成员都不在了；`Typeface`；挂上之后没写过的和写成默认值的排出来一样，行高、首末基线、可变字体、字间距、换字体、自动缩字号、行数用排出来的像素验；最后改系统字号。排出来的大小用布局组的 `frame`（dp），密度读 App 层的 `configuration.density`。
 
 先在没有重写的运行时上跑了一遍：步骤一开始读自由视图的 `textSize` 就抛了 `InvalidStateError`，判为失败。实现之后第一遍挂了 5 条：可变字体那两条是实现的错（上面「牵连」里轴的那几条，改成 `@font`）；行高、末基线那三条是用例量密度的写法错了，1000 dp 的空布局比屏幕高、被父视图截短，量出 1.98，换成 400 dp 之后量出 2.625，期望值和断言都没改。2026-11-27 在 Pixel 6（Android 17）上 Debug 和 Release 都是 1313 条通过、0 条失败（外观等 6 组的步骤没跑）。
 
@@ -675,63 +754,87 @@ Java 不替我们管这几样之间的关系，都是实测撞到的（Pixel 6�
 
 ## App 层
 
-2026-11-24 定、做的。原生在 `AppDomain.kt`，JS 在 `33-app.js`，验收是 `acceptance-android/src/steps/app.js`。
+2026-11-24 接的，2026-11-27 照[接类的总则](../project.md#接类的总则2026-11-26-定)重写。原生在 `AppDomain.kt`，JS 在 `33-app.js`，验收是 `acceptance-android/src/steps/app.js`。
 
-### 挂在哪：按 Android 的事实分
+### 成员
 
-页面自己的事挂在 `activity` 上，整个 App 的事挂在 `application` 上：
+页面自己的事挂在 `activity` 上，整个 App 的事挂在 `application` 上。页面是系统建的，没有自由和挂上这回事，状态都在原生那边，JS 读写的就是原生的。按总则的四类过了一遍：
 
-| | 成员 |
-| --- | --- |
-| `application` | `packageName`、`versionName`、`versionCode`（只读，运行期间不变，没有变化事件）；`openURL(url)`；`trimmemory` 事件 |
-| `activity` | `lifecycleState` 和 `start` / `resume` / `pause` / `stop`；`handlesBack` 和 `back` / `backstart` / `backprogress` / `backcancel`；`configuration` 和 `configurationchange`；`launchURL` 和 `openurl` |
+| | 成员 | 哪一类 |
+| --- | --- | --- |
+| `application` | `packageName`、`versionName`、`versionCode` | 只读的值。运行期间不变，没有变化事件 |
+| | `openURL(url)` | 一次性的请求：`Promise<boolean>` |
+| | `trimmemory`（`TrimMemoryEvent`：`level`） | 事件 |
+| | `openurl`（`OpenURLEvent`：`url`、`activity`） | 事件 |
+| `activity` | `lifecycleState` | 系统改的状态，只读；变化是 `start` / `resume` / `pause` / `stop` |
+| | `handlesBack` | 状态：JS 设、JS 读（读回的就是写进去的）。只有 JS 自己改，没有变化事件 |
+| | `back`、`backcancel`（`Event`）；`backstart`、`backprogress`（`BackEvent`：`progress`、`touchX`、`touchY`、`swipeEdge`） | 事件 |
+| | `configuration`（`Configuration` 快照） | 系统改的状态，只读；变化是 `configurationchange` |
 
-生命周期、返回、配置变化、新的 intent 在 Android 上都是页面的回调，和已有的 `windowinsetschange` 放在一处。内存告警是整个 App 的事，但 `application` 在 Android 上是纯 JS 的对象，原生只能往原生对象的包装上发事件：原生把它发在页面上，用内部的名字 `@trimmemory`，`33-app.js` 转成 `application` 上的 `trimmemory`。
+生命周期、返回、配置变化、被链接打开、内存告警都会反复发生，所以全是事件；一次性的只有 `openURL()`。系统的通知都延后一轮派发、不可取消。没有动作，所以没有「页面销毁了调动作」要抛的；销毁的页面 `lifecycleState` 读出 `'destroyed'`。
 
-成员加在已有的 `Application`、`Activity` 上，不改 `21-application.js`、`10-view.js`：`33-app.js` 往原型上加属性，并包一层 `Activity.prototype[kSubscribe]`，把这一组的事件名交给原生，别的照旧交给原来那一层。
+### 这一步定的
+
+- **`openurl` 挪到 `application` 上，带着 `activity`**（收到链接的页面，必填）。`launchURL` 删了：页面建好时启动它的 intent 带着地址，也发一次 `openurl`，排在 `activitycreate` 后面，`activitycreate` 的监听器里订的收得到。这样冷启动、没有页面时被链接打开、运行中被链接打开是同一个事件。iOS 也是这样（`openurl` 在 `application` 上，带 `scene`，冷启动排在 `sceneconnect` 后面，见[被链接打开](open-url.md)）。
+- **`openURL()`、`trimmemory` 不经过页面**，没有页面时也能用（下面「application 绑在 App 本身上」）。
+- **`BackEvent.touchX` / `touchY` 是 dp**（小数）。按返回键这类没有手指的（`swipeEdge` 是 `'none'`）是 `null`，不是 0。`new BackEvent(type)` 不带 init 时也是 `null`。`swipeEdge` 的 `'none'` 是 Android 自己的常量（`EDGE_NONE`），不是哨兵，留着。
+- **`Configuration` 的字段**：`screenWidth`、`screenHeight`、`smallestScreenWidth`（单位都是 dp，不在名字里说，去掉 `Dp` 后缀）；`density` 取代 `densityDpi`，是 1 dp 等于几个像素，和运行时换算视图长度用的是同一个数（`displayMetrics.density`），每英寸的点数是它乘 160；系统说「没定」的（`*_UNDEFINED`、`ORIENTATION_UNDEFINED`）给 `null`，不给 0 和 `'undefined'`。
+
+### application 绑在 App 本身上
+
+原来 `application` 是纯 JS 的对象，原生只能往原生对象的包装上发事件，内存告警就借页面发（内部的 `@trimmemory`），`openURL()` 也借页面调。页面可能一个都没有之后，这条路断了。
+
+现在 `33-app.js` 启动时调一次 `native.construct('Application', …, application)`：`AppDomain` 的 `classes` 里登记了 `android.app.Application` → `'Application'`，`construct` 交回这个进程的 `Application` 对象，引擎把它绑到已有的 `application` 上（和 `new` 一个原生类时绑 `this` 是同一条路）。之后：
+
+- 原生往 `host.app` 发的事件直接到 `application` 上。`trimmemory` 订的是 `Application.registerComponentCallbacks`，没有页面时也来。
+- `openURL()` 用 App 的环境 `startActivity`（本来就带着 `FLAG_ACTIVITY_NEW_TASK`，App 的环境打开页面必须带它）。
+- 包信息是 `application` 上的一次属性读，不再走类级调用。
+
+`core/engine/`、`01-bridge.js`、`21-application.js` 都没改。`application` 是全局的，包装不会被回收，绑上之后一直是同一个。
+
+### 被链接打开
+
+- **运行中**：壳的页面是 `singleTask`，别的 App 打开一条指向它的链接，已经在跑的页面收到 `onNewIntent`（`addOnNewIntentListener`），intent 带着地址就发。
+- **页面建好时**：`AppDomain` 自己订了 `registerActivityLifecycleCallbacks`，在 `onActivityPostCreated` 里看启动这个页面的 intent，带着地址就发。这时 JS 还没订（订是在 `activitycreate` 里），所以不看订没订：排到下一轮，`activitycreate`（当场派发）已经过去了；没人订 JS 那边就丢掉。系统把页面重建出来的不算：`savedInstanceState` 不是 `null`（进程被杀之后系统恢复的页面），或者 intent 带着 `FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY`（从最近任务回来），带的还是原来那条链接，不是这一次被打开。
+- **怎么到 `application` 上**：哪个页面收到的，原生就发在哪个页面上（内部的名字 `@openurl`，事件类 `@OpenURLNotice` 只登记在 `eventClasses` 里、不挂全局），`33-app.js` 转成 `application` 上的 `OpenURLEvent`，`activity` 是那个页面。`application` 上有人订 `openurl` 时，现在有的页面和以后建的页面（内置脚本自己的 `activitycreate` 监听器，排在 App 的前面）都订着 `@openurl`；没人订时都摘掉，原生的 `onNewIntent` 监听也跟着摘。
+- 页面上订 `openurl` 不抛，当自定义事件，永远不会来。
 
 ### 用的是 AndroidX 的 ComponentActivity
 
-运行时的依赖里加了 `androidx.activity:activity`（和壳同一个版本，App 里本来就有）。Android 11、12 上的返回回调、`onNewIntent` 的监听、页面级的配置变化，平台的接口都给不了，只有 `ComponentActivity` 有：
+运行时的依赖里有 `androidx.activity:activity`（和壳同一个版本）。Android 11、12 上的返回回调、`onNewIntent` 的监听、页面级的配置变化，平台的接口都给不了，只有 `ComponentActivity` 有：
 
 | | 用的是 |
 | --- | --- |
 | 生命周期 | `lifecycle`（`LifecycleEventObserver`）。`addObserver` 会当场把已经发生过的事件补发给新的观察者，那些不是「现在发生了」，不发给 JS |
 | 返回 | `onBackPressedDispatcher` 上一个 `OnBackPressedCallback`。`handlesBack` 就是它开没开 |
 | 配置变化 | `addOnConfigurationChangedListener` |
-| 被链接打开 | `addOnNewIntentListener`，intent 带着地址才发 `openurl` |
-| 内存告警 | `addOnTrimMemoryListener` |
+| 运行中被链接打开 | `addOnNewIntentListener`，intent 带着地址才发 |
 
-都是有人订了才装回调，和别的事件一样延后一轮派发、不可取消。
+都是有人订了才装回调。页面级的状态按页面分开存（`WeakHashMap`，`Page` 只弱引用着页面）。内存告警不在这张表里：它订在 `Application` 上。
 
 ### 返回键：能用属性就用属性
 
-`targetSdk` 37 下预测性返回是强制开着的：系统在手势**开始之前**就要知道 App 接不接返回，好决定播「回到桌面」还是「留在 App 里」的动画。这一刻来不及问 JS，所以照「能用属性就用属性」：JS 提前把 `handlesBack` 设好，原生照着答。`handlesBack` 只有 JS 自己改，没有变化事件。
+`targetSdk` 37 下预测性返回是强制开着的：系统在手势**开始之前**就要知道 App 接不接返回，好决定播「回到桌面」还是「留在 App 里」的动画。这一刻来不及问 JS，所以照「能用属性就用属性」：JS 提前把 `handlesBack` 设好，原生照着答。
 
-**按键也走预测性返回那一套**（实测，Pixel 6，Android 17）：按返回键（三键导航，或者 `input keyevent`）时先来一个 `backstart`，`swipeEdge` 是 `'none'`、`progress` 是 0，紧接着 `back`，中间没有 `backprogress`。从边缘滑是 `backstart`、一串 `backprogress`、`back`（松手）或 `backcancel`（放弃）。Android 13 及以前没有预测性返回，只有 `back`（没在手机上验过）。
+**按键也走预测性返回那一套**（实测，Pixel 6，Android 17）：按返回键（三键导航，或者 `input keyevent`）时先来一个 `backstart`，`swipeEdge` 是 `'none'`、`progress` 是 0、`touchX` / `touchY` 是 `null`，紧接着 `back`，中间没有 `backprogress`。从边缘滑是 `backstart`、一串 `backprogress`、`back`（松手）或 `backcancel`（放弃）。Android 13 及以前没有预测性返回，只有 `back`（没在手机上验过）。
 
 `handlesBack` 为 `false` 时（默认）系统照它自己的做法处理，原生不替 JS 改：
 
-- **从桌面启动的**：Android 12 起根页面按返回是把 App 退到后台，页面不结束。系统只对「从桌面启动的任务」这么做。**没验过**：要人从桌面点开 App、按返回、再点开，看 `main.js` 有没有从头再跑。
-- **adb 启动的（验收就是这样）**：按返回会把页面结束。实测过两种启动法都是这样：`am start -n`，和带上 `MAIN`、`LAUNCHER` 的 `am start`（调用方是 shell，不算桌面）。运行时不跟着页面关（见「自由和挂上」里的「页面的事件」），再打开是同一个进程里的新页面，`main.js` 不再跑；基础那几步的最后一步 `steps/activity-lifecycle.js` 就是这样把页面关掉再打开的。
+- **从桌面启动的**：Android 12 起根页面按返回是把 App 退到后台，页面不结束。系统只对「从桌面启动的任务」这么做。**没验过**：要人从桌面点开 App、按返回、再点开，看是不是同一个页面。
+- **adb 启动的（验收就是这样）**：按返回会把页面结束。实测过两种启动法都是这样：`am start -n`，和带上 `MAIN`、`LAUNCHER` 的 `am start`（调用方是 shell，不算桌面）。运行时不跟着页面关，再打开是同一个进程里的新页面，`main.js` 不再跑。
 - Android 11 上根页面按返回也是结束页面（系统文档的说法，没验过）。
 
 ### 配置变化不重建页面
 
-`project.md` 第 4 节定了配置变化不重建页面，改成给 JS 发事件。壳的 `configChanges` 原来漏了几项，没声明的配置一变，系统就重建页面，`main.js` 从头再跑一遍。这次补上了 `mcc`、`mnc`、`touchscreen`、`colorMode`、`fontWeightAdjustment`（系统设置里的粗体字）、`grammaticalGender`、`assetsPaths`，现在 `ActivityInfo` 里公开的 `CONFIG_` 都声明了。
+`project.md` 第 4 节定了配置变化不重建页面，改成给 JS 发事件。壳的 `configChanges` 声明了 `ActivityInfo` 里公开的全部 `CONFIG_`（`mcc`、`mnc`、`touchscreen`、`colorMode`、`fontWeightAdjustment`、`grammaticalGender`、`assetsPaths` 这几项原来漏了，没声明的配置一变，系统就重建页面）。
 
-`configuration` 是一份快照（值类 `Configuration`，做法和 `WindowInsets` 一样：字段只读、不能 `new`、每次读是新的一份）。字段照 `android.content.res.Configuration`：`orientation`（`'portrait'`、`'landscape'`、`'undefined'`）、`screenWidthDp`、`screenHeightDp`、`smallestScreenWidthDp`、`densityDpi`、`fontScale`、`isNightModeActive`、`locales`（BCP 47 写法，冻结的数组）、`layoutDirection`（`'ltr'`、`'rtl'`）。系统只有一个 `onConfigurationChanged`，所以事件也只有一个 `configurationchange`，JS 读新值自己比。`fontScale` 是 `Float`，直接转 `Double` 会带出 `1.149999976` 这样的尾巴，按它写出来的样子转。
-
-### 被链接打开：壳改成 singleTask
-
-壳的页面原来是默认的启动方式，别的 App 打开一条指向它的链接会**再建一个页面**。改成 `singleTask` 之后，已经在跑的页面收到 `onNewIntent`，发 `openurl`。
-
-- `launchURL`：启动这个页面的 intent 带的地址，从桌面启动是 `null`。`ComponentActivity` 收到新 intent 时不调 `setIntent`，所以它一直是启动时的那个。
-- 冷启动带着的链接读 `launchURL`，运行中来的链接听 `openurl`，两条路不重叠。
+`configuration` 是一份快照（值类 `Configuration`，做法和 `WindowInsets` 一样：字段只读、不能 `new`、每次读是新的一份）：`orientation`（`'portrait'`、`'landscape'`，没定是 `null`）、`screenWidth`、`screenHeight`、`smallestScreenWidth`、`density`、`fontScale`、`isNightModeActive`、`locales`（BCP 47 写法，冻结的数组）、`layoutDirection`（`'ltr'`、`'rtl'`）。系统只有一个 `onConfigurationChanged`，所以事件也只有一个 `configurationchange`，JS 读新值自己比。`Float` 直接转 `Double` 会带出 `1.149999976` 这样的尾巴，按它写出来的样子转。
 
 ### openURL
 
 `ACTION_VIEW` 加 `FLAG_ACTIVITY_NEW_TASK`：打开的 App 放进它自己的任务，不叠在这个 App 的页面上面，切回来时回到的还是这个 App。`startActivity` 没抛就兑现为 `true`；没有 App 能处理（`ActivityNotFoundException`）或者不让打开（`SecurityException`）兑现为 `false`，不拒绝。不带参数当场抛 `TypeError`。没有 `canOpenURL`：Android 11 起要先在清单里声明包可见性才查得到别的 App。
+
+App 在后台时（没有看得见的页面）系统会拦下从后台打开页面，`startActivity` 不抛，兑现的还是 `true`，**没验过**。
 
 ### 内存告警
 
@@ -739,35 +842,48 @@ Java 不替我们管这几样之间的关系，都是实测撞到的（Pixel 6�
 
 ### 明确不做的
 
-- 页面上的 `create`、`destroy` 事件：页面建好、销毁由 `application` 的 `activitycreate` / `activitydestroy` 报告（基础里做的），页面上不再发一份。
+- 页面上的 `create`、`destroy` 事件：页面建好、销毁由 `application` 的 `activitycreate` / `activitydestroy` 报告，页面上不再发一份。订阅不抛，当 JS 自己的自定义事件，永远不会来。
 - 能取消的返回：系统等不了，由 `handlesBack` 提前答。
-- 进程级的前后台（`ProcessLifecycleOwner`）：只有一个页面，和页面的生命周期是一回事。
-
-订阅 `destroy`、`create` 不抛，当 JS 自己的自定义事件，永远不会来。
+- 进程级的前后台（`ProcessLifecycleOwner`）：壳现在只有一个页面，页面的 `start` / `stop` 就是前后台。以后有了几个页面，要不要加单独讨论。
 
 ### 和 iOS 的 application
 
-- **一样的**：`openURL()` 返回 `Promise<boolean>`、失败给 `false` 不拒绝；`openurl` 事件和 `OpenURLEvent` 的 `url`；系统通知都不可取消。
-- **不一样的**：状态和事件照 Android 的 Lifecycle（不是 `active` / `background`）；包信息照 Android 起名；内存告警带级别、叫 `trimmemory`；多了 `handlesBack` 和返回的四个事件、`configuration`、`launchURL`；没有场景、`info`、`state`；`OpenURLEvent` 只有 `url`。
+- **一样的**：`openURL()` 返回 `Promise<boolean>`、失败给 `false` 不拒绝；`openurl` 在 `application` 上，`OpenURLEvent` 的 `url`，带着是哪个页面（iOS 是 `scene`，这里是 `activity`），冷启动的地址也走它、排在页面（场景）来了之后；系统通知都不可取消。
+- **不一样的**：状态和事件照 Android 的 Lifecycle（不是 `active` / `background`），挂在页面上；包信息照 Android 起名；内存告警带级别、叫 `trimmemory`；多了 `handlesBack` 和返回的四个事件、`configuration`；没有场景、`info`、`state`；`OpenURLEvent` 没有 `sourceApplication`，`url` 不是必填（不带是空串，照原来的；iOS 不带抛 `TypeError`）。
 
 ### 验收怎么触发系统事件
 
-JS 打「`[acceptance] <命令> <参数>`」，`run-device.sh` 照做，和 `tap` 并列：`key back`、`backswipe commit|cancel`（从左边缘注入一段手势）、`relaunch`（像从桌面点图标那样切回前台）、`open <网址>`（带着网址打开，触发 `openurl`）、`trim-memory <级别>`、`night yes|no`（切深色模式；改的是手机的设置，脚本退出时还原）。参数要拼进手机上的 shell 命令，只放行网址里常见的字符。
+JS 打「`[acceptance] <命令> <参数>`」，`run-device.sh` 照做，和 `tap` 并列：`key back`、`backswipe commit|cancel`（从左边缘注入一段手势）、`relaunch`（像从桌面点图标那样切回前台）、`open <网址>`（带着网址打开：有页面时触发 `onNewIntent`，没有页面时建一个新页面）、`trim-memory <级别>`、`night yes|no`（切深色模式；改的是手机的设置，脚本退出时还原）。参数要拼进手机上的 shell 命令，只放行网址里常见的字符。
 
-这一步会离开 App 一次（`openURL` 打开浏览器），所以排在要点击的步骤和网络那两步之后。
+这一步排在所有步骤之后：它会离开 App 一次（`openURL` 打开浏览器），最后还按返回把页面关掉、发 `trim-memory COMPLETE`（没有页面时内存告警照样来）、再 `open` 一个网址（新页面建好之后来 `openurl`）。做完之后 `ctx.activity` 是这个新页面。第一个页面（基础那几步的最后一步关掉的）和第二个页面的生命周期也在这一步里核：每个页面都是在 `activitycreate` 里订的。
 
-三处撞到的：
+撞到过的：
 
 - **一下跳回边缘松手，系统当成返回。** 注入的手势要一步一步慢慢滑回边缘、在边缘停一下再松手，系统才认成放弃，发 `backcancel`。
-- **`am send-trim-memory` 同一级只能发一次。** 进程已经收过某一级，再发同一级或者更低的，系统抛「Unable to set a higher trim level than current level」。脚本里手机上的命令失败只打出来，不让整个脚本退出。
+- **`am send-trim-memory` 只能往高里发。** 进程已经收过某一级，再发同一级或者更低的，系统抛「Unable to set a higher trim level than current level」。所以没有页面时发的是最高的 `COMPLETE`。脚本里手机上的命令失败只打出来，不让整个脚本退出。
 - **装新包时系统会把正在跑的 App 再打开一次**（Android 17 的 `PackageUpdateActivity`）。脚本装完包先强制停掉再打开，不受影响；但跑的时候进程要是被杀掉重来、`main.js` 从头再跑一遍，脚本是按「第几条请求」计数的，新的一遍发来的请求会被当成已经做过，JS 那边就一条条等到超时。页面结束不会这样：运行时不跟着页面关。
+
+### 实测（Pixel 6，Android 17）
+
+数是 Release 那一遍的日志里读的；Debug 那一遍断言一样，全过。
+
+- 配置：竖屏 411×914 dp，`smallestScreenWidth` 411，`density` 2.625（420 dpi），`fontScale` 1，`locales` 是 `['zh-Hans-CN']`。
+- 从左边缘滑：注入的手指走到第二个点（屏宽的 1/10，108 像素）时系统认成返回，`backstart` 的 `touchX` 是 41.14 dp、`touchY` 是 457.14 dp（屏幕高度的一半，1200 像素）。滑过去一次 16 个 `backprogress`，`progress` 从 0 到 0.435。按返回键的 `backstart` 两个都是 `null`。
+- 运行中被链接打开（`am start` 带着网址）：页面先 `pause`，再来 `openurl`，再 `resume`。系统交新 intent 之前先把页面暂停，这是 Android 的做法。
+- 带着网址新建页面：`activitycreate` 之后来 `openurl`，在这个页面的 `start`、`resume` 前面（系统在同一条消息里接着做 `onStart`、`onResume`，它们的事件排在后面）。只来一次。
+- 按返回关掉最后一个页面：系统自己发了一个 `background`，派发时已经没有页面；接着发的 `COMPLETE` 也照样到了 `application` 上。页面的 `stop` 延后一轮派发，那时页面已经销毁，`lifecycleState` 读出 `'destroyed'`。离开 App 去浏览器时发的是 `uiHidden`，那时页面还在。
+- 没有页面时包信息照样读得到，`openURL()` 不带参数照样抛 `TypeError`。
+
+验收先在旧实现上跑了一遍：22 条失败，`watchApp` 和 `stepApp` 在旧的 `trimmemory`、`openURL()` 上中途抛了（它们用了删掉的 `application.activity`），`tree.js` 和安全区域读不到 `density`。改完之后 2026-11-27 Debug 1207 条、Release 1206 条通过，都是 0 条失败。
 
 ### 欠的验证
 
 - 从桌面启动时，不接返回按返回键是退到后台、不结束（见上面「返回键」）。
 - 转屏、改字号、改语言时的 `configurationchange`：验收只切了深色模式。
 - Android 11 到 13 上的返回（没有预测性返回，只有 `back`）：手机只有 Android 17 的一台。
-- 别的 App 里点一条链接打开本 App：验收是 `am start -a VIEW -d` 带着网址打开的，没有走浏览器或者别的 App。冷启动带链接时的 `launchURL` 也只是照代码说，没跑过。启动时的 `start`、`resume` 不用外面帮忙：入口一开始就订阅，就接得住。
+- 真正的冷启动（进程不在时被链接打开）：验收是在同一个进程里关掉页面、再带着网址打开的，走的是同一段代码（`onActivityPostCreated`），只是 `main.js` 先跑了。别的 App 里点一条链接打开本 App 也没试过：验收是 `am start -a VIEW -d` 带着网址打开的。
+- 系统重建出来的页面不发 `openurl`（`savedInstanceState`、`FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY` 那两条）：要杀掉进程再从最近任务回来，验收里做不了。
+- App 在后台时 `openURL()` 被系统拦下的样子。
 
 ## 图片
 

@@ -50,9 +50,8 @@ internal class TextDomain(host: DomainHost) : Domain(host) {
         "viewEnd" to View.TEXT_ALIGNMENT_VIEW_END,
     )
 
-    // Gravity 的三张表放在 Gravity.kt，由这里交出去（表名全局唯一，只能一个域登记）
-    override val enums: Map<String, EnumTable<*>> =
-        mapOf("ellipsize" to ellipsizes, "textAlignment" to alignments) + Gravities.enums
+    // Gravity 的三张表在 Gravity.kt，由 LayoutDomain 交给 JS（表名全局唯一，只能一个域登记），这里不再登记
+    override val enums: Map<String, EnumTable<*>> = mapOf("ellipsize" to ellipsizes, "textAlignment" to alignments)
 
     // ---- 取参数（JS 那边已经转好了，这里只校验）----
 

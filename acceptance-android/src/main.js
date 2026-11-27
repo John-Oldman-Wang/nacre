@@ -42,13 +42,13 @@ import { stepSafeArea, watchSafeArea } from './steps/safe-area.js';
 import { stepTree } from './steps/tree.js';
 import { stepActivityLifecycle } from './steps/activity-lifecycle.js';
 import { stepWebSocket } from './steps/websocket.js';
+import { stepLayout } from './steps/layout.js';
+import { stepText } from './steps/text.js';
 // 第二步重写之前先不跑：
 // import { stepAppearance } from './steps/appearance.js';
-// import { stepLayout } from './steps/layout.js';
 // import { stepScroll } from './steps/scroll.js';
 // import { stepAnimation } from './steps/animation.js';
-import { stepText } from './steps/text.js';
-// import { stepApp, watchApp } from './steps/app.js';
+import { stepApp, watchApp } from './steps/app.js';
 // import { stepImage } from './steps/image.js';
 
 /**
@@ -110,7 +110,7 @@ run('activities', () => {
 });
 
 // 页面建好时运行时当场派发，页面的 onCreate 刚跑完、第一帧之前。安全区域要在这一刻就订阅
-// （窗口挂上时的第一次分发要接住）；App 层（第二步打开）的 start、resume 也要在这一刻订阅。
+// （窗口挂上时的第一次分发要接住）；App 层的 start、resume 也要在这一刻订阅。
 // 只收第一个页面：关了再开的那个交给页面那几步的最后一步
 /** @type {Promise<Activity | null>} */
 const created = new Promise((resolve) => {
@@ -121,7 +121,7 @@ const created = new Promise((resolve) => {
     const activity = /** @type {ActivityEvent} */ (e).activity;
     run('onActivityCreate', () => onActivityCreate(/** @type {ActivityEvent} */ (e)));
     run('watchSafeArea', () => watchSafeArea(activity));
-    // run('watchApp', () => watchApp(activity));
+    run('watchApp', () => watchApp(activity));
     resolve(activity);
   }, { once: true });
 });
@@ -140,12 +140,12 @@ const sliceDone = (async () => {
   await runAsync('stepTree', () => stepTree(ctx));
   // 按返回把页面关掉、再打开，之后 ctx.activity 是新页面
   await runAsync('stepActivityLifecycle', () => stepActivityLifecycle(ctx));
+  await runAsync('stepLayout', () => stepLayout(ctx));
+  await runAsync('stepText', () => stepText(ctx));
   // 第二步重写之前先不跑：
   // await runAsync('stepAppearance', () => stepAppearance(ctx));
-  // await runAsync('stepLayout', () => stepLayout(ctx));
   // await runAsync('stepScroll', () => stepScroll(ctx));
   // await runAsync('stepAnimation', () => stepAnimation(ctx));
-  await runAsync('stepText', () => stepText(ctx));
   // await runAsync('stepImage', () => stepImage(ctx));
 })();
 
@@ -169,9 +169,9 @@ const tick = () => {
   if (calm < 5) { setTimeout(tick, 1000); return; }
   console.log('[acceptance] done ' + JSON.stringify(assertStats()));
 };
-// App 层（第二步打开）会离开 App 一次（打开浏览器），等点击和网络都跑完再跑
+// App 层会离开 App（打开浏览器），最后还把页面关掉、带着网址打开一个新页面，等点击和网络都跑完再跑
 Promise.allSettled([sliceDone, networkDone]).then(async () => {
-  // await runAsync('stepApp', () => stepApp(ctx));
+  await runAsync('stepApp', () => stepApp(ctx));
 }).then(() => { setTimeout(tick, 1000); });
 
 topLevelFinished = true;
