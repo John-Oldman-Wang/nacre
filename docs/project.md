@@ -611,7 +611,7 @@ Commit message 格式：
 
 ### 要建设的能力
 
-**先做：** Android：各组照第 4 节的新总则重写（外观、布局、文字、图片、触摸和手势、滚动和动画、App 层），几个会话并行。重写之前这几组在验收里先不跑（`acceptance-android/src/main.js` 里注释掉了），它们还没改的成员只在挂着的视图上能用；App 层的 `openURL`、`trimmemory` 用了已经删掉的 `application.activity`，现在是坏的。
+**先做：** Android：各组照第 4 节的新总则重写（外观、布局、文字、图片、触摸和手势、滚动和动画、App 层），几个会话并行。重写之前这几组在验收里先不跑（`acceptance-android/src/main.js` 里注释掉了），它们还没改的成员只在挂着的视图上能用。
 
 **留着，按需要做：**
 
