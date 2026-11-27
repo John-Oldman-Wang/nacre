@@ -4,9 +4,9 @@
 // 父视图）才挂上，拿下来又变回自由。树记在 JS 里：自由的视图之间也能搭。状态（文字、
 // 内边距、方向）以 JS 为准，自由时写读都行，挂上时才设到原生上；长度是 dp。
 //
-// 像素这一侧基础里没有成员读得出来，借了两个还没改到新规矩的成员（2026-11-26 过渡期）：
-// 布局组的 measuredHeight / measuredWidth（挂着的视图上能用）、App 层的
-// configuration.densityDpi。布局组改成 frame、App 层改成 density 时顺手改这几处。
+// 像素这一侧基础里没有成员读得出来，借了布局组的 frame（排出来的位置和大小，dp：原生的像素
+// 除以页面的密度，期望值照同样的算法算）和 App 层还没改到新规矩的 configuration.densityDpi
+// （2026-11-26 过渡期，App 层改成 density 时顺手改）。
 //
 // 最后一段改手机的显示密度：打「[acceptance] density 560」，android/scripts/run-device.sh
 // 用 adb shell wm density 改，「density restore」还原；脚本退出时（含中途失败）也会还原。
@@ -101,10 +101,10 @@ async function waitForDensity(activity, dpi, ms) {
   return false;
 }
 
-/** 布局组的旧成员：挂着时读原生排出来的像素 @param {View} v */
-const measuredHeight = (v) => /** @type {any} */ (v).measuredHeight;
+/** 布局组的 frame：排出来的高，dp；还没排过版是 null @param {View} v */
+const frameHeight = (v) => { const f = /** @type {any} */ (v).frame; return f === null ? null : f.height; };
 /** @param {View} v */
-const measuredWidth = (v) => /** @type {any} */ (v).measuredWidth;
+const frameWidth = (v) => { const f = /** @type {any} */ (v).frame; return f === null ? null : f.width; };
 
 /** @param {import("../main.js").StepContext} ctx */
 export async function stepTree(ctx) {
@@ -322,15 +322,15 @@ export async function stepTree(ctx) {
   away.paddingTop = 10;
   screen.addView(away);
   await sleep(300);
-  assert('挂上之后内边距按密度换成像素', measuredHeight(pad), px(10, density) + px(20.5, density));
+  assert('挂上之后内边距按密度换成像素', frameHeight(pad), (px(10, density) + px(20.5, density)) / density);
   pad.paddingTop = 30;
   await sleep(300);
-  assert('挂着时写的内边距当场设到原生', measuredHeight(pad), px(30, density) + px(20.5, density));
+  assert('挂着时写的内边距当场设到原生', frameHeight(pad), (px(30, density) + px(20.5, density)) / density);
   const tiny = new LinearLayout();
   tiny.paddingTop = 0.1;
   screen.addView(tiny);
   await sleep(300);
-  assert('不是 0 的内边距至少 1 像素', measuredHeight(tiny), 1);
+  assert('不是 0 的内边距至少 1 像素', frameHeight(tiny), 1 / density);
   screen.removeView(away);
 
   // TextView 带着系统主题建：默认的内边距应该是 0（不是的话要回去讨论默认值）。
@@ -346,7 +346,7 @@ export async function stepTree(ctx) {
   screen.addView(row);
   await sleep(300);
   assert('TextView 主题给的内边距是 0（宽高和四边写了 0 的一样）',
-         measuredWidth(themed) + 'x' + measuredHeight(themed), measuredWidth(zeroed) + 'x' + measuredHeight(zeroed));
+         frameWidth(themed) + 'x' + frameHeight(themed), frameWidth(zeroed) + 'x' + frameHeight(zeroed));
 
   // ===== 密度变了：挂着的视图里 dp 的状态按新密度重设 =====
   const targetDpi = startDpi === 560 ? 480 : 560;
@@ -354,13 +354,13 @@ export async function stepTree(ctx) {
   assert('手机的显示密度改过来了', await waitForDensity(activity, targetDpi, 10000), true);
   await sleep(500);
   const density2 = densityOf(activity);
-  assert('密度变了，挂着的内边距按新密度重设', measuredHeight(pad), px(30, density2) + px(20.5, density2));
+  assert('密度变了，挂着的内边距按新密度重设', frameHeight(pad), (px(30, density2) + px(20.5, density2)) / density2);
   assert('JS 里的值不变（还是 dp）', pad.paddingTop, 30);
   screen.addView(away);
   await sleep(300);
-  assert('拿下来时密度变了，放回去之后按新密度设', measuredHeight(away), px(10, density2));
+  assert('拿下来时密度变了，放回去之后按新密度设', frameHeight(away), px(10, density2) / density2);
   console.log('[acceptance] density restore');
   assert('手机的显示密度还原了', await waitForDensity(activity, startDpi, 10000), true);
   await sleep(500);
-  assert('密度还原之后内边距也跟着回来', measuredHeight(pad), px(30, density) + px(20.5, density));
+  assert('密度还原之后内边距也跟着回来', frameHeight(pad), (px(30, density) + px(20.5, density)) / density);
 }
