@@ -1,39 +1,52 @@
-// App 层：application 的包信息、openURL()、trimmemory；activity（App 唯一的页面）的
-// 生命周期、返回、配置、被链接打开。原生那一侧是 AppDomain.kt。
+// App 层：application 的包信息、openURL()、trimmemory、openurl；页面（activity）的生命周期、
+// 返回、配置。原生那一侧是 AppDomain.kt。
 //
 // 这是内置脚本的一个 part：整个文件就是一个函数表达式，运行时按文件名
 // 顺序编译执行，拿到函数之后用共享的 ctx 调一次。
 //
 // 成员加在已有的 Application（21-application.js）和 Activity（10-view.js）上，不改那两个文件。
+//
+// 运行时跟着 App 生死，页面来来去去，可能一个都没有，所以整个 App 的事不经过页面：
+// application 在这里绑上这个进程的 Application 对象（原生的 construct 交回 App 本身），
+// 包信息、openURL()、trimmemory 都直接走它。被链接打开是哪个页面收到的，原生发在那个页面上
+// （内部的名字 @openurl），这里转成 application 上的 openurl，带上 activity。
 (function (ctx) {
   'use strict';
 
   const {
+    Activity,
     Application,
     Event,
     application,
     define,
     defineEventClass,
+    describeValue,
+    eventClasses,
+    kHandle,
     kSubscribe,
+    native,
     nativeCallAsync,
-    nativeClassCallValue,
     nativeGet,
     nativeSet,
     subscribeNative,
     toText,
   } = ctx;
 
-  // 10-view.js 定义的页面类。这时 App 的代码还没跑，全局上的就是它
-  const Activity = globalThis.Activity;
+  // ---- application 绑上 App 本身 ----
+
+  const handle = native.construct('Application', [], [], application);
+  if (!handle) throw new Error('internal: cannot bind application to the Android Application');
+  Object.defineProperty(application, kHandle, { value: handle });
 
   // ---- 事件类 ----
 
-  // 预测性返回的手势：开始、进行中。progress 是 0 到 1；touchX、touchY 是手指在窗口里的
-  // 位置，单位像素；swipeEdge 是从哪条边滑进来的（'left'、'right'，按返回键这类没有边的是 'none'）
+  // 预测性返回的手势：开始、进行中。progress 是 0 到 1；touchX、touchY 是手指在窗口里的位置，
+  // 单位 dp，按返回键这类没有手指的是 null；swipeEdge 是从哪条边滑进来的（'left'、'right'，
+  // 没有边的是 'none'）
   const BackEvent = defineEventClass('BackEvent', Event, {
     progress: ['number', 0],
-    touchX: ['number', 0],
-    touchY: ['number', 0],
+    touchX: ['number?', null],
+    touchY: ['number?', null],
     swipeEdge: ['string', 'none'],
   });
 
@@ -42,16 +55,33 @@
     level: ['string', ''],
   });
 
-  // 运行中被一条链接打开。url 是 intent 带的地址，原样
+  // 被一条链接打开。url 是 intent 带的地址，原样；activity 是收到它的页面，必填
   const OpenURLEvent = defineEventClass('OpenURLEvent', Event, {
     url: ['string', ''],
+    activity: ['any', null],
+  }, {
+    check(o) {
+      if (!(o.activity instanceof Activity)) {
+        throw new TypeError("Failed to construct 'OpenURLEvent': init.activity must be an Activity, got " +
+                            describeValue(o.activity));
+      }
+    },
   });
+
+  // 原生发在页面上的 @openurl 用的事件类：只带 url，不挂全局
+  class OpenURLNotice extends Event {
+    constructor(type, init) {
+      super(type, init);
+      this.url = init.url;
+    }
+  }
+  eventClasses.set('@OpenURLNotice', OpenURLNotice);
 
   // ---- Configuration：系统给的一份配置快照 ----
 
   const kToken = Symbol('configuration');
-  const configurationFields = ['orientation', 'screenWidthDp', 'screenHeightDp', 'smallestScreenWidthDp',
-                               'densityDpi', 'fontScale', 'isNightModeActive', 'locales', 'layoutDirection'];
+  const configurationFields = ['orientation', 'screenWidth', 'screenHeight', 'smallestScreenWidth',
+                               'density', 'fontScale', 'isNightModeActive', 'locales', 'layoutDirection'];
 
   class Configuration {
     #values;
@@ -80,9 +110,9 @@
 
   // ---- 页面上的成员 ----
 
-  // 原生真的会发的事件。别的名字（create、destroy……）是 JS 自己的自定义事件
+  // 原生真的会发的事件。别的名字（create、destroy、openurl……）是 JS 自己的自定义事件
   const appActivityEvents = new Set(['start', 'resume', 'pause', 'stop', 'back', 'backstart',
-                                     'backprogress', 'backcancel', 'configurationchange', 'openurl']);
+                                     'backprogress', 'backcancel', 'configurationchange', '@openurl']);
   const baseSubscribe = Activity.prototype[kSubscribe];
   Activity.prototype[kSubscribe] = function (type, on) {
     if (appActivityEvents.has(type)) subscribeNative(this, type, on);
@@ -96,12 +126,7 @@
       get() { return nativeGet(this, 'lifecycleState'); },
       enumerable: true, configurable: true,
     },
-    // 启动这个页面的 intent 带的地址，没有是 null。运行中再被打开不会变（那是 openurl 事件）
-    launchURL: {
-      get() { return nativeGet(this, 'launchURL'); },
-      enumerable: true, configurable: true,
-    },
-    // 屏幕方向、尺寸、字号、深色模式、语言……的一份快照，每次读是新的一份。
+    // 屏幕方向、尺寸（dp）、密度、字号、深色模式、语言……的一份快照，每次读是新的一份。
     // 变化时有 configurationchange
     configuration: {
       get() { return makeConfiguration(nativeGet(this, 'configuration')); },
@@ -120,7 +145,7 @@
 
   let packageInfo = null;
   function info() {
-    if (packageInfo === null) packageInfo = nativeClassCallValue('@application', 'packageInfo', []);
+    if (packageInfo === null) packageInfo = nativeGet(application, 'packageInfo');
     return packageInfo;
   }
 
@@ -132,28 +157,37 @@
   });
 
   // 把一个地址交给系统打开（ACTION_VIEW）。打开了兑现为 true；没有 App 能处理兑现为 false，
-  // 不拒绝
+  // 不拒绝。用 App 的环境打开，没有页面时也能调
   define(Application.prototype, 'openURL', function openURL(url) {
     if (arguments.length < 1) {
       throw new TypeError("Failed to execute 'openURL' on 'Application': 1 argument required, but only 0 present.");
     }
-    return nativeCallAsync(this.activity, 'openURL', [toText(url)]);
+    return nativeCallAsync(this, 'openURL', [toText(url)]);
   });
 
-  // 内存告警是整个 App 的事，挂在 application 上。application 没有原生对象，原生把它发在
-  // 页面上（内部的名字 @trimmemory），这里转过来
-  const forwardTrimMemory = (e) => {
-    application.dispatchEvent(new TrimMemoryEvent('trimmemory', { level: e.level }));
+  // openurl：application 上有人订时，每个页面（现在有的、以后建的）都订着 @openurl，转过来
+  let watchingOpenURL = false;
+  const forwardOpenURL = (e) => {
+    application.dispatchEvent(new OpenURLEvent('openurl', { url: e.url, activity: e.target }));
   };
+  function watchOpenURL(activity, on) {
+    if (on) activity.addEventListener('@openurl', forwardOpenURL);
+    else activity.removeEventListener('@openurl', forwardOpenURL);
+  }
+  // 21-application.js 先把页面登记进 activities 再派发，这个监听器排在 App 的前面
+  application.addEventListener('activitycreate', (e) => {
+    if (watchingOpenURL) watchOpenURL(e.activity, true);
+  });
+
+  const baseAppSubscribe = Application.prototype[kSubscribe];
   Application.prototype[kSubscribe] = function (type, on) {
-    if (type !== 'trimmemory') return;
-    const activity = this.activity;
-    if (on) {
-      activity.addEventListener('@trimmemory', forwardTrimMemory);
-      subscribeNative(activity, '@trimmemory', true);
-    } else {
-      subscribeNative(activity, '@trimmemory', false);
-      activity.removeEventListener('@trimmemory', forwardTrimMemory);
+    if (type === 'trimmemory') {
+      subscribeNative(this, type, on);
+    } else if (type === 'openurl') {
+      watchingOpenURL = on;
+      for (const activity of this.activities) watchOpenURL(activity, on);
+    } else if (typeof baseAppSubscribe === 'function') {
+      baseAppSubscribe.call(this, type, on);
     }
   };
 

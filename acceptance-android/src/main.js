@@ -48,7 +48,7 @@ import { stepAppearance } from './steps/appearance.js';
 // import { stepScroll } from './steps/scroll.js';
 // import { stepAnimation } from './steps/animation.js';
 // import { stepText } from './steps/text.js';
-// import { stepApp, watchApp } from './steps/app.js';
+import { stepApp, watchApp } from './steps/app.js';
 // import { stepImage } from './steps/image.js';
 
 /**
@@ -110,7 +110,7 @@ run('activities', () => {
 });
 
 // 页面建好时运行时当场派发，页面的 onCreate 刚跑完、第一帧之前。安全区域要在这一刻就订阅
-// （窗口挂上时的第一次分发要接住）；App 层（第二步打开）的 start、resume 也要在这一刻订阅。
+// （窗口挂上时的第一次分发要接住）；App 层的 start、resume 也要在这一刻订阅。
 // 只收第一个页面：关了再开的那个交给页面那几步的最后一步
 /** @type {Promise<Activity | null>} */
 const created = new Promise((resolve) => {
@@ -121,7 +121,7 @@ const created = new Promise((resolve) => {
     const activity = /** @type {ActivityEvent} */ (e).activity;
     run('onActivityCreate', () => onActivityCreate(/** @type {ActivityEvent} */ (e)));
     run('watchSafeArea', () => watchSafeArea(activity));
-    // run('watchApp', () => watchApp(activity));
+    run('watchApp', () => watchApp(activity));
     resolve(activity);
   }, { once: true });
 });
@@ -169,9 +169,9 @@ const tick = () => {
   if (calm < 5) { setTimeout(tick, 1000); return; }
   console.log('[acceptance] done ' + JSON.stringify(assertStats()));
 };
-// App 层（第二步打开）会离开 App 一次（打开浏览器），等点击和网络都跑完再跑
+// App 层会离开 App（打开浏览器），最后还把页面关掉、带着网址打开一个新页面，等点击和网络都跑完再跑
 Promise.allSettled([sliceDone, networkDone]).then(async () => {
-  // await runAsync('stepApp', () => stepApp(ctx));
+  await runAsync('stepApp', () => stepApp(ctx));
 }).then(() => { setTimeout(tick, 1000); });
 
 topLevelFinished = true;
