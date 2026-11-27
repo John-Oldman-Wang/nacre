@@ -5,8 +5,8 @@
 // 内边距、方向）以 JS 为准，自由时写读都行，挂上时才设到原生上；长度是 dp。
 //
 // 像素这一侧基础里没有成员读得出来，借了两个还没改到新规矩的成员（2026-11-26 过渡期）：
-// 布局组的 measuredHeight / measuredWidth（挂着的视图上能用）、App 层的
-// configuration.densityDpi。布局组改成 frame、App 层改成 density 时顺手改这几处。
+// 布局组的 measuredHeight / measuredWidth（挂着的视图上能用，布局组改成 frame 时顺手改）。
+// 密度用 App 层的 configuration.density（1 dp 是几个像素）。
 //
 // 最后一段改手机的显示密度：打「[acceptance] density 560」，android/scripts/run-device.sh
 // 用 adb shell wm density 改，「density restore」还原；脚本退出时（含中途失败）也会还原。
@@ -86,7 +86,7 @@ function px(dp, density) {
 }
 
 /** @param {Activity} activity */
-const densityOf = (activity) => /** @type {any} */ (activity).configuration.densityDpi / 160;
+const densityOf = (activity) => activity.configuration.density;
 
 /**
  * 等页面的密度变成 dpi，最多等 ms 毫秒。等到了是 true
@@ -95,7 +95,7 @@ const densityOf = (activity) => /** @type {any} */ (activity).configuration.dens
 async function waitForDensity(activity, dpi, ms) {
   const end = Date.now() + ms;
   while (Date.now() < end) {
-    if (/** @type {any} */ (activity).configuration.densityDpi === dpi) return true;
+    if (activity.configuration.density === dpi / 160) return true;
     await sleep(200);
   }
   return false;
@@ -310,7 +310,7 @@ export async function stepTree(ctx) {
   // ===== 像素：挂上时 dp 按页面的密度换成像素 =====
   activity.contentView = screen;
   const density = densityOf(activity);
-  const startDpi = /** @type {any} */ (activity).configuration.densityDpi;
+  const startDpi = density * 160;
   console.log('  实测：密度 ' + startDpi + ' dpi（1 dp = ' + density + ' 像素）');
   // 只有内边距的空布局，在竖排的布局里高度就是上下内边距之和
   const pad = new LinearLayout();
