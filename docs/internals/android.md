@@ -201,11 +201,13 @@ ctx.defineViewState(TextView, 'text', {
   convert: (v) => toText(v),                   // 写入时在 JS 里转换、校验
   apply: (standIn, value) => nativeSet(standIn, 'text', value),   // 设到原生
   // units: 'dp' | 'sp'                        // 配置变化时要不要重设
+  // applyInitial: true                         // 没写过也按 initial 设到原生（文字组加的，见下）
 });
 ```
 
 - `order`：基础用了方向 100、内边距 300、文字 500，留着空隙。背景要排在内边距前面（换背景会改掉内边距）。一样的按登记的先后。
 - `initial` **必须等于新建的原生对象的默认值**：没写过的状态不设到原生，省掉每个视图几十次过桥。
+- `applyInitial: true`：没写过也按 `initial` 设到原生，挂上时、配置变化时都设。给原生的默认值跟不上配置变化的状态用。文字组加的，现在只有 `TextView.textSize` 用：主题给的字号是建的时候按当时的密度、系统字号取整的像素，之后系统字号变了它不跟着变（实测，见「文字」）。
 - `convert`：类型不对直接抛；属性位写错（枚举名）打警告后返回 `ctx.IGNORE`，值不变。
 - `apply(替身, 值, 页面, 视图)`：页面是 `{ density, fontScale }`；几个状态合成一次原生调用的（四个内边距是一个 `setPaddingRelative`）从视图上读别的，所以写入时先存、再设，原生拒了再还原。
 - 另外几个助手：`ctx.attachedNative(view)`（挂着时是替身，不然 `null`，页面值用）、`ctx.requireAttached(view, what)`（动作用，自由时抛 `InvalidStateError`）、`ctx.px(page, dp)` / `ctx.dp(page, px)`。
@@ -227,7 +229,7 @@ ctx.defineViewState(TextView, 'text', {
 - `ViewDomain` 订页面（`ComponentActivity`）的配置变化，`density` 或 `fontScale` 和上次不一样，就**当场**发内部的 `@metricschange`（`Emitter.plainNow`，不排到下一轮：要赶在下一次排版之前）。JS 把这个页面上挂着的整棵树里写过的 `dp` 状态（密度变了）和 `sp` 状态（密度或字号变了）重设一遍。拿下来的视图不在树上，放回去时整个重设，用的是那时的密度。
 - 壳不用改：页面是 `ComponentActivity`，壳的 `configChanges` 早就接住了 `density` 和 `fontScale`，页面不重建。
 - 实测（Pixel 6，Android 17）：手机本来是 420 dpi（1 dp = 2.625 像素）。上 10、下 20.5 dp 的空布局量出来 80 像素；`wm density 560` 之后同一个视图变成 177 像素（上边先改成了 30 dp），拿下来时密度变了、放回去的那个按 3.5 设成 35；还原之后回到 133。基础里没有读得出像素的成员，验收借了布局组的 `frame`（dp，期望值照「像素除以页面的密度」算），密度读 App 层的 `configuration.density`。
-- `sp` 那一支（字号）基础里没有成员用，文字组第二步验。
+- `sp` 那一支文字组验了：系统字号改成 2，跟着 `fontScaling` 的字号、行高都按新的字号重设，见「文字」。
 
 ### 页面的事件：运行时跟着 App 生死
 
@@ -255,11 +257,11 @@ ctx.defineViewState(TextView, 'text', {
 
 ### 过渡期
 
-第一步改了所有组都依赖的机制，已经合进来的外观、文字、图片、滚动和动画第二步按新总则重写之前（布局、App 层已经改完）：
+第一步改了所有组都依赖的机制，已经合进来的外观、图片、滚动和动画第二步按新总则重写之前（布局、App 层、文字已经改完）：
 
 - 它们的内置脚本照样加载，构造照样能用（多给的 `context` 不管）。
 - 还没改的成员在挂着的视图上照样能用：`nativeGet` / `nativeSet` / `nativeCall` 这几个助手碰到公开的视图，挂着就走它的替身；自由或拿下来时抛 `InvalidStateError`。对象参数是自由的视图时传 `null`，原生按类型不对拒掉。
-- 验收里这 7 步先注释掉（`acceptance-android/src/main.js`），哪组改完打开自己那几行。
+- 验收里这几步先注释掉（`acceptance-android/src/main.js`），哪组改完打开自己那几行。
 
 ### 验收
 
@@ -627,23 +629,100 @@ ConstraintLayout.LayoutParams 的字段怎么合进来的（「一件事只说�
 
 ## 文字
 
-落在已有的 `TextView` 上，加一个新类 `Typeface`。除了字号、颜色、字体、对齐、行数、省略号、行高、字间距、可选中、测量，还有字体特性（`fontFeatureSettings`，比如等宽数字）、可变字体的轴、按基线定高、自动缩字号、下划线和删除线、文字阴影。原生是 `TextDomain.kt`（`View`、`TextView` 在 `ViewDomain` 里已经登记过，这里再登记一次，JS 类名一样，为的是问到它们的成员时也问这个域），JS 是 `32-text.js`：往 `TextView`、`View` 的原型上加成员，不改 `10-view.js`。验收是 `steps/text.js`。
+落在已有的 `TextView` 上，加一个新类 `Typeface`；`View` 上加 `textAlignment`。原生是 `TextDomain.kt`（`View`、`TextView` 在 `ViewDomain` 里已经登记过，这里再登记一次，JS 类名一样，为的是问到它们的成员时也问这个域），JS 是 `32-text.js`：往 `TextView`、`View` 的原型上加成员，不改 `10-view.js`。验收是 `steps/text.js`。
 
-### 成员怎么起名
+2026-11-27 照「接类的总则」重写（第二步）。原来照 Java 的那一版（`setTextSize(unit, size)`、`setTextColor` 加 `currentTextColor`、`paintFlags`、`setShadowLayer`……）整个换掉了。
 
-照「getter 和 setter 名字对得上才合成一个属性，和 Kotlin 一样」，结果有几处和直觉不同，都是照 Java 来的：
+### 成员，按四类
 
-- **`textSize` 只读，写走 `setTextSize()`**：唯一一处不照 Kotlin。`getTextSize()` 是像素，`setTextSize(16)` 是 sp，Kotlin 把它们合成一个属性，写 16 读出来是 42。所以属性只读（像素），写有两个方法，都和 Java 对得上：`setTextSize(size)`（sp）、`setTextSize(unit, size)`，单位是 `TypedValue.COMPLEX_UNIT_*` 去前缀：`'px' | 'dip' | 'sp' | 'pt' | 'in' | 'mm'`。`textSizeUnit` 只读。用户定的。
-- 没有 `getTextColor()`，所以是 `setTextColor(color)` 加只读的 `currentTextColor`。
-- `isTextSelectable()` 和 `setTextIsSelectable()` 名字对不上，所以是只读的 `isTextSelectable` 加方法。
-- `lineSpacingExtra`、`lineSpacingMultiplier` 只读，两个一起用 `setLineSpacing(add, mult)` 设。
-- `typeface` 的读走「返回对象的方法」那条通道（`getTypeface`）：Android 的桥上没有读对象属性的通道，也用不着加。
-- `setFontVariationSettings()` 有返回值（有没有字体文件用上了），Kotlin 不把它合成属性，所以是只读的 `fontVariationSettings` 加方法；`fontFeatureSettings` 是普通的可空字符串属性。
-- 自动缩字号：`autoSizeTextType` 只读（setter 叫 `setAutoSizeTextTypeWithDefaults`，名字对不上），另外两个方法照 Java 按位置传，单位和 `setTextSize` 一样。几个读数都是像素。
+**状态**（JS 设、JS 读，读回写进去的值；自由时只记在 JS，挂上时按 `order` 设到原生）：
 
-枚举：`gravity` 是 `Gravity` 的位掩码，用字符串数组，规则和布局组（`LinearLayout.gravity`、`LayoutParams` 的 gravity）一样：每个方向最多一个名字，外加两个裁切的开关；不收 `center`、`fill` 这种两个方向合起来的名字（读出来总是拆开的，收了就写进去和读出来不一样）；读出的顺序是横向、竖直、裁切。表和规则在 `Gravity.kt`，布局组的 `LayoutDomain` 也用它（一开始两组各写了一份，规则和文案一样，文字组后合进来时收成了一份）。TextView 自己会给没写的方向补默认（只写 `['bottom']` 读出 `['start', 'bottom']`）。一开始文字组的规则不同（收 `center`、同一方向的名字照 Java 位或、竖直在前），和布局组对过之后用户定了照布局组。`ellipsize` 是 `TextUtils.TruncateAt`（Java 的 enum，照同一条规矩），`null` 是不加省略号。`paintFlags` 是 `Paint.*_FLAG` 的位掩码，去掉 `_FLAG` 转驼峰（`'underlineText'`、`'strikeThruText'`……），写的时候只换表里的这几位，表外的位原样留着（免得清掉系统私下设的）；实测 TextView 默认是 `['antiAlias', 'filterBitmap', 'devKernText', 'embeddedBitmapText']`。`textAlignment` 在 `View` 上。
+| 成员 | 类型 | 没写过时 | 说明 |
+| --- | --- | --- | --- |
+| `text` | 字符串 | `''` | 基础里的，`order` 500 |
+| `typeface` | `Typeface` 或 `null` | `Typeface.DEFAULT` | `null` 是系统默认的字体 |
+| `fontVariationSettings` | 字符串或 `null` | `null` | CSS 的写法（`"'wght' 700"`），写法不对打警告 |
+| `fontFeatureSettings` | 字符串或 `null` | `null` | CSS 的写法（`"'tnum'"`） |
+| `textSize` | 数，≥ 0 | `14` | 系统字号为 1 时的 dp |
+| `fontScaling` | 布尔 | `true` | `true` 用 sp 设（跟着系统字号放大，含 Android 14 起的非线性），`false` 用 dp |
+| `letterSpacing` | 数 | `0` | em |
+| `includeFontPadding` | 布尔 | `true` | |
+| `lineHeight` | 数（≥ 0）或 `null` | `null` | dp，跟着 `fontScaling`；`null` 是字体自己的行高 |
+| `firstBaselineToTopHeight`、`lastBaselineToBottomHeight` | 数（≥ 0）或 `null` | `null` | dp，跟着 `fontScaling` |
+| `textColor`、`highlightColor` | CSS 的颜色字符串 | `'#000000de'`、`'#00857766'` | 原样读回 |
+| `textShadow` | `null` 或 `{ radius, dx, dy, color }` | `null` | dp；四项都要给，读出冻结的副本 |
+| `isUnderlineText`、`isStrikeThruText` | 布尔 | `false` | |
+| `gravity` | 名字的数组 | `['start', 'top']` | 原样读回（冻结的副本），不补没写的方向 |
+| `textAlignment`（在 `View` 上） | 枚举 | `'gravity'` | 原样读回，`'inherit'` 也是 |
+| `maxLines` | 整数（≥ 0）或 `null` | `null` | `null` 是不限（Java 的 `Integer.MAX_VALUE`） |
+| `minLines` | 整数，≥ 0 | `0` | |
+| `ellipsize` | 枚举或 `null` | `null` | |
+| `isTextSelectable` | 布尔 | `false` | |
+| `autoSize` | `null`、`{ min, max, step }` 或 `{ sizes }` | `null` | dp，跟着 `fontScaling`；读出冻结的副本 |
 
-颜色照外观组：CSS 写法的字符串，用 `30-appearance.js` 放在 `ctx` 上的 `colorArgument` / `colorProperty` / `colorText` 解析和写回，原生收发 ARGB 的无符号数。枚举用 `Enums.kt` 的 `EnumTable`：属性位写错抛 `NacreWarning`（桥打警告、值不变），方法参数写错抛 `NacreTypeError`；文案里的名字是属性名或参数名，不带类名，和外观、布局两组一样。
+**页面值**（自由时 `null`；挂着但还没排过版时 `lineCount`、`baseline` 也是 `null`）：`resolvedTextSize`（实际画字用的字号，dp，算进了系统字号和自动缩字号）、`lineCount`、`baseline`（dp）。
+
+**动作**、**事件**：这一组没有。
+
+**`Typeface`** 是值对象：建出来就有原生对象，不分自由和挂上，不可变，不能 `new`。`DEFAULT`、`SANS_SERIF`、`SERIF`、`MONOSPACE`（实测 `DEFAULT` 和 `SANS_SERIF` 是同一个对象）；`create(family, { weight, italic })`，`family` 是 `Typeface`、字体族的名字或 `null`，没给的那一项照 `family` 自己的，两项都没给就是 `family` 本身（`create(Typeface.SERIF) === Typeface.SERIF`），`weight` 不在 1–1000 抛 `RangeError`；`createFromAsset(path)`；实例上只读的 `weight`、`isItalic`。
+
+删掉的：`setTextSize`、`textSizeUnit`、`setTextColor`、`currentTextColor`、`setTypeface(tf, style)`、`setLines`、`setLineHeight`、`setLineSpacing`、`lineSpacingExtra` / `Multiplier`、`setTextIsSelectable`、`setFontVariationSettings`、自动缩字号的 7 个成员、`paintFlags`、`setShadowLayer` 和四个 `shadow*`；`Typeface` 的 `DEFAULT_BOLD`、`defaultFromStyle`、`style`、`isBold`。验收里逐个断言它们不在了。
+
+写错时：类型不对抛 `TypeError`（`textSize = 'abc'`、`gravity = 'top'`、`autoSize` 少了一项、同时给 `sizes` 和 `min`）；超出范围抛 `RangeError`（负的字号、行高、行数，`autoSize` 的 `max` 不比 `min` 大）；枚举名、颜色、可变字体轴的写法写错打警告、值不变，措辞和别的组一样。`Gravity` 的规则还是布局组那一套（每个方向最多一个名字，外加两个裁切的开关，不收 `center`、`fill`），在 JS 里查，名字表在 `Gravity.kt` 的 `Gravities.enums`（三张表 `gravityHorizontal` / `gravityVertical` / `gravityClip`），表名全局唯一，由布局组的 `LayoutDomain` 登记，文字组直接取。
+
+### 字体那几项的先后和牵连
+
+Java 不替我们管这几样之间的关系，都是实测撞到的（Pixel 6，Android 17）：
+
+- **换了字号，行高不跟着**：40 像素的字设了 60 像素的行高，字号改成 20 之后行高读出 37。`setLineHeight` 是按当时的字体度量换成「额外的行距」存的。
+- **换了字号，首末基线也不跟着**：`firstBaselineToTopHeight` 设 100，字号从 40 改成 20 之后读出 79，同样是按当时的字体度量换成内边距存的。要的距离比字体自己的还小时 Java 不动内边距（设 10 读出 43）。
+- **换了字体，可变字体的轴不跟过去**；轴的写法和上次一样时 `setFontVariationSettings` 什么都不做；清掉轴（设 `null`）是在当前已经带着轴的字体上再派生，留着上一次的（`'wght' 900` 之后设 `null`，字宽 276 像素，没设过是 270）；没有一个字体认得的轴返回 `false`、留着上一次的。
+- **自动缩字号开着时 `setTextSize` 不起作用**；关掉时字号停在缩过的那个。
+
+所以：挂上时按「字体和轴 510 → 字号 520 → 行高 530 → 首末基线 540 → 自动缩字号 590」的顺序设；挂着时改了前面的，后面写过的跟着重设（`32-text.js` 的 `refreshMetrics`）。字体和轴总是一起设（`@font`）：先清掉轴、换回 JS 的字体，再设轴，没人认得的轴就等于没设。`autoSize` 改成 `null` 时把 `textSize`（开着时写的也算）设回去。
+
+**首末基线和内边距**：Java 是靠改上下内边距实现首末基线的，`paddingTop` 和 `firstBaselineToTopHeight` 改的是原生的同一个值。定的是：写了基线的一边盖过内边距，`null` 的一边用 JS 的内边距，不管先写哪个，屏幕上都一样。`TextView` 的四个内边距在这个文件里包了一层：基础的 setter 设完之后，写了基线的再按基线重算。要的距离比字体自己的还小时内边距是 0（Java 是不动它）。验收：基线 60 dp，改字号、写 `paddingTop = 5` 之后 `baseline` 都还是 60 dp，`paddingTop` 读出 5；基线改回 `null`，和只写了 `paddingTop = 5` 的一样。
+
+### 系统字号：sp 这一支
+
+- **Java 自己不重算**。实测把系统字号改成 2（壳的 `configChanges` 接住了 `fontScale`，页面不重建）：主题给的默认字号（37 像素）、`setTextSize(14)`（36.75 像素）、`setLineHeight(sp, 30)`（79 像素）都不变，只有之后新建的 `TextView` 是 68 像素。所以跟着 `fontScaling` 的几个都登记成 `units: 'sp'`，系统字号或密度变了由 JS 重设（基础的机制）。
+- **没写过的字号也要设**：主题给的是建的时候按当时的密度、系统字号取整的像素（14 sp 在 2.625 的密度下是 36.75，主题给的是 37），之后也不跟着变。基础的机制只重设写过的，所以在 `10-view.js` 的 `defineViewState` 加了 `applyInitial`（见上面「登记状态」），`textSize` 用它：挂上时、配置变化时没写过也按 14 设。代价是每个 `TextView` 挂上时多一次过桥。
+- 换算用 Java 自己的（`setTextSize(COMPLEX_UNIT_SP / DIP, …)`、Android 14 起的 `setLineHeight(unit, …)`、自动缩字号和首末基线用 `TypedValue.applyDimension`），非线性放大由系统算。
+- 实测：系统字号 2 时，14 → 26 dp、100 → 100 dp（非线性：大字基本不放大），没写过的也是 26；`fontScaling = false` 的还是 14；行高 40 的 `TextView`，跟着放大的变高了，不放大的高度不变；之后才挂上的和挂着的一样大；还原之后都回到 14。验收脚本加了 `[acceptance] fontscale <倍数>|restore`（`adb shell settings put system font_scale`），和 `density` 一样，脚本退出时（含中途失败）一定还原。
+- 密度变了走的是同一条路（`'sp'` 在密度变了时也重设），文字这一组没有单独验。
+
+### 不带默认样式时的默认值（实测）
+
+建 `TextView` 改成 `TextView(context, null, 0)`（`ViewDomain.construct`，只改这一行），不带主题的 `textViewStyle`。但主题本身的 `textAppearance`（AOSP 的 `TextAppearance.Material`）还在，它给的是：
+
+| | 带默认样式（原来） | 不带（现在） |
+| --- | --- | --- |
+| 字号 | 14 sp（37 像素） | 一样 |
+| 文字颜色 | `#0000008a`（次要文字色：默认样式用的是 `TextAppearance.Small`） | `#000000de`（主文字色） |
+| 选中的底色 | `#00857766` | 一样 |
+| 字体 | `Typeface.DEFAULT` | 一样 |
+
+别的（`gravity` 是 `top | start`、`maxLines` 不限、`minLines` 0、行距 (0, 1)、内边距 0、字间距 0、`includeFontPadding` 开着、不能选中、没有字体特性和轴、不自动缩字号、没有阴影、没有下划线和删除线、`textAlignment` 是 `gravity`）两种一样。`textAlignment` 原生的默认是 `gravity` 不是 `inherit`：放在 `textEnd` 的父视图里、没写过的子视图读出 `gravity`。
+
+主题给的文字颜色是一组按状态变的颜色（禁用时变浅）。为了「默认值全是常数」，建的时候固定成它平常的那一个（`setTextColor(currentTextColor)`），以后触摸组接 `isEnabled` 时，没写过颜色的字禁用了也不会变浅。
+
+验收里一个没写过任何状态的和一个把每一项都写成默认值的，挂上之后宽高一样（96×53 像素）、`baseline` 一样（16 dp）、`resolvedTextSize` 都是 14。颜色排出来看不出，靠上面的实测。
+
+### 和方案不一样的地方
+
+- `textSize` 用了新加的 `applyInitial`（上面「系统字号」一节），方案里没有。
+- 首末基线盖过内边距、`TextView` 的四个内边距包了一层（上面一节）。方案里没提这两个怎么共处。
+- `fontVariationSettings` 的写法在 JS 里查（写错打警告，和颜色一样）；谁都不认的轴和没设一样（Java 是留着上一次的）。Java 的返回值（有没有字体用上了）没有了：状态以 JS 为准，读回的是写进去的。
+- `lineCount`、`baseline` 挂着但还没排过版时也是 `null`（Java 是 0 和 -1，-1 是哨兵）；`baseline` 换成了 dp。
+- `Typeface.create` 的 `weight` 超出 1–1000 在 JS 里抛 `RangeError`（原来是 Java 抛的 `IllegalArgumentException`）。
+- `autoSize` 的 `min`、`max`、`step` 三项都要给，没有默认值（Java 的「用默认配置」是 12–112 sp、步长 1 像素，要的话照写）；`textShadow` 四项都要给。
+- `gravity = []` 读回空数组，原生是 Java 补成的 `top | start`。
+
+### 验收
+
+`steps/text.js`，排在页面那几步的最后（页面关掉再打开之后，用 `ctx.activity`）：自由时全部成员的默认值、读写、转换、报错和警告，旧成员都不在了；`Typeface`；挂上之后没写过的和写成默认值的排出来一样，行高、首末基线、可变字体、字间距、换字体、自动缩字号、行数用排出来的像素验；最后改系统字号。排出来的大小用布局组的 `frame`（dp），密度读 App 层的 `configuration.density`。
+
+先在没有重写的运行时上跑了一遍：步骤一开始读自由视图的 `textSize` 就抛了 `InvalidStateError`，判为失败。实现之后第一遍挂了 5 条：可变字体那两条是实现的错（上面「牵连」里轴的那几条，改成 `@font`）；行高、末基线那三条是用例量密度的写法错了，1000 dp 的空布局比屏幕高、被父视图截短，量出 1.98，换成 400 dp 之后量出 2.625，期望值和断言都没改。2026-11-27 在 Pixel 6（Android 17）上 Debug 和 Release 都是 1313 条通过、0 条失败（外观等 6 组的步骤没跑）。
 
 ### 补上的通道：类方法返回一个原生对象
 
@@ -651,30 +730,27 @@ ConstraintLayout.LayoutParams 的字段怎么合进来的（「一件事只说�
 
 ### 从项目的 assets/ 读字体
 
-`Typeface.createFromAsset(path)` 同步，和 Java 一样，去掉了 `AssetManager` 参数（JS 里没有这个类），路径相对项目的 `assets/`。开发用的壳把项目的 `assets/` 拷到包里 assets 下的 `app/`（不和 `main.js`、`nacre/` 撞），`run-device.sh` 用 `-PnacreAssets` 把 `acceptance-android/assets/` 传进去。以后 CLI 生成 `android/` 时照这个位置放。
+`Typeface.createFromAsset(path)` 同步，和 Java 一样，去掉了 `AssetManager` 参数（JS 里没有这个类），路径相对项目的 `assets/`，用 App 级的 `assets`。开发用的壳把项目的 `assets/` 拷到包里 assets 下的 `app/`（不和 `main.js`、`nacre/` 撞），`run-device.sh` 用 `-PnacreAssets` 把 `acceptance-android/assets/` 传进去。以后 CLI 生成 `android/` 时照这个位置放。找不到文件是 Java 抛的 `RuntimeException`。
 
-验收用的字体是自己拼的（`acceptance-android/scripts/make-test-font.py`，不带任何现成字体的许可）：一个 em 是 1000，上伸 2000、下伸 1000，ASCII 全映射到一个方块。实测 40 像素的字号下系统字体行高 47，换上它是 120，正好 3 倍，证明字体真的换上了。
+验收用的字体是自己拼的（`acceptance-android/scripts/make-test-font.py`，不带任何现成字体的许可）：一个 em 是 1000，上伸 2000、下伸 1000，ASCII 全映射到一个方块。实测 20 dp 的字，系统字体排出来 71 像素高，换上它是 156，证明字体真的换上了。
 
-### 实测到的 Android 的行为
+### 别的实测（Pixel 6，Android 17）
 
-- `textAlignment` 读出的是**解析后的值**（`getTextAlignment()`；能读回写进去的值的 `getRawTextAlignment()` 是隐藏 API）。`'inherit'` 没有父视图时读出默认的 `'gravity'`，挂上之后读出父视图的；别的值没挂上也读得到。和网页不同：网页有两层，`el.style.textAlign` 写什么读什么，`getComputedStyle()` 是算出来的，元素不在文档里时是空串（Chromium 实测）。照 Android 原样，用户定的。
-- **App 不声明 `android:supportsRtl="true"`，`textAlignment` 完全不生效**：系统一律解析成 `'gravity'`。一开始壳没声明，验收里设什么都读出 `'gravity'`，加上之后才对。开发用的壳现在声明了，以后 CLI 生成 `android/` 也要写（Android Studio 新建的工程默认就有）。代价是系统语言从右往左时（阿拉伯语这类）start / end 对调、布局镜像，和网页的 `dir="rtl"` 一样。用户定的。
-- 测量（`lineCount`、`baseline`）也要排过版：之前是 0 和 -1。
-- `TextView` 的 `typeface` 默认不是 `null`。
-- `setFontVariationSettings()` 的返回值看的是这个视图背后的全部字体文件，**包括系统的后备字体**：测试字体没有轴，但后面接着的 Roboto 有 `wght`，照样返回 `true`。要 `false` 得写一个谁都没有的轴。
-- `firstBaselineToTopHeight`、`lastBaselineToBottomHeight` 是靠改上下内边距实现的，设了之后 `paddingTop`、`paddingBottom` 跟着变。
-- Java 自己抛的：`Typeface.create(family, 1001, false)` 是 `IllegalArgumentException`；`lineHeight = -1` 是 `IllegalArgumentException`；`createFromAsset` 找不到文件是 `RuntimeException`。
-- `letterSpacing`、`lineSpacingMultiplier` 这些是 Java 的 `float`，交给 JSON 时用 `Float.toString()` 的最短写法：写 0.1 读回 0.1，不是 0.10000000149011612。
+- **App 不声明 `android:supportsRtl="true"`，`textAlignment` 完全不生效**：系统一律解析成 `gravity`。开发用的壳声明了，以后 CLI 生成 `android/` 也要写（Android Studio 新建的工程默认就有）。代价是系统语言从右往左时 start / end 对调、布局镜像，和网页的 `dir="rtl"` 一样。用户定的（第一版时）。
+- 行高：20 dp 和 30 dp 的字设 50 dp 的行高，三行和一行的高度差都是两行 131 像素（2.625 × 50）；改回 `null` 后 30 dp 的字一行 92 像素。
+- 可变字体：`MMMMMM` 20 dp 宽 270 像素，`'wght' 900` 是 276；换了字体之后轴重设过，还是 276；换成谁都没有的轴、改回 `null` 都回到 270。字间距 0.5 是 400。
+- 自动缩字号：宽是父视图的宽、高随内容、`maxLines = 1` 时也生效，一行放不下的长句从 40 缩到 11.8 dp；换成 `{ sizes: [8, 12, 16] }` 时在这几个里挑；关掉之后回到开着时写的 `textSize`。
+- `letterSpacing` 这些是 Java 的 `float`，读回来不过原生（状态以 JS 为准），`resolvedTextSize`、`baseline` 用 `Float.toString()` 的最短写法交给 JS。
 
-**未验证**：
-- `setLineHeight(unit, value)` 在 Android 14 以前没有带单位的版本，换成像素再设（之后用户改字体大小不会跟着变）。手机是 Android 17，这一支没跑过。
-- 自动缩字号真的缩了没有：要视图的宽高是定的才生效，那要布局组的 `layoutParams`。这一步只验了配置的读写。
-- 下划线、删除线、阴影在屏幕上的样子（只验了读写）。
-- 壳声明了 `configChanges` 里的 `fontScale`，用户在系统设置里调字体大小时页面不重建，用 sp 设的字号跟不跟着变没验（要改手机的系统设置）。
+**没验过**：
+- Android 14 以前的行高：那时没有带单位的 `setLineHeight`，换成像素再设。手机是 Android 17，这一支没跑过。
+- 颜色、下划线、删除线、阴影、`marquee` 在屏幕上的样子（只验了读写、挂着时写不抛）。阴影的半径是 0 时 Java 的文档说是去掉阴影，没看过。
+- `isTextSelectable` 写 `true` 时 Java 会顺手改可点、可长按、可聚焦。触摸组把 `isClickable` 这些做成状态时，要和这一条一起看。
+- 系统密度变了时文字的重设（走的是验过的同一条路，没单独跑）。
 
 ### 没做的
 
-富文本（`Spannable`）以后单独一组。要新类的：按状态变色（`ColorStateList`）、测量（`Layout`）、不上屏测文字（`Paint`、`StaticLayout`）、`Typeface.Builder`，建议另开「文字（二）」先讨论形状。`createFromFile` 等文件系统。`breakStrategy`、`hyphenationFrequency`、`justificationMode`、`lineBreakStyle`、`allCaps`、`singleLine`、`textScaleX`、`fallbackLineSpacing`、`elegantTextHeight` 这一步没做，照现有规矩就能接。
+富文本（`Spannable`）以后单独一组。要新类的：按状态变色（`ColorStateList`）、测量（`Layout`）、不上屏测文字（`Paint`、`StaticLayout`）、`Typeface.Builder`，建议另开「文字（二）」先讨论形状。`createFromFile` 等文件系统。`breakStrategy`、`hyphenationFrequency`、`justificationMode`、`lineBreakStyle`、`allCaps`、`singleLine`、`textScaleX`、`fallbackLineSpacing`、`elegantTextHeight`、解析后的 `textAlignment`（页面值）照现有规矩就能接，这一步没做。
 
 ## App 层
 

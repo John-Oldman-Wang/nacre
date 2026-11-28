@@ -29,8 +29,8 @@ internal object Gravities {
     private val clip = linkedMapOf("clipHorizontal" to Gravity.CLIP_HORIZONTAL, "clipVertical" to Gravity.CLIP_VERTICAL)
     private val all = horizontal + vertical + clip
 
-    // 名字表交给 JS（JS 在那边当场查写错的名字，见 32-text.js），按方向分开查「每个方向最多一个」。
-    // 表名在所有域里不能重复，只能一个域登记：现在是 TextDomain（布局组要用就直接取，不再登记）
+    // 名字表交给 JS（JS 在那边当场查写错的名字，见 31-layout.js、32-text.js），按方向分开查「每个方向
+    // 最多一个」。表名在所有域里不能重复，只能一个域登记：LayoutDomain 登记，文字组直接取
     val enums: Map<String, EnumTable<*>> = mapOf(
         "gravityHorizontal" to EnumTable(*horizontal.toList().toTypedArray()),
         "gravityVertical" to EnumTable(*vertical.toList().toTypedArray()),
