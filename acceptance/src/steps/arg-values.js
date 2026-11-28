@@ -6,7 +6,7 @@
 //   - 落单的代理项（一个表情被从中间截断剩下的那一半）。系统的解析器遇到它
 //     整段解析失败，这次调用的全部参数原生都收不到
 // 每一条通道各验一遍：写属性、方法参数、options 里的字符串、构造参数、类方法、
-// 异步方法、对象的键。外加数的几种边界。
+// 异步方法、对象的键。外加数的几种边界，和 toJSON 照 JSON.stringify 的步骤调。
 
 /** 把字符串写成码元，方便在日志里看清楚看不见的字符。
  *  @param {unknown} text */
@@ -170,5 +170,56 @@ export async function stepArgValues(ctx) {
     try { button.setTitle('t', { forState: ['normal'], extra: undefined }); }
     catch (err) { thrown = err instanceof Error ? err.name : String(err); }
     assert('options 里值是 undefined 的成员视为没带', thrown, '没抛');
+  });
+
+  await group('toJSON', () => {
+    // 写进 userInfo 的值原样过一遍打包器，读回来的是原生存下的内容。打包器照 JSON.stringify：
+    // 对象和 BigInt 有 toJSON 就用它的返回值，调的时候传键名（顶层是空串，数组里是下标），
+    // 只调这一次；返回 undefined 的成员不带。期望值是 node 里 JSON.stringify 的结果
+    const session = ctx.scene.session;
+    const saved = session.userInfo;
+    /** 键排好序再写成 JSON：原生的字典不保证键的顺序
+     *  @param {unknown} value */
+    const sortedJSON = (value) => JSON.stringify(value, (_, v) => (
+      v !== null && typeof v === 'object' && !Array.isArray(v)
+        ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, v[k]]))
+        : v));
+    /** 写进 userInfo 再读回来；抛了记下错误名
+     *  @param {any} value */
+    const roundTrip = (value) => {
+      try {
+        session.userInfo = value;
+        return sortedJSON(session.userInfo);
+      } catch (err) {
+        return '抛了 ' + (err instanceof Error ? err.name : String(err));
+      }
+    };
+    const bigIntProto = /** @type {any} */ (BigInt.prototype);
+    try {
+      assert('toJSON 返回 this：只调一次，按对象本身写',
+             roundTrip({ v: { x: 1, toJSON() { return this; } } }), '{"v":{"x":1}}');
+      assert('toJSON 返回 undefined：这个成员不带',
+             roundTrip({ a: { toJSON() { return undefined; } }, b: 1 }), '{"b":1}');
+      assert('toJSON 收到对象成员的键名',
+             roundTrip({ k: { toJSON(/** @type {unknown} */ key) { return 'key=' + key; } } }), '{"k":"key=k"}');
+      assert('toJSON 在数组里收到下标的字符串',
+             roundTrip({ list: [{ toJSON(/** @type {unknown} */ key) { return typeof key + ':' + key; } }] }),
+             '{"list":["string:0"]}');
+      assert('toJSON 在顶层收到空串',
+             roundTrip({ toJSON(/** @type {unknown} */ key) { return { top: typeof key + ':' + key }; } }),
+             '{"top":"string:"}');
+      assert('toJSON 返回的对象不再调它自己的 toJSON',
+             roundTrip({ d: { toJSON() { return new Date(0); } } }), '{"d":{}}');
+      assert('Date 照旧用它的 toJSON 写成字符串（对照）',
+             roundTrip({ when: new Date(0) }), '{"when":"1970-01-01T00:00:00.000Z"}');
+      bigIntProto.toJSON = function () { return this.toString(); };
+      assert('BigInt 有 toJSON 时用它的返回值',
+             roundTrip({ n: BigInt(10) }), '{"n":"10"}');
+      delete bigIntProto.toJSON;
+      assert('写不出来的值抛 TypeError，不再被吞：没有 toJSON 的 BigInt', roundTrip({ n: BigInt(10) }), '抛了 TypeError');
+    } finally {
+      delete bigIntProto.toJSON;
+      session.userInfo = saved;
+    }
   });
 }

@@ -201,11 +201,15 @@ o + 4 字节个数 + (键 + 值)  对象
 | `undefined`、函数、`Symbol` | 在数组里是 `null`，在对象里这个成员不带 |
 | `NaN`、无穷大 | `null` |
 | `-0` | `0` |
-| 有 `toJSON` 方法的对象（`URL`、`Date`） | 用它的返回值 |
+| 有 `toJSON` 方法的对象（`URL`、`Date`）和 `BigInt` | 用它的返回值。调的时候传键名：顶层是空串，数组里是下标的字符串，对象里是成员名。每个值只调一次，返回值不再看它自己的 `toJSON`；返回 `undefined` 的成员不带 |
 | `new Number(1)` 这类包装对象 | 里面的值 |
-| `BigInt` | 抛 `TypeError` |
+| 没有 `toJSON` 的 `BigInt` | 抛 `TypeError` |
 | 套了 64 层以上（多半是成环了） | 抛 `TypeError` |
 | 整数 | 给整数类型的 `NSNumber`，报错里拼出来是 `17` 不是 `17.0` |
+
+`toJSON` 这一行是 2026-11-28 改的。第一版写的是「先看有没有 `toJSON`，有就对它的返回值整个再走一遍」：返回值又会被调一次 `toJSON`（返回 `this` 的一直调到 64 层，按套得太深处理），调的时候不传键名，成员跳不跳过看的是调之前的值（返回 `undefined` 的成员成了 `null`），原型上加了 `toJSON` 的 `BigInt` 也照样抛。现在照 `JSON.stringify` 的 SerializeJSONProperty 走：数组和对象的每个成员先取值、调 `toJSON`，再决定跳不跳过、怎么写。验收的 `arg-values` 有一组 `toJSON`，期望值是 node 里 `JSON.stringify` 的结果。
+
+同一天修的还有一处：上面两行「抛 `TypeError`」原来抛不出来。`PackArg` 在 `TryCatch` 还在作用域里时调 `ThrowException`，异常被同一个 `TryCatch` 接住，出作用域时跟着清掉，JS 那边什么都没收到，原生也没被调用：写属性静默不生效。现在等 `TryCatch` 出了作用域再抛；读属性、调 `toJSON` 时 JS 自己抛的异常照旧原样传出去。
 
 ### 回传的方向补了一处
 

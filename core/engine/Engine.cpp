@@ -92,8 +92,9 @@ std::string SafeToString(v8::Isolate* isolate, v8::Local<v8::Value> value) {
 //
 // 哪些值怎么处理，照 JSON.stringify 原来的结果来，免得别处的行为跟着变：
 // undefined、函数、Symbol 在数组里是 null，在对象里这个成员不带；NaN 和无穷大
-// 是 null；-0 是 0；有 toJSON 方法的对象用它的返回值。两样写不出来的照旧抛
-// TypeError：BigInt，和套得太深的（多半是成环了）。
+// 是 null；-0 是 0。对象和 BigInt 有 toJSON 方法时用它的返回值，和 JSON.stringify
+// 一样：调的时候传键名（顶层是空串，数组里是下标的字符串），每个值只调一次，返回
+// undefined 的成员不带。两样写不出来的抛 TypeError：BigInt，和套得太深的（多半是成环了）。
 namespace {
 
 const char kPackedMagic = '\x01';
@@ -118,6 +119,24 @@ void PackUnits(v8::Isolate* isolate, v8::Local<v8::String> text, std::string* ou
 // 这个值在 JSON.stringify 里算「没有」：对象里不带这个成员，数组里写 null
 bool PackSkips(v8::Local<v8::Value> value) {
   return value->IsUndefined() || value->IsFunction() || value->IsSymbol();
+}
+
+// JSON.stringify 序列化一个值的第一步（SerializeJSONProperty）：值是对象或 BigInt、
+// 身上或原型上有 toJSON 方法时，换成它的返回值。调的时候传键名：顶层是空串，数组里是
+// 下标的字符串，对象里是成员名。只调这一次，返回值不再看它自己的 toJSON。
+// 返回 false 表示 JS 自己抛了，异常挂在引擎里
+bool ApplyToJSON(v8::Isolate* isolate, v8::Local<v8::Context> ctx, v8::Local<v8::String> key,
+                 v8::Local<v8::Value>* value) {
+  if (!(*value)->IsObject() && !(*value)->IsBigInt()) return true;
+  v8::Local<v8::Object> holder;
+  if (!(*value)->ToObject(ctx).ToLocal(&holder)) return false;
+  v8::Local<v8::Value> to_json;
+  v8::Local<v8::String> name =
+      v8::String::NewFromUtf8Literal(isolate, "toJSON", v8::NewStringType::kInternalized);
+  if (!holder->Get(ctx, name).ToLocal(&to_json)) return false;
+  if (!to_json->IsFunction()) return true;
+  v8::Local<v8::Value> argv[] = {key};
+  return to_json.As<v8::Function>()->Call(ctx, *value, 1, argv).ToLocal(value);
 }
 
 // 返回 false 表示写不出来，error 里是原因
@@ -173,19 +192,6 @@ bool PackInto(v8::Isolate* isolate, v8::Local<v8::Context> ctx, v8::Local<v8::Va
     }
     return PackInto(isolate, ctx, inner, out, depth + 1, error);
   }
-  // toJSON：URL、Date 这些靠它变成字符串
-  {
-    v8::Local<v8::Value> to_json;
-    v8::Local<v8::String> name =
-        v8::String::NewFromUtf8Literal(isolate, "toJSON", v8::NewStringType::kInternalized);
-    if (object->Get(ctx, name).ToLocal(&to_json) && to_json->IsFunction()) {
-      v8::Local<v8::Value> replaced;
-      if (!to_json.As<v8::Function>()->Call(ctx, object, 0, nullptr).ToLocal(&replaced)) {
-        return false;   // toJSON 自己抛了，异常已经在引擎里挂着
-      }
-      return PackInto(isolate, ctx, replaced, out, depth + 1, error);
-    }
-  }
   if (value->IsArray()) {
     v8::Local<v8::Array> array = value.As<v8::Array>();
     const uint32_t count = array->Length();
@@ -195,6 +201,9 @@ bool PackInto(v8::Isolate* isolate, v8::Local<v8::Context> ctx, v8::Local<v8::Va
       v8::HandleScope item_scope(isolate);
       v8::Local<v8::Value> item;
       if (!array->Get(ctx, i).ToLocal(&item)) return false;
+      v8::Local<v8::String> index;
+      if (!v8::Integer::NewFromUnsigned(isolate, i)->ToString(ctx).ToLocal(&index)) return false;
+      if (!ApplyToJSON(isolate, ctx, index, &item)) return false;
       if (!PackInto(isolate, ctx, item, out, depth + 1, error)) return false;
     }
     return true;
@@ -211,9 +220,11 @@ bool PackInto(v8::Isolate* isolate, v8::Local<v8::Context> ctx, v8::Local<v8::Va
     v8::Local<v8::Value> key, item;
     if (!keys->Get(ctx, i).ToLocal(&key)) return false;
     if (!object->Get(ctx, key).ToLocal(&item)) return false;
-    if (PackSkips(item)) continue;
     v8::Local<v8::String> key_text;
     if (!key->ToString(ctx).ToLocal(&key_text)) return false;
+    // 先调 toJSON 再看要不要跳过：toJSON 返回 undefined 的成员不带
+    if (!ApplyToJSON(isolate, ctx, key_text, &item)) return false;
+    if (PackSkips(item)) continue;
     PackUnits(isolate, key_text, out);
     if (!PackInto(isolate, ctx, item, out, depth + 1, error)) return false;
     written++;
@@ -226,17 +237,24 @@ bool PackInto(v8::Isolate* isolate, v8::Local<v8::Context> ctx, v8::Local<v8::Va
 // 调用方直接 return
 bool PackArg(v8::Isolate* isolate, v8::Local<v8::Value> value, std::string* out) {
   v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
-  v8::TryCatch try_catch(isolate);
   out->clear();
   out->push_back(kPackedMagic);
-  std::string error;
-  if (PackInto(isolate, ctx, value, out, 0, &error)) return true;
-  if (try_catch.HasCaught()) {
-    try_catch.ReThrow();   // 读属性或者 toJSON 的时候 JS 自己抛的，原样抛出去
-  } else {
-    isolate->ThrowException(v8::Exception::TypeError(
-        v8::String::NewFromUtf8(isolate, error.c_str()).ToLocalChecked()));
+  std::string error = "Cannot pass this value to native code";
+  {
+    v8::TryCatch try_catch(isolate);
+    if (ApplyToJSON(isolate, ctx, v8::String::Empty(isolate), &value) &&
+        PackInto(isolate, ctx, value, out, 0, &error)) {
+      return true;
+    }
+    if (try_catch.HasCaught()) {
+      try_catch.ReThrow();   // 读属性或者 toJSON 的时候 JS 自己抛的，原样抛出去
+      return false;
+    }
   }
+  // 打包器自己写不出来的（BigInt、套得太深）。要等上面的 TryCatch 出了作用域再抛：
+  // 在它里面抛会被它接住，出作用域时跟着它一起清掉，JS 那边什么都收不到
+  isolate->ThrowException(v8::Exception::TypeError(
+      v8::String::NewFromUtf8(isolate, error.c_str()).ToLocalChecked()));
   return false;
 }
 
