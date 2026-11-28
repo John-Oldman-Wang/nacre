@@ -4,8 +4,7 @@
 // 边衬，读出来是 null；挂上去之后第一次分发会触发一次 windowinsetschange。所以订阅
 // 要在 activitycreate 里就做（watchSafeArea），后面的断言等它。
 //
-// 窗口边衬现在还是像素（改成 dp 是外观组第二步的事），摆字用的内边距是 dp，中间用
-// App 层的 configuration.density 换算。
+// 窗口边衬的单位是 dp（可以是小数），和内边距一样，按它往里缩不用换算。
 
 /**
  * 抛了什么：没抛是「没抛」，抛了是错误的 name
@@ -70,11 +69,13 @@ export async function stepSafeArea(ctx) {
   assert('systemBars 的底边是状态栏和导航条里大的那个',
          bars.bottom, Math.max(insets.statusBars.bottom, insets.navigationBars.bottom));
   assert('键盘没弹出，ime 的底边是 0', insets.ime.bottom, 0);
+  // 状态栏一般是 24–50 dp；要是还按像素交，这台手机上是 128
+  assert('边衬的单位是 dp：状态栏的高在 10 到 80 之间', insets.statusBars.top > 10 && insets.statusBars.top < 80, true);
   for (const name of ['systemBars', 'statusBars', 'navigationBars', 'displayCutout', 'ime',
                       'systemGestures', 'tappableElement']) {
     const v = /** @type {any} */ (insets)[name];
-    assert(name + ' 四边都是不小于 0 的整数',
-           v instanceof Insets && [v.left, v.top, v.right, v.bottom].every((n) => Number.isInteger(n) && n >= 0),
+    assert(name + ' 四边都是不小于 0 的有限数',
+           v instanceof Insets && [v.left, v.top, v.right, v.bottom].every((n) => Number.isFinite(n) && n >= 0),
            true);
   }
   console.log('  实测：systemBars = ' + [bars.left, bars.top, bars.right, bars.bottom].join(',') +
@@ -91,13 +92,12 @@ export async function stepSafeArea(ctx) {
   assert('new WindowInsets() 抛 TypeError', thrown(() => new /** @type {any} */ (WindowInsets)()), 'TypeError');
 
   // ===== 按安全区域摆，点得到 =====
-  // 像素换成 dp：1 dp 是 density 个像素
-  const density = activity.configuration.density;
+  // 边衬和内边距都是 dp，直接用
   const screen = new LinearLayout();
-  screen.paddingStart = bars.left / density;
-  screen.paddingTop = bars.top / density;
-  screen.paddingEnd = bars.right / density;
-  screen.paddingBottom = bars.bottom / density;
+  screen.paddingStart = bars.left;
+  screen.paddingTop = bars.top;
+  screen.paddingEnd = bars.right;
+  screen.paddingBottom = bars.bottom;
   const target = new TextView();
   target.text = '安全区里的字';
   screen.addView(target);

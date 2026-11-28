@@ -5,7 +5,7 @@
 //
 // 它们是系统给的一份快照，不是原生对象的包装：字段只读，写了抛 TypeError（strict
 // 模式下给只有 getter 的属性赋值就是这样），JS 不能 new。名字照 Android 的
-// android.graphics.Insets 和 WindowInsets.Type，单位是像素。
+// android.graphics.Insets 和 WindowInsets.Type，单位是 dp（可以是小数，原生按页面的密度换好了）。
 (function (ctx) {
   'use strict';
 

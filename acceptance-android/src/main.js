@@ -43,9 +43,9 @@ import { stepTree } from './steps/tree.js';
 import { stepActivityLifecycle } from './steps/activity-lifecycle.js';
 import { stepWebSocket } from './steps/websocket.js';
 import { stepLayout } from './steps/layout.js';
+import { stepAppearance } from './steps/appearance.js';
 import { stepText } from './steps/text.js';
 // 第二步重写之前先不跑：
-// import { stepAppearance } from './steps/appearance.js';
 // import { stepScroll } from './steps/scroll.js';
 // import { stepAnimation } from './steps/animation.js';
 import { stepApp, watchApp } from './steps/app.js';
@@ -141,9 +141,9 @@ const sliceDone = (async () => {
   // 按返回把页面关掉、再打开，之后 ctx.activity 是新页面
   await runAsync('stepActivityLifecycle', () => stepActivityLifecycle(ctx));
   await runAsync('stepLayout', () => stepLayout(ctx));
+  await runAsync('stepAppearance', () => stepAppearance(ctx));
   await runAsync('stepText', () => stepText(ctx));
   // 第二步重写之前先不跑：
-  // await runAsync('stepAppearance', () => stepAppearance(ctx));
   // await runAsync('stepScroll', () => stepScroll(ctx));
   // await runAsync('stepAnimation', () => stepAnimation(ctx));
   // await runAsync('stepImage', () => stepImage(ctx));
