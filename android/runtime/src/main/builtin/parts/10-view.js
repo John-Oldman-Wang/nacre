@@ -135,6 +135,9 @@
   //            之后系统字号变了它不跟着变（文字组实测）
   //   placement true：给父视图读的（布局组的 view.layout）。挂上时不和别的状态一起设，等原生的
   //            父视图排好之后由 place 设；没写过也设（用 initial），见 place
+  //   read     (替身, 页面, 视图) => 原生现在的值。系统也会改的状态（触摸组的 isPressed）：挂着时读
+  //            原生；拿下来（或者页面销毁）时把原生的值读回 JS，和 JS 读到的不一样才记下（记下的
+  //            算写过，下次挂上时设到原生）。自由时读 JS 的值
   const ownStates = new Map();    // 原型 -> 这个原型自己登记的
   const statesCache = new Map();  // 原型 -> 连同继承来的，排好序
   let serial = 0;
@@ -163,6 +166,7 @@
       release: spec.release,
       applyInitial: spec.applyInitial === true,
       placement: spec.placement === true,
+      read: spec.read,
       serial: serial++,
     };
     const proto = Cls.prototype;
@@ -172,6 +176,7 @@
     Object.defineProperty(proto, name, {
       get() {
         const st = stateOf(this, name);
+        if (entry.read !== undefined && st.activity !== null) return entry.read(st.standIn, pageOf(st.activity), this);
         return st.values.has(name) ? st.values.get(name) : entry.initial;
       },
       set(v) {
@@ -207,6 +212,23 @@
         entry.apply(st.standIn, written ? st.values.get(entry.name) : entry.initial, page, view);
       } catch (err) {
         warnSkipped('could not apply ' + entry.name + ' to ' + view.constructor.name, err);
+      }
+    }
+  }
+
+  // 视图要离开页面了（还挂着、替身还在）：系统也会改的状态（登记了 read 的）把原生现在的值读回 JS
+  function captureStates(view) {
+    const st = view[kView];
+    if (st.activity === null || st.standIn === null) return;
+    const page = pageOf(st.activity);
+    for (const entry of statesOf(Object.getPrototypeOf(view))) {
+      if (entry.read === undefined) continue;
+      try {
+        const value = entry.read(st.standIn, page, view);
+        const current = st.values.has(entry.name) ? st.values.get(entry.name) : entry.initial;
+        if (value !== current) st.values.set(entry.name, value);
+      } catch (err) {
+        warnSkipped('could not read ' + entry.name + ' of ' + view.constructor.name + ' back', err);
       }
     }
   }
@@ -329,6 +351,7 @@
 
   function markDetached(view) {
     walk(view, (v) => {
+      captureStates(v);
       v[kView].activity = null;
       releaseStates(v);
     });
@@ -377,6 +400,7 @@
       content[kView].contentOf = null;
       walk(content, (v) => {
         const st = v[kView];
+        captureStates(v);
         if (st.standIn !== null) {
           listen(v, false);
           st.standIn = null;

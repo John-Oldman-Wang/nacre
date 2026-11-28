@@ -2,7 +2,7 @@
 
 ← [实现原理](README.md)
 
-Android 这一侧现在有：最小的壳（引擎起来、执行 JS、`console` 进 logcat），事件循环，`core/builtin/` 里不依赖桥的 6 个 Web 标准内置脚本，第一条竖切（JS 拿到页面、建布局、放文字、点击收得到事件），安全区域（窗口边衬），网络（`fetch`、`Blob`、`WebSocket`），`Intl`，外观（背景、阴影、圆角裁切、变换、Drawable、模糊），滚动（`ScrollView`、`HorizontalScrollView`、`scroll` 事件）和动画（插值器、`ValueAnimator` / `ObjectAnimator`、`view.animate()`、`requestAnimationFrame`）。`core/builtin/` 的 10 个内置脚本全部接上了。方向和顺序见 [`project.md` 第 4 节](../project.md#4-android2026-11-21-定的方向)。
+Android 这一侧现在有：最小的壳（引擎起来、执行 JS、`console` 进 logcat），事件循环，`core/builtin/` 里不依赖桥的 6 个 Web 标准内置脚本，第一条竖切（JS 拿到页面、建布局、放文字、点击收得到事件），安全区域（窗口边衬），网络（`fetch`、`Blob`、`WebSocket`），`Intl`，外观（背景、阴影、圆角裁切、变换、Drawable、模糊），滚动（`ScrollView`、`HorizontalScrollView`、`scroll` 事件）和动画（插值器、`ValueAnimator` / `ObjectAnimator`、`view.animate()`、`requestAnimationFrame`），触摸和手势（触摸事件、`GestureDetector`、`ScaleGestureDetector`、`VelocityTracker`）。`core/builtin/` 的 10 个内置脚本全部接上了。方向和顺序见 [`project.md` 第 4 节](../project.md#4-android2026-11-21-定的方向)。
 
 ## 目录
 
@@ -13,7 +13,7 @@ android/
 │  └─ src/main/
 │     ├─ cpp/CMakeLists.txt   编 core/engine/ 加上 JNI，链 V8
 │     ├─ cpp/NacreJni.cpp     Kotlin 经 JNI 调到这里，再交给 core/engine；原生入口的实现
-│     ├─ builtin/parts/       Android 自己的内置脚本（00-core、01-bridge、09-insets、10-view、21-application、25-globals、30-appearance、31-layout、34-image、36-scroll、37-animation）
+│     ├─ builtin/parts/       Android 自己的内置脚本（00-core、01-bridge、09-insets、10-view、21-application、25-globals、30-appearance、31-layout、34-image、35-touch、36-scroll、37-animation）
 │     └─ kotlin/nacre/runtime/
 │        ├─ NacreRuntime.kt   Kotlin 这一侧的入口和事件循环
 │        ├─ NativeBridge.kt   身份表，按顺序问各个域（Domain.kt、Domains.kt）
@@ -22,6 +22,7 @@ android/
 │        ├─ ScrollDomain.kt   滚动
 │        ├─ AnimationDomain.kt 动画和帧时钟
 │        ├─ ImageDomain.kt    图片
+│        ├─ TouchDomain.kt    触摸和手势
 │        ├─ FetchService.kt、NacreBlob.kt、NacreWebSocket.kt、Network.kt   网络
 │        └─ Packed.kt         读引擎打包的参数
 ├─ shell/        开发用的最小壳：一个页面，启动时建运行时、执行 main.js
@@ -211,12 +212,13 @@ ctx.defineViewState(TextView, 'text', {
 - `convert`：类型不对直接抛；属性位写错（枚举名）打警告后返回 `ctx.IGNORE`，值不变。
 - `apply(替身, 值, 页面, 视图)`：页面是 `{ density, fontScale }`；几个状态合成一次原生调用的（四个内边距是一个 `setPaddingRelative`）从视图上读别的，所以写入时先存、再设，原生拒了再还原。
 - `release(视图, 值)`（可以省略）：视图离开页面时（拿下来，或者页面销毁）调，放掉这一项在原生那边另外占着的东西。外观组加的：背景那个 Drawable 在这个页面上建的原生对象要放掉，见「外观」的[每处一个原生对象](#drawable-和-rendereffect每处一个原生对象)。挂着的视图在同一个页面里挪地方不算离开。
+- `read(替身, 页面, 视图)`（可以省略）：系统也会改的状态。挂着时读原生，拿下来（或者页面销毁）时把原生现在的值读回 JS，和 JS 读到的不一样才记下（记下的算写过，下次挂上时设到原生）；自由时读 JS 的值。触摸组加的，现在只有 `isPressed` 用，见[触摸和手势](#触摸和手势)。读回放在拿下来的那一刻（`markDetached`、`releaseActivity` 里、标成自由之前）。
 - 另外几个助手：`ctx.attachedNative(view)`（挂着时是替身，不然 `null`，页面值用）、`ctx.requireAttached(view, what)`（动作用，自由时抛 `InvalidStateError`）、`ctx.px(page, dp)` / `ctx.dp(page, px)`。
 - 事件照旧：`[kSubscribe]` 接在原来那一个后面，调 `subscribeNative`。
 - `placement: true`：给父视图读的状态（布局组的 `view.layout`）。挂上时不和别的状态一起设，子视图放进父视图、原生排好之后由 `place` 设，没写过的也设；`apply` 自己判断有没有父视图。见[布局](#机制子视图的布局参数随父视图重设)。
 - 在挂上的半途（别的视图的 `apply` 里）写一个也在这次挂上里的视图的状态：它有替身、但还没标成挂着，值只记在 JS 里，这一次不会设到原生；之后它要是走「已经挂着、只挪位置」那条路，也不会再设。布局组发 id 时碰到过，自己当场设了一次，见[布局](#constraints)。
 
-第二步才用得到的几样第一步没做，由第一个用到的组加进 `10-view.js`、用自己的成员验：系统也会改的状态（挂着读原生、拿下来时把原生的值读回 JS）、排完版才能设的（ScrollView 的滚动位置）。子视图的布局参数随父视图重设是布局组加的（上面的 `placement`）。
+第二步才用得到的几样第一步没做，由第一个用到的组加进 `10-view.js`、用自己的成员验：排完版才能设的（ScrollView 的滚动位置）。子视图的布局参数随父视图重设是布局组加的（上面的 `placement`），系统也会改的状态是触摸组加的（上面的 `read`）。
 
 ### 枚举的名字
 
@@ -254,7 +256,7 @@ ctx.defineViewState(TextView, 'text', {
 
 ### 顺手修的
 
-`ViewDomain` 记「订 `click` 之前可不可点」的表原来是强引用，带着监听器的视图被丢掉时（没走取消订阅）这一项留着，连带视图和页面。改成 `WeakHashMap`。还原的是订阅那一刻的值，订阅期间 JS 写的 `isClickable` 会被盖掉，这一条留给触摸组（`isClickable` 变成登记的状态时一起改）。
+`ViewDomain` 记「订 `click` 之前可不可点」的表原来是强引用，带着监听器的视图被丢掉时（没走取消订阅）这一项留着，连带视图和页面。改成 `WeakHashMap`。还原的是订阅那一刻的值，订阅期间 JS 写的 `isClickable` 会被盖掉：触摸组把 `isClickable` 做成状态时改了，订阅变了之后 JS 按自己的值重设一遍（`ViewDomain` 没动），见[触摸和手势](#触摸和手势)。
 
 ### 过渡期
 
@@ -366,7 +368,7 @@ iOS 真机连不到 Mac 上的本地测试服务（`acceptance/scripts/test-serv
 - **枚举**：用 `Enums.kt` 的 `EnumTable`，属性写错抛 `NacreWarning`（JS 打警告、值不变），参数写错抛 `NacreTypeError`，见下面「外观」一节。
 - **登记**：在 `Domains.kt` 的列表里加一行。
 
-现有的域：`ViewDomain`（竖切的那几个类）、`WindowInsetsDomain`、`BlobDomain`、`WebSocketDomain`、`IntlDomain`、`AppearanceDomain`、`LayoutDomain`（布局）、`ScrollDomain`、`AnimationDomain`、`TextDomain`（文字）、`AppDomain`（App 层）、`ImageDomain`（图片）。
+现有的域：`ViewDomain`（竖切的那几个类）、`WindowInsetsDomain`、`BlobDomain`、`WebSocketDomain`、`IntlDomain`、`AppearanceDomain`、`LayoutDomain`（布局）、`ScrollDomain`、`AnimationDomain`、`TextDomain`（文字）、`AppDomain`（App 层）、`ImageDomain`（图片）、`TouchDomain`（触摸和手势）。
 
 ### JS：自己的内置脚本
 
@@ -838,12 +840,113 @@ Java 不替我们管这几样之间的关系，都是实测撞到的（Pixel 6�
 **没验过**：
 - Android 14 以前的行高：那时没有带单位的 `setLineHeight`，换成像素再设。手机是 Android 17，这一支没跑过。
 - 颜色、下划线、删除线、阴影、`marquee` 在屏幕上的样子（只验了读写、挂着时写不抛）。阴影的半径是 0 时 Java 的文档说是去掉阴影，没看过。
-- `isTextSelectable` 写 `true` 时 Java 会顺手改可点、可长按、可聚焦。触摸组把 `isClickable` 这些做成状态时，要和这一条一起看。
+- `isTextSelectable` 写 `true` 时 Java 会顺手改可点、可长按、可聚焦。可点、可长按触摸组接住了（见[触摸和手势](#触摸和手势)），可聚焦留给输入框组。
 - 系统密度变了时文字的重设（走的是验过的同一条路，没单独跑）。
 
 ### 没做的
 
 富文本（`Spannable`）以后单独一组。要新类的：按状态变色（`ColorStateList`）、测量（`Layout`）、不上屏测文字（`Paint`、`StaticLayout`）、`Typeface.Builder`，建议另开「文字（二）」先讨论形状。`createFromFile` 等文件系统。`breakStrategy`、`hyphenationFrequency`、`justificationMode`、`lineBreakStyle`、`allCaps`、`singleLine`、`textScaleX`、`fallbackLineSpacing`、`elegantTextHeight`、解析后的 `textAlignment`（页面值）照现有规矩就能接，这一步没做。
+
+## 触摸和手势
+
+2026-11-24 照旧写法接过一版（没合进来），2026-11-28 照[接类的总则](../project.md#接类的总则2026-11-26-定)重写。落在已有的 `View`、`Activity` 上，加四个新类 `GestureDetector`、`ScaleGestureDetector`、`VelocityTracker`、`ViewConfiguration` 和五个事件类。原生是 `TouchDomain.kt`（`View`、`Activity` 别的域登记过，这里再登记一次，问到它们的成员时也问这个域），JS 是 `35-touch.js`，验收是 `steps/touch.js`。`10-view.js` 加了 `read`（系统也会改的状态），见上面「登记状态」。
+
+### 成员，按四类
+
+**`View` 上的状态**（读回写进去的值；自由时只记在 JS，挂上时按 `order` 设到原生，排在文字组的 `isTextSelectable` 后面）：
+
+| 成员 | 没写过时 | 说明 |
+| --- | --- | --- |
+| `isClickable` | `false` | 原生实际的值见下面「可点和监听器」 |
+| `isLongClickable` | `false` | 同上 |
+| `isEnabled` | `true` | 不可用的视图系统不交触摸（`OnTouchListener` 不调），可点的照样吞掉 |
+| `isPressed` | `false` | **系统也会改的状态**：挂着时读原生，拿下来时读回 JS |
+| `isHapticFeedbackEnabled` | `true` | |
+| `isSoundEffectsEnabled` | `true` | |
+| `disallowsParentIntercept` | `false` | 开着时按下那一刻向父视图（和再往上的）声明这一次手势不许抢走 |
+
+**动作**（参数先在 JS 里查，再查挂没挂，自由时抛 `InvalidStateError`）：`performClick()`、`performLongClick()`、`performHapticFeedback(constant, { ignoreViewSetting, ignoreGlobalSetting })`，都返回 Java 给的布尔。常量是字符串枚举（`HapticFeedbackConstants` 去掉前缀、首字母小写，`KEYBOARD_TAP` 和 `KEYBOARD_PRESS` 是同一个值，两个名字都认），名字表 `hapticFeedback` 由原生交：Android 14 起的 8 个只在 14 起的机器上有。Java 的 flags 位掩码改成 options 的两个布尔。
+
+**事件**：`touchstart` / `touchmove` / `touchend` / `touchcancel`（`MotionEvent`）、`longclick`（`Event`）。都延后一轮派发，不可取消。
+
+**`MotionEvent`**（JS 的事件类，能 `new`）：`pointers`（冻结的数组，每根手指 `{ id, x, y, screenX, screenY, pressure, size, touchMajor, touchMinor, toolMajor, toolMinor, orientation, toolType }`）、`actionIndex`、`downTime`、`eventTime`、`history`（两帧之间攒下的采样 `{ eventTime, pointers: [{ x, y, pressure, size, touchMajor, touchMinor, toolMajor, toolMinor, orientation }] }`）。长度是 dp（`x`、`y` 相对视图，`screenX`、`screenY` 相对屏幕，原来的 `rawX` / `rawY`），`orientation` 是度，`toolType` 是名字表 `toolType` 里的名字。`actionIndex` 是按下、抬起的那根手指的下标；`touchmove`、`touchcancel` 没有这个值，是 `null`（Java 给 0，总则第 4 条）。
+
+**`GestureDetector`**（`new` 不收参数，`EventTarget`）：状态 `view`（`View` 或 `null`）、`isLongpressEnabled`（`true`）；事件 `down`、`showpress`、`singletapup`、`pan`、`fling`、`longpress`、`singletapconfirmed`、`doubletap`、`doubletapevent`。事件类 `GestureDetectorEvent { motionEvent }`、`GestureDetectorPanEvent { downEvent, deltaX, deltaY }`、`GestureDetectorFlingEvent { downEvent, velocityX, velocityY }`。`deltaX` / `deltaY` 是这一次减上一次（Java 的 `onScroll` 给的是上一次减这一次），dp；速度是 dp/秒。
+
+**`ScaleGestureDetector`**：状态 `view`、`isQuickScaleEnabled`（`true`）、`isStylusScaleEnabled`（`true`）；页面值 `isInProgress`（没有原生识别器时是 `null`）；事件 `scalebegin`、`scale`、`scaleend`，`ScaleGestureEvent { focusX, focusY, scaleFactor, currentSpan, currentSpanX, currentSpanY, previousSpan, previousSpanX, previousSpanY, timeDelta, eventTime }`，长度是 dp。识别器上和事件重复的 11 个读数删了。事件的字段一个都没合：快速缩放时 `currentSpan` 不是 `currentSpanX`、`currentSpanY` 的勾股，`scaleFactor` 也不是两次距离之比（Java 按往上还是往下拖算），推不出来。
+
+**`VelocityTracker`**：能 `new`（不要 `obtain()`、`recycle()`）；`addMovement(e)`；`getVelocity({ pointerId, maxVelocity })` 返回冻结的 `{ x, y }`（dp/秒），这根手指没有数据（还没记过、`clear()` 之后）是 `null`；`clear()`。`computeCurrentVelocity` 加两个 `get*Velocity` 合成了 `getVelocity`。`pointerId` 不在 0–31、`maxVelocity` 是负数抛 `RangeError`。
+
+**`ViewConfiguration`**：不能 `new`。`activity.viewConfiguration` 每次读一份冻结的快照：`touchSlop`、`doubleTapSlop`、`pagingTouchSlop`、`windowTouchSlop`、`hoverSlop`、`minimumScalingSpan`（dp）、`minimumFlingVelocity`、`maximumFlingVelocity`（dp/秒）、`ambiguousGestureMultiplier`。Java 的静态 getter 照「getter 合成属性」做成类上的只读属性 `ViewConfiguration.tapTimeout`、`doubleTapTimeout`、`longPressTimeout`、`jumpTapTimeout`、`pressedStateDuration`（毫秒），每次读都问系统（长按的时限用户能在无障碍设置里改）。没有变化事件：Java 没有通知。
+
+删掉的：`SystemClock`、`VelocityTracker.obtain()`、`computeCurrentVelocity` / `getXVelocity` / `getYVelocity`、`ViewConfiguration.get()`、`scaled*` 前缀、`get*Timeout()`、识别器的 `onTouchEvent`、`ViewGroup.requestDisallowInterceptTouchEvent`、`pan` 的 `distanceX` / `distanceY`。验收里逐个断言它们不在了。
+
+### 触摸归谁（用户定的）
+
+Android 上，按下（`ACTION_DOWN`）时没要下手势的视图，后面的移动、抬起就不交给它。JS 的事件延后一轮才派发，等不到 JS 回答，所以由原生替它要：视图上有 `touch*` 监听器，或者挂着有人听的识别器，就要下整段手势。
+
+做法：用得着时给视图装一个 `OnTouchListener`（`TouchDomain.Touch`）：有触摸的监听器、挂着识别器、或者开着 `disallowsParentIntercept`，三样都没有时拿掉。回调里依次：按下时替它声明不许父视图抢（开着的话）；把事件记成 JSON 发给 JS；喂给挂着的识别器；要下手势的话自己调一次 `v.onTouchEvent(event)`、答「处理了」（`OnTouchListener` 答了「处理了」系统就不再调 `onTouchEvent`，自己调才保得住点击、长按、按下态），不要的话答「没处理」，系统照常调 `onTouchEvent`。
+
+- 父视图（`ScrollView`）照样能中途抢走，被抢的子视图收到 `touchcancel`。
+- 不往上冒泡：子视图要下了，父视图收不到（和 Web 不一样，照 Android 的事实）；子视图不听了，按下才交给父视图。
+- 不可用的视图系统不调 `OnTouchListener`，收不到触摸事件，也不替它要。
+
+### 不让父视图抢：disallowsParentIntercept（用户定的）
+
+Java 的 `requestDisallowInterceptTouchEvent` 是子视图在手势中途调父视图的方法，下一次按下时系统会清掉。JS 的事件晚一轮，等 JS 收到 `touchstart` 再调，父视图可能已经抢走了。所以改成子视图上的状态：原生在按下那一刻（父视图刚清掉上一次的声明、还没问过要不要抢）替它调 `parent.requestDisallowInterceptTouchEvent(true)`。名字照 Java 的那个词（用户从 `blocksParentIntercept` 和它里面挑的）。
+
+只在这个视图要下了手势时有意义：没要下的话，后面的事件父视图自己用 `onTouchEvent` 处理，`ScrollView` 照样会滚。
+
+### 识别器挂在视图上（用户定的）
+
+原来照 Java 在触摸的监听器里 `detector.onTouchEvent(e)`。新总则下识别器要阈值（按页面的密度），而 JS 的事件晚一轮。改成 `detector.view = v`：
+
+- 识别器和视图一样分两个对象：JS 拿着的识别器不绑原生，它的视图挂上时按那个页面建一个替身绑原生的识别器（`native.construct` 的对象参数是页面），经内部方法 `@touchDetectors` 交给原生的视图，触摸由 `Touch` 喂进去。
+- 视图上挂着哪些识别器记在一个不公开的状态里（`defineViewState(View, kDetectors, …)`，名字是 `Symbol`，和布局组的 `kViewId` 一样自己接住警告）：视图持有它的识别器（局部变量丢了监听器也不丢）；挂上时建，密度变了重建（`units: 'dp'`），离开页面时放掉（外观组加的 `release`）。一个识别器一个视图，一个视图可以挂几个；写别的视图是移过去，写 `null` 是拿下来。
+- 识别器上的状态（`isLongpressEnabled` 这些）以 JS 为准，建原生识别器时设过去。监听器也记在 JS，建的时候补订。
+- `GestureDetector` 的事件里要嵌 `MotionEvent`，原生发的字段建不成它（字段类型 `'MotionEvent?'` 只收实例），所以原生发内部事件 `@gesture`（`CustomEvent`，`detail` 里是记录和对外的事件类名），`35-touch.js` 建成对外的事件再派发。哪个事件用哪个类还是只在原生写一份。`ScaleGestureEvent` 不嵌对象，原生直接发。
+- 原生的回调答什么：`GestureDetector` 的答「JS 有没有听这个事件」（只影响它自己 `onTouchEvent` 的返回值，用不上）；`ScaleGestureDetector` 的三个都答「是」（要开始；这一次算处理了，下一次的比例相对这一次算）。`OnDoubleTapListener` 一直装着，所以点得快的第二下会认成点两下，不再有第二个 `singletapup`。
+- 代价（用户知道）：验收不能再造事件喂给识别器。adb 只有一根手指，双指缩放只能人试，记在 `project.md` 第 7 节「欠的验证」。
+
+### 可点和监听器（用户定的）
+
+Java 装 `click` 监听器会顺手把视图设成可点，`setOnLongClickListener` 设成可长按（给 `null` 也会），`setTextIsSelectable(true)` 两个都设。照「状态以 JS 为准」，读回的是 JS 写的值；原生实际的是「写的值 **或** 听着 `click`（`longclick`）**或**（`TextView` 的）`isTextSelectable`」，和先后无关。要关掉点击用 `isEnabled = false` 或摘掉监听器。
+
+做法：`isClickable`、`isLongClickable` 的 `apply` 交给原生的就是这个「或」；`click`、`longclick` 的订阅变了（`[kSubscribe]` 在原来那一层之后）、`isTextSelectable` 写了（`35-touch.js` 包了文字组的 setter）时，有替身就按现在的样子重设一遍。`ViewDomain` 拆 `click` 时还原订阅前的值那一步没动，紧接着就被重设掉。
+
+另一种「写过 `false` 就不可点，哪怕听着 `click`」会让 `isTextSelectable` 之后写 `isLongClickable = false` 的文字长按选不了。验收：可选中的字先写 `isTextSelectable`、后写两个 `false`，按住时照样进入按下态。
+
+### 时刻：和 performance.now() 同一个钟
+
+`MotionEvent` 的时刻是 `SystemClock.uptimeMillis`，`performance.now()` 是 libc++ 的 `steady_clock`，Android 上两个都是 `CLOCK_MONOTONIC`，只是零点不同（动画组的 `requestAnimationFrame` 是同一个道理）。`35-touch.js` 启动时量一次差（`@touch.now` 前后各读一次 `performance.now()` 取中间）交给原生，原生发事件时减掉，JS 交给 `VelocityTracker` 的事件再加回去、四舍五入成整数毫秒给 `MotionEvent.obtain`，正好是原来的值。时刻只到毫秒（加上零点的差带出小数）：Java 的 `getEventTimeNanos` 是 Android 14 起的，`getDownTime` 只有毫秒，按下时刻和第一个事件的时刻要对得上，统一用毫秒。
+
+### 实测（Pixel 6，Android 17）
+
+- **`disallowsParentIntercept` 赶得上当次手势**（用户要求实测的那一条）。`ScrollView`（220 dp 高、内容更高）里的子视图听着触摸，往上划 400 像素：没开时子视图收到 `touchcancel`、没有 `touchend`，`ScrollView` 滚了 521 像素；开了之后同样划一下，子视图收到 `touchend`、没有 `touchcancel`，`ScrollView` 没滚。Debug、Release 都是。
+- **只听触摸、不可点的视图拿下整段手势**：点一下收到 `touchstart`、`touchend`（旧写法下只有 `touchstart`，后面的交给了父视图）。子视图要下了，父视图（也听着触摸）什么都收不到；子视图摘掉监听器、识别器移走之后，同一个位置点一下，父视图收到整段。
+- **时刻**：发请求时 `performance.now()` 是 59248，按下时刻 62680，收到时 62688，同一个钟。滑 300 像素用了 305 毫秒，27 个 `touchmove` 每个都带 `history`。
+- **长度**：点在 411.4 dp 宽、44.6 dp 高的视图正中，读到 (205.7, 22.1)；滑 300 像素，`x` 和 `screenX` 都走了 114.29 dp（300 ÷ 2.625）。
+- **识别器**：滑一下是 `down`、26 个 `pan`、`fling`；`deltaX` 加起来正好是第一个 `pan` 之前按下的位置到最后一个 `pan` 的距离；`fling` 的 `velocityX` 是 380.9 dp/秒，同一段喂给 `VelocityTracker` 是 381.3 dp/秒。点一下是 `down`、`singletapup`，300 毫秒后 `singletapconfirmed`；点两下是 `down,singletapup,doubletap,doubletapevent,down,doubletapevent`；按住是 `down`、`showpress`、`longpress`，关掉 `isLongpressEnabled` 之后只到 `showpress`。
+- **单指快速缩放**：点一下、第二下按住往下拖 300 像素，`scalebegin`、33 个 `scale`、`scaleend`，最后一个 `scaleFactor` 1.0145，焦点 205.7 dp（视图正中），`currentSpan` 225 dp；关掉 `isQuickScaleEnabled` 再做一遍，两下都收到了，没有缩放事件。视图拿下来 `isInProgress` 是 `null`，放回去是 `false`。
+- **`isPressed`**：长按到 `longclick` 时手指还按着，读到原生的 `true`；松手后 `false`。挂着时写 `true`、点一下之后系统改回 `false`，读到 `false`；拿下来读回的是 `false`（不是写过的 `true`）；拿下来之后写 `true`、放回去，原生读到 `true`。
+- **可点和监听器**：听着 `click`、`isClickable` 写了 `false`，点得到；可选中的字先写 `isTextSelectable`、后写两个 `false`，按住时照样进入按下态。不可用的视图点了收不到触摸、也不点。
+- **`ViewConfiguration`**（420 dpi，1 dp = 2.625 像素）：`touchSlop` 8、`pagingTouchSlop` 16、`windowTouchSlop` 16、`doubleTapSlop` 100.19、`hoverSlop` 4.19、`minimumScalingSpan` 165.7（系统按 27 毫米算的）、`minimumFlingVelocity` 49.9、`maximumFlingVelocity` 8000、`ambiguousGestureMultiplier` 2；时限 `tapTimeout` 100、`doubleTapTimeout` 300、`longPressTimeout` 400、`jumpTapTimeout` 500、`pressedStateDuration` 64 毫秒。系统按密度把 dp 取整成像素，换回来有零头。
+- **默认值**（总则第 8 条，逐类实测）：`View`、`TextView`、`LinearLayout`、`FrameLayout`、`ConstraintLayout`、`ScrollView`、`HorizontalScrollView`、`ImageView` 什么都没写、没有监听器时，原生都是不可点、不可长按、可用（uiautomator 读的），和 JS 的初始值一样。触感反馈、点击音两个开关是 `View` 的构造给的，子类不改。
+- **`VelocityTracker`**：每 10 毫秒 10 dp 匀速，算出 1000.04 dp/秒；只给最后一个事件、前面四个采样放在 `history` 里，算出 2000.03 dp/秒。
+
+**没验过**：
+- 两根手指的缩放（adb 只有一根手指），手写笔的那几样（`isStylusScaleEnabled`、`toolType` 的 `stylus` / `eraser`）。
+- 密度变了识别器重建（走的是验过的「密度变了重设 `'dp'` 状态」那条路，没单独跑）；页面销毁时放掉识别器（走的是 `release`，没单独跑）。
+- 震没震（`performHapticFeedback` 只验了返回值）、点击音。
+- `performHapticFeedback` 的 `ignoreGlobalSetting`：Android 13 起对普通 App 不起作用（系统的文档），照样传过去。
+
+### 验收
+
+`steps/touch.js`，排在文字后面、App 层前面（页面关掉再打开之后，用 `ctx.activity`）。前半段自由时：类、删掉的成员、事件类、`ViewConfiguration`、`View` 的状态和转换、动作的报错、`VelocityTracker`（JS 造的事件）、识别器的状态。后半段挂到屏幕上，由脚本用 adb 真的去做：点（只听触摸的视图拿下整段手势；时刻在发请求和收到之间）、滑（`touchmove`、`pan`、`fling`、喂给 `VelocityTracker`）、听着 `click` 写了 `false` 照样点得到、不可用的收不到、长按（`longclick`，按着时 `isPressed` 读原生）、识别器的点一下、点两下、长按、关掉长按、单指快速缩放和关掉它、拿下来再放回去、移到别的视图、子视图要下了父视图收不到、`isPressed` 拿下来时读回、挂着时的三个动作、`ScrollView` 里的 `disallowsParentIntercept`、可选中的字。
+
+先在没有这一组的运行时上跑了一遍：类不在全局那 9 条失败，步骤在 `new VelocityTracker()` 那里抛了（`VelocityTracker is not defined`），后面的没跑，判为失败。实现之后 2026-11-28 在 Pixel 6（Android 17）上 Debug 和 Release 都是 2310 条通过、0 条失败（结束标记 2298）；中间挂过的两回都是脚本注入手势的问题，用例没改，见下一段。
+
+`run-device.sh` 补了三种请求：`longpress 字`（按住 1 秒）、`doubletap 字`（同一个 `adb shell` 里点一下、停 80 毫秒、再点一下）、`quickscale dy 字`（同一个 `adb shell` 里点一下、停 80 毫秒，再一条 `input swipe` 往下拖 `dy` 像素）。停那 80 毫秒是因为系统认双击要第二下按下离第一下抬起 40–300 毫秒（`GestureDetector` 的 `DOUBLE_TAP_MIN_TIME` 和双击的时限），两条 `input` 命令之间本来只隔 50 毫秒上下：Debug 两遍都认出来了，Release 那一遍第二下来早了，两下被认成两次单击（`down,singletapup,down,singletapup,singletapconfirmed`），快速缩放也跟着没触发。第二下原来用一条条 `input motionevent` 注入按下、移动、松开，识别器认不出快速缩放（第一遍 Debug 那 3 条就是挂在这里）；单独写了个探针页面对比，换成 `input swipe` 就认得出：`scale` 一路来、`scaleFactor` 大于 1、最后 `scaleend`。两条命令之间隔 50–65 毫秒，在双击要的 40–300 毫秒里。
 
 ## App 层
 
