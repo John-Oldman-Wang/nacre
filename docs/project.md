@@ -635,7 +635,9 @@ Commit message 格式：
 
 ### 已知的问题
 
-现在没有。新发现的写在这里，分析写进[还没做的设计和没解的问题](internals/pending.md)。
+新发现的写在这里，分析写进[还没做的设计和没解的问题](internals/pending.md)。
+
+- 交给原生的任意数据有五个入口、三套规则，`UISceneSession.userInfo` 在 JS 里一点不查，直接交给打包器。[分析](internals/pending.md#交给原生的任意数据五个入口三套规则)
 
 ### 欠的验证
 
