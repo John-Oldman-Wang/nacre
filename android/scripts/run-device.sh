@@ -183,6 +183,76 @@ for node in root.iter("node"):
     "$ADB" shell input swipe "$x" "$y" "$((x + dx))" "$((y + dy))" 300
   done
 }
+
+# 找写着这几个字的视图，打出它正中的坐标「x y」；找不到打空串。办法和点击一样
+find_view() {
+  local text="$1" point="" attempt
+  for attempt in 1 2 3 4 5; do
+    "$ADB" shell rm -f /sdcard/nacre-ui.xml
+    "$ADB" shell uiautomator dump /sdcard/nacre-ui.xml >/dev/null 2>&1 || true
+    point="$("$ADB" exec-out cat /sdcard/nacre-ui.xml 2>/dev/null | python3 -c '
+import sys, re, xml.etree.ElementTree as ET
+want = sys.argv[1]
+try:
+    root = ET.fromstring(sys.stdin.read())
+except ET.ParseError:
+    sys.exit(0)
+for node in root.iter("node"):
+    if node.get("text") == want:
+        x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.get("bounds")))
+        print((x1 + x2) // 2, (y1 + y2) // 2)
+        break
+' "$text")"
+    [ -n "$point" ] && break
+    sleep 1
+  done
+  printf '%s' "$point"
+}
+
+# 触摸组要的几种手势，都从写着这几个字的视图正中开始，每个请求只做一次：
+#   [acceptance] longpress 字          按住不动 1 秒
+#   [acceptance] doubletap 字          连点两下
+#   [acceptance] quickscale dy 字      点一下，第二下按住往下拖 dy 像素再松开（单指的快速缩放）
+PRESSED=0
+press_requests() {
+  local requests count line verb rest text point x y dy=0
+  requests="$(grep -E '^\[acceptance\] (longpress|doubletap|quickscale) ' "$LOG_FILE" | sed 's/^\[acceptance\] //' || true)"
+  count="$(printf '%s' "$requests" | grep -c . || true)"
+  while [ "$PRESSED" -lt "$count" ]; do
+    PRESSED=$((PRESSED + 1))
+    line="$(printf '%s\n' "$requests" | sed -n "${PRESSED}p")"
+    verb="${line%% *}"
+    rest="${line#* }"
+    if [ "$verb" = "quickscale" ]; then
+      dy="${rest%% *}"
+      text="${rest#* }"
+    else
+      text="$rest"
+    fi
+    point="$(find_view "$text")"
+    if [ -z "$point" ]; then
+      echo "  （界面上没找到写着「${text}」的视图，没做 ${verb}）"
+      continue
+    fi
+    x="${point% *}"
+    y="${point#* }"
+    case "$verb" in
+      longpress)
+        echo "  长按「${text}」：$x $y"
+        "$ADB" shell input swipe "$x" "$y" "$x" "$y" 1000 ;;
+      doubletap)
+        # 两下放在同一个 adb shell 里，中间停 80 毫秒：系统认双击要第二下按下离第一下抬起
+        # 40–300 毫秒，两条 input 命令之间本来只隔 50 毫秒上下，有时不到 40（实测，Pixel 6，Android 17）
+        echo "  点两下「${text}」：$x $y"
+        "$ADB" shell "input tap $x $y; sleep 0.08; input tap $x $y" ;;
+      quickscale)
+        # 第二下和点两下一样要在双击的时限里按下。第二下用 input swipe：一条条 input motionevent
+        # 注入的按下、移动，识别器认不出快速缩放（实测，Pixel 6，Android 17）
+        echo "  快速缩放「${text}」：$x $y 往下拖 $dy"
+        "$ADB" shell "input tap $x $y; sleep 0.08; input swipe $x $y $x $((y + dy)) 400" ;;
+    esac
+  done
+}
 # JS 打「[acceptance] <命令> <参数>」请求做一件 App 自己做不到的事，按打出来的顺序、
 # 每个只做一次：
 #   key back                按返回键
@@ -290,6 +360,7 @@ for _ in $(seq 1 "$TIMEOUT"); do
   read_log
   tap_requests
   swipe_requests
+  press_requests
   action_requests
   if grep -q '^\[acceptance\] done ' "$LOG_FILE"; then STATUS="done"; break; fi
   if [ -z "$("$ADB" shell pidof "$PACKAGE" | tr -d '\r')" ]; then
