@@ -1,36 +1,54 @@
-// 图片：ImageDecoder（来源、读头、解码成 Bitmap 或 Drawable）、Bitmap、BitmapDrawable、
-// AnimatedImageDrawable（动图）、ImageView。
+// 图片：ImageDecoder（读头、解码成 Bitmap 或 Drawable）、Bitmap、BitmapDrawable、
+// AnimatedImageDrawable（动图）、ImageView。原生那一侧是 ImageDomain.kt 和 AnimatedImagePlace.kt。
 //
 // 这是内置脚本的一个 part：整个文件就是一个函数表达式，运行时按文件名
 // 顺序编译执行，拿到函数之后用共享的 ctx 调一次。
 //
-// 解码一律在后台做、返回 Promise（Java 的 decodeBitmap 是同步的，主线程上解大图会卡）。
-// Java 解码时用一个回调（OnHeaderDecodedListener）设置怎么解，JS 不实现 Java 的接口，所以
-// 换成第二个参数里的一个对象，键名是那些 set… 去掉 set；要先知道图多大再定怎么解，用
-// decodeHeader（Java 里没有，补的）。不接 BitmapFactory：它能做的 ImageDecoder 都能做。
+// 照「接类的总则」（2026-11-26，docs/project.md 第 4 节）：
 //
-// 原生那一侧是 android/runtime 的 ImageDomain.kt。单位是像素。
+// - 解码一律在后台做、返回 Promise（Java 的解码是同步的，主线程上解大图会卡）。来源直接给：Blob、
+//   ArrayBuffer、typed array，或者项目 assets/ 里的路径。Java 解码时的回调（OnHeaderDecodedListener）
+//   换成第二个参数里的设置。参数在 JS 里当场查，查出来的错和 Java 自己抛的异常都是 Promise 被拒。
+// - Bitmap 是值对象：建出来就有原生对象，不分自由和挂上，任何页面都能用。尺寸是 px（像素数据的下标）。
+// - BitmapDrawable 只在 JS 里记状态，每用在一个挂着的视图上按那个页面建一个原生对象（外观组的那一套，
+//   见 30-appearance.js），密度按那个页面的。
+// - 动图（AnimatedImageDrawable）只有解出来的那一个原生对象，和 Bitmap 一样是值对象。每用在一个视图上，
+//   那一处是原生那边的一个薄 Drawable（AnimatedImagePlace），画的都是它：几个视图显示同一帧、一起播。
+// - ImageView 的成员都是状态：读回写进去的值，长度是 dp。
+// - 写错：Web IDL 转不过来的抛 TypeError，超出范围抛 RangeError，枚举名和颜色写错在属性位打警告、
+//   值不变；用了回收掉的图、在放在显存里的图上读像素抛 InvalidStateError。
 (function (ctx) {
   'use strict';
 
   const {
     Drawable,
-    colorArgument,
+    IGNORE,
+    colorState,
     colorText,
-    constructNative,
     define,
+    defineModel,
+    defineModelSlot,
+    defineModelState,
     defineNativeClass,
+    defineViewState,
     describeValue,
+    enumArgument,
+    enumProperty,
+    initModel,
     kHandle,
+    kModel,
     kSubscribe,
+    native,
     nativeCall,
     nativeCallAsync,
     nativeCallObject,
     nativeClassCallValue,
     nativeGet,
     nativeSet,
-    own,
+    parseColor,
+    px,
     requireInstance,
+    stateValue,
     subscribeNative,
     toInteger,
     toText,
@@ -40,49 +58,60 @@
 
   // ---- 助手 ----
 
-  function requireArgs(args, count, what) {
-    if (args.length < count) {
-      throw new TypeError("Failed to execute '" + what + "': " + count + ' argument' +
-                          (count > 1 ? 's' : '') + ' required, but only ' + args.length + ' present.');
-    }
-  }
-  // 往类上加成员：访问器 { name: [get, set] }，方法 { name: fn }。照 class 语法的样子，不可枚举
-  function addAccessors(proto, accessors) {
-    for (const [name, [get, set]] of Object.entries(accessors)) {
-      Object.defineProperty(proto, name, { get, set, enumerable: false, configurable: true });
-    }
-  }
-  const readOnly = (name) => [function () { return nativeGet(this, name); }, undefined];
-  const integerProp = (name) => [
-    function () { return nativeGet(this, name); },
-    function (v) { nativeSet(this, name, toInteger(v, name)); },
-  ];
-  const booleanProp = (name) => [
-    function () { return nativeGet(this, name); },
-    function (v) { nativeSet(this, name, Boolean(v)); },
-  ];
-  const enumProp = (name) => [
-    function () { return nativeGet(this, name); },
-    function (v) { nativeSet(this, name, toText(v)); },
-  ];
-  // 可空的整数：null 是「没设 / 不限」
-  const nullableIntegerProp = (name) => [
-    function () { return nativeGet(this, name); },
-    function (v) { nativeSet(this, name, v === null ? null : toInteger(v, name)); },
-  ];
-  // 可空的枚举：null 是「没有」
-  const nullableEnumProp = (name) => [
-    function () { return nativeGet(this, name); },
-    function (v) { nativeSet(this, name, v === null ? null : toText(v)); },
-  ];
+  const isObject = (v) => v !== null && (typeof v === 'object' || typeof v === 'function');
 
-  // 嵌套的类（ImageDecoder.Source）：defineNativeClass 会把它挂到全局（名字带点），摘掉再挂成
-  // 静态成员。和布局组的 ViewGroup.LayoutParams 一样
-  function defineNested(Outer, name, cls) {
-    const full = Outer.name + '.' + name;
-    defineNativeClass(full, cls);
-    delete globalThis[full];
-    define(Outer, name, cls);
+  function requireArgs(args, count, where) {
+    if (args.length < count) {
+      throw new TypeError(where + ': ' + count + ' argument' + (count > 1 ? 's' : '') + ' required, but only ' +
+                          args.length + ' present.');
+    }
+  }
+  function invalidState(message) {
+    return new ctx.DOMException(message, 'InvalidStateError');
+  }
+  // 字典的成员：undefined 当没给，必填的没给抛 TypeError
+  function required(dict, key, where) {
+    const v = dict[key];
+    if (v === undefined) throw new TypeError(where + ': required member ' + key + ' is undefined.');
+    return v;
+  }
+  function dictionary(v, where) {
+    if (!isObject(v)) throw new TypeError(where + ': expected an object, got ' + describeValue(v));
+    return v;
+  }
+  function toNumber(v, where) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) throw new TypeError(where + ': expected a finite number, got ' + describeValue(v));
+    return n;
+  }
+  // 整数：大于 0、不小于 0
+  function positiveInteger(v, where) {
+    const n = toInteger(v, where);
+    if (n <= 0) throw new RangeError(where + ': expected an integer greater than 0, got ' + n);
+    return n;
+  }
+  function nonNegativeInteger(v, where) {
+    const n = toInteger(v, where);
+    if (n < 0) throw new RangeError(where + ': expected an integer not less than 0, got ' + n);
+    return n;
+  }
+  function nonNegative(v, where) {
+    const n = toNumber(v, where);
+    if (n < 0) throw new RangeError(where + ': expected a number not less than 0, got ' + n);
+    return n;
+  }
+  function unit(v, where) {
+    const n = toNumber(v, where);
+    if (n < 0 || n > 1) throw new RangeError(where + ': expected a number between 0 and 1, got ' + n);
+    return n;
+  }
+  // 返回 Promise 的方法：参数查出来的错也是 Promise 被拒（照 Web IDL）
+  function promised(fn) {
+    try {
+      return fn();
+    } catch (err) {
+      return Promise.reject(err);
+    }
   }
 
   // 只有运行时自己能建的东西，构造函数认这个记号
@@ -90,118 +119,120 @@
 
   // ---- ImageDecoder ----
 
-  class ImageDecoder {
-    constructor() {
-      throw new TypeError('Illegal constructor: ImageDecoder cannot be constructed; ' +
-                          'use ImageDecoder.createSource() and ImageDecoder.decodeBitmap()');
+  // 图从哪来：路径（项目 assets/ 里的）、Blob、ArrayBuffer、typed array（拷成一个 Blob）。
+  // 每次解码在原生那边建一个来源（Java 的 ImageDecoder.Source），用完就扔，不交给 JS
+  function sourceOf(input, where) {
+    let path = null;
+    let blob = null;
+    if (typeof input === 'string') {
+      path = input;
+    } else if (input instanceof Blob && input[kHandle] !== undefined) {
+      blob = input;
+    } else if (input instanceof ArrayBuffer || ArrayBuffer.isView(input)) {
+      blob = new Blob([input]);
+    } else {
+      throw new TypeError(where + ': expected a Blob, an ArrayBuffer, a typed array or a path in assets/, got ' +
+                          describeValue(input));
     }
-
-    // 图从哪来：Blob、ArrayBuffer、typed array（拷成一个 Blob），或者项目 assets/ 里的路径。
-    // 同一个来源可以解很多次。路径到解码时才打开，所以文件不存在是解码时被拒
-    static createSource(input) {
-      requireArgs(arguments, 1, 'createSource');
-      let arg;
-      if (typeof input === 'string') {
-        arg = input;
-      } else if (input instanceof Blob && input[kHandle] !== undefined) {
-        arg = input;
-      } else if (input instanceof ArrayBuffer || ArrayBuffer.isView(input)) {
-        arg = new Blob([input]);
-      } else {
-        throw new TypeError("Failed to execute 'createSource': expected a Blob, an ArrayBuffer, a typed array " +
-                            'or a path in assets/, got ' + describeValue(input));
-      }
-      const source = new Source(kFactory);
-      constructNative(source, Source, 'ImageDecoder.Source', [arg]);
-      return source;
-    }
-
-    // 只读图的开头：宽高、类型、是不是动图。不解像素
-    static decodeHeader(source) {
-      try {
-        requireArgs(arguments, 1, 'decodeHeader');
-        requireInstance(source, Source, 'decodeHeader');
-        return nativeCallAsync(source, 'decodeHeader', []).then((raw) => new ImageInfo(kFactory, raw));
-      } catch (err) {
-        return Promise.reject(err);
-      }
-    }
-
-    // 解成一张 Bitmap（动图是第一帧）
-    static decodeBitmap(source, options) {
-      return decode('decodeBitmap', arguments, source, options);
-    }
-
-    // 解成一个 Drawable：动图是 AnimatedImageDrawable，别的是 BitmapDrawable
-    static decodeDrawable(source, options) {
-      return decode('decodeDrawable', arguments, source, options);
-    }
-
-    static isMimeTypeSupported(mimeType) {
-      requireArgs(arguments, 1, 'isMimeTypeSupported');
-      return nativeClassCallValue('ImageDecoder', 'isMimeTypeSupported', [toText(mimeType)]);
-    }
-  }
-  define(globalThis, 'ImageDecoder', ImageDecoder);
-
-  function decode(name, args, source, options) {
-    try {
-      requireArgs(args, 1, name);
-      requireInstance(source, Source, name);
-      return nativeCallAsync(source, name, [settingsOf(options, name)]);
-    } catch (err) {
-      return Promise.reject(err);
-    }
+    const source = Object.create(null);
+    const handle = native.construct('@imageSource', [path], [blob === null ? 0 : blob[kHandle]], source);
+    if (!handle) throw new TypeError(where + ': cannot read the image');
+    Object.defineProperty(source, kHandle, { value: handle });
+    return source;
   }
 
   // 解码时的设置，照 Web IDL 的字典转：null / undefined 是空的，成员是 undefined 当没给。
-  // 枚举的名字交给原生核对（写错是 TypeError，列出全部可选值）
-  function settingsOf(options, where) {
+  // 尺寸都是 px。互相冲突的组合当场拒（Java 到解码时才抛 IllegalStateException）
+  function settingsOf(options, where, drawable) {
     if (options == null) return {};
-    if (typeof options !== 'object') {
-      throw new TypeError(where + ': options must be an object, got ' + describeValue(options));
-    }
+    if (!isObject(options)) throw new TypeError(where + ": parameter 2 is not of type 'object'.");
     const out = {};
-    const object = (key) => {
-      const v = options[key];
-      if (v === null || typeof v !== 'object') {
-        throw new TypeError(where + ': ' + key + ' must be an object, got ' + describeValue(v));
-      }
-      return v;
-    };
-    const member = (obj, key, field) => {
-      if (obj[field] === undefined) throw new TypeError(where + ': ' + key + '.' + field + ' is required');
-      return toInteger(obj[field], where + ': ' + key + '.' + field);
-    };
     if (options.targetSize !== undefined) {
-      const s = object('targetSize');
-      out.targetSize = [member(s, 'targetSize', 'width'), member(s, 'targetSize', 'height')];
+      const s = dictionary(options.targetSize, where + ': targetSize');
+      out.targetSize = [positiveInteger(required(s, 'width', where + ': targetSize'), where + ': targetSize.width'),
+                        positiveInteger(required(s, 'height', where + ': targetSize'), where + ': targetSize.height')];
     }
     if (options.targetSampleSize !== undefined) {
-      out.targetSampleSize = toInteger(options.targetSampleSize, where + ': targetSampleSize');
+      if (out.targetSize !== undefined) {
+        throw new TypeError(where + ': targetSize and targetSampleSize cannot both be given');
+      }
+      out.targetSampleSize = positiveInteger(options.targetSampleSize, where + ': targetSampleSize');
     }
     if (options.crop !== undefined) {
-      const c = object('crop');
-      out.crop = ['left', 'top', 'right', 'bottom'].map((f) => member(c, 'crop', f));
+      const c = dictionary(options.crop, where + ': crop');
+      const at = where + ': crop';
+      out.crop = [
+        nonNegativeInteger(required(c, 'x', at), at + '.x'),
+        nonNegativeInteger(required(c, 'y', at), at + '.y'),
+        positiveInteger(required(c, 'width', at), at + '.width'),
+        positiveInteger(required(c, 'height', at), at + '.height'),
+      ];
     }
-    for (const key of ['allocator', 'memorySizePolicy']) {
-      if (options[key] !== undefined) out[key] = toText(options[key]);
+    if (options.allocator !== undefined) out.allocator = enumArgument('imageAllocator', options.allocator, 'allocator');
+    if (options.memorySizePolicy !== undefined) {
+      out.memorySizePolicy = enumArgument('imageMemoryPolicy', options.memorySizePolicy, 'memorySizePolicy');
     }
     for (const key of ['mutableRequired', 'unpremultipliedRequired', 'decodeAsAlphaMaskEnabled']) {
       if (options[key] !== undefined) out[key] = Boolean(options[key]);
     }
+    if (out.allocator === 'hardware' && out.mutableRequired === true) {
+      throw new TypeError(where + ": a bitmap with allocator 'hardware' cannot be mutable");
+    }
+    if (out.allocator === 'hardware' && out.decodeAsAlphaMaskEnabled === true) {
+      throw new TypeError(where + ": a bitmap with allocator 'hardware' cannot be an alpha mask");
+    }
+    if (drawable && out.mutableRequired === true) {
+      throw new TypeError(where + ': a drawable cannot be decoded as mutable; use decodeBitmap()');
+    }
     return out;
   }
 
-  // 来源。没有成员，只能交给 decode…
-  class Source {
-    constructor(token) {
-      if (token !== kFactory) {
-        throw new TypeError('Illegal constructor: use ImageDecoder.createSource()');
-      }
+  class ImageDecoder {
+    constructor() {
+      throw new TypeError('Illegal constructor: ImageDecoder cannot be constructed; ' +
+                          'use ImageDecoder.decodeBitmap() or ImageDecoder.decodeDrawable()');
+    }
+
+    // 只读图的开头：宽高（px）、类型、是不是动图。不解像素
+    static decodeHeader(input) {
+      const where = "Failed to execute 'decodeHeader' on 'ImageDecoder'";
+      return promised(() => {
+        requireArgs(arguments, 1, where);
+        return nativeCallAsync(sourceOf(input, where), 'decodeHeader', []).then((raw) => new ImageInfo(kFactory, raw));
+      });
+    }
+
+    // 解成一张 Bitmap（动图是第一帧）
+    static decodeBitmap(input, options) {
+      const where = "Failed to execute 'decodeBitmap' on 'ImageDecoder'";
+      return promised(() => {
+        requireArgs(arguments, 1, where);
+        const settings = settingsOf(options, where, false);
+        return nativeCallAsync(sourceOf(input, where), 'decodeBitmap', [settings]);
+      });
+    }
+
+    // 解成一个 Drawable：动图是 AnimatedImageDrawable，别的是拿着解出来那张图的 BitmapDrawable
+    static decodeDrawable(input, options) {
+      const where = "Failed to execute 'decodeDrawable' on 'ImageDecoder'";
+      return promised(() => {
+        requireArgs(arguments, 1, where);
+        const settings = settingsOf(options, where, true);
+        return nativeCallAsync(sourceOf(input, where), 'decodeDrawable', [settings]).then((result) => {
+          if (result instanceof Bitmap) return new BitmapDrawable(result);
+          // 动图的包装是原生先有、引擎建的（不走构造函数），在这里补上 Drawable 的记录
+          if (result[kModel] === undefined) initModel(result);
+          return result;
+        });
+      });
+    }
+
+    static isMimeTypeSupported(mimeType) {
+      requireArgs(arguments, 1, "Failed to execute 'isMimeTypeSupported' on 'ImageDecoder'");
+      return nativeClassCallValue('ImageDecoder', 'isMimeTypeSupported', [toText(mimeType)]);
     }
   }
-  defineNested(ImageDecoder, 'Source', Source);
+  define(globalThis, 'ImageDecoder', ImageDecoder);
 
   // decodeHeader 的结果：一份快照，字段只读
   class ImageInfo {
@@ -218,99 +249,190 @@
       this.#isAnimated = raw.isAnimated;
     }
 
-    // { width, height }，像素
+    // { width, height }，px
     get size() { return this.#size; }
     get mimeType() { return this.#mimeType; }
     get isAnimated() { return this.#isAnimated; }
   }
   define(ImageDecoder, 'ImageInfo', ImageInfo);
 
-  // ---- Bitmap ----
+  // ---- Bitmap：值对象 ----
+
+  // 哪些 BitmapDrawable 拿着这张图（弱引用：BitmapDrawable 没人用了就回收掉）。recycle 时用来查
+  // 「有没有挂着的视图在用」
+  const holders = new WeakMap();  // Bitmap -> Set<WeakRef<BitmapDrawable>>
+
+  function hold(bitmap, d) {
+    if (bitmap === null) return;
+    let set = holders.get(bitmap);
+    if (set === undefined) holders.set(bitmap, (set = new Set()));
+    set.add(new WeakRef(d));
+  }
+
+  // 有没有一个挂着的视图在用它：拿着它的 BitmapDrawable 现在有一处（只有挂着的视图上才有）
+  function displayed(bitmap) {
+    const set = holders.get(bitmap);
+    if (set === undefined) return false;
+    let found = false;
+    for (const ref of [...set]) {
+      const d = ref.deref();
+      if (d === undefined || stateValue(d, 'bitmap') !== bitmap) {
+        set.delete(ref);
+        continue;
+      }
+      if (d[kModel].places.size > 0) found = true;
+    }
+    return found;
+  }
+
+  function infoOf(bitmap) {
+    return nativeGet(bitmap, '@info');
+  }
+  function requireUsable(bitmap, where) {
+    if (infoOf(bitmap).isRecycled) throw invalidState(where + ': the bitmap has been recycled');
+  }
+  function requireBitmap(v, where) {
+    return requireInstance(v, Bitmap, where);
+  }
+  // 可空的 Bitmap 参数：要是没回收的
+  function bitmapOrNull(v, where) {
+    if (v == null) return null;
+    requireBitmap(v, where);
+    requireUsable(v, where);
+    return v;
+  }
 
   class Bitmap {
     constructor() {
-      throw new TypeError('Illegal constructor: Bitmap is created by ImageDecoder.decodeBitmap() ' +
-                          'or Bitmap.createScaledBitmap() / Bitmap.createBitmap()');
+      throw new TypeError('Illegal constructor: Bitmap is created by ImageDecoder.decodeBitmap(), ' +
+                          'Bitmap.createScaledBitmap() or Bitmap.createBitmap()');
     }
 
-    // 读一个像素，颜色字符串。放在显存里的图（config 是 'hardware'）读不了
+    // 读一个像素，颜色字符串。坐标是 px
     getPixel(x, y) {
-      requireArgs(arguments, 2, 'getPixel');
-      return colorText(nativeCall(this, 'getPixel', [toInteger(x, 'getPixel'), toInteger(y, 'getPixel')]));
+      const where = "Failed to execute 'getPixel' on 'Bitmap'";
+      requireArgs(arguments, 2, where);
+      const px = toInteger(x, where);
+      const py = toInteger(y, where);
+      const info = infoOf(this);
+      if (info.isRecycled) throw invalidState(where + ': the bitmap has been recycled');
+      if (info.config === 'hardware') {
+        throw invalidState(where + ": the pixels of a bitmap with config 'hardware' are not readable");
+      }
+      if (px < 0 || px >= info.width || py < 0 || py >= info.height) {
+        throw new RangeError(where + ': (' + px + ', ' + py + ') is outside the bitmap (' + info.width + ' × ' +
+                             info.height + ')');
+      }
+      return colorText(nativeCall(this, 'getPixel', [px, py]));
     }
 
-    hasAlpha() {
-      return nativeCall(this, 'hasAlpha', []);
-    }
-
-    // 马上放掉像素占的内存。之后还挂在视图上的话，系统画它时整个 App 会崩（和 Java 一样）
+    // 马上放掉像素占的内存。还有挂着的视图在用就拒绝（Java 不拒，系统画它时整个 App 崩）。
+    // 回收过再调什么都不做
     recycle() {
+      if (displayed(this)) {
+        throw invalidState("Failed to execute 'recycle' on 'Bitmap': the bitmap is displayed by a view " +
+                           'that is attached to an activity');
+      }
       nativeCall(this, 'recycle', []);
     }
 
-    // 缩放成一张新图（Java 可能把原图原样还回来）。filter 是缩放时要不要插值
-    static createScaledBitmap(src, dstWidth, dstHeight, filter) {
-      requireArgs(arguments, 4, 'createScaledBitmap');
-      requireInstance(src, Bitmap, 'createScaledBitmap');
-      return nativeCallObject(src, 'createScaledBitmap', [
-        toInteger(dstWidth, 'createScaledBitmap'), toInteger(dstHeight, 'createScaledBitmap'), Boolean(filter)]);
+    // 缩放成一张新图。filter 是缩放时要不要插值，默认 true。不可改的图、大小不变时 Java 把原图原样还回来
+    static createScaledBitmap(src, options) {
+      const where = "Failed to execute 'createScaledBitmap' on 'Bitmap'";
+      requireArgs(arguments, 2, where);
+      requireBitmap(src, where);
+      if (!isObject(options)) throw new TypeError(where + ": parameter 2 is not of type 'object'.");
+      const width = positiveInteger(required(options, 'width', where), where + ': width');
+      const height = positiveInteger(required(options, 'height', where), where + ': height');
+      const filter = options.filter === undefined ? true : Boolean(options.filter);
+      requireUsable(src, where);
+      return nativeCallObject(src, 'createScaledBitmap', [width, height, filter]);
     }
 
-    // 从原图里裁一块。只接 createBitmap(source, x, y, width, height) 这一种重载
-    static createBitmap(source, x, y, width, height) {
-      if (arguments.length !== 5) {
-        throw new TypeError("Failed to execute 'createBitmap': only createBitmap(source, x, y, width, height) " +
-                            'is supported, got ' + arguments.length + ' arguments');
+    // 从原图里裁一块，px
+    static createBitmap(src, options) {
+      const where = "Failed to execute 'createBitmap' on 'Bitmap'";
+      requireArgs(arguments, 2, where);
+      requireBitmap(src, where);
+      if (!isObject(options)) throw new TypeError(where + ": parameter 2 is not of type 'object'.");
+      const x = nonNegativeInteger(required(options, 'x', where), where + ': x');
+      const y = nonNegativeInteger(required(options, 'y', where), where + ': y');
+      const width = positiveInteger(required(options, 'width', where), where + ': width');
+      const height = positiveInteger(required(options, 'height', where), where + ': height');
+      const info = infoOf(src);
+      if (info.isRecycled) throw invalidState(where + ': the bitmap has been recycled');
+      if (x + width > info.width || y + height > info.height) {
+        throw new RangeError(where + ': the area (' + x + ', ' + y + ', ' + width + ' × ' + height +
+                             ') is outside the bitmap (' + info.width + ' × ' + info.height + ')');
       }
-      requireInstance(source, Bitmap, 'createBitmap');
-      return nativeCallObject(source, 'createBitmap', [x, y, width, height].map((v) => toInteger(v, 'createBitmap')));
+      return nativeCallObject(src, 'createBitmap', [x, y, width, height]);
     }
   }
-  addAccessors(Bitmap.prototype, {
-    width: readOnly('width'),
-    height: readOnly('height'),
-    // 'argb8888'、'hardware'、'rgb565'……（Bitmap.Config 去掉下划线转驼峰）
-    config: readOnly('config'),
-    // 每英寸多少像素；null 是没设（DENSITY_NONE）
-    density: nullableIntegerProp('density'),
-    byteCount: readOnly('byteCount'),
-    allocationByteCount: readOnly('allocationByteCount'),
-    isMutable: readOnly('isMutable'),
-    isPremultiplied: readOnly('isPremultiplied'),
-    isRecycled: readOnly('isRecycled'),
+  // 只读的：都是这张图自己的事实，读原生
+  for (const name of ['width', 'height', 'config', 'byteCount', 'allocationByteCount', 'isMutable',
+                      'isPremultiplied', 'hasAlpha', 'isRecycled']) {
+    Object.defineProperty(Bitmap.prototype, name, {
+      get() { return nativeGet(this, name); },
+      enumerable: false,
+      configurable: true,
+    });
+  }
+  // 每英寸多少像素：BitmapDrawable 按它和页面的密度换算图在屏幕上多大。null 是没设
+  // （一个像素就是屏幕上的一个像素）
+  Object.defineProperty(Bitmap.prototype, 'density', {
+    get() { return nativeGet(this, 'density'); },
+    set(v) { nativeSet(this, 'density', v == null ? null : positiveInteger(v, 'density')); },
+    enumerable: false,
+    configurable: true,
   });
   defineNativeClass('Bitmap', Bitmap);
 
-  // ---- BitmapDrawable ----
+  // ---- BitmapDrawable：只在 JS 里记状态 ----
 
   class BitmapDrawable extends Drawable {
-    // Java 的第一个参数 Resources 去掉了，用页面的。bitmap 可以是 null
+    // bitmap 可以是 null（什么都不画）
     constructor(bitmap) {
+      const where = "Failed to construct 'BitmapDrawable'";
+      requireArgs(arguments, 1, where);
+      const b = bitmapOrNull(bitmap, where);
       super();
-      requireArgs(arguments, 1, 'BitmapDrawable');
-      const b = bitmap == null ? null : requireInstance(bitmap, Bitmap, "Failed to construct 'BitmapDrawable'");
-      constructNative(this, new.target, 'BitmapDrawable', [b]);
-      own(this, 'bitmap', b);
-    }
-
-    get bitmap() {
-      return own(this, 'bitmap', nativeCallObject(this, 'getBitmap', []));
-    }
-
-    setTileModeXY(x, y) {
-      requireArgs(arguments, 2, 'setTileModeXY');
-      nativeCall(this, 'setTileModeXY', [x == null ? null : toText(x), y == null ? null : toText(y)]);
+      this[kModel].values.set('bitmap', b);
+      hold(b, this);
     }
   }
-  addAccessors(BitmapDrawable.prototype, {
-    // 'clamp' | 'repeat' | 'mirror' | 'decal'（Android 12 起）；null 是不平铺
-    tileModeX: nullableEnumProp('tileModeX'),
-    tileModeY: nullableEnumProp('tileModeY'),
-    isFilterBitmap: booleanProp('isFilterBitmap'),
-  });
   defineNativeClass('BitmapDrawable', BitmapDrawable);
+  // 每一处按那个页面的密度（dpi）换算图的大小：160 dpi 的图一个像素是 1 dp
+  defineModel(BitmapDrawable, {
+    nativeClass: 'BitmapDrawable',
+    construct: (d, page) => [stateValue(d, 'bitmap'), Math.round(page.density * 160)],
+  });
+  // 图：构造时给，也能换（Java 的 setBitmap 是 Android 12 起才有，这里换了就重建那一处，11 上也能用）
+  defineModelState(BitmapDrawable, 'bitmap', {
+    order: 100,
+    initial: null,
+    convert: (v, what) => bitmapOrNull(v, what),
+    after: (d, value) => hold(value, d),
+    apply: () => {},  // 是构造参数
+    rebuild: () => true,
+  });
+  // 平铺：'clamp' | 'repeat' | 'mirror' | 'decal'（Android 12 起）；null 是不平铺
+  for (const [name, order] of [['tileModeX', 110], ['tileModeY', 111]]) {
+    defineModelState(BitmapDrawable, name, {
+      order,
+      initial: null,
+      convert: (v, what) => (v == null ? null : enumProperty('bitmapTileMode', v, what)),
+      apply: (standIn, value) => nativeSet(standIn, name, value),
+    });
+  }
+  // 缩放时插不插值
+  defineModelState(BitmapDrawable, 'isFilterBitmap', {
+    order: 120,
+    initial: true,
+    convert: (v) => Boolean(v),
+    apply: (standIn, value) => nativeSet(standIn, 'isFilterBitmap', value),
+  });
 
-  // ---- AnimatedImageDrawable ----
+  // ---- AnimatedImageDrawable：值对象，只有解出来的那一个原生对象 ----
 
   const animationEvents = new Set(['animationstart', 'animationend']);
 
@@ -319,7 +441,20 @@
       throw new TypeError('Illegal constructor: AnimatedImageDrawable is created by ImageDecoder.decodeDrawable()');
     }
 
-    // 开始播。系统画到它时才真的动，所以要挂在屏幕上的视图里
+    // 播完一遍之后再重复几遍；'infinite' 是一直播。默认照文件里写的
+    get repeatCount() { return nativeGet(this, 'repeatCount'); }
+    set repeatCount(v) {
+      if (typeof v === 'string') {
+        const name = enumProperty('repeatCount', v, 'repeatCount');
+        if (name !== IGNORE) nativeSet(this, 'repeatCount', name);
+        return;
+      }
+      nativeSet(this, 'repeatCount', nonNegativeInteger(v, 'repeatCount'));
+    }
+
+    get isRunning() { return nativeGet(this, 'isRunning'); }
+
+    // 开始播、停下。没用在视图上也能调；系统画到它时才真的动
     start() { nativeCall(this, 'start', []); }
     stop() { nativeCall(this, 'stop', []); }
 
@@ -327,63 +462,79 @@
       if (animationEvents.has(type)) subscribeNative(this, type, on);
     }
   }
-  addAccessors(AnimatedImageDrawable.prototype, {
-    // 播完一遍之后再重复几遍；'infinite' 是一直播。默认照文件里写的
-    repeatCount: [
-      function () { return nativeGet(this, 'repeatCount'); },
-      function (v) { nativeSet(this, 'repeatCount', typeof v === 'string' ? v : toInteger(v, 'repeatCount')); },
-    ],
-    isRunning: readOnly('isRunning'),
-  });
   defineNativeClass('AnimatedImageDrawable', AnimatedImageDrawable);
+  // 每一处是原生那边的一个薄 Drawable，画的是这个动图（构造参数就是它）
+  defineModel(AnimatedImageDrawable, {
+    nativeClass: '@animatedImagePlace',
+    construct: (d) => [d],
+  });
 
   // ---- ImageView ----
 
-  class ImageView extends View {
-    constructor(context) {
-      super(context);
-      constructNative(this, new.target, 'ImageView', [context]);
-    }
-
-    // 视图拿着它显示的 Drawable（setImageBitmap 时是 ImageView 自己建的那个 BitmapDrawable）
-    get drawable() {
-      return own(this, 'image', nativeCallObject(this, 'getDrawable', []));
-    }
-
-    setImageBitmap(bitmap) {
-      requireArgs(arguments, 1, 'setImageBitmap');
-      const b = bitmap == null ? null : requireInstance(bitmap, Bitmap, 'setImageBitmap');
-      nativeCall(this, 'setImageBitmap', [b]);
-      // 系统建的（或者复用的）BitmapDrawable 拿着这张图；读 drawable 时再记那条边
-      own(this, 'image', nativeCallObject(this, 'getDrawable', []));
-    }
-
-    setImageDrawable(drawable) {
-      requireArgs(arguments, 1, 'setImageDrawable');
-      const d = drawable == null ? null : requireInstance(drawable, Drawable, 'setImageDrawable');
-      nativeCall(this, 'setImageDrawable', [d]);
-      own(this, 'image', d);
-    }
-
-    // 给图着色：颜色加混合模式（PorterDuff.Mode 转驼峰，默认 'srcAtop'，和 Java 的一个参数的版本一样）
-    setColorFilter(color, mode = 'srcAtop') {
-      requireArgs(arguments, 1, 'setColorFilter');
-      nativeCall(this, 'setColorFilter', [colorArgument('setColorFilter', color), toText(mode)]);
-    }
-
-    clearColorFilter() {
-      nativeCall(this, 'clearColorFilter', []);
-    }
-  }
-  addAccessors(ImageView.prototype, {
-    scaleType: enumProp('scaleType'),
-    adjustViewBounds: booleanProp('adjustViewBounds'),
-    // 像素；null 是不限
-    maxWidth: nullableIntegerProp('maxWidth'),
-    maxHeight: nullableIntegerProp('maxHeight'),
-    // 0–255
-    imageAlpha: integerProp('imageAlpha'),
-    cropToPadding: booleanProp('cropToPadding'),
-  });
+  class ImageView extends View {}
   defineNativeClass('ImageView', ImageView);
+
+  // 显示的 Drawable（BitmapDrawable、动图，或者别的 Drawable），null 是什么都不显示
+  defineModelSlot(ImageView, 'drawable', {
+    order: 600,
+    Cls: Drawable,
+    set: (standIn, d) => nativeCall(standIn, 'setImageDrawable', [d]),
+  });
+  // 按图的比例定自己的大小。Java 的 setAdjustViewBounds(true) 会把 scaleType 改成 fitCenter（实测），
+  // 所以设完再按 JS 的把 scaleType 设回去
+  defineViewState(ImageView, 'adjustViewBounds', {
+    order: 610,
+    initial: false,
+    convert: (v) => Boolean(v),
+    apply: (standIn, value, page, view) => {
+      nativeSet(standIn, 'adjustViewBounds', value);
+      nativeSet(standIn, 'scaleType', view.scaleType);
+    },
+  });
+  defineViewState(ImageView, 'scaleType', {
+    order: 611,
+    initial: 'fitCenter',
+    convert: (v, what) => enumProperty('scaleType', v, what),
+    apply: (standIn, value) => nativeSet(standIn, 'scaleType', value),
+  });
+  // 最大宽高，dp；null 是不限。只在 adjustViewBounds 时起作用（和 Java 一样）
+  for (const [name, order] of [['maxWidth', 620], ['maxHeight', 621]]) {
+    defineViewState(ImageView, name, {
+      order,
+      initial: null,
+      units: 'dp',
+      convert: (v, what) => (v == null ? null : nonNegative(v, what)),
+      apply: (standIn, value, page) => nativeSet(standIn, name, value === null ? null : px(page, value)),
+    });
+  }
+  // 图的透明度，0–1（Java 是 0–255）
+  defineViewState(ImageView, 'imageAlpha', {
+    order: 630,
+    initial: 1,
+    convert: (v, what) => unit(v, what),
+    apply: (standIn, value) => nativeSet(standIn, 'imageAlpha', Math.round(value * 255)),
+  });
+  defineViewState(ImageView, 'cropToPadding', {
+    order: 640,
+    initial: false,
+    convert: (v) => Boolean(v),
+    apply: (standIn, value) => nativeSet(standIn, 'cropToPadding', value),
+  });
+  // 给图着色：null，或者 { color, mode }。mode 是混合模式（PorterDuff.Mode 转驼峰），不写是 'srcAtop'
+  // （和 Java 一个参数的 setColorFilter 一样）。读出冻结的副本，mode 补上
+  defineViewState(ImageView, 'colorFilter', {
+    order: 650,
+    initial: null,
+    convert: (v, what) => {
+      if (v == null) return null;
+      if (!isObject(v)) throw new TypeError(what + ': expected an object { color, mode } or null, got ' + describeValue(v));
+      const color = colorState(required(v, 'color', what), what);
+      if (color === IGNORE) return IGNORE;
+      const mode = v.mode === undefined ? 'srcAtop' : enumProperty('porterDuffMode', v.mode, what + '.mode');
+      if (mode === IGNORE) return IGNORE;
+      return Object.freeze({ color, mode });
+    },
+    apply: (standIn, value) => nativeCall(standIn, '@colorFilter',
+                                          value === null ? [null, null] : [parseColor(value.color), value.mode]),
+  });
 })

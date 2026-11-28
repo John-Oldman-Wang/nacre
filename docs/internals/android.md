@@ -21,7 +21,7 @@ android/
 │        ├─ AppearanceDomain.kt 外观
 │        ├─ ScrollDomain.kt   滚动
 │        ├─ AnimationDomain.kt 动画和帧时钟
-│        ├─ ImageDomain.kt    图片
+│        ├─ ImageDomain.kt、AnimatedImagePlace.kt   图片
 │        ├─ TouchDomain.kt    触摸和手势
 │        ├─ FetchService.kt、NacreBlob.kt、NacreWebSocket.kt、Network.kt   网络
 │        └─ Packed.kt         读引擎打包的参数
@@ -260,13 +260,13 @@ ctx.defineViewState(TextView, 'text', {
 
 ### 过渡期
 
-第一步改了所有组都依赖的机制，已经合进来的图片、滚动和动画第二步按新总则重写之前（布局、外观、App 层、文字已经改完）：
+第一步改了所有组都依赖的机制，已经合进来的滚动和动画第二步按新总则重写之前（布局、外观、App 层、文字、图片已经改完）：
 
 - 它们的内置脚本照样加载，构造照样能用（多给的 `context` 不管）。
 - 还没改的成员在挂着的视图上照样能用：`nativeGet` / `nativeSet` / `nativeCall` 这几个助手碰到公开的视图，挂着就走它的替身；自由或拿下来时抛 `InvalidStateError`。对象参数是自由的视图时传 `null`，原生按类型不对拒掉。
-- 外观改完之后，`Drawable` 没有原生对象了（每处一个，见「外观」）。还没改的组里收 `Drawable` 的成员收不了新写法的 `Drawable`：滚动的滚动条那几个、图片的 `setImageDrawable`（抛 `TypeError`）；图片组的 `BitmapDrawable`、`AnimatedImageDrawable` 还是旧写法，放不进 `background`。这几组重写时接「每处一个原生对象」那一套。
+- 外观改完之后，`Drawable` 没有原生对象了（每处一个，见「外观」）。还没改的组里收 `Drawable` 的成员收不了新写法的 `Drawable`：滚动的滚动条那几个（抛 `TypeError`）。滚动组重写时接「每处一个原生对象」那一套。
 - 外观的 `alpha`、`translationX`、`scaleX` 这些现在读的是 JS 写的值。动画（`view.animate()`、`ObjectAnimator`）在原生那边改了它们，JS 读不到；动画组重写时按「系统也会改的状态」处理（挂着时读原生）。
-- 验收里这几组的步骤先注释掉（`acceptance-android/src/main.js`），哪组改完打开自己那几行。布局、外观、App 层、文字已经打开了。
+- 验收里这几组的步骤先注释掉（`acceptance-android/src/main.js`），哪组改完打开自己那几行。布局、外观、App 层、文字、图片已经打开了。
 
 ### 验收
 
@@ -480,7 +480,7 @@ ctx.defineModelSlot(ImageView, 'drawable', {
 - `initial` 必须等于新建的原生对象的默认值：建一处时没写过的不设。
 - 几个状态合成一次原生调用的（边框的四个、中心点的两个），`apply` 用 `ctx.stateValue(d, 名字)` 读别的，不走 getter。
 - 要求参数是 Drawable 时用 `ctx.requireModel(v, Drawable, what)`。
-- **原生先有的 Drawable 套不进来**：`ImageDecoder.decodeDrawable` 解出来的 `AnimatedImageDrawable` 不是「按状态建」的，没法每处建一个。图片组要单独想（比如每处重新解一次，或者限定只能用在一处），这一步没定。
+- **原生先有的 Drawable 套不进来**：`ImageDecoder.decodeDrawable` 解出来的 `AnimatedImageDrawable` 不是「按状态建」的，没法每处建一个。图片组要单独想（比如每处重新解一次，或者限定只能用在一处），这一步没定。图片组 2026-11-28 定了：动图只有一个原生对象，每处是一个薄的原生 Drawable，见[图片](#动图一个原生对象每处一个薄-drawable)。
 
 ### 颜色：CSS 的字符串，原样读回
 
@@ -1083,50 +1083,148 @@ JS 打「`[acceptance] <命令> <参数>`」，`run-device.sh` 照做，和 `tap
 
 ## 图片
 
-`ImageDecoder`（来源、读头、解码成 `Bitmap` 或 `Drawable`）、`Bitmap`、`BitmapDrawable`、`AnimatedImageDrawable`（动图）、`ImageView`。原生在 `ImageDomain.kt`，JS 在 `34-image.js`，验收是 `steps/image.js`，测试图由 `acceptance-android/scripts/make-test-images.py` 自己拼（不带任何现成的图），放在 `acceptance-android/assets/images/`。
+`ImageDecoder`（读头、解码成 `Bitmap` 或 `Drawable`）、`Bitmap`、`BitmapDrawable`、`AnimatedImageDrawable`（动图）、`ImageView`。原生在 `ImageDomain.kt` 和 `AnimatedImagePlace.kt`，JS 在 `34-image.js`，验收是 `steps/image.js`，测试图由 `acceptance-android/scripts/make-test-images.py` 自己拼（不带任何现成的图），放在 `acceptance-android/assets/images/`。
 
-### 定下来的几条（2026-11-24）
+2026-11-24 照 Java 接过一次（`createSource`、`setImageBitmap`、`setColorFilter` 这一版），2026-11-28 照「接类的总则」在原地重写。
 
-| | 做法 | 理由 |
+### 成员，按四类
+
+`Bitmap` 和动图是**值对象**：建出来就有原生对象，不分自由和挂上，任何页面都能用，读写直接对着原生对象（和文字组的 `Typeface` 一样）。`BitmapDrawable` 和 `ImageView` 照总则只在 JS 里记状态。
+
+**`ImageDecoder`**：只有静态方法，不能 `new`。
+
+| 成员 | 说明 |
+| --- | --- |
+| `decodeHeader(input)` | 只读图的开头，兑现成 `ImageDecoder.ImageInfo`：`size`（冻结的 `{ width, height }`，px）、`mimeType`、`isAnimated`。不解像素 |
+| `decodeBitmap(input, options?)` | 兑现成 `Bitmap`；动图是第一帧 |
+| `decodeDrawable(input, options?)` | 动图兑现成 `AnimatedImageDrawable`，别的兑现成拿着解出来那张图的 `BitmapDrawable` |
+| `isMimeTypeSupported(mimeType)` | 同步，布尔 |
+
+`input` 是 `Blob`、`ArrayBuffer`、typed array（含 `DataView`，只取它看得见的那一段），或者项目 `assets/` 里的路径。三个解码的方法都在后台线程上做、返回 Promise。`options`（都是可选的，尺寸都是 px）：`targetSize`（`{ width, height }`）、`targetSampleSize`、`crop`（`{ x, y, width, height }`，按缩放之后的大小算）、`allocator`（`'default'` / `'software'` / `'sharedMemory'` / `'hardware'`）、`memorySizePolicy`（`'default'` / `'lowRam'`）、`mutableRequired`、`unpremultipliedRequired`、`decodeAsAlphaMaskEnabled`。
+
+**`Bitmap`**：不能 `new`，由解码和下面两个静态方法建。
+
+| 类 | 成员 |
+| --- | --- |
+| 只读 | `width`、`height`（px）、`config`（`'argb8888'`、`'hardware'`、`'rgb565'`……）、`byteCount`、`allocationByteCount`、`isMutable`、`isPremultiplied`、`hasAlpha`、`isRecycled` |
+| 可写 | `density`：每英寸多少像素，正整数；`null` 是没设（解出来的图都是 `null`） |
+| 方法 | `getPixel(x, y)`：颜色字符串，坐标是 px；`recycle()` |
+| 静态 | `createScaledBitmap(src, { width, height, filter })`（`filter` 不写是 `true`）；`createBitmap(src, { x, y, width, height })`。都是 px，同步（只动内存里的像素） |
+
+**`BitmapDrawable`**：`new BitmapDrawable(bitmap)`，`bitmap` 必须给，可以是 `null`。
+
+| 状态 | 没写过 | 说明 |
 | --- | --- | --- |
-| 解码用哪套 | 只接 `ImageDecoder`，不接 `BitmapFactory` | `ImageDecoder` 是 Android 9 起推荐的，格式全（含 HEIF、动图），能边解边缩。两套都接是同一件事两种写法 |
-| 同步还是异步 | 解码（`decodeHeader`、`decodeBitmap`、`decodeDrawable`）放到后台线程，返回 Promise；只动内存里像素的（`createScaledBitmap`、`createBitmap` 裁切）照 Java 同步 | Java 的解码是同步的，可 JS 在主线程，解大图会卡。原则 4：异步只有 Promise |
-| 解码时的设置 | Java 的回调 `OnHeaderDecodedListener` 换成第二个参数里的一个对象，键名是那些 `set…` 去掉 `set`：`targetSize`（`{ width, height }`）、`targetSampleSize`、`crop`（`{ left, top, right, bottom }`）、`allocator`、`mutableRequired`、`unpremultipliedRequired`、`memorySizePolicy`、`decodeAsAlphaMaskEnabled` | JS 不实现 Java 的接口；「能用属性就用属性」。回调里能先看到图多大，所以补了一个 Java 里没有的 `ImageDecoder.decodeHeader(source)`：只读头，结果是 `ImageDecoder.ImageInfo`（`size`、`mimeType`、`isAnimated`，快照） |
-| 来源 | `ImageDecoder.createSource(来源)`，来源是 `Blob`、`ArrayBuffer`、typed array 或 assets 里的路径，得到 `ImageDecoder.Source`，能解很多次 | 照 Java。`AssetManager` 参数去掉，路径相对项目的 `assets/`，和文字组的 `Typeface.createFromAsset` 一样（包里的 `app/`）。`ArrayBuffer` 在 JS 里先拷成 `Blob` 再过桥（桥上没有传字节的格式） |
-| 动图 | `decodeDrawable` 遇到动图得到 `AnimatedImageDrawable`：`start()`、`stop()`、只读的 `isRunning`、`repeatCount`（数或 `'infinite'`），事件 `animationstart`、`animationend`（名字借 Web 的，普通的 `Event`） | 一次一次发生的通知用事件。为此外观组的 `Drawable` 改成继承 `EventTarget`（`30-appearance.js` 一行，用户同意） |
-| `recycle()` | 暴露，连同只读的 `isRecycled` | 图的内存大，JS 的 GC 不知道它多大。代价照 Java：放掉之后还挂在视图上，系统画它时整个 App 崩 |
-| 着色 | 这一步只做 `ImageView.setColorFilter(color, mode = 'srcAtop')`、`clearColorFilter()` | `imageTintList` 要 `ColorStateList`，文字组也要它，等它单独定 |
-| 出错 | Promise 以 Java 异常的简单类名被拒：`DecodeException`、`FileNotFoundException`、`IllegalStateException`…… | 和同步调用时 Java 抛的一样 |
+| `bitmap` | 构造时给的 | `Bitmap` 或 `null`，可写 |
+| `tileModeX`、`tileModeY` | `null` | `'clamp'` / `'repeat'` / `'mirror'` / `'decal'`（Android 12 起）；`null` 是不平铺 |
+| `isFilterBitmap` | `true` | |
+| `alpha` | 1 | `Drawable` 的，0–1 |
 
-照规矩接的：`Bitmap`（`width`、`height`、`config`、`density`、`byteCount`、`allocationByteCount`、`isMutable`、`isPremultiplied`、`isRecycled`、`hasAlpha()`、`getPixel()`）；`BitmapDrawable`（`new BitmapDrawable(bitmap)`，`Resources` 用页面的；`bitmap`、`tileModeX` / `tileModeY`、`setTileModeXY()`、`isFilterBitmap`）；`ImageView`（`setImageBitmap()`、`setImageDrawable()`、只读的 `drawable`、`scaleType`、`adjustViewBounds`、`maxWidth` / `maxHeight`、`imageAlpha`、`cropToPadding`）。`config`、`PorterDuff.Mode` 这些 Java 的枚举去掉下划线转驼峰（`ARGB_8888` → `'argb8888'`，`SRC_ATOP` → `'srcAtop'`）。表示「没设 / 不限」的哨兵读出 `null`、写 `null` 清掉：`density` 的 `DENSITY_NONE`、`maxWidth` 的 `Integer.MAX_VALUE`、平铺的不平铺。
+**`AnimatedImageDrawable`**：不能 `new`，由 `decodeDrawable` 建。`repeatCount`（读写原生：播完一遍再重复几遍，非负整数或 `'infinite'`，默认照文件里写的）、只读的 `isRunning`、`start()`、`stop()`；事件 `animationstart`、`animationend`（普通的 `Event`）；`Drawable` 的 `alpha`。值对象，所以没用在视图上也能 `start()`，画到它时才真的动。
 
-### 实现
+**`ImageView`**：`new ImageView()`，全是状态（挂上时按 `order` 设到原生）。
 
-- **嵌套的类**：`ImageDecoder.Source` 照布局组的办法，`defineNativeClass` 之后从全局摘掉、挂成静态成员。`ImageDecoder` 自己不是原生类（没有 Java 对象），只挂在全局；`ImageInfo` 是纯 JS 的值类。
-- **类方法的通道**：没用文字组补的「类方法返回对象」。`createSource` 走造对象的通道（和外观组的 `RenderEffect` 一样）；解码挂在来源对象上走返回 Promise 的通道；`createScaledBitmap`、`createBitmap` 挂在原图上走返回对象的方法：Java 可能把原图原样还回来，同一个对象要是同一个包装，造对象的通道做不到。
-- **读头**：用 `decodeDrawable` 加回调，回调里把 `ImageInfo` 抄成 JSON（出了回调它就不能用了），再扔一个自己的异常中止，像素一个都不解。
-- **两条解码线程**：几张图能同时解，又不至于占满所有核。
-- **返回 Promise 的方法里不能往外抛**：一开始解码设置写错（`allocator: 'gpu'`）时，在原生的 `callAsync` 里抛了 `NacreTypeError`，Promise 就一直悬着，验收卡住等不到结束标记。改成在域里自己 `settle.reject`。这个坑在桥上是通的（`NativeBridge.callAsync` 不接异常），别的组写 `callAsync` 时也要自己拒。
-- 视图持有它显示的 `Drawable`（`image` 那条边），`BitmapDrawable` 持有它的图。
+| 状态 | 没写过 | 说明 |
+| --- | --- | --- |
+| `drawable` | `null` | 任何 `Drawable`（`BitmapDrawable`、动图、外观组的几个） |
+| `adjustViewBounds` | `false` | |
+| `scaleType` | `'fitCenter'` | `'matrix'`、`'fitXY'`、`'fitStart'`、`'fitCenter'`、`'fitEnd'`、`'center'`、`'centerCrop'`、`'centerInside'` |
+| `maxWidth`、`maxHeight` | `null` | dp；`null` 是不限。只在 `adjustViewBounds` 时起作用（和 Java 一样） |
+| `imageAlpha` | 1 | 0–1 |
+| `cropToPadding` | `false` | |
+| `colorFilter` | `null` | `{ color, mode }`：颜色原样读回；`mode` 是混合模式（`PorterDuff.Mode` 转驼峰），不写是 `'srcAtop'`。读出冻结的副本，`mode` 补上 |
+
+页面值、动作、事件：`ImageView` 没有。
+
+删掉的：`ImageDecoder.createSource` 和 `ImageDecoder.Source`、`Bitmap.hasAlpha()`（改成属性）、按位置传参的 `createScaledBitmap(src, w, h, filter)` 和 `createBitmap(src, x, y, w, h)`、`BitmapDrawable.setTileModeXY`、`ImageView` 的 `setImageBitmap`、`setImageDrawable`（并进可写的 `drawable`）、`setColorFilter`、`clearColorFilter`（并进 `colorFilter`）。验收里逐个断言它们不在了。
+
+### 定了什么
+
+照方案（已经确认的）：
+
+- 来源直接给，删掉 `createSource`。每次解码在原生那边建一个 `ImageDecoder.Source`，用完就扔，不交给 JS；从 assets 读文件用 App 的 `assets`，不借页面。
+- `ImageView.drawable` 用外观组的 `defineModelSlot` 登记；`colorFilter` 改成属性；`maxWidth` / `maxHeight` 是 dp。
+- `Bitmap` 是值对象，两个静态方法收 options，尺寸是 px；`hasAlpha` 改成属性；还有挂着的视图在用时 `recycle()` 拒绝。
+- `BitmapDrawable` 接外观组的「每处一个原生对象」，删掉 `setTileModeXY`。
+
+问过用户的两处（2026-11-28）：
+
+- **动图只有一个原生对象，每处是一个薄 Drawable**（见下面一节）。另外两个方案是「每处重新解一次，各播各的」和「只能用在一处」。
+- **`crop` 写成 `{ x, y, width, height }`**：和 `createBitmap` 是同一件事，用同一种写法。原来是 Java 的 `{ left, top, right, bottom }`，现在写它抛 `TypeError`（缺 `x`）。
+
+照总则自己定的（用户没反对）：
+
+- **报错**：回收了的图拿去读像素、缩放、裁切、建 `BitmapDrawable`、写进 `bitmap`，以及在放在显存里的图（`config` 是 `'hardware'`）上 `getPixel`，抛 `InvalidStateError`（Java 是 `IllegalStateException`），照 Web 的 `ImageBitmap.close()` 之后再用。坐标、尺寸超出范围抛 `RangeError`（Java 是 `IllegalArgumentException`）。
+- **`recycle()` 和「在用」**：拿着这张图的 `BitmapDrawable` 现在有一处（只有挂着的视图上才有：当图、当背景、放在水波的内容里都算），就拒绝。只有自由的、拿下来的视图在用的，照常回收；这样的视图之后再挂上，那一处什么都不画（原生建 `BitmapDrawable` 时图已经回收就给 `null`），不会让 App 崩掉。JS 用弱引用记着每张图被哪些 `BitmapDrawable` 拿着，回收时挨个看。
+- **解码设置在 JS 里查**，查出来的错都是 Promise 被拒（照 Web IDL：返回 Promise 的方法不当场抛）。冲突的组合是 `TypeError`：`'hardware'` 加 `mutableRequired`、`'hardware'` 加 `decodeAsAlphaMaskEnabled`、`decodeDrawable` 加 `mutableRequired`（Java 到解码时才抛 `IllegalStateException`），`targetSize` 和 `targetSampleSize` 一起给（Java 是后设的那个算）。尺寸不大于 0、`targetSampleSize` 小于 1、裁切的位置是负的或者裁出来是空的，是 `RangeError`。裁切超出图的范围要看图多大，还是 Java 在解码时拒（`IllegalStateException`）。
+- **`imageAlpha` 是 0–1**（Java 是 0–255），照总则第 4 条。
+- **`colorFilter` 写成 `{ color, mode? }`**：颜色、`mode` 写错打警告、值不变，少了 `color` 或者不是对象抛 `TypeError`。读出来照 Web IDL 的字典把 `mode` 的默认值补上。
+- **`BitmapDrawable.bitmap` 可写**：Java 的 `setBitmap` 是 Android 12 起才有，这里换了图就重建那一处，11 上也能用。
+- **`createScaledBitmap` 的 `filter` 不写是 `true`**，照 AndroidX 的 `Bitmap.scale`。
+- **`density` 是正整数或 `null`**：Java 的 `DENSITY_NONE`（0）是哨兵，写 0 抛 `RangeError`。
+- **`BitmapDrawable` 的固有宽高不给**：从 `bitmap` 和页面的密度推得出来（总则第 3 条）。动图的也不给，宽高读 `decodeHeader`。
+- **`repeatCount` 写字符串按名字认**：`'3'` 不是数，打警告、值不变；负数抛 `RangeError`。
+
+### BitmapDrawable：每处按那个页面的密度
+
+接外观组的那一套（`defineModel` / `defineModelState` / `defineModelSlot`）：JS 对象只记状态，用在一个挂着的视图上时按那个页面建一个原生的。
+
+- 建的时候不用 `Resources`（原来借页面、后来用 App 的），交 `null`，再 `setTargetDensity(页面的 dpi)`：dpi 是 JS 那边页面的 `density × 160`。图的密度是 160 时一个像素就是 1 dp；没设密度的图一个像素就是屏幕上的一个像素（Java 的规矩，`scaleFromDensity` 遇到 `DENSITY_NONE` 不换算）。
+- 密度变了，外观组的机制把视图上 `units: 'dp'` 的状态重设一遍，就是在新的 dpi 下重建这一处，160 dpi 的图还是那么多 dp。
+- `bitmap` 是构造参数，改了整个重建（`rebuild: () => true`）；平铺、插值、透明度当场设到每一处。
+
+### 动图：一个原生对象，每处一个薄 Drawable
+
+动图是解码时原生先有的：它带着解码器和播放进度，按状态建不出第二个，套不进「每处一个原生对象」。外观组那一步没定，2026-11-28 问了用户，定的是：动图只有解出来的那一个原生对象，每处是 `AnimatedImagePlace`（运行时在原生那边的一个薄 `Drawable`），画的都是它。
+
+- **几个视图显示同一帧、一起播**。`start()`、`stop()`、`isRunning`、`repeatCount`、两个事件都直接对着那一个动图，和 Java 一样；事件只来一次，不是每处一次（验收断言了）。
+- **边界**：动图的边界只有一个，几个大小不同的视图不能各设各的。所以动图的边界固定成它的固有大小，每一处在 `draw` 里用画布的平移和缩放画到自己的边界。
+- **透明度和着色是每处自己的**：`ImageView` 的 `imageAlpha`、`colorFilter` 设到那一处上（Java 的 `ImageView` 会把它们设给它的 Drawable）。动图自己的透明度、着色只有一份，几处共用，所以那一处有透明度或着色时套一层 `saveLayer`，不改动图。
+- **重画**：动图的 `Drawable.Callback` 只有一个（弱引用），换成一个转发器，要重画时让每一处都重画。转发器由一张以动图为键的 `WeakHashMap` 拿着，转发器只弱引用着每一处。Android 9 起硬件加速的画布上动图由渲染线程播，之后的帧不用通知视图；软件绘制时动图自己排下一帧，转发器用主线程的 `Handler` 排。
+- **实测**（Pixel 6，Android 17）：一个两帧（红、绿，各 100 毫秒）、无限循环的 GIF，放进两个大小不同（100 dp、60 dp）的视图，屏幕上没有别的在动；隔一两秒用 `adb exec-out screencap` 截一次屏，取两个视图正中的像素，12 次里两个视图都在红绿之间变，每次都是同一帧。对照：同一个动图直接设给两个 `ImageView`（Java 的做法，不经过这一层）也是两个都动、同一帧。量的时候是一个临时的探针，量完删了。
+- JS 这一侧：动图的包装是引擎按原生对象建的（不走构造函数），`decodeDrawable` 兑现之前给它补上 `Drawable` 的记录（`ctx.initModel`）；`defineModel` 的构造参数就是动图自己，所以不用改外观组的文件。
+
+### ImageView
+
+- `drawable` 是外观组的 `defineModelSlot`（`order` 600）。
+- **`setAdjustViewBounds(true)` 会把 `scaleType` 改成 `fitCenter`**（实测：先设 `centerCrop`，再设 `adjustViewBounds = true`，读出 `fitCenter`；设 `false` 不改）。所以 `adjustViewBounds`（610）设完再按 JS 的值把 `scaleType`（611）设回去，挂上时也是这个先后。
+- `maxWidth` / `maxHeight` 是 Java 收整数的长度，用 `ctx.px` 取整；`null` 交 `Integer.MAX_VALUE`。
 
 ### 实测到的 Android 的行为（Pixel 6，Android 17）
 
-- **不透明的图 `isPremultiplied` 是 `false`**：方案里以为默认是 `true`，实测不是。带透明度的图默认是 `true`，`unpremultipliedRequired` 之后是 `false`。所以验收加了一张半透明的图（`alpha.png`）。
-- `allocator: 'hardware'` 解出来 `config` 是 `'hardware'`、不可改、`getPixel` 抛 `IllegalStateException`。默认的 `allocator` 由系统定（文档：一般放显存，小图可能不是），验收不断言它。
-- `allocator: 'hardware'` 加 `mutableRequired` 以 `IllegalStateException` 被拒；`targetSize` 是 0×0 以 `IllegalArgumentException` 被拒。
+2026-11-24 量的几条还在验收里，照样成立：
+
+- 不透明的图 `isPremultiplied` 是 `false`，带透明度的图默认是 `true`，`unpremultipliedRequired` 之后是 `false`。
+- `allocator: 'hardware'` 解出来 `config` 是 `'hardware'`、不可改。默认的 `allocator` 由系统定，验收不断言它。
 - `memorySizePolicy: 'lowRam'` 下不透明的图解成 `'rgb565'`；`decodeAsAlphaMaskEnabled` 对三通道的图不起作用。
 - `assets/` 里没有的文件到解码时才以 `FileNotFoundException` 被拒；不是图片的字节是 `DecodeException`。
-- `setImageBitmap(null)` 之后 `drawable` 不是 `null`，是一个不拿图的 `BitmapDrawable`：`ImageView` 一直用自己建的那一个。
-- 动图：`NETSCAPE2.0` 写着无限循环的 GIF，`repeatCount` 读出 `'infinite'`；写 −5 是 `IllegalArgumentException`。`repeatCount = 0` 时播一遍，`animationstart`、`animationend` 都来；无限循环时 `stop()` 也来 `animationend`。挂在屏幕上的视图里才真的动。
-- `BitmapDrawable` 默认 `isFilterBitmap` 是 `true`；密度没设（`null`）的图，固有宽就是像素宽。
+- 动图：`NETSCAPE2.0` 写着无限循环的 GIF，`repeatCount` 读出 `'infinite'`；`repeatCount = 0` 时播一遍，两个事件都来；无限循环时 `stop()` 也来 `animationend`。
+- 不可改的图、大小不变时 `createScaledBitmap` 把原图原样还回来，JS 拿到的是同一个对象。
 
-先在没有实现的运行时上跑了一遍：前 5 条断言（几个类不在）失败，步骤在 `ImageDecoder is not defined` 处中途抛了，判为失败。实现之后 2026-11-24 在 Pixel 6（Android 17，API 37）上 Debug 和 Release 都是 1334 条通过、0 条失败（这一组 192 条）。
+这一次量的：
 
-**没验的**：着色在屏幕上的样子、动图在屏幕上的样子（要人看）；`'decal'` 平铺在 Android 11 上没有（表里按版本去掉了），没有 11 的设备；动图 WebP（不好手拼，只验了 GIF）。
+- 动图在两个视图里一起动、`setAdjustViewBounds(true)` 改掉 `scaleType`：见上面两节。
+- 图的密度：420 dpi（1 dp = 2.625 像素）下，160 dpi 的 40 像素宽的图排出来 40 dp，没设密度的 15.24 dp（40 个像素）；密度改成 560 dpi（3.5）之后 160 dpi 的还是 40 dp，没设密度的是 11.43 dp；还原之后回到 15.24。
+- `adjustViewBounds` 加 `maxWidth = 50`：400 × 300 像素、160 dpi 的图排出来 49.90 × 37.33 dp（131 × 98 像素：50 dp 取整成 131 像素，高按 4:3 算）。
+- 裁切超出图的范围：Java 在解码时以 `IllegalStateException` 拒。
+- `'hardware'` 加 `decodeAsAlphaMaskEnabled`、`decodeDrawable` 加 `mutableRequired` 在 Java 里也是解码时抛 `IllegalStateException`：这两条是读源码看的，JS 先拒了，没在真机上量（`'hardware'` 加 `mutableRequired` 2026-11-24 量过）。
+
+### 验收
+
+`steps/image.js`，排在文字后面（页面关了再开之后的新页面）。
+
+- JS 这一侧：全部成员的读写、默认值、Web IDL 的转换、写错时的 `TypeError` / `RangeError` / `InvalidStateError` / 警告、删掉的成员不在了、不能 `new` 的类；从路径、`Blob`、`ArrayBuffer`、typed array、`DataView` 读头和解码；解码设置的每一种写错。
+- 挂上：每一项都写过的 `ImageView` 挂上去，没有警告、没有抛；挂着时每一项都改一遍，没有警告、没有抛。排出来的大小用布局组的 `frame`（dp）验：160 dpi 的 40 像素的图是 40 dp，没设密度的是 40 个屏幕像素；`adjustViewBounds` 加 `maxWidth` 50 时宽 50 dp、高按比例；挂着时换了 `bitmap` 排版跟着变。
+- `recycle()`：挂着的视图在用（当图、放在水波的内容里）时拒绝；拿下来之后、只有自由的视图在用时能回收；用着回收了的图的视图再挂上，没有警告、App 没崩。
+- 动图：同一个动图用在两个 `ImageView` 和一个背景上，播一遍、无限循环再 `stop()`，事件的个数和顺序；播着的时候改透明度、着色、把一处拿下来再放回去。
+- 密度改成 560 dpi 再还原：160 dpi 的图还是 40 dp，没设密度的跟着变，重建时没有警告。
+- **屏幕上画得对不对，验收读不到**：动图在几个视图里一起动靠上面那次截屏量的；着色、平铺、透明度、`scaleType` 的样子要人看，没看过。
+
+先在没有重写的运行时上跑了一遍：图片这一步断言 `ImageDecoder.Source`、`createSource` 不在了的两条失败，接着 `decodeHeader('images/halves.png')` 被拒（旧的要先 `createSource`），步骤中途抛了，判为失败。实现之后第一遍挂了 3 条，都是「没设密度的图」那几条，是用例写错了：`createScaledBitmap(sw, { width: 40, height: 30 })` 和原图一样大，Java 把原图原样还回来，「160 dpi 的图」和「没设密度的图」是同一张，设了一个的密度两个都变。改成从 80 × 60 的图里裁两张，期望值和断言没改。2026-11-28 在 Pixel 6（Android 17）上 Debug 是 2292 条通过、0 条失败（这一组 283 条），Release 也是 2292 条通过、0 条失败（这一组 283 条）。
 
 ### 没做的
 
-`imageTintList` / `imageTintMode`（等 `ColorStateList`）；`imageMatrix`（要 `Matrix` 类，所以 `scaleType = 'matrix'` 现在没用处）；`Bitmap.compress`（编码回 PNG / JPEG）、`copy`、读写一片像素；`BitmapDrawable.gravity`（要文字组的 `Gravity.kt`，合进来之后再接）、`antiAlias`、`mipMap`；`ImageDecoder` 的 `setTargetColorSpace`、`setPostProcessor`、`setOnPartialImageListener`（后两个是回调）；`ImageView` 的 `baseline` 一组。
+`imageTintList` / `imageTintMode`（等 `ColorStateList`）；`imageMatrix`（要 `Matrix` 类，所以 `scaleType = 'matrix'` 现在没用处）；`Bitmap.compress`（编码回 PNG / JPEG）、`copy`、读写一片像素；`BitmapDrawable` 的 `gravity`、`antiAlias`、`mipMap`；`ImageDecoder` 的 `setTargetColorSpace`、`setPostProcessor`、`setOnPartialImageListener`（后两个是回调）；`ImageView` 的 `baseline` 一组；Android 11 上没有 `'decal'`（表里按版本去掉了），没有 11 的设备，没验过；动图 WebP（不好手拼，只验了 GIF）。
 
 ## 构建
 
