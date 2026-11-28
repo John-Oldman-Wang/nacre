@@ -358,7 +358,7 @@ WebView 留在核心：它不需要用户声明任何东西，拆了的净收益
 
 机制怎么搭的（公开对象和替身、挂上的顺序、各组怎么登记状态）见[Android 的运行时](internals/android.md#自由和挂上)。所有权的做法第 3 步定的：Java 对象发编号交给引擎，包装活着就持有；视图的树记在 JS 里，树本身就持有子视图。JS 不实现 Java 的类，所以没有跨两个垃圾回收器的环。
 
-**顺序**：已经有了的：最小壳、`core/builtin/` 里不依赖桥的 6 个、第一条竖切、安全区域、`fetch` / `Blob`、`WebSocket`、`Intl`、按组登记的机制（`android/`：运行时 `runtime/`、开发用的壳 `shell/`）、外观、布局、文字、图片、滚动和动画、App 层（照旧写法接的）、桥上的自由和挂上和基础视图（新总则的第一步）→ **各组照新总则重写，几个会话并行**：外观、布局、文字、图片、触摸和手势、滚动和动画、App 层 → 输入框 → 列表、浮层、网页（覆写点最多，前几组用顺了再开）→ bindgen 读 `android.jar`，接剩下的类。CLI 生成 `android/`、`@nacrejs/android`、能力包排在最后。每一步照 SOP 单独讨论。
+**顺序**：已经有了的：最小壳、`core/builtin/` 里不依赖桥的 6 个、第一条竖切、安全区域、`fetch` / `Blob`、`WebSocket`、`Intl`、按组登记的机制（`android/`：运行时 `runtime/`、开发用的壳 `shell/`）、外观、布局、文字、图片、滚动和动画、App 层（照旧写法接的）、桥上的自由和挂上和基础视图（新总则的第一步）、各组照新总则重写（外观、布局、文字、图片、触摸和手势、滚动和动画、App 层）→ **审阅：先梳理继承关系** → 输入框 → 列表、浮层、网页（覆写点最多，前几组用顺了再开）→ bindgen 读 `android.jar`，接剩下的类。CLI 生成 `android/`、`@nacrejs/android`、能力包排在最后。每一步照 SOP 单独讨论。
 
 ## 5. 目录约定
 
@@ -611,7 +611,7 @@ Commit message 格式：
 
 ### 要建设的能力
 
-**先做：** Android：各组照第 4 节的新总则重写（文字、App 层），几个会话并行。重写之前这几组在验收里先不跑（`acceptance-android/src/main.js` 里注释掉了），它们还没改的成员只在挂着的视图上能用。
+**先做：** Android：审阅照新总则重写的 API。先梳理全部类的继承关系：JS 的继承按语义定、和 Java 解耦，另立 JS 类到 Java 类的对应表；再看设计、实现和文档。之后接输入框。
 
 **留着，按需要做：**
 
@@ -623,6 +623,7 @@ Commit message 格式：
 | 网页 | 让本地网页用上模块脚本和 `fetch` 的自定义协议 |
 | 无障碍 | 读屏的自定义操作、「读屏开没开」的状态和变化、让读屏念一句话 |
 | 系统能力（做成包） | 通用链接、Apple 登录：都能写，卡在验证上，要显式包名的描述文件，通用链接还要真实域名；应用内购买（先不做） |
+| Android 的 App 层 | 分屏：「现在是不是分屏」（Android 的 `isInMultiWindowMode`）和进出分屏的事件（`onMultiWindowModeChanged`）。分屏时窗口尺寸的变化已经有了（`configurationchange` 里的 `screenWidth` / `screenHeight`，视图的 `layoutchange`，`windowinsetschange`），还没在真机上验过 |
 
 ### 发布之后接着做的
 
