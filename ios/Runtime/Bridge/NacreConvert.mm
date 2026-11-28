@@ -331,7 +331,7 @@ struct PackedReader {
 //   - 引擎打包的字节（开头是 0x01）：属性写入、方法调用、构造、类方法、异步
 //     方法的参数都是这一种。字符串原样，不经过任何编码转换
 //   - JSON 文本：内置脚本里自己 JSON.stringify 之后当字符串传过来的那几处
-//     （fetch 的选项、Blob 的分段）还是这一种
+//     （比如 fetch 的选项）还是这一种
 id DecodeJSON(const std::string& json) {
   if (!json.empty() && json[0] == '\x01') {
     PackedReader reader{json.data() + 1, json.data() + json.size()};

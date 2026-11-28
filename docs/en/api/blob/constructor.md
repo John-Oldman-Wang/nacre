@@ -35,7 +35,6 @@ A new `Blob`.
 
 - An element of `parts` is a `Blob`: `Blob parts cannot be Blobs yet`.
 - An element of `parts` is a `Symbol`, which can't be converted to a string: `Cannot convert a Symbol value to a string`.
-- The contents can't be built: `cannot construct Blob from these parts`. **Which elements trigger this is not verified in the simulator.**
 
 ## Examples
 

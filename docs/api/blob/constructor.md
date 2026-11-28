@@ -35,7 +35,6 @@ new Blob(parts, { type })
 
 - `parts` 的元素是 `Blob`：`Blob parts cannot be Blobs yet`。
 - `parts` 的元素是 `Symbol`，转不成字符串：`Cannot convert a Symbol value to a string`。
-- 内容建不出来：`cannot construct Blob from these parts`。**哪些元素会触发这一条未在模拟器验证。**
 
 ## 示例
 
