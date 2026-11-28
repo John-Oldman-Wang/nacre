@@ -64,7 +64,7 @@ internal class LayoutDomain(host: DomainHost) : Domain(host) {
     )
 
     // Gravity 的三张表（gravityHorizontal / gravityVertical / gravityClip）和文字组共用一份，在 Gravity.kt。
-    // 表名只能一个域登记：文字组（TextDomain）和这里谁先合进 main 谁登记，后合的删掉这里的 + Gravities.enums。
+    // 表名只能一个域登记：由这里登记，文字组（TextDomain）直接取。
     // 布局的 gravity 水平方向只用 start / end，不收 left / right，JS 那边（31-layout.js）挑掉
     override val enums: Map<String, EnumTable<*>> = mapOf(
         "layoutSize" to sizes,

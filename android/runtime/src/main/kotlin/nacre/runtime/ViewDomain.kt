@@ -43,7 +43,10 @@ internal class ViewDomain(host: DomainHost) : Domain(host) {
         return when (className) {
             "View" -> View(context)
             "LinearLayout" -> LinearLayout(context)
-            "TextView" -> TextView(context)
+            // 不带系统的默认样式（defStyleAttr = 0）。主题的 textAppearance 还是会给字号、颜色：颜色是
+            // 一组按状态变的颜色（禁用时变浅），固定成它平常的那一个，默认值全是常数。
+            // 还剩哪些默认值见 docs/internals/android.md「文字」
+            "TextView" -> TextView(context, null, 0).apply { setTextColor(currentTextColor) }
             // Activity 由系统建，ViewGroup 是抽象类；JS 那一侧已经拦了，这里再挡一次
             else -> throw NacreTypeError("Illegal constructor: $className cannot be constructed")
         }

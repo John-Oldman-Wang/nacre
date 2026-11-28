@@ -44,10 +44,10 @@ import { stepActivityLifecycle } from './steps/activity-lifecycle.js';
 import { stepWebSocket } from './steps/websocket.js';
 import { stepLayout } from './steps/layout.js';
 import { stepAppearance } from './steps/appearance.js';
+import { stepText } from './steps/text.js';
 // 第二步重写之前先不跑：
 // import { stepScroll } from './steps/scroll.js';
 // import { stepAnimation } from './steps/animation.js';
-// import { stepText } from './steps/text.js';
 import { stepApp, watchApp } from './steps/app.js';
 // import { stepImage } from './steps/image.js';
 
@@ -142,10 +142,10 @@ const sliceDone = (async () => {
   await runAsync('stepActivityLifecycle', () => stepActivityLifecycle(ctx));
   await runAsync('stepLayout', () => stepLayout(ctx));
   await runAsync('stepAppearance', () => stepAppearance(ctx));
+  await runAsync('stepText', () => stepText(ctx));
   // 第二步重写之前先不跑：
   // await runAsync('stepScroll', () => stepScroll(ctx));
   // await runAsync('stepAnimation', () => stepAnimation(ctx));
-  // await runAsync('stepText', () => stepText(ctx));
   // await runAsync('stepImage', () => stepImage(ctx));
 })();
 
