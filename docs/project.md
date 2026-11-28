@@ -328,7 +328,7 @@ WebView 留在核心：它不需要用户声明任何东西，拆了的净收益
 | 桥 | C++ 经 JNI 的分发表；bindgen 改读 `android.jar` |
 | 语言 | Kotlin 写启动壳，C++ 写引擎和 JNI，Java 或 Kotlin 写中转类 |
 | 外观 | **样式全部由 JS 定**，运行时不预设任何外观。要接的能力当成一组：Drawable 一族（`GradientDrawable` 的背景、渐变、圆角、边框，`RippleDrawable` 的按下效果）、`Outline` 和圆角裁切、按高度投的阴影、`RenderEffect`（模糊，Android 12 起，11 上如实告诉 JS 没有）、`Typeface`。**任意阴影**（颜色、模糊、偏移都能调）和**自定义绘制**系统没有现成的，照「继承」那一行的做法给一套绘制指令能力让 JS 调（底下用 `RenderNode` / `Canvas`），不让 JS 覆写 `onDraw`，具体形状单独讨论（2026-11-23 定）。**颜色写成 CSS 的字符串**（`'#rrggbb'`、`'#rrggbbaa'`，透明度在最后，和 Android 的 `#AARRGGBB` 相反；`rgb()`、`'transparent'`），在 JS 里解析，读出规范化成小写的 `'#rrggbb'` / `'#rrggbbaa'`，写错和枚举一样按位置分；Drawable 是能 `new` 的原生类，构造参数照 Java 按位置传；`RenderEffect` 照 Android 用工厂方法建，Android 11 上不定义这个类（2026-11-24 定） |
-| 动画和滚动 | （2026-11-24 定）**动画照 Java 的链式写法**（`view.animate().alpha(0).setDuration(300)`），**通知是事件，不是 Promise**：animator 会反复用，结束是会发生好几次的事；事件名照 `AnimatorListener`（`start`、`end`、`cancel`、`repeat`、`pause`、`resume`、`update`，被取消时先 `cancel` 再 `end`），传回调的 `withEndAction` 这类不接。**Java 里返回 `this` 的 setter，属性和链式方法两种写法都给**（`a.duration = 300`、`a.setDuration(300)`）；返回 `void` 的只有属性。插值器是原生类，构造参数照 Java。逐帧回调是全局的 `requestAnimationFrame`（Web 的写法，不暴露 `Choreographer`），和 iOS 的 `tick` 一样延后一轮派发。系统的动画时长缩放读 `ValueAnimator.durationScale`，变了在 `application` 上发 `animatordurationscalechange`。滚动事件叫 `scroll`，不带数据，位置读 `scrollX` / `scrollY` |
+| 动画和滚动 | （2026-11-28 照接类的总则重写，取代 2026-11-24 的链式写法）**`view.animate(to, options)` 返回 `Promise<boolean>`**：跑完兑现 `true`，被打断（同一个属性被后来的 `animate()` 接走、`signal` 中止、视图离开页面）兑现 `false`，没有 `ViewPropertyAnimator`。**`ValueAnimator` / `ObjectAnimator` 会反复用，结束是事件**（照 `AnimatorListener`：`start`、`end`、`cancel`、`repeat`、`pause`、`resume`、`update`，被取消时先 `cancel` 再 `end`）；用 options 建（`new ValueAnimator({ values, duration })`），设置只有属性，没有链式的 setter；`ObjectAnimator` 只认运行时登记过的属性（要知道单位才能换算 dp）。插值器是原生类，可选参数是 options。动画改的视图属性、滚动位置是系统也会改的状态：挂着时读原生。逐帧回调是全局的 `requestAnimationFrame`（Web 的写法，不暴露 `Choreographer`），和 iOS 的 `tick` 一样延后一轮派发。系统的动画时长缩放读 `application.animatorDurationScale`，变了在 `application` 上发 `animatordurationscalechange`。滚动位置是可写的 `scrollX` / `scrollY`（dp，排完版才设到原生），滚动事件叫 `scroll`，不带数据。**容器的限制用 API 的形状表达**：只放一份内容的 `ScrollView` / `HorizontalScrollView` 在 JS 里继承 `View`、不是 `ViewGroup`，没有 `addView`，内容是可读写的 `contentView`（和 Java 的继承链不一样）；只有能放任意多个子视图的容器才有 `addView` |
 | 原生类的写法 | 用简单类名挂在全局（`TextView`、`LinearLayout`），不同包里同名的类怎么办第 4 步统计完再定；Java 的 getter / setter 合成一个属性（`getText()` / `setText()` → `text`），和 Kotlin 一样；入口是上层对象 `application`，页面从它的 `activitycreate` 拿。Java 抛的异常先转成 JS 的 `Error`，`name` 是异常的简单类名，最终和第 4 步的规矩一起定（2026-11-23 定，第 3 步） |
 | 接类的规矩 | 见下面的[接类的总则](#接类的总则2026-11-26-定)（2026-11-26 定，取代 2026-11-24 那四条：参数照 Java 按位置传、构造只传 `context` 都不要了）。不接 XML 样式，外观一律用属性设。覆写点照「继承」那一行，每组落到具体的类上 |
 | 一组类一套新文件 | 和 iOS 一样，接一组类只加新文件：原生是一个 `Domain`（`android/runtime/src/main/kotlin/nacre/runtime/XxxDomain.kt`），在 `Domains.kt` 里登记一行；JS 是自己的内置脚本（往已有的类上加成员也在自己的文件里加）；验收是自己的步骤文件，`acceptance-android/src/main.js` 里加一行；文档在 `docs/internals/android.md` 里加自己的一节。共享文件只在入口各加一行，几组可以分给几个会话同时做。手机只有一台，`run-device.sh` 用一把锁让几个会话的验收排队。怎么做见[Android 的运行时](internals/android.md#接一组类) |
@@ -611,7 +611,7 @@ Commit message 格式：
 
 ### 要建设的能力
 
-**先做：** Android：各组照第 4 节的新总则重写（文字、滚动和动画、App 层），几个会话并行。重写之前这几组在验收里先不跑（`acceptance-android/src/main.js` 里注释掉了），它们还没改的成员只在挂着的视图上能用。
+**先做：** Android：各组照第 4 节的新总则重写（文字、App 层），几个会话并行。重写之前这几组在验收里先不跑（`acceptance-android/src/main.js` 里注释掉了），它们还没改的成员只在挂着的视图上能用。
 
 **留着，按需要做：**
 

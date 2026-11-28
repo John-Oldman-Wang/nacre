@@ -32,10 +32,12 @@
     enumProperty,
     kHandle,
     kOwner,
+    kView,
     native,
     nativeCall,
     nativeClassCallValue,
     nativeClassNames,
+    nativeGet,
     nativeSet,
     nearestNative,
     px,
@@ -725,26 +727,38 @@
     set: (standIn, d) => nativeCall(standIn, 'setForeground', [d]),
   });
 
-  // 视图上的数值状态。dp 的挂上时换成像素
-  function viewNumber(name, { initial, units, convert }) {
+  // 视图上的数值状态。dp 的挂上时换成像素。
+  // animated：动画（37-animation.js 的 view.animate()、ObjectAnimator）会在原生那边改它，是系统也会改的状态：
+  // 挂着时读原生（读到动画的中间值），拿下来时读回 JS。原生存的是 float：和 JS 存的值照 float 对得上就给
+  // JS 的值（0.3 不会读成 0.30000001），对不上再换算原生的
+  function viewNumber(name, { initial, units, convert, animated }) {
     defineViewState(View, name, {
       order: 250,
       initial,
       units,
       convert,
       apply: (standIn, value, page) => nativeSet(standIn, name, units === 'dp' ? pxFloat(page, value) : value),
+      read: animated !== true ? undefined : (standIn, page, view) => {
+        const raw = nativeGet(standIn, name);
+        const values = view[kView].values;
+        const js = values.has(name) ? values.get(name) : initial;
+        if (Math.fround(units === 'dp' ? pxFloat(page, js) : js) === raw) return js;
+        return units === 'dp' ? raw / page.density : raw;
+      },
     });
   }
-  viewNumber('alpha', { initial: 1, convert: unit });
+  viewNumber('alpha', { initial: 1, convert: unit, animated: true });
   // 高度（投影），dp，可以是负的
-  viewNumber('elevation', { initial: 0, units: 'dp', convert: toNumber });
+  viewNumber('elevation', { initial: 0, units: 'dp', convert: toNumber, animated: true });
   for (const name of ['translationX', 'translationY', 'translationZ']) {
-    viewNumber(name, { initial: 0, units: 'dp', convert: toNumber });
+    viewNumber(name, { initial: 0, units: 'dp', convert: toNumber, animated: true });
   }
-  viewNumber('scaleX', { initial: 1, convert: toNumber });
-  viewNumber('scaleY', { initial: 1, convert: toNumber });
+  viewNumber('scaleX', { initial: 1, convert: toNumber, animated: true });
+  viewNumber('scaleY', { initial: 1, convert: toNumber, animated: true });
   // 角度，度
-  for (const name of ['rotation', 'rotationX', 'rotationY']) viewNumber(name, { initial: 0, convert: toNumber });
+  for (const name of ['rotation', 'rotationX', 'rotationY']) {
+    viewNumber(name, { initial: 0, convert: toNumber, animated: true });
+  }
   // 绕 X、Y 轴转时相机离视图多远，dp
   viewNumber('cameraDistance', { initial: 1280, units: 'dp', convert: nonNegative });
 

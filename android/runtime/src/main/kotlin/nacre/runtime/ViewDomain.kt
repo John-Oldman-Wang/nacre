@@ -4,7 +4,8 @@
 // 树记在 JS 里（2026-11-26，见 docs/internals/android.md「自由和挂上」）：视图挂上页面时，
 // JS 按自己的树建原生对象、设状态、排子视图。这里的 @ 开头的成员只给 10-view.js 用，
 // 不是 API：@setChildren（让原生的子视图正好是这一串）、@detach（从原生的父视图上拿下来）、
-// @setContent（页面的内容）、@padding（内边距，像素）、@metrics / @metricschange（页面的密度和系统字号）。
+// @setContent（页面的内容）、@padding（内边距，像素）、@metrics / @metricschange（页面的密度和系统字号）、
+// @whenLaidOut / @laidout（排完版才能设的状态：等这个视图下一次排完版）。
 package nacre.runtime
 
 import android.app.Activity
@@ -78,6 +79,7 @@ internal class ViewDomain(host: DomainHost) : Domain(host) {
                 it as? View ?: throw NacreTypeError("@setChildren: every child must be a View")
             })
             target is View && name == "@detach" -> (target.parent as? ViewGroup)?.removeView(target)
+            target is View && name == "@whenLaidOut" -> return whenLaidOut(target, args.getOrNull(0) == true).toString()
             target is View && name == "@padding" -> {
                 // JS 那边已经把 dp 换成了整数像素：start、top、end、bottom
                 val px = args.map { (it as? Double)?.toInt() }
@@ -110,6 +112,31 @@ internal class ViewDomain(host: DomainHost) : Domain(host) {
         if (view.parent === content && content.childCount == 1) return
         (view.parent as? ViewGroup)?.removeView(view)
         activity.setContentView(view)
+    }
+
+    // ---- 排完版才能设的状态（10-view.js 的 afterLayout）----
+    //
+    // 排过版、也没在等排版，返回 true（JS 当场设）。不然在它下一次排完版时当场发 @laidout（只发一次：
+    // 还在这一次排版里，画之前，JS 设的赶得上这一帧），返回 false。force：不问，直接等下一次，并请求一次
+    // 排版，保证一定有下一次（挂上、密度变了时用：放回同一个页面的视图大小没变，系统可能不重新排它）
+    private val layoutWaits = WeakHashMap<View, View.OnLayoutChangeListener>()
+
+    private fun whenLaidOut(view: View, force: Boolean): Boolean {
+        if (!force && view.isLaidOut && !view.isLayoutRequested) return true
+        if (!layoutWaits.containsKey(view)) {
+            val listener = object : View.OnLayoutChangeListener {
+                override fun onLayoutChange(v: View, left: Int, top: Int, right: Int, bottom: Int,
+                                            oldLeft: Int, oldTop: Int, oldRight: Int, oldBottom: Int) {
+                    v.removeOnLayoutChangeListener(this)
+                    layoutWaits.remove(v)
+                    host.emitter.plainNow(v, LAID_OUT_EVENT)
+                }
+            }
+            layoutWaits[view] = listener
+            view.addOnLayoutChangeListener(listener)
+        }
+        if (force) view.requestLayout()
+        return false
     }
 
     private fun metricsJson(activity: Activity): String = JSONObject()
@@ -181,5 +208,6 @@ internal class ViewDomain(host: DomainHost) : Domain(host) {
 
     companion object {
         private const val METRICS_EVENT = "@metricschange"
+        private const val LAID_OUT_EVENT = "@laidout"
     }
 }

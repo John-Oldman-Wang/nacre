@@ -46,9 +46,8 @@ import { stepLayout } from './steps/layout.js';
 import { stepAppearance } from './steps/appearance.js';
 import { stepText } from './steps/text.js';
 import { stepTouch } from './steps/touch.js';
-// 第二步重写之前先不跑：
-// import { stepScroll } from './steps/scroll.js';
-// import { stepAnimation } from './steps/animation.js';
+import { stepScroll } from './steps/scroll.js';
+import { stepAnimation } from './steps/animation.js';
 import { stepApp, watchApp } from './steps/app.js';
 import { stepImage } from './steps/image.js';
 
@@ -146,9 +145,9 @@ const sliceDone = (async () => {
   await runAsync('stepText', () => stepText(ctx));
   await runAsync('stepTouch', () => stepTouch(ctx));
   await runAsync('stepImage', () => stepImage(ctx));
-  // 第二步重写之前先不跑：
-  // await runAsync('stepScroll', () => stepScroll(ctx));
-  // await runAsync('stepAnimation', () => stepAnimation(ctx));
+  // 滚动和动画两步都会改手机的设置（显示密度、动画时长缩放），脚本退出时还原
+  await runAsync('stepScroll', () => stepScroll(ctx));
+  await runAsync('stepAnimation', () => stepAnimation(ctx));
 })();
 
 // 网络那两步不碰界面，和上面那条链并行跑；两步之间先后跑：fetch-stream 里有量时刻、

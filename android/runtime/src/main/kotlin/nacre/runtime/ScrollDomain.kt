@@ -1,7 +1,8 @@
 // 滚动这一组：View 上的滚动位置、滚动条、越界效果、边缘渐隐、嵌套滚动和 scroll 事件；
 // ScrollView、HorizontalScrollView。JS 那一侧在 builtin/parts/36-scroll.js。
 //
-// 单位是像素（时长是毫秒）。颜色在 JS 那边解析，过桥的是 ARGB 的无符号整数。
+// 状态以 JS 为准（2026-11-26 的总则）：JS 那边已经把 dp 换成了像素、查过类型和范围，这里只管设。
+// 只有滚动位置读原生（系统也会改：手指一划就变）。颜色过桥的是 ARGB 的无符号整数。
 package nacre.runtime
 
 import android.graphics.drawable.Drawable
@@ -18,7 +19,7 @@ internal class ScrollDomain(host: DomainHost) : Domain(host) {
         HorizontalScrollView::class.java to "HorizontalScrollView",
     )
 
-    // ---- 枚举 ----
+    // ---- 枚举（名字交给 JS，写错的在 JS 里当场查）----
 
     private val overScrollModes = EnumTable(
         "always" to View.OVER_SCROLL_ALWAYS,
@@ -36,7 +37,7 @@ internal class ScrollDomain(host: DomainHost) : Domain(host) {
         "left" to View.SCROLLBAR_POSITION_LEFT,
         "right" to View.SCROLLBAR_POSITION_RIGHT)
 
-    // 位掩码：一位一个名字，读出来按数值从小到大排
+    // 位掩码：一位一个名字
     private val scrollIndicators = EnumTable(
         "top" to View.SCROLL_INDICATOR_TOP,
         "bottom" to View.SCROLL_INDICATOR_BOTTOM,
@@ -44,14 +45,22 @@ internal class ScrollDomain(host: DomainHost) : Domain(host) {
         "right" to View.SCROLL_INDICATOR_RIGHT,
         "start" to View.SCROLL_INDICATOR_START,
         "end" to View.SCROLL_INDICATOR_END)
-    private val indicatorBits = listOf(
-        "top" to View.SCROLL_INDICATOR_TOP, "bottom" to View.SCROLL_INDICATOR_BOTTOM,
-        "left" to View.SCROLL_INDICATOR_LEFT, "right" to View.SCROLL_INDICATOR_RIGHT,
-        "start" to View.SCROLL_INDICATOR_START, "end" to View.SCROLL_INDICATOR_END)
 
-    // fullScroll / pageScroll / arrowScroll 的方向：Java 用的是焦点的方向常量 FOCUS_*
-    private val verticalDirections = EnumTable("up" to View.FOCUS_UP, "down" to View.FOCUS_DOWN)
-    private val horizontalDirections = EnumTable("left" to View.FOCUS_LEFT, "right" to View.FOCUS_RIGHT)
+    // 滚动的方向。canScroll 四个都收；fullScroll / pageScroll / arrowScroll 在 Java 里用焦点的方向常量
+    // FOCUS_*，竖的只收 up / down，横的只收 left / right（JS 那边分开查）
+    private val directions = EnumTable(
+        "up" to View.FOCUS_UP,
+        "down" to View.FOCUS_DOWN,
+        "left" to View.FOCUS_LEFT,
+        "right" to View.FOCUS_RIGHT)
+
+    override val enums: Map<String, EnumTable<*>> = mapOf(
+        "overScrollMode" to overScrollModes,
+        "scrollBarStyle" to scrollBarStyles,
+        "verticalScrollbarPosition" to scrollbarPositions,
+        "scrollIndicator" to scrollIndicators,
+        "scrollDirection" to directions,
+    )
 
     // ---- 值的转换（JS 那边已经照 Web IDL 转好了类型，这里只校验）----
 
@@ -67,13 +76,6 @@ internal class ScrollDomain(host: DomainHost) : Domain(host) {
         return d.toLong().toInt()
     }
 
-    private fun argb(c: Int): String = (c.toLong() and 0xFFFFFFFFL).toString()
-
-    private fun quote(s: String): String = "\"$s\""
-
-    private fun nameOf(table: EnumTable<Int>, value: Int): String =
-        table.name(value)?.let(::quote) ?: throw IllegalStateException("unknown native value $value")
-
     private fun drawableArg(objects: List<Any?>, where: String): Drawable? {
         val o = objects.getOrNull(0) ?: return null
         return o as? Drawable ?: throw NacreTypeError("$where: argument 1 must be a Drawable")
@@ -81,67 +83,28 @@ internal class ScrollDomain(host: DomainHost) : Domain(host) {
 
     // ---- 造对象 ----
 
+    // 挂上时由 10-view.js 建：参数里第一个对象是页面。不带系统的默认样式（defStyleAttr = 0）：滚动条、
+    // 渐隐都关着，滚动条也没有滑块，样式由 JS 定（默认值实测过，见 docs/internals/android.md「滚动」）
     override fun construct(className: String, args: List<*>, objects: List<Any?>): Any? {
         val context = objects.getOrNull(0) as? android.content.Context
             ?: throw NacreTypeError("new $className: argument 1 must be a Context")
         return when (className) {
-            "ScrollView" -> ScrollView(context)
-            "HorizontalScrollView" -> HorizontalScrollView(context)
+            "ScrollView" -> ScrollView(context, null, 0)
+            "HorizontalScrollView" -> HorizontalScrollView(context, null, 0)
             // View 由 ViewDomain 建（Domains.kt 里它排在前面），不会问到这里
             else -> throw NacreTypeError("Illegal constructor: $className cannot be constructed")
         }
     }
 
-    // ---- 读属性 ----
+    // ---- 读属性：只有滚动位置（像素）----
 
-    override fun read(target: Any, name: String): String? = when (target) {
-        is ScrollView -> readScrollView(target, name) ?: readView(target, name)
-        is HorizontalScrollView -> readHorizontal(target, name) ?: readView(target, name)
-        is View -> readView(target, name)
-        else -> null
-    }
-
-    private fun readView(v: View, name: String): String? = when (name) {
-        "scrollX" -> v.scrollX.toString()
-        "scrollY" -> v.scrollY.toString()
-        "overScrollMode" -> nameOf(overScrollModes, v.overScrollMode)
-        "isVerticalScrollBarEnabled" -> v.isVerticalScrollBarEnabled.toString()
-        "isHorizontalScrollBarEnabled" -> v.isHorizontalScrollBarEnabled.toString()
-        "isScrollbarFadingEnabled" -> v.isScrollbarFadingEnabled.toString()
-        "scrollBarFadeDuration" -> v.scrollBarFadeDuration.toString()
-        "scrollBarDefaultDelayBeforeFade" -> v.scrollBarDefaultDelayBeforeFade.toString()
-        "scrollBarSize" -> v.scrollBarSize.toString()
-        "scrollBarStyle" -> nameOf(scrollBarStyles, v.scrollBarStyle)
-        "verticalScrollbarPosition" -> nameOf(scrollbarPositions, v.verticalScrollbarPosition)
-        "verticalScrollbarWidth" -> v.verticalScrollbarWidth.toString()
-        "scrollIndicators" -> {
-            val bits = v.scrollIndicators
-            indicatorBits.filter { (_, bit) -> bits and bit != 0 }.joinToString(",", "[", "]") { quote(it.first) }
+    override fun read(target: Any, name: String): String? {
+        val v = target as? View ?: return null
+        return when (name) {
+            "scrollX" -> v.scrollX.toString()
+            "scrollY" -> v.scrollY.toString()
+            else -> null
         }
-        "isVerticalFadingEdgeEnabled" -> v.isVerticalFadingEdgeEnabled.toString()
-        "isHorizontalFadingEdgeEnabled" -> v.isHorizontalFadingEdgeEnabled.toString()
-        "verticalFadingEdgeLength" -> v.verticalFadingEdgeLength.toString()
-        "horizontalFadingEdgeLength" -> v.horizontalFadingEdgeLength.toString()
-        "isNestedScrollingEnabled" -> v.isNestedScrollingEnabled.toString()
-        else -> null
-    }
-
-    private fun readScrollView(v: ScrollView, name: String): String? = when (name) {
-        "isFillViewport" -> v.isFillViewport.toString()
-        "isSmoothScrollingEnabled" -> v.isSmoothScrollingEnabled.toString()
-        "maxScrollAmount" -> v.maxScrollAmount.toString()
-        "topEdgeEffectColor" -> argb(v.topEdgeEffectColor)
-        "bottomEdgeEffectColor" -> argb(v.bottomEdgeEffectColor)
-        else -> null
-    }
-
-    private fun readHorizontal(v: HorizontalScrollView, name: String): String? = when (name) {
-        "isFillViewport" -> v.isFillViewport.toString()
-        "isSmoothScrollingEnabled" -> v.isSmoothScrollingEnabled.toString()
-        "maxScrollAmount" -> v.maxScrollAmount.toString()
-        "leftEdgeEffectColor" -> argb(v.leftEdgeEffectColor)
-        "rightEdgeEffectColor" -> argb(v.rightEdgeEffectColor)
-        else -> null
     }
 
     // ---- 写属性 ----
@@ -155,6 +118,7 @@ internal class ScrollDomain(host: DomainHost) : Domain(host) {
 
     private fun writeView(v: View, name: String, value: Any?): Boolean {
         when (name) {
+            // ScrollView 覆写了 scrollTo，夹在内容的范围里
             "scrollX" -> v.scrollX = int(value, name)
             "scrollY" -> v.scrollY = int(value, name)
             "overScrollMode" -> v.overScrollMode = overScrollModes.forProperty(name, value)
@@ -168,13 +132,13 @@ internal class ScrollDomain(host: DomainHost) : Domain(host) {
             "verticalScrollbarPosition" -> v.verticalScrollbarPosition = scrollbarPositions.forProperty(name, value)
             "scrollIndicators" -> {
                 val list = value as? List<*> ?: throw NacreTypeError("$name must be an array")
-                // 有一个不认识就整次不生效：先全部换算完再写
                 var bits = 0
                 for (item in list) bits = bits or scrollIndicators.forProperty(name, item)
                 v.scrollIndicators = bits
             }
             "isVerticalFadingEdgeEnabled" -> v.isVerticalFadingEdgeEnabled = bool(value, name)
             "isHorizontalFadingEdgeEnabled" -> v.isHorizontalFadingEdgeEnabled = bool(value, name)
+            "fadingEdgeLength" -> v.setFadingEdgeLength(int(value, name))
             "isNestedScrollingEnabled" -> v.isNestedScrollingEnabled = bool(value, name)
             else -> return false
         }
@@ -210,11 +174,13 @@ internal class ScrollDomain(host: DomainHost) : Domain(host) {
         if (target is HorizontalScrollView) callHorizontal(target, name, args)?.let { return it }
         val v = target as? View ?: return null
         when (name) {
-            "scrollTo" -> v.scrollTo(int(args.getOrNull(0), name), int(args.getOrNull(1), name))
-            "scrollBy" -> v.scrollBy(int(args.getOrNull(0), name), int(args.getOrNull(1), name))
-            "canScrollVertically" -> return v.canScrollVertically(int(args.getOrNull(0), name)).toString()
-            "canScrollHorizontally" -> return v.canScrollHorizontally(int(args.getOrNull(0), name)).toString()
-            "setFadingEdgeLength" -> v.setFadingEdgeLength(int(args.getOrNull(0), name))
+            // 能不能往这个方向滚（Java 用正负号）
+            "canScroll" -> return when (directions.forArgument("direction", args.getOrNull(0))) {
+                View.FOCUS_UP -> v.canScrollVertically(-1)
+                View.FOCUS_DOWN -> v.canScrollVertically(1)
+                View.FOCUS_LEFT -> v.canScrollHorizontally(-1)
+                else -> v.canScrollHorizontally(1)
+            }.toString()
             "setVerticalScrollbarThumbDrawable" -> v.verticalScrollbarThumbDrawable = drawableArg(objects, name)
             "setVerticalScrollbarTrackDrawable" -> v.verticalScrollbarTrackDrawable = drawableArg(objects, name)
             "setHorizontalScrollbarThumbDrawable" -> v.horizontalScrollbarThumbDrawable = drawableArg(objects, name)
@@ -226,13 +192,12 @@ internal class ScrollDomain(host: DomainHost) : Domain(host) {
 
     private fun callScrollView(v: ScrollView, name: String, args: List<*>, objects: List<Any?>): String? {
         when (name) {
-            "smoothScrollTo" -> v.smoothScrollTo(int(args.getOrNull(0), name), int(args.getOrNull(1), name))
-            "smoothScrollBy" -> v.smoothScrollBy(int(args.getOrNull(0), name), int(args.getOrNull(1), name))
+            // 只收竖的那个方向
+            "smoothScrollTo" -> v.smoothScrollTo(v.scrollX, int(args.getOrNull(0), name))
             "fling" -> v.fling(int(args.getOrNull(0), name))
-            "fullScroll" -> return v.fullScroll(verticalDirections.forArgument("direction", args.getOrNull(0))).toString()
-            "pageScroll" -> return v.pageScroll(verticalDirections.forArgument("direction", args.getOrNull(0))).toString()
-            "arrowScroll" -> return v.arrowScroll(verticalDirections.forArgument("direction", args.getOrNull(0))).toString()
-            "setEdgeEffectColor" -> v.setEdgeEffectColor(color(args.getOrNull(0), name))
+            "fullScroll" -> return v.fullScroll(directions.forArgument("direction", args.getOrNull(0))).toString()
+            "pageScroll" -> return v.pageScroll(directions.forArgument("direction", args.getOrNull(0))).toString()
+            "arrowScroll" -> return v.arrowScroll(directions.forArgument("direction", args.getOrNull(0))).toString()
             "scrollToDescendant" -> v.scrollToDescendant(
                 objects.getOrNull(0) as? View ?: throw NacreTypeError("$name: argument 1 must be a View"))
             else -> return null
@@ -242,27 +207,14 @@ internal class ScrollDomain(host: DomainHost) : Domain(host) {
 
     private fun callHorizontal(v: HorizontalScrollView, name: String, args: List<*>): String? {
         when (name) {
-            "smoothScrollTo" -> v.smoothScrollTo(int(args.getOrNull(0), name), int(args.getOrNull(1), name))
-            "smoothScrollBy" -> v.smoothScrollBy(int(args.getOrNull(0), name), int(args.getOrNull(1), name))
+            "smoothScrollTo" -> v.smoothScrollTo(int(args.getOrNull(0), name), v.scrollY)
             "fling" -> v.fling(int(args.getOrNull(0), name))
-            "fullScroll" -> return v.fullScroll(horizontalDirections.forArgument("direction", args.getOrNull(0))).toString()
-            "pageScroll" -> return v.pageScroll(horizontalDirections.forArgument("direction", args.getOrNull(0))).toString()
-            "arrowScroll" -> return v.arrowScroll(horizontalDirections.forArgument("direction", args.getOrNull(0))).toString()
-            "setEdgeEffectColor" -> v.setEdgeEffectColor(color(args.getOrNull(0), name))
+            "fullScroll" -> return v.fullScroll(directions.forArgument("direction", args.getOrNull(0))).toString()
+            "pageScroll" -> return v.pageScroll(directions.forArgument("direction", args.getOrNull(0))).toString()
+            "arrowScroll" -> return v.arrowScroll(directions.forArgument("direction", args.getOrNull(0))).toString()
             else -> return null
         }
         return "null"
-    }
-
-    override fun callObject(target: Any, name: String, args: List<*>, objects: List<Any?>): Any? {
-        val v = target as? View ?: return NOT_MINE
-        return when (name) {
-            "getVerticalScrollbarThumbDrawable" -> v.verticalScrollbarThumbDrawable
-            "getVerticalScrollbarTrackDrawable" -> v.verticalScrollbarTrackDrawable
-            "getHorizontalScrollbarThumbDrawable" -> v.horizontalScrollbarThumbDrawable
-            "getHorizontalScrollbarTrackDrawable" -> v.horizontalScrollbarTrackDrawable
-            else -> NOT_MINE
-        }
     }
 
     // scroll：有人订阅才装 OnScrollChangeListener，最后一个监听摘掉时拆掉。回调带的新旧位置
