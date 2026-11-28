@@ -725,7 +725,7 @@ export async function stepTouch(ctx) {
   /** @type {any} */ (scroller).layout = { height: 220 };
   const column = new LinearLayout();
   column.orientation = 'vertical';
-  scroller.addView(column);
+  scroller.contentView = column;
   const keep = row('别抢我', column);
   keep.paddingTop = 40;
   keep.paddingBottom = 40;
