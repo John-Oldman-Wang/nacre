@@ -43,6 +43,7 @@ android {
 // src/main/builtin/parts/，合到包里的 nacre/parts/，运行时按文件名顺序执行。
 //
 val corePartsInUse = listOf(
+    "00-core.js",
     "05-dom-exception.js",
     "05-events.js",
     "06-websocket.js",

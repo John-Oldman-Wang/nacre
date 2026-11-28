@@ -5,9 +5,7 @@
 (function (ctx) {
   'use strict';
 
-  const { define, kListeners, native } = ctx;
-
-  const kHandle = Symbol('nativeHandle');
+  const { define, kHandle, kListeners, native } = ctx;
 
   const nativeClasses = Object.create(null);
   // 反查：类 → 原生类名。构造时用它判断「被 new 的是不是运行时自己的类」
@@ -167,15 +165,6 @@
 
   // 换父节点时原生会自动从旧父节点摘掉，镜像要跟上。没有原生对象时返回
   // null——那种 view 还没进任何树。
-  // options 对象里某个成员「带没带」。照 Web IDL 的约定：值是 undefined 的
-  // 成员视为没带，{ scale: undefined } 等于 {}。
-  //
-  // 不能写 'key' in o——那只看键在不在，undefined 会被当成有效值一路传到
-  // 原生（过 JSON 变成 null，原生拿到 NSNull）。条件表达式里顺手写出来的
-  // { atIndex: cond ? 0 : undefined } 是很常见的写法，不该因此出错
-  function has(o, key) {
-    return o[key] !== undefined;
-  }
 
   // ---- 参数转换：照 Web IDL（project.md 的 API 设计原则第 13 条）----
   //
@@ -480,8 +469,6 @@
     disown,
     finalCheck,
     gestureViewOf,
-    has,
-    kHandle,
     nativeCall,
     nativeCallAsync,
     nativeCallObject,

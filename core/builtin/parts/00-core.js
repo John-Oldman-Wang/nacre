@@ -1,11 +1,13 @@
-// 运行时的基础：内部 Symbol、Event、EventTarget
+// 运行时的基础：内部 Symbol、Event、EventTarget，和几个各处都用的小助手
+//
+// 两端共用，排在所有内置脚本的最前面：平台的桥和别的 part 都从 ctx 上拿这里放的东西。
 //
 // 这是内置脚本的一个 part：整个文件就是一个函数表达式，运行时按文件名
 // 顺序编译执行，拿到函数之后用共享的 ctx 调一次。
 (function (ctx) {
   'use strict';
 
-  // 原来是 IIFE 的参数，现在由第一个 part 取出来放进 ctx
+  // 原生入口，由引擎挂在全局上；第一个 part 取出来放进 ctx，平台的 25-globals.js 再从全局摘掉
   const native = globalThis.__nacre_native;
 
   // 用 IIFE 作用域内的 Symbol 存内部状态：既能跨类访问，又不出现在公开属性上
@@ -16,12 +18,25 @@
   // 原生类覆写它来接「某个类型的监听器从无到有 / 从有到无」。
   // 默认什么都不做——纯 JS 的 EventTarget 不需要告诉谁。
   const kSubscribe = Symbol('subscribe');
-  // 导航栈动过之后重建持有边，见 UINavigationController
-  const kSyncStack = Symbol('syncStack');
-  // **加监听器不改变对象的寿命。** 对象活不活只看从 application 出发走不走
-  // 得到它（所有权镜像，见下面 ownership）。这里曾经有一个全局的强引用集合，
-  // 加了监听器的对象全放进去、监听器全部移走才出来——结果是从界面上摘下来
-  // 的按钮、被弹出的页面上的按钮永远不被回收。
+  // 包装对象上挂原生句柄的 Symbol。平台的桥用它把包装和原生对象对上；28-web-globals.js
+  // 用它认出包装对象（structuredClone 不克隆它们）。
+  //
+  // 句柄挂在 Symbol 上，而不是 V8 的 internal field：用 internal field 就得绕过 JS 构造
+  // 函数来建对象，EventTarget 的监听器表就初始化不了。
+  const kHandle = Symbol('nativeHandle');
+  // **加监听器不改变对象的寿命。** 对象活不活由平台的桥管（所有权），和有没有监听器
+  // 无关。这里曾经有一个全局的强引用集合，加了监听器的对象全放进去、监听器全部移走
+  // 才出来——结果是从界面上摘下来的按钮、被弹出的页面上的按钮永远不被回收。
+
+  // options 对象里某个成员「带没带」。照 Web IDL 的约定：值是 undefined 的
+  // 成员视为没带，{ scale: undefined } 等于 {}。
+  //
+  // 不能写 'key' in o——那只看键在不在，undefined 会被当成有效值一路传到
+  // 原生。条件表达式里顺手写出来的 { atIndex: cond ? 0 : undefined } 是很常见
+  // 的写法，不该因此出错
+  function has(o, key) {
+    return o[key] !== undefined;
+  }
 
   function define(obj, name, value) {
     // 和 ECMAScript 内置一致：不可枚举、可写、可配置
@@ -59,8 +74,8 @@
 
   // ---------- EventTarget ----------
 
-  // 包装对象的「出厂配置」。构造函数这条路和原生侧的包装工厂共用这一段，
-  // 免得两边漂——工厂不走构造函数（见 setWrapperFactory）。
+  // 包装对象的「出厂配置」。构造函数这条路和平台桥里的包装工厂共用这一段，
+  // 免得两边漂——工厂建包装不走构造函数。
   function initWrapper(obj) {
     Object.defineProperty(obj, kListeners, {
       value: new Map(), writable: false, enumerable: false, configurable: false,
@@ -145,9 +160,9 @@
             entry.callback.call(this, event);
           } catch (e) {
             // 一个监听器抛异常不能中断其余监听器，也不能冒到派发方。接住之后
-            // 照未捕获的异常报：application 的 error 事件，没人 preventDefault
-            // 就打默认的那行日志。和浏览器里监听器的异常进 window.onerror
-            // 是一回事。error 的监听器自己再抛，引擎那边不会再派发一次
+            // 交给运行时，和没接住的异常走同一条路报出去。和浏览器里监听器的
+            // 异常进 window.onerror 是一回事。error 的监听器自己再抛，引擎那边
+            // 不会再派发一次
             native.reportError(e);
           }
           if (event[kStopImmediate]) break;
@@ -164,14 +179,10 @@
     Object.defineProperty(obj, name, { value, enumerable: true });
   }
 
-  // ErrorEvent 和 PromiseRejectionEvent 是 Web 标准的事件类，在 core 的 05-events.js。
-  // 它们由运行时在 JS 线程上同步派发（21-application.js），是 cancelable 的：
-  // 调 preventDefault() 就不会再打运行时的默认日志
+  // 带字段的事件类（ErrorEvent、CustomEvent……）和定义事件类的助手在 05-events.js
 
-  // ---------- 原生对象的包装 ----------
-  // 句柄 id 挂在闭包里的 Symbol 上，而不是 V8 的 internal field。
-  // 用 internal field 就得绕过 JS 构造函数来建对象，EventTarget 的
-  // 监听器表就初始化不了。
+  define(globalThis, 'Event', Event);
+  define(globalThis, 'EventTarget', EventTarget);
 
   // 这个 part 对外提供的东西
   Object.assign(ctx, {
@@ -179,10 +190,11 @@
     EventTarget,
     define,
     defineField,
+    has,
     initWrapper,
+    kHandle,
     kListeners,
     kSubscribe,
-    kSyncStack,
     native,
   });
 })

@@ -19,7 +19,6 @@
     initWrapper,
     kHandle,
     kSubscribe,
-    kSyncStack,
     nativeCall,
     nativeCallAsync,
     nativeCallObject,
@@ -55,6 +54,9 @@
     toTextOrNull,
     native,
   } = ctx;
+
+  // 导航栈动过之后重建持有边，见 UINavigationController
+  const kSyncStack = Symbol('syncStack');
 
   defineNativeClass('UISceneSession', class UISceneSession extends NSObject {
     constructor() { nativeOnly(new.target); }

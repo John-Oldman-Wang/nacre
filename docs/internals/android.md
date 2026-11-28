@@ -13,7 +13,7 @@ android/
 │  └─ src/main/
 │     ├─ cpp/CMakeLists.txt   编 core/engine/ 加上 JNI，链 V8
 │     ├─ cpp/NacreJni.cpp     Kotlin 经 JNI 调到这里，再交给 core/engine；原生入口的实现
-│     ├─ builtin/parts/       Android 自己的内置脚本（00-core、01-bridge、09-insets、10-view、21-application、25-globals、30-appearance、31-layout、34-image、35-touch、36-scroll、37-animation）
+│     ├─ builtin/parts/       Android 自己的内置脚本（01-bridge、09-insets、10-view、21-application、25-globals、30-appearance、31-layout、32-text、33-app、34-image、35-touch、36-scroll、37-animation）
 │     └─ kotlin/nacre/runtime/
 │        ├─ NacreRuntime.kt   Kotlin 这一侧的入口和事件循环
 │        ├─ NativeBridge.kt   身份表，按顺序问各个域（Domain.kt、Domains.kt）
@@ -69,7 +69,7 @@ V8 不带 RTTI，所以和 iOS 一样加 `-fno-rtti`。
 
 用哪几个列在 `runtime/build.gradle.kts` 的 `corePartsInUse`。构建时把它们和 `runtime/src/main/builtin/parts/` 合到包里的 `nacre/parts/`，同名就报错；运行时按文件名排序执行，脚本名和 iOS 一样是 `nacre:internal/parts/xx.js`。
 
-这 6 个要 `ctx` 上的 `Event`、`EventTarget`、`define`、`has`、`native`、`kHandle`、`kListeners`。iOS 上它们来自 `00-core.js` 和 `01-bridge.js`。**Android 拷了一份 `00-core.js`**，去掉 iOS 导航栈用的 `kSyncStack`，加上 `has` 和 `kHandle`。这份内容本该两端共用，但搬进 `core/` 要动 iOS 的运行时，等 Android 的桥定下来再统一。`25-globals.js` 把 `Event`、`EventTarget` 挂上全局、摘掉 `__nacre_native`；iOS 的同名文件还挂 `application`，Android 还没有上层对象。
+这 6 个要 `ctx` 上的 `Event`、`EventTarget`、`define`、`has`、`native`、`kHandle`、`kListeners`，都由 core 的 `00-core.js` 放。接这 6 个时 Android 从 iOS 拷了一份 `00-core.js`，免得动 iOS 的运行时；桥定下来之后，2026-11-28 两份合成了 core 里的一份，见[拆出 core](core.md#00-core2026-11-28)。Android 自己的 `25-globals.js` 和 iOS 的同名文件一样：把 `Application`、`application` 挂上全局，摘掉 `__nacre_native`。
 
 ### 为什么新东西不放进 core 原有的两个目录
 

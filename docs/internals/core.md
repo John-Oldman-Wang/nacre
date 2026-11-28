@@ -13,7 +13,7 @@
 
 ## 没拆的，以及为什么
 
-- **桥的 JS 那一半**（`00-core` 里的包装和所有权、`01-bridge`）。形状上和平台无关，但 Android 的桥怎么管 Java 对象的所有权还没定（Android 那五件要先定的事之一），现在搬等于替 Android 定了桥的形状。`00-core` 里的 `Event`、`EventTarget` 和包装机制缠在一起，一起留下。
+- **桥的 JS 那一半**（`00-core` 里的包装和所有权、`01-bridge`）。形状上和平台无关，但 Android 的桥怎么管 Java 对象的所有权还没定（Android 那五件要先定的事之一），现在搬等于替 Android 定了桥的形状。`00-core` 里的 `Event`、`EventTarget` 和包装机制缠在一起，一起留下。`00-core` 后来在 2026-11-28 搬进来了，见下面[后来搬进来的](#后来搬进来的)；`01-bridge` 两端各写各的，不搬。
 - 其余 iOS 的内置脚本、`Bridge/`、`NacreRuntime.mm`：本来就是 iOS 的。
 - `ios/scripts/` 下的 `fetch-v8.sh`、`build-js.sh`：下的是 iOS 的 V8 包、产物放进 iOS 的工程，Android 会有自己的。
 - `android/`、`acceptance-android/`、`packages/android/` 不建空目录，等第一份文件要放进去时再建。
@@ -44,3 +44,25 @@
 断言名单逐条比：直接比有几条不同，都是名字里带着的实测数字（耗时、下载的字节数、httpbin 限流放过了几个），每次跑都不一样；把数字抹掉再比，Debug 和 Release 都是 0 条不同。
 
 另外跑过的：类型检查、CLI 的用例（205）、发布脚本的用例（25）、bindgen 的用例（77），都过。
+
+## 后来搬进来的
+
+### `00-core`（2026-11-28）
+
+`Event`、`EventTarget`，和各处都用的几样：`define`、`defineField`、`has`、`initWrapper`、`kHandle`、`kListeners`、`kSubscribe`、原生入口 `native`。
+
+**为什么现在搬。** 拆 `core/` 时它留在 iOS，理由是 Android 的桥还没定。Android 接 Web 标准那批时要用这些东西，就从 iOS 拷了一份 `00-core.js`，去掉 iOS 导航栈用的 `kSyncStack`，加上 `has` 和 `kHandle`（iOS 的这两个在 `01-bridge.js`）。两份里的事件代码一字不差。2026-11-26 照新总则重写的 Android 桥用的就是这几样，桥定了，拷贝就没有理由留着：以后改事件的行为要改两处，迟早改漏一处。
+
+**怎么搬的。**
+
+- iOS 那份是原件，先原样 `git mv` 进 `core/builtin/parts/`，单独一个提交：内容不改，git 认得出是改名，查历史接得上 iOS 原来的提交。下一个提交再补上 `has` 和 `kHandle`、删掉 Android 的拷贝，注释里提到平台的地方改成不认平台的说法。
+- iOS 的 `01-bridge.js` 不再自己定义 `has` 和 `kHandle`，改从 `ctx` 拿，也不再往 `ctx` 上放它们。
+- `kSyncStack` 只有 iOS 的 `17-scene.js` 用，改成它自己的局部名字，不再放在 `ctx` 上。
+- 把 `Event`、`EventTarget` 挂上全局的两行从两边的 `25-globals.js` 挪进 `00-core.js`：core 里别的文件都自己挂自己定义的全局名字。
+- Android 的 `runtime/build.gradle.kts` 在 `corePartsInUse` 里加上 `00-core.js`。
+
+**对 iOS 有什么变化。**
+
+- 执行顺序不变：`00-core` 还是第一个。脚本名不变：iOS 把两处的脚本合在一起排序，名字都是 `nacre:internal/parts/00-core.js`。
+- `Event`、`EventTarget` 挂上全局的时刻从第 25 号脚本提前到第一个。App 的代码在全部内置脚本跑完之后才跑，看不出差别。
+- check-api 的「ctx 上的名字」从 103 变成 102，少的是 `kSyncStack`；别的数字一个没变。

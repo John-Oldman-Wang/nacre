@@ -366,7 +366,7 @@ WebView 留在核心：它不需要用户声明任何东西，拆了的净收益
 nacre/
 ├─ README.md
 ├─ docs/              项目说明、API 文档、实现原理
-├─ core/              两端共用：engine/（引擎，纯 C++）和 builtin/parts/（Web 标准那批内置脚本）
+├─ core/              两端共用：engine/（引擎，纯 C++）和 builtin/parts/（Event、EventTarget 和 Web 标准那批内置脚本）
 ├─ ios/               iOS 运行时源码（= Nacre.xcframework 的源）
 ├─ packages/          发到 npm 的交付物
 │  ├─ types/          TypeScript 类型定义（@nacrejs/types）
