@@ -878,8 +878,9 @@ struct Engine::Impl {
     info.GetReturnValue().Set(resolver->GetPromise());
   }
 
-  // new Blob(parts, { type })。parts 里字符串直接过 JSON，
-  // ArrayBuffer / TypedArray 的字节按下标单独传指针，避免多一次拷贝。
+  // new Blob(parts, { type })。parts 里只有 ArrayBuffer / TypedArray：字符串段已经由
+  // 23-fetch.js 编成 UTF-8 字节。字节按段传指针，避免多一次拷贝。混进别的值是内置
+  // 脚本写错了，不建，JS 那边抛 TypeError
   static void NativeCreateBlob(const v8::FunctionCallbackInfo<v8::Value>& info) {
     v8::Isolate* isolate = info.GetIsolate();
     Impl* self = From(isolate);
@@ -888,30 +889,24 @@ struct Engine::Impl {
 
     v8::Local<v8::Array> parts = info[0].As<v8::Array>();
     const uint32_t count = parts->Length();
-    std::vector<std::pair<const void*, size_t>> buffers(count, {nullptr, 0});
-    v8::Local<v8::Array> json_parts = v8::Array::New(isolate, count);
+    std::vector<std::pair<const void*, size_t>> bytes(count, {nullptr, 0});
     for (uint32_t i = 0; i < count; i++) {
       v8::Local<v8::Value> item;
-      if (!parts->Get(ctx, i).ToLocal(&item)) continue;
+      if (!parts->Get(ctx, i).ToLocal(&item)) return;
       if (item->IsArrayBufferView()) {
         v8::Local<v8::ArrayBufferView> view = item.As<v8::ArrayBufferView>();
         std::shared_ptr<v8::BackingStore> store = view->Buffer()->GetBackingStore();
-        buffers[i] = {static_cast<const uint8_t*>(store->Data()) + view->ByteOffset(),
-                      view->ByteLength()};
-        json_parts->Set(ctx, i, v8::Null(isolate)).Check();
+        bytes[i] = {static_cast<const uint8_t*>(store->Data()) + view->ByteOffset(),
+                    view->ByteLength()};
       } else if (item->IsArrayBuffer()) {
         std::shared_ptr<v8::BackingStore> store =
             item.As<v8::ArrayBuffer>()->GetBackingStore();
-        buffers[i] = {store->Data(), store->ByteLength()};
-        json_parts->Set(ctx, i, v8::Null(isolate)).Check();
+        bytes[i] = {store->Data(), store->ByteLength()};
       } else {
-        json_parts->Set(ctx, i, item).Check();  // 字符串等走 JSON
+        return;
       }
     }
-    v8::Local<v8::String> json;
-    if (!v8::JSON::Stringify(ctx, json_parts).ToLocal(&json)) return;
-    NativeObjectRef ref = self->host.create_blob(
-        SafeToString(isolate, json), buffers, SafeToString(isolate, info[1]));
+    NativeObjectRef ref = self->host.create_blob(bytes, SafeToString(isolate, info[1]));
     if (ref.ptr == nullptr || !info[2]->IsObject()) return;
     // 第三个参数是 JS 那边正在构造的 Blob（this）。把它**本身**绑成这个原生
     // 对象的包装，返回句柄——和 construct 是同一个做法。

@@ -234,7 +234,7 @@ o + 4 字节个数 + (键 + 值)  对象
 
 - 原生传回 JS 的方向：返回值、事件带的数据。
 - 内置脚本里自己 `JSON.stringify` 之后当字符串传的：`fetch` 的选项。里面的字符串是方法名、请求头这些，开头不会有 U+FEFF。
-- `Blob` 的分段原来也在这一条里，理由是同一句，但对它不成立：导出给 Excel 的 CSV 常写 `new Blob(['\uFEFF' + csv])`，开头的 BOM 被 iOS 的系统解析器去掉，文件少 3 个字节、中文乱码，不报任何错。字符串请求体（`fetch(url, { body: '\uFEFF' + csv })`）走的也是这条路。2026-11-28 改成在 `23-fetch.js` 里用引擎的 `utf8Encode`（`TextEncoder` 用的那一个）把字符串段编成字节，原生只收字节，两端的原生代码没动。Blob 标准对字符串段的定义本来就是 UTF-8 编码；不是字节的值照 Web IDL 先转成字符串，所以 `null` 是 `'null'`、`true` 是 `'true'`、`Symbol` 抛 `TypeError`，不再交给原生各自猜。原来两端都跳过 `null` 和 `undefined`、`Symbol` 也不报错；`new Blob([1, true, null, undefined, {}])` 的内容实测 Android 上是 `1true{}`，iOS 上是 `11{\n}`（`true` 成了 `1`，`{}` 成了系统对字典的描述）。不成对的代理项写成 U+FFFD，和 `TextEncoder` 一样；Android 原来的编码本来就是这样，iOS 上原来整份解析失败，实测 Blob 是空的。
+- `Blob` 的分段原来也在这一条里，理由是同一句，但对它不成立：导出给 Excel 的 CSV 常写 `new Blob(['\uFEFF' + csv])`，开头的 BOM 被 iOS 的系统解析器去掉，文件少 3 个字节、中文乱码，不报任何错。字符串请求体（`fetch(url, { body: '\uFEFF' + csv })`）走的也是这条路。2026-11-28 改成在 `23-fetch.js` 里用引擎的 `utf8Encode`（`TextEncoder` 用的那一个）把字符串段编成字节，原生只收字节。随后把原生那边处理字符串段的分支也删了：宿主接口 `create_blob` 从「JSON 数组加按下标放的字节」改成只收一段段字节和类型，引擎遇到不是字节的段就不建（JS 那边抛 `TypeError`，只有内置脚本写错才会走到），iOS 的 `CreateBlob` 和 Android 的 `fromParts` 只剩拼字节，Android 自己的那个 UTF-8 编码函数也删了。Blob 标准对字符串段的定义本来就是 UTF-8 编码；不是字节的值照 Web IDL 先转成字符串，所以 `null` 是 `'null'`、`true` 是 `'true'`、`Symbol` 抛 `TypeError`，不再交给原生各自猜。原来两端都跳过 `null` 和 `undefined`、`Symbol` 也不报错；`new Blob([1, true, null, undefined, {}])` 的内容实测 Android 上是 `1true{}`，iOS 上是 `11{\n}`（`true` 成了 `1`，`{}` 成了系统对字典的描述）。不成对的代理项写成 U+FFFD，和 `TextEncoder` 一样；Android 原来的编码本来就是这样，iOS 上原来整份解析失败，实测 Blob 是空的。
 - 名字、类型这些单个的字符串参数（属性名、事件名、地址）是引擎直接转成 UTF-8 的，不经过 JSON，但系统从 UTF-8 建字符串时同样会去掉开头的 U+FEFF。它们是标识符和地址，没有处理。
 
 函数名 `DecodeJSON` 和一路上叫 `argsJSON` 的参数名没有改，它们现在装的多半不是 JSON 了。

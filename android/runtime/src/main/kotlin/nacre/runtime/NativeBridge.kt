@@ -242,9 +242,10 @@ internal class NativeBridge(
 
     private val fetch = FetchService(settle)
 
-    // new Blob(parts, { type })。返回编号，由引擎把 JS 那边正在构造的 Blob 绑上去
-    fun createBlob(partsJson: ByteArray, buffers: Array<ByteArray?>, type: ByteArray): Long =
-        intern(NacreBlob.fromParts(String(partsJson, Charsets.UTF_8), buffers, String(type, Charsets.UTF_8)))
+    // new Blob(parts, { type })。parts 是一段段字节（字符串段内置脚本已经编好了）。
+    // 返回编号，由引擎把 JS 那边正在构造的 Blob 绑上去
+    fun createBlob(parts: Array<ByteArray>, type: ByteArray): Long =
+        intern(NacreBlob.fromParts(parts, String(type, Charsets.UTF_8)))
 
     // 读 Blob 的内容。字节本来就在内存里，但 UTF-8 解码是 CPU 活，放到后台
     fun readObjectAsync(id: Long, kind: String, callId: Int) {

@@ -155,23 +155,14 @@ static BOOL IsAppFacingScene(UIScene* scene) {
   });
 }
 
+// 一段段字节按顺序拼起来。字符串段已经由内置脚本编成 UTF-8 字节，这里只有字节
 nacre::NativeObjectRef CreateBlob(
-    const std::string& partsJSON,
-    const std::vector<std::pair<const void*, size_t>>& buffers,
+    const std::vector<std::pair<const void*, size_t>>& parts,
     const std::string& type) {
-  id decoded = DecodeJSON(partsJSON);
-  NSArray* parts = [decoded isKindOfClass:NSArray.class] ? decoded : @[];
   NSMutableData* out = [NSMutableData data];
-  for (NSUInteger i = 0; i < parts.count; i++) {
-    id item = parts[i];
-    if (i < buffers.size() && buffers[i].first != nullptr) {
-      // 字节项：JSON 里是 null，真正的数据在 buffers 里
-      [out appendBytes:buffers[i].first length:buffers[i].second];
-    } else if ([item isKindOfClass:NSString.class]) {
-      [out appendData:[item dataUsingEncoding:NSUTF8StringEncoding]];
-    } else if (item != nil && item != NSNull.null) {
-      [out appendData:[[item description] dataUsingEncoding:NSUTF8StringEncoding]];
-    }
+  for (const auto& part : parts) {
+    // 长度是 0 的段指针可能是空的
+    if (part.second > 0) [out appendBytes:part.first length:part.second];
   }
   NacreBlob* blob = [NacreBlob new];
   blob.data = out;
@@ -513,11 +504,10 @@ nacre::NativeObjectRef CreateBlob(
       NacreRuntime* strongSelf = weakSelf;
       if (strongSelf) [strongSelf readObjectAsync:(__bridge id)ptr kind:kind callId:callId];
     };
-    host.create_blob = [](const std::string& partsJSON,
-                          const std::vector<std::pair<const void*, size_t>>& buffers,
+    host.create_blob = [](const std::vector<std::pair<const void*, size_t>>& parts,
                           const std::string& type) {
       return Guarded("new Blob", nullptr, [&] {
-        return CreateBlob(partsJSON, buffers, type);
+        return CreateBlob(parts, type);
       });
     };
     host.parse_url = [](const std::string& url, const std::string& base) {

@@ -144,10 +144,9 @@ struct EngineHost {
   // 宿主在后台处理完之后兑现 call_id——UTF-8 解码是 CPU 活，不能在主线程干。
   std::function<void(void* ptr, const std::string& kind, int call_id)>
       read_object_async;
-  // 用一段字节建一个原生对象（Blob）。parts_json 是数组，字符串项直接给，
-  // 字节项留 null、真正的数据按同样的下标放在 buffers 里。
-  std::function<NativeObjectRef(const std::string& parts_json,
-                                const std::vector<std::pair<const void*, size_t>>& buffers,
+  // 用一段段字节建一个原生对象（Blob），按顺序拼起来。字符串段已经由内置脚本编成
+  // UTF-8 字节（23-fetch.js），这里只有字节。长度是 0 的段指针可能是空的。
+  std::function<NativeObjectRef(const std::vector<std::pair<const void*, size_t>>& parts,
                                 const std::string& type)>
       create_blob;
 

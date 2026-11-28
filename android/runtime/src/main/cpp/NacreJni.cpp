@@ -201,7 +201,7 @@ Java_nacre_runtime_NacreRuntime_nativeCreate(JNIEnv* env, jclass, jobject self, 
   runtime->set_event_subscription =
       env->GetMethodID(bridge_class, "setEventSubscription", "(JLjava/lang/String;Z)V");
   runtime->error_text = env->GetMethodID(bridge_class, "errorText", "(Ljava/lang/Throwable;)[B");
-  runtime->create_blob = env->GetMethodID(bridge_class, "createBlob", "([B[[B[B)J");
+  runtime->create_blob = env->GetMethodID(bridge_class, "createBlob", "([[B[B)J");
   runtime->call_async = env->GetMethodID(bridge_class, "callAsync", "(JLjava/lang/String;[B[JI)V");
   runtime->call_class_method = env->GetMethodID(
       bridge_class, "callClassMethod", "(Ljava/lang/String;Ljava/lang/String;[B[J)[B");
@@ -362,24 +362,25 @@ Java_nacre_runtime_NacreRuntime_nativeCreate(JNIEnv* env, jclass, jobject self, 
   };
 
   // ---- Blob 和 fetch：都转给 NativeBridge，结果由 Kotlin 那边回主线程兑现 ----
-  host.create_blob = [runtime](const std::string& parts_json,
-                               const std::vector<std::pair<const void*, size_t>>& buffers,
+  host.create_blob = [runtime](const std::vector<std::pair<const void*, size_t>>& parts,
                                const std::string& type) {
     JNIEnv* env = CurrentEnv();
     Frame frame(env);
     jclass byte_array_class = env->FindClass("[B");
-    jobjectArray java_buffers =
-        env->NewObjectArray(static_cast<jsize>(buffers.size()), byte_array_class, nullptr);
-    for (size_t i = 0; i < buffers.size(); i++) {
-      if (buffers[i].first == nullptr) continue;
-      jbyteArray bytes = env->NewByteArray(static_cast<jsize>(buffers[i].second));
-      env->SetByteArrayRegion(bytes, 0, static_cast<jsize>(buffers[i].second),
-                              static_cast<const jbyte*>(buffers[i].first));
-      env->SetObjectArrayElement(java_buffers, static_cast<jsize>(i), bytes);
+    jobjectArray java_parts =
+        env->NewObjectArray(static_cast<jsize>(parts.size()), byte_array_class, nullptr);
+    for (size_t i = 0; i < parts.size(); i++) {
+      jbyteArray bytes = env->NewByteArray(static_cast<jsize>(parts[i].second));
+      // 长度是 0 的段指针可能是空的
+      if (parts[i].second > 0) {
+        env->SetByteArrayRegion(bytes, 0, static_cast<jsize>(parts[i].second),
+                                static_cast<const jbyte*>(parts[i].first));
+      }
+      env->SetObjectArrayElement(java_parts, static_cast<jsize>(i), bytes);
       env->DeleteLocalRef(bytes);
     }
-    jlong id = env->CallLongMethod(runtime->bridge, runtime->create_blob,
-                                   ToBytes(env, parts_json), java_buffers, ToBytes(env, type));
+    jlong id = env->CallLongMethod(runtime->bridge, runtime->create_blob, java_parts,
+                                   ToBytes(env, type));
     if (TakeError(env, runtime, nullptr)) return nacre::NativeObjectRef{};
     return RefOf(env, runtime, id);
   };
