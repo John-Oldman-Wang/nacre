@@ -674,8 +674,8 @@ export default defineConfig({
   },
 
   themeConfig: {
-    // 顶栏的 logo：花括号包着一颗珍珠。深色模式用浅色括号的那份
-    logo: { light: '/logo.svg', dark: '/logo-dark.svg' },
+    // 顶栏的 logo：括号和珍珠是镂空的窗口，透出底下的颜色。深色浅色用同一份
+    logo: '/logo.svg',
     search: {
       provider: 'local',
       options: {
