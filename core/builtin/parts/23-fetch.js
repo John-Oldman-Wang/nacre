@@ -28,13 +28,17 @@
       const list = parts === undefined || parts === null ? [] : Array.from(parts);
       const o = options === undefined || options === null ? {} : options;
       const type = has(o, 'type') ? String(o.type) : '';
-      // 字符串走 JSON，ArrayBuffer / TypedArray 的字节按下标单独过去，
+      // 原生只收字节。字符串段在这里编成 UTF-8（Blob 标准对字符串段的定义就是这样），
+      // 不交给原生去解析字符串：有的系统解析器会去掉字符串开头的 U+FEFF，导出给 Excel 的
+      // new Blob(['﻿' + csv]) 就少了 BOM。不是字节的值照 Web IDL 先转成字符串
+      //（Symbol 抛 TypeError），落单的代理项编成 U+FFFD，和 TextEncoder 一样。
       // 嵌套的 Blob 第一版不支持（要先把它的字节取出来）
       const prepared = list.map((item) => {
         if (item instanceof Blob) {
           throw new TypeError('Blob parts cannot be Blobs yet');
         }
-        return item;
+        if (item instanceof ArrayBuffer || ArrayBuffer.isView(item)) return item;
+        return native.utf8Encode(`${item}`);
       });
       // 把 this 交给原生去绑，和 constructNative 一样。不能让原生另建一个
       // 包装、这里只抄句柄的数值——那个包装没人拿着，GC 一回收，句柄和数据

@@ -11,7 +11,7 @@
 | `05-events.js` | `CustomEvent`、`MessageEvent`、`CloseEvent`、`ErrorEvent`、`PromiseRejectionEvent`；往 `ctx` 放定义事件类的 `defineEventClass` 和登记表 `eventClasses`（平台的事件类也用它，原生发事件时按类名在这里找） | 无 | `Event`、`define` |
 | `06-websocket.js` | `WebSocket` | 无（走桥：`WebSocket` 是一个原生类） | `EventTarget`、`constructNative`、`defineNativeClass`、`finalCheck`、`kSubscribe`、`nativeCall`、`nativeCallAsync`、`nativeGet`、`nativeSet`、`ownOne`、`requireNative`、`subscribeNative`、`toInteger`、`toTextOrNull`、`application` |
 | `22-url.js` | `URL`、`URLSearchParams`、`Headers` | `parseURL` | `define`、`has`、`native` |
-| `23-fetch.js` | `fetch`、`Request`、`Response`、`Blob`、`AbortController`、`AbortSignal`、`ReadableStream`、`ReadableStreamDefaultReader` | `createBlob`、`fetchStart`、`fetchCancel`、`fetchReadBody`、`fetchRelease`、`readObjectAsync` | `Event`、`EventTarget`、`URL`、`URLSearchParams`、`define`、`defineNativeClass`、`finalCheck`、`has`、`kHandle`、`nativeGet`、`requireNative`、`native` |
+| `23-fetch.js` | `fetch`、`Request`、`Response`、`Blob`、`AbortController`、`AbortSignal`、`ReadableStream`、`ReadableStreamDefaultReader` | `createBlob`、`fetchStart`、`fetchCancel`、`fetchReadBody`、`fetchRelease`、`readObjectAsync`、`utf8Encode`（`Blob` 的字符串段在这里编成 UTF-8 字节，原生只收字节） | `Event`、`EventTarget`、`URL`、`URLSearchParams`、`define`、`defineNativeClass`、`finalCheck`、`has`、`kHandle`、`nativeGet`、`requireNative`、`native` |
 | `24-timer.js` | `setTimeout`、`setInterval`、`clearTimeout`、`clearInterval`、`queueMicrotask`、`performance`、`Performance` | `addTimer`、`removeTimer`、`now`、`timeOrigin` | `define`、`native` |
 | `25-crypto.js` | `crypto`、`Crypto` | `randomFill` | `define`、`native` |
 | `26-intl.js` | `Intl`（数字的格式化） | 无（走类方法的通道 `nativeClassCallValue`，平台要认它用的类名） | `define`、`nativeClassCallValue`；往 `ctx.intl` 放东西给下一个 |

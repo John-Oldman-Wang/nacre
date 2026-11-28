@@ -297,6 +297,27 @@ export function stepFetch(ctx) {
                return bytesOf(await (await sent.blob()).arrayBuffer());
              }), '0,255,16,128');
 
+      // --- Blob 的字符串段按 UTF-8 编码，内容原样，开头的 U+FEFF 也留着 ---
+      // 导出给 Excel 的 CSV 常写 new Blob(['﻿' + csv])，少了这三个字节中文就乱码。
+      // 只比字节：text() 照 Web 的 UTF-8 解码会去掉开头的 BOM
+      assert('Blob：字符串开头的 U+FEFF 留着',
+             await outcome(async () => bytesOf(await new Blob(['﻿abc']).arrayBuffer())), '239,187,191,97,98,99');
+      assert('Blob：开头的 U+FEFF 算 3 个字节', new Blob(['﻿abc']).size, 6);
+      assert('Blob：单独一段 U+FEFF 也留着',
+             await outcome(async () => bytesOf(await new Blob(['﻿', 'abc']).arrayBuffer())), '239,187,191,97,98,99');
+      assert('Blob：落单的代理项编码成 U+FFFD',
+             await outcome(async () => bytesOf(await new Blob(['a\uD800b']).arrayBuffer())), '97,239,191,189,98');
+      assert('Blob：别的值照 String() 转',
+             await outcome(() => new Blob(/** @type {any} */ ([1, true, null, undefined, {}])).text()),
+             '1truenullundefined[object Object]');
+      assert('Blob：Symbol 转不成字符串，抛 TypeError',
+             await outcome(async () => new Blob(/** @type {any} */ ([Symbol('x')]))), 'rejected: TypeError');
+      assert('Request：字符串 body 开头的 U+FEFF 留着',
+             await outcome(async () => bytesOf(await new Request(url, { method: 'POST', body: '﻿abc' }).arrayBuffer())),
+             '239,187,191,97,98,99');
+      assert('Response：字符串 body 开头的 U+FEFF 留着',
+             await outcome(async () => bytesOf(await new Response('﻿abc').arrayBuffer())), '239,187,191,97,98,99');
+
       // --- 空串：有 body，只是长度为 0 ---
       const emptyText = new Response('');
       assert('空串：text()', await outcome(() => emptyText.text()), '');
