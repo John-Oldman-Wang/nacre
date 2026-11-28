@@ -10,6 +10,7 @@ export default {
       lead: 'Call the platform’s native classes straight from JavaScript. Every view on screen is a real native view.',
       primary: 'Get started',
       secondary: 'API reference',
+      play: 'Play the logo animation',
     },
     demo: {
       eyebrow: 'How it feels',
@@ -105,6 +106,7 @@ export default {
       lead: '在 JavaScript 里直接调用平台的原生类，屏幕上的每个视图都是真的原生视图。',
       primary: '开始',
       secondary: 'API 参考',
+      play: '播放 logo 动画',
     },
     demo: {
       eyebrow: '写起来是什么样',

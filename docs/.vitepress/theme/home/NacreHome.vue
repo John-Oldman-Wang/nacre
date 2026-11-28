@@ -7,6 +7,7 @@ import { data as stats } from './stats.data.mjs';
 import Waves from './Waves.vue';
 import LiveDemo from './LiveDemo.vue';
 import RuntimeLayers from './RuntimeLayers.vue';
+import HeroLogo from './HeroLogo.vue';
 
 const props = defineProps({ lang: { type: String, default: 'en' } });
 const t = computed(() => copy[props.lang] ?? copy.en);
@@ -17,6 +18,9 @@ const link = (p) => (p.startsWith('http') ? p : href(p));
 
 const statList = computed(() => [stats.classes, stats.members, stats.guides, stats.capabilities].map((n, i) => ({ n, label: t.value.stats[i] })));
 const shown = ref(statList.value.map((s) => s.n));
+
+// 首屏的 logo 在放动画时，标题、说明和按钮淡出
+const heroPlaying = ref(false);
 
 const copied = ref(-1);
 function copyCmd(i) {
@@ -68,26 +72,44 @@ onBeforeUnmount(() => ios.forEach((o) => o.disconnect()));
           <stop offset="0" stop-color="#c7d2fe" /><stop offset=".35" stop-color="#bae6fd" /><stop offset=".6" stop-color="#a7f3d0" /><stop offset=".85" stop-color="#fbcfe8" /><stop offset="1" stop-color="#c7d2fe" />
           <animateTransform attributeName="gradientTransform" type="rotate" from="0 .5 .5" to="360 .5 .5" dur="10s" repeatCount="indefinite" />
         </linearGradient>
-        <radialGradient id="nh-pearl-body" cx=".38" cy=".34" r=".75">
-          <stop offset="0" stop-color="#ffffff" /><stop offset=".55" stop-color="#eef2ff" stop-opacity=".6" /><stop offset="1" stop-color="#c7d2fe" stop-opacity="0" />
+        <!-- logo 底下那一片颜色：靛蓝的底，上面晕着三团天蓝、翠绿、粉。和 docs/public/logo.svg 同一套 -->
+        <radialGradient id="nh-blob-sky"><stop offset="0" stop-color="#0ea5e9" /><stop offset="1" stop-color="#0ea5e9" stop-opacity="0" /></radialGradient>
+        <radialGradient id="nh-blob-green"><stop offset="0" stop-color="#10b981" /><stop offset="1" stop-color="#10b981" stop-opacity="0" /></radialGradient>
+        <radialGradient id="nh-blob-pink"><stop offset="0" stop-color="#ec4899" /><stop offset="1" stop-color="#ec4899" stop-opacity="0" /></radialGradient>
+        <!-- 珍珠上的高光。在圆的边缘以内就淡到 0，放大的时候不会露出一圈硬边 -->
+        <radialGradient id="nh-sheen" cx=".42" cy=".4" r=".45">
+          <stop offset="0" stop-color="#ffffff" stop-opacity=".9" /><stop offset=".55" stop-color="#ffffff" stop-opacity=".3" /><stop offset="1" stop-color="#ffffff" stop-opacity="0" />
         </radialGradient>
+        <!-- logo 的形状：括号和珍珠是镂空的窗口 -->
+        <mask id="nh-logo-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="120" height="120">
+          <rect width="120" height="120" fill="#000000" />
+          <g fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M38 20 Q24 20 24 36 L24 48 Q24 60 13 60 Q24 60 24 72 L24 84 Q24 100 38 100" />
+            <path d="M82 20 Q96 20 96 36 L96 48 Q96 60 107 60 Q96 60 96 72 L96 84 Q96 100 82 100" />
+          </g>
+          <circle cx="60" cy="60" r="21" fill="#ffffff" />
+        </mask>
         <linearGradient id="nh-wave-stroke" x1="0" x2="1">
           <stop offset="0" stop-color="#a5b4fc" /><stop offset=".33" stop-color="#7dd3fc" /><stop offset=".66" stop-color="#6ee7b7" /><stop offset="1" stop-color="#f9a8d4" />
         </linearGradient>
+        <!-- 静态的 logo，收尾和页脚用。首屏那个会动，在 HeroLogo.vue -->
         <symbol id="nh-logo" viewBox="0 0 120 120">
-          <path d="M38 20 Q24 20 24 36 L24 48 Q24 60 13 60 Q24 60 24 72 L24 84 Q24 100 38 100" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M82 20 Q96 20 96 36 L96 48 Q96 60 107 60 Q96 60 96 72 L96 84 Q96 100 82 100" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
-          <circle cx="60" cy="60" r="21" fill="url(#nh-pearl-shine)" />
-          <circle cx="60" cy="60" r="21" fill="url(#nh-pearl-body)" />
+          <g mask="url(#nh-logo-mask)">
+            <rect width="120" height="120" fill="#6366f1" />
+            <circle cx="104" cy="16" r="78" fill="url(#nh-blob-sky)" />
+            <circle cx="14" cy="108" r="80" fill="url(#nh-blob-green)" />
+            <circle cx="114" cy="112" r="70" fill="url(#nh-blob-pink)" />
+          </g>
+          <circle cx="60" cy="60" r="21" fill="url(#nh-sheen)" />
         </symbol>
       </defs>
     </svg>
 
     <!-- 1 首屏 -->
-    <header class="hero">
+    <header class="hero" :class="{ playing: heroPlaying }">
       <Waves />
       <div class="wrap inner">
-        <svg class="logo" width="96" height="96" aria-hidden="true"><use href="#nh-logo" /></svg>
+        <HeroLogo :label="t.hero.play" @playing="(v) => (heroPlaying = v)" />
         <h1>{{ t.hero.title1 }}<br />{{ t.hero.title2 }}<span class="sheen">{{ t.hero.titleSheen }}</span></h1>
         <p class="lead">{{ t.hero.lead }}</p>
         <div class="cta">
@@ -235,9 +257,11 @@ label.text = <span class="s">`Hi, ${</span>me.name<span class="s">}`</span>;</pr
 .nh { color: var(--vp-c-text-1); }
 .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
 .inner { position: relative; z-index: 1; }
-.logo, .end svg { color: var(--vp-c-text-1); display: block; margin: 0 auto; }
+.end svg { display: block; margin: 0 auto; }
 
 .hero { position: relative; overflow: hidden; padding: 88px 0 96px; text-align: center; }
+.hero h1, .hero .lead, .hero .cta { transition: opacity .45s ease; }
+.hero.playing h1, .hero.playing .lead, .hero.playing .cta { opacity: 0; pointer-events: none; }
 h1 { font-size: 64px; line-height: 1.05; letter-spacing: -0.035em; margin: 24px 0 0; font-weight: 700; }
 .sheen { background: linear-gradient(100deg, #6366f1, #0ea5e9 35%, #10b981 60%, #ec4899 85%, #6366f1); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: nh-slide 9s linear infinite; }
 @keyframes nh-slide { to { background-position: -200% 0; } }
