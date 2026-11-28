@@ -1,11 +1,18 @@
-// 图片这一组：ImageDecoder（来源、读头、解码）、Bitmap、BitmapDrawable、AnimatedImageDrawable、
-// ImageView。JS 那一侧在 builtin/parts/34-image.js。
+// 图片这一组：解码（Java 的 ImageDecoder）、Bitmap、BitmapDrawable、AnimatedImageDrawable、ImageView。
+// JS 那一侧在 builtin/parts/34-image.js。
 //
-// 解码在后台的线程上做（Java 的 decodeBitmap 是同步的，主线程上解大图会卡），做完用 settle
-// 兑现。Java 自己抛的异常（DecodeException、FileNotFoundException……）以异常的简单类名拒绝。
-// 单位是像素。
+// 照「接类的总则」（2026-11-26）：
+// - Bitmap 和动图是值对象，读写直接对着原生对象。
+// - BitmapDrawable 只在 JS 里记状态，每用在一个挂着的视图上，JS 让这里按那个页面建一个（「一处」）。
+//   动图的每一处是 AnimatedImagePlace（见那个文件）。
+// - ImageView 的状态以 JS 为准，这里只管设，不往回读。
+//
+// 解码在后台的线程上做（Java 的解码是同步的，主线程上解大图会卡），做完用 settle 兑现。Java 自己抛的
+// 异常（DecodeException、FileNotFoundException……）以异常的简单类名拒绝。交过来的已经是原生要的
+// 单位（长度是像素，颜色是 ARGB 的无符号整数），JS 那边查过一遍，这里只校验。
 package nacre.runtime
 
+import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.graphics.PorterDuff
@@ -26,10 +33,13 @@ import java.util.concurrent.Executors
 internal class ImageDomain(host: DomainHost) : Domain(host) {
 
     override val classes: Map<Class<*>, String> = mapOf(
-        ImageDecoder.Source::class.java to "ImageDecoder.Source",
+        // 解码的来源：每次解码建一个，用完就扔，不交给 JS（JS 直接给路径或字节）
+        ImageDecoder.Source::class.java to "@imageSource",
         Bitmap::class.java to "Bitmap",
         BitmapDrawable::class.java to "BitmapDrawable",
         AnimatedImageDrawable::class.java to "AnimatedImageDrawable",
+        // 动图的一处，只给 JS 的替身用
+        AnimatedImagePlace::class.java to "@animatedImagePlace",
         ImageView::class.java to "ImageView",
     )
 
@@ -64,8 +74,8 @@ internal class ImageDomain(host: DomainHost) : Domain(host) {
         "centerCrop" to ImageView.ScaleType.CENTER_CROP,
         "centerInside" to ImageView.ScaleType.CENTER_INSIDE)
 
-    // Shader.TileMode。DECAL 是 API 31 起才有；BitmapDrawable 不平铺时是 null
-    private val tileModes: EnumTable<Shader.TileMode?> by lazy {
+    // Shader.TileMode。DECAL 是 API 31 起才有，11 上不在表里（JS 那边写了就是不认识的名字）
+    private val tileModes: EnumTable<Shader.TileMode> =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             EnumTable("clamp" to Shader.TileMode.CLAMP, "repeat" to Shader.TileMode.REPEAT,
                       "mirror" to Shader.TileMode.MIRROR, "decal" to Shader.TileMode.DECAL)
@@ -73,7 +83,6 @@ internal class ImageDomain(host: DomainHost) : Domain(host) {
             EnumTable("clamp" to Shader.TileMode.CLAMP, "repeat" to Shader.TileMode.REPEAT,
                       "mirror" to Shader.TileMode.MIRROR)
         }
-    }
 
     // PorterDuff.Mode：去掉下划线转驼峰（SRC_ATOP → srcAtop），按 Java 里的先后
     private val porterDuffModes = EnumTable(*PorterDuff.Mode.values().map { camel(it.name) to it }.toTypedArray())
@@ -81,7 +90,17 @@ internal class ImageDomain(host: DomainHost) : Domain(host) {
     // AnimatedImageDrawable.repeatCount 的哨兵：一直播
     private val repeatCounts = EnumTable("infinite" to AnimatedImageDrawable.REPEAT_INFINITE)
 
-    // ---- 值的转换（JS 那边已经照 Web IDL 转好了类型，这里只校验）----
+    // 名字交给 JS（启动时取一次），写错的名字在 JS 里当场查。表名在所有域里不能重复
+    override val enums: Map<String, EnumTable<*>> = mapOf(
+        "imageAllocator" to allocators,
+        "imageMemoryPolicy" to memoryPolicies,
+        "scaleType" to scaleTypes,
+        "bitmapTileMode" to tileModes,
+        "porterDuffMode" to porterDuffModes,
+        "repeatCount" to repeatCounts,
+    )
+
+    // ---- 值的校验（JS 那边已经照 Web IDL 转好、查过范围了）----
 
     private fun int(v: Any?, what: String): Int =
         (v as? Double)?.toInt() ?: throw NacreTypeError("$what must be a number")
@@ -99,42 +118,43 @@ internal class ImageDomain(host: DomainHost) : Domain(host) {
 
     private fun argb(c: Int): String = (c.toLong() and 0xFFFFFFFFL).toString()
 
-    // 没设、不限这类哨兵读出来是 null
-    private fun intOrNull(value: Int, none: Int): String = if (value == none) "null" else value.toString()
-
     // ---- 造对象 ----
 
     override fun construct(className: String, args: List<*>, objects: List<Any?>): Any? = when (className) {
-        // ImageDecoder.createSource：JS 那边的工厂方法从这里建。来源是一个 Blob，或者 assets/ 里的路径
-        "ImageDecoder.Source" -> {
+        // 来源：一个 Blob，或者 assets/ 里的路径（用 App 的 assets，不借页面）。路径到解码时才打开，
+        // 所以文件不存在是解码时被拒
+        "@imageSource" -> {
             val blob = objects.getOrNull(0) as? NacreBlob
             val path = args.getOrNull(0) as? String
             when {
                 blob != null -> ImageDecoder.createSource(ByteBuffer.wrap(blob.data))
                 path != null -> ImageDecoder.createSource(host.app.assets, "$PROJECT_ASSETS/$path")
-                else -> throw NacreTypeError("createSource: expected a Blob or a path")
+                else -> throw NacreTypeError("ImageDecoder: expected a Blob or a path")
             }
         }
-        // Resources 用 App 的（JS 里没有这个类），图的密度照它换算
+        // 一处：不用 Resources（不借页面），密度按 JS 交过来的那个页面的（dpi）。图回收掉了就什么都不画：
+        // 拿下来的视图在图回收之后再挂上，走到这里
         "BitmapDrawable" -> {
             val o = objects.getOrNull(0)
-            if (o != null && o !is Bitmap) throw NacreTypeError("new BitmapDrawable: argument 1 must be a Bitmap")
-            BitmapDrawable(host.app.resources, o as Bitmap?)
+            if (o != null && o !is Bitmap) throw NacreTypeError("BitmapDrawable: argument 1 must be a Bitmap")
+            val bitmap = (o as Bitmap?)?.takeUnless { it.isRecycled }
+            BitmapDrawable(null as Resources?, bitmap).apply { setTargetDensity(int(args.getOrNull(1), "density")) }
         }
+        "@animatedImagePlace" -> AnimatedImagePlace(
+            objects.getOrNull(0) as? AnimatedImageDrawable
+                ?: throw NacreTypeError("AnimatedImageDrawable: argument 1 must be an AnimatedImageDrawable"))
         "ImageView" -> ImageView(
             objects.getOrNull(0) as? android.content.Context
-                ?: throw NacreTypeError("new ImageView: argument 1 must be a Context"))
+                ?: throw NacreTypeError("ImageView: argument 1 must be a Context"))
         // Bitmap、AnimatedImageDrawable 只由解码和类方法建
         else -> throw NacreTypeError("Illegal constructor: $className cannot be constructed")
     }
 
-    // ---- 读属性 ----
+    // ---- 读属性：值对象的 ----
 
     override fun read(target: Any, name: String): String? = when (target) {
         is Bitmap -> readBitmap(target, name)
-        is BitmapDrawable -> readBitmapDrawable(target, name)
         is AnimatedImageDrawable -> readAnimated(target, name)
-        is ImageView -> readImageView(target, name)
         else -> null
     }
 
@@ -142,36 +162,26 @@ internal class ImageDomain(host: DomainHost) : Domain(host) {
         "width" -> b.width.toString()
         "height" -> b.height.toString()
         "config" -> b.config?.let { quote(camel(it.name)) } ?: "null"
-        "density" -> intOrNull(b.density, Bitmap.DENSITY_NONE)
+        "density" -> if (b.density == Bitmap.DENSITY_NONE) "null" else b.density.toString()
         "byteCount" -> b.byteCount.toString()
         "allocationByteCount" -> b.allocationByteCount.toString()
         "isMutable" -> b.isMutable.toString()
         "isPremultiplied" -> b.isPremultiplied.toString()
+        "hasAlpha" -> b.hasAlpha().toString()
         "isRecycled" -> b.isRecycled.toString()
-        else -> null
-    }
-
-    private fun readBitmapDrawable(d: BitmapDrawable, name: String): String? = when (name) {
-        "tileModeX" -> tileModes.name(d.tileModeX)?.let(::quote) ?: "null"
-        "tileModeY" -> tileModes.name(d.tileModeY)?.let(::quote) ?: "null"
-        "isFilterBitmap" -> d.isFilterBitmap.toString()
+        // JS 查参数用的几项，一次读完
+        "@info" -> JSONObject()
+            .put("width", b.width)
+            .put("height", b.height)
+            .put("config", b.config?.let { camel(it.name) } ?: JSONObject.NULL)
+            .put("isRecycled", b.isRecycled)
+            .toString()
         else -> null
     }
 
     private fun readAnimated(d: AnimatedImageDrawable, name: String): String? = when (name) {
         "repeatCount" -> repeatCounts.name(d.repeatCount)?.let(::quote) ?: d.repeatCount.toString()
         "isRunning" -> d.isRunning.toString()
-        else -> null
-    }
-
-    private fun readImageView(v: ImageView, name: String): String? = when (name) {
-        "scaleType" -> scaleTypes.name(v.scaleType)?.let(::quote)
-            ?: throw IllegalStateException("unknown scale type ${v.scaleType}")
-        "adjustViewBounds" -> v.adjustViewBounds.toString()
-        "maxWidth" -> intOrNull(v.maxWidth, Int.MAX_VALUE)
-        "maxHeight" -> intOrNull(v.maxHeight, Int.MAX_VALUE)
-        "imageAlpha" -> v.imageAlpha.toString()
-        "cropToPadding" -> v.cropToPadding.toString()
         else -> null
     }
 
@@ -183,12 +193,12 @@ internal class ImageDomain(host: DomainHost) : Domain(host) {
                 target.density = if (value == null) Bitmap.DENSITY_NONE else int(value, name)
             // null 是不平铺
             target is BitmapDrawable && name == "tileModeX" ->
-                target.tileModeX = value?.let { tileModes.forProperty(name, it) }
+                target.tileModeX = value?.let { tileModes.forArgument(name, it) }
             target is BitmapDrawable && name == "tileModeY" ->
-                target.tileModeY = value?.let { tileModes.forProperty(name, it) }
+                target.tileModeY = value?.let { tileModes.forArgument(name, it) }
             target is BitmapDrawable && name == "isFilterBitmap" -> target.isFilterBitmap = bool(value, name)
             target is AnimatedImageDrawable && name == "repeatCount" ->
-                target.repeatCount = if (value is String) repeatCounts.forProperty(name, value) else int(value, name)
+                target.repeatCount = if (value is String) repeatCounts.forArgument(name, value) else int(value, name)
             target is ImageView -> return writeImageView(target, name, value)
             else -> return false
         }
@@ -197,10 +207,12 @@ internal class ImageDomain(host: DomainHost) : Domain(host) {
 
     private fun writeImageView(v: ImageView, name: String, value: Any?): Boolean {
         when (name) {
-            "scaleType" -> v.scaleType = scaleTypes.forProperty(name, value)
+            "scaleType" -> v.scaleType = scaleTypes.forArgument(name, value)
             "adjustViewBounds" -> v.adjustViewBounds = bool(value, name)
+            // 像素；null 是不限
             "maxWidth" -> v.maxWidth = if (value == null) Int.MAX_VALUE else int(value, name)
             "maxHeight" -> v.maxHeight = if (value == null) Int.MAX_VALUE else int(value, name)
+            // 0–255
             "imageAlpha" -> v.imageAlpha = int(value, name)
             "cropToPadding" -> v.cropToPadding = bool(value, name)
             else -> return false
@@ -214,27 +226,21 @@ internal class ImageDomain(host: DomainHost) : Domain(host) {
         when {
             target is Bitmap && name == "getPixel" ->
                 return argb(target.getPixel(int(args.getOrNull(0), name), int(args.getOrNull(1), name)))
-            target is Bitmap && name == "hasAlpha" -> return target.hasAlpha().toString()
             target is Bitmap && name == "recycle" -> target.recycle()
-            target is BitmapDrawable && name == "setTileModeXY" ->
-                target.setTileModeXY(args.getOrNull(0)?.let { tileModes.forArgument("tileModeX", it) },
-                                     args.getOrNull(1)?.let { tileModes.forArgument("tileModeY", it) })
             target is AnimatedImageDrawable && name == "start" -> target.start()
             target is AnimatedImageDrawable && name == "stop" -> target.stop()
-            target is ImageView && name == "setImageBitmap" -> {
-                val o = objects.getOrNull(0)
-                if (o != null && o !is Bitmap) throw NacreTypeError("setImageBitmap: argument 1 must be a Bitmap")
-                target.setImageBitmap(o as Bitmap?)
-            }
+            // drawable 是 JS 在这个页面上建的那一处
             target is ImageView && name == "setImageDrawable" -> {
                 val o = objects.getOrNull(0)
                 if (o != null && o !is Drawable) throw NacreTypeError("setImageDrawable: argument 1 must be a Drawable")
                 target.setImageDrawable(o as Drawable?)
             }
-            target is ImageView && name == "setColorFilter" ->
-                target.setColorFilter(color(args.getOrNull(0), name),
-                                      porterDuffModes.forArgument("mode", args.getOrNull(1)))
-            target is ImageView && name == "clearColorFilter" -> target.clearColorFilter()
+            // 着色：颜色和混合模式；颜色是 null 就去掉
+            target is ImageView && name == "@colorFilter" -> {
+                val c = args.getOrNull(0)
+                if (c == null) target.clearColorFilter()
+                else target.setColorFilter(color(c, "colorFilter"), porterDuffModes.forArgument("mode", args.getOrNull(1)))
+            }
             else -> return null
         }
         return "null"
@@ -247,8 +253,6 @@ internal class ImageDomain(host: DomainHost) : Domain(host) {
         target is Bitmap && name == "createBitmap" -> Bitmap.createBitmap(
             target, int(args.getOrNull(0), name), int(args.getOrNull(1), name),
             int(args.getOrNull(2), name), int(args.getOrNull(3), name))
-        target is BitmapDrawable && name == "getBitmap" -> target.bitmap
-        target is ImageView && name == "getDrawable" -> target.drawable
         else -> NOT_MINE
     }
 
@@ -259,8 +263,7 @@ internal class ImageDomain(host: DomainHost) : Domain(host) {
         when (name) {
             "decodeHeader" -> decoders.execute { settleFailures(callId) { decodeHeader(target, callId) } }
             "decodeBitmap", "decodeDrawable" -> {
-                // 设置在这里（主线程上）先校验完，写错的当场拒，不进后台。异步的调用里抛出去
-                // Promise 就悬着了，所以自己拒
+                // 设置在这里（主线程上）先校验完。异步的调用里抛出去 Promise 就悬着了，所以自己拒
                 val settings = try {
                     Settings.from(args.getOrNull(0) as? Map<*, *>, this)
                 } catch (e: NacreTypeError) {
@@ -270,8 +273,16 @@ internal class ImageDomain(host: DomainHost) : Domain(host) {
                 decoders.execute {
                     settleFailures(callId) {
                         val listener = ImageDecoder.OnHeaderDecodedListener { decoder, _, _ -> settings.apply(decoder) }
-                        val result: Any = if (name == "decodeBitmap") ImageDecoder.decodeBitmap(target, listener)
-                                          else ImageDecoder.decodeDrawable(target, listener)
+                        val result: Any = if (name == "decodeBitmap") {
+                            ImageDecoder.decodeBitmap(target, listener)
+                        } else {
+                            // 静态图交回解出来的那张图，JS 那边包成自己的 BitmapDrawable（只在 JS 里记状态）
+                            when (val d = ImageDecoder.decodeDrawable(target, listener)) {
+                                is AnimatedImageDrawable -> d
+                                is BitmapDrawable -> d.bitmap
+                                else -> throw NacreTypeError("decodeDrawable: ${d.javaClass.simpleName} is not supported")
+                            }
+                        }
                         host.settle.obj(callId, result)
                     }
                 }
@@ -311,7 +322,8 @@ internal class ImageDomain(host: DomainHost) : Domain(host) {
         }
     }
 
-    // 解码时的设置：OnHeaderDecodedListener 里的 set…，JS 那边写成一个对象（JS 不实现 Java 的接口）
+    // 解码时的设置：OnHeaderDecodedListener 里的 set…，JS 那边写成一个对象（JS 不实现 Java 的接口）。
+    // 尺寸是像素；裁切是 [x, y, 宽, 高]
     private class Settings(
         val targetSize: IntArray?, val targetSampleSize: Int?, val crop: Rect?, val allocator: Int?,
         val mutableRequired: Boolean?, val unpremultipliedRequired: Boolean?, val memorySizePolicy: Int?,
@@ -338,7 +350,7 @@ internal class ImageDomain(host: DomainHost) : Domain(host) {
                     return IntArray(n) { domain.int(list[it], key) }
                 }
                 fun boolOf(key: String) = map[key]?.let { domain.bool(it, key) }
-                val crop = ints("crop", 4)?.let { Rect(it[0], it[1], it[2], it[3]) }
+                val crop = ints("crop", 4)?.let { Rect(it[0], it[1], it[0] + it[2], it[1] + it[3]) }
                 return Settings(
                     targetSize = ints("targetSize", 2),
                     targetSampleSize = map["targetSampleSize"]?.let { domain.int(it, "targetSampleSize") },

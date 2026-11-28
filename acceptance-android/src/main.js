@@ -50,7 +50,7 @@ import { stepTouch } from './steps/touch.js';
 // import { stepScroll } from './steps/scroll.js';
 // import { stepAnimation } from './steps/animation.js';
 import { stepApp, watchApp } from './steps/app.js';
-// import { stepImage } from './steps/image.js';
+import { stepImage } from './steps/image.js';
 
 /**
  * 各步共享的上下文。页面那几步还要页面（从 activitycreate 拿到的）。
@@ -145,10 +145,10 @@ const sliceDone = (async () => {
   await runAsync('stepAppearance', () => stepAppearance(ctx));
   await runAsync('stepText', () => stepText(ctx));
   await runAsync('stepTouch', () => stepTouch(ctx));
+  await runAsync('stepImage', () => stepImage(ctx));
   // 第二步重写之前先不跑：
   // await runAsync('stepScroll', () => stepScroll(ctx));
   // await runAsync('stepAnimation', () => stepAnimation(ctx));
-  // await runAsync('stepImage', () => stepImage(ctx));
 })();
 
 // 网络那两步不碰界面，和上面那条链并行跑；两步之间先后跑：fetch-stream 里有量时刻、
