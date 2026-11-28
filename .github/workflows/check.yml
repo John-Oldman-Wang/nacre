@@ -37,6 +37,9 @@ jobs:
           npm ci
           npm run check
           npm test
+      # 用的是上一步在 acceptance/ 里装好的 TypeScript 自带的类型，要排在它后面
+      - name: Android 挂到全局的名字不撞保留名
+        run: node android/scripts/check-globals.mjs
       - name: 示例：类型检查
         working-directory: examples/hello
         run: |

@@ -129,7 +129,7 @@ internal class ImageDomain(host: DomainHost) : Domain(host) {
             when {
                 blob != null -> ImageDecoder.createSource(ByteBuffer.wrap(blob.data))
                 path != null -> ImageDecoder.createSource(host.app.assets, "$PROJECT_ASSETS/$path")
-                else -> throw NacreTypeError("ImageDecoder: expected a Blob or a path")
+                else -> throw NacreTypeError("AImageDecoder: expected a Blob or a path")
             }
         }
         // 一处：不用 Resources（不借页面），密度按 JS 交过来的那个页面的（dpi）。图回收掉了就什么都不画：
@@ -370,7 +370,7 @@ internal class ImageDomain(host: DomainHost) : Domain(host) {
     // ---- 类级的方法 ----
 
     override fun classCall(className: String, name: String, args: List<*>, objects: List<Any?>): String? =
-        if (className == "ImageDecoder" && name == "isMimeTypeSupported") {
+        if (className == "AImageDecoder" && name == "isMimeTypeSupported") {
             val mime = args.getOrNull(0) as? String ?: throw NacreTypeError("isMimeTypeSupported: expected a string")
             ImageDecoder.isMimeTypeSupported(mime).toString()
         } else {

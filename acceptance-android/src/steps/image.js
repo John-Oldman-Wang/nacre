@@ -1,4 +1,4 @@
-// 图片：ImageDecoder（读头、解码成 Bitmap 或 Drawable、解码时的设置）、Bitmap、BitmapDrawable、
+// 图片：AImageDecoder（读头、解码成 Bitmap 或 Drawable、解码时的设置）、Bitmap、BitmapDrawable、
 // AnimatedImageDrawable（动图的播放和 animationstart / animationend）、ImageView。
 //
 // 照「接类的总则」（2026-11-26）重写：
@@ -130,18 +130,39 @@ export async function stepImage(ctx) {
 
   // ===== 有哪些类、哪些不能 new =====
   console.log('  --- 图片：类 ---');
-  assert('ImageDecoder 是全局的类', typeof G.ImageDecoder, 'function');
+  assert('AImageDecoder 是全局的类', typeof G.AImageDecoder, 'function');
+  // Java 的 ImageDecoder 和 Web（WebCodecs）的 ImageDecoder 同名，撞了加 A，Web 的名字空出来
+  assert('全局上没有 ImageDecoder：这个名字是 Web 的', typeof G.ImageDecoder, 'undefined');
+  assert('AImageDecoder 的类名是 AImageDecoder', G.AImageDecoder.name, 'AImageDecoder');
+  /** @type {string} */
+  let ctorMessage = '';
+  try { new G.AImageDecoder(); } catch (err) { ctorMessage = err instanceof Error ? err.message : String(err); }
+  assert('new AImageDecoder() 的报错里是 AImageDecoder',
+         ctorMessage.includes('AImageDecoder') && !/(^|[^A])ImageDecoder/.test(ctorMessage), true);
+  assert('decodeHeader 的报错里是 AImageDecoder',
+         (await rejectMessage(() => /** @type {any} */ (G.AImageDecoder).decodeHeader())).includes("on 'AImageDecoder'"),
+         true);
+  /** @type {string} */
+  let infoMessage = '';
+  try { new G.AImageDecoder.ImageInfo(); } catch (err) { infoMessage = err instanceof Error ? err.message : String(err); }
+  assert('new AImageDecoder.ImageInfo() 的报错里是 AImageDecoder',
+         infoMessage.includes('AImageDecoder') && !/(^|[^A])ImageDecoder/.test(infoMessage), true);
+  /** @type {string} */
+  let bitmapMessage = '';
+  try { new G.Bitmap(); } catch (err) { bitmapMessage = err instanceof Error ? err.message : String(err); }
+  assert('new Bitmap() 的报错指向 AImageDecoder',
+         bitmapMessage.includes('AImageDecoder') && !/(^|[^A])ImageDecoder/.test(bitmapMessage), true);
   assert('Bitmap 是全局的类', typeof G.Bitmap, 'function');
   assert('BitmapDrawable 是全局的类', typeof G.BitmapDrawable, 'function');
   assert('AnimatedImageDrawable 是全局的类', typeof G.AnimatedImageDrawable, 'function');
   assert('ImageView 是全局的类', typeof G.ImageView, 'function');
   assert('不接 BitmapFactory', typeof G.BitmapFactory, 'undefined');
-  assert('ImageDecoder.ImageInfo 挂在 ImageDecoder 上', typeof ImageDecoder.ImageInfo, 'function');
-  assert('没有 ImageDecoder.Source 了', G.ImageDecoder.Source, undefined);
-  assert('没有 ImageDecoder.createSource 了', G.ImageDecoder.createSource, undefined);
-  assert('全局上没有带点的名字', G['ImageDecoder.Source'], undefined);
-  assert('new ImageDecoder() 抛 TypeError', thrown(() => new G.ImageDecoder()), 'TypeError');
-  assert('new ImageDecoder.ImageInfo() 抛 TypeError', thrown(() => new G.ImageDecoder.ImageInfo()), 'TypeError');
+  assert('AImageDecoder.ImageInfo 挂在 AImageDecoder 上', typeof AImageDecoder.ImageInfo, 'function');
+  assert('没有 AImageDecoder.Source 了', G.AImageDecoder.Source, undefined);
+  assert('没有 AImageDecoder.createSource 了', G.AImageDecoder.createSource, undefined);
+  assert('全局上没有带点的名字', G['AImageDecoder.Source'], undefined);
+  assert('new AImageDecoder() 抛 TypeError', thrown(() => new G.AImageDecoder()), 'TypeError');
+  assert('new AImageDecoder.ImageInfo() 抛 TypeError', thrown(() => new G.AImageDecoder.ImageInfo()), 'TypeError');
   assert('new Bitmap() 抛 TypeError', thrown(() => new G.Bitmap()), 'TypeError');
   assert('new AnimatedImageDrawable() 抛 TypeError', thrown(() => new G.AnimatedImageDrawable()), 'TypeError');
   assert('BitmapDrawable 继承 Drawable', BitmapDrawable.prototype instanceof Drawable, true);
@@ -149,65 +170,65 @@ export async function stepImage(ctx) {
   assert('ImageView 继承 View', ImageView.prototype instanceof View, true);
 
   // ===== isMimeTypeSupported =====
-  assert('isMimeTypeSupported("image/png")', ImageDecoder.isMimeTypeSupported('image/png'), true);
-  assert('isMimeTypeSupported("image/gif")', ImageDecoder.isMimeTypeSupported('image/gif'), true);
-  assert('isMimeTypeSupported("image/webp")', ImageDecoder.isMimeTypeSupported('image/webp'), true);
-  assert('isMimeTypeSupported("text/plain")', ImageDecoder.isMimeTypeSupported('text/plain'), false);
+  assert('isMimeTypeSupported("image/png")', AImageDecoder.isMimeTypeSupported('image/png'), true);
+  assert('isMimeTypeSupported("image/gif")', AImageDecoder.isMimeTypeSupported('image/gif'), true);
+  assert('isMimeTypeSupported("image/webp")', AImageDecoder.isMimeTypeSupported('image/webp'), true);
+  assert('isMimeTypeSupported("text/plain")', AImageDecoder.isMimeTypeSupported('text/plain'), false);
   assert('isMimeTypeSupported 不给参数抛 TypeError',
-         thrown(() => /** @type {any} */ (ImageDecoder).isMimeTypeSupported()), 'TypeError');
+         thrown(() => /** @type {any} */ (AImageDecoder).isMimeTypeSupported()), 'TypeError');
 
   // ===== decodeHeader：来源直接给 =====
   console.log('  --- 图片：读头 ---');
   const PNG = 'images/halves.png';
   const GIF = 'images/spin.gif';
   const bytes = halvesBytes();
-  const pngInfo = await ImageDecoder.decodeHeader(PNG);
-  assert('decodeHeader(路径) 得到 ImageInfo', pngInfo instanceof ImageDecoder.ImageInfo, true);
+  const pngInfo = await AImageDecoder.decodeHeader(PNG);
+  assert('decodeHeader(路径) 得到 ImageInfo', pngInfo instanceof AImageDecoder.ImageInfo, true);
   assert('PNG 的宽，px', pngInfo.size.width, 40);
   assert('PNG 的高，px', pngInfo.size.height, 30);
   assert('PNG 的类型', pngInfo.mimeType, 'image/png');
   assert('PNG 不是动图', pngInfo.isAnimated, false);
   assert('ImageInfo.size 是冻结的', Object.isFrozen(pngInfo.size), true);
   assert('ImageInfo 的字段只读', thrown(() => { /** @type {any} */ (pngInfo).mimeType = 'x'; }), 'TypeError');
-  const gifInfo = await ImageDecoder.decodeHeader(GIF);
+  const gifInfo = await AImageDecoder.decodeHeader(GIF);
   assert('GIF 的宽高', gifInfo.size.width + '×' + gifInfo.size.height, '8×8');
   assert('GIF 的类型', gifInfo.mimeType, 'image/gif');
   assert('GIF 是动图', gifInfo.isAnimated, true);
-  assert('从 Blob 读头', (await ImageDecoder.decodeHeader(new Blob([bytes], { type: 'image/png' }))).size.width, 40);
-  assert('从 ArrayBuffer 读头', (await ImageDecoder.decodeHeader(bytes.buffer.slice(0))).size.height, 30);
-  assert('从 Uint8Array 读头', (await ImageDecoder.decodeHeader(bytes)).size.width, 40);
-  assert('从 DataView 读头', (await ImageDecoder.decodeHeader(new DataView(bytes.buffer))).size.width, 40);
+  assert('从 Blob 读头', (await AImageDecoder.decodeHeader(new Blob([bytes], { type: 'image/png' }))).size.width, 40);
+  assert('从 ArrayBuffer 读头', (await AImageDecoder.decodeHeader(bytes.buffer.slice(0))).size.height, 30);
+  assert('从 Uint8Array 读头', (await AImageDecoder.decodeHeader(bytes)).size.width, 40);
+  assert('从 DataView 读头', (await AImageDecoder.decodeHeader(new DataView(bytes.buffer))).size.width, 40);
   // typed array 只取它看得见的那一段
   const padded = new Uint8Array(bytes.length + 8);
   padded.set(bytes, 4);
-  assert('typed array 只取它那一段', (await ImageDecoder.decodeHeader(padded.subarray(4, 4 + bytes.length))).size.width,
+  assert('typed array 只取它那一段', (await AImageDecoder.decodeHeader(padded.subarray(4, 4 + bytes.length))).size.width,
          40);
   assert('decodeHeader 不给参数以 TypeError 被拒',
-         await rejected(() => /** @type {any} */ (ImageDecoder).decodeHeader()), 'TypeError');
+         await rejected(() => /** @type {any} */ (AImageDecoder).decodeHeader()), 'TypeError');
   for (const v of [42, {}, null, undefined, true]) {
     bad = v;
     assert('decodeHeader(' + String(json(v)) + ') 以 TypeError 被拒',
-           await rejected(() => ImageDecoder.decodeHeader(bad)), 'TypeError');
+           await rejected(() => AImageDecoder.decodeHeader(bad)), 'TypeError');
   }
   assert('assets 里没有的文件以 FileNotFoundException 被拒',
-         await rejected(() => ImageDecoder.decodeHeader('images/nope.png')), 'FileNotFoundException');
+         await rejected(() => AImageDecoder.decodeHeader('images/nope.png')), 'FileNotFoundException');
   const garbage = new Blob(['not an image']);
-  assert('不是图片的字节以 DecodeException 被拒', await rejected(() => ImageDecoder.decodeHeader(garbage)),
+  assert('不是图片的字节以 DecodeException 被拒', await rejected(() => AImageDecoder.decodeHeader(garbage)),
          'DecodeException');
 
   // ===== decodeBitmap =====
   console.log('  --- 图片：解码成 Bitmap ---');
   // 默认的 allocator 由系统定（文档：一般放在显存里，小图可能不是），所以这里只看宽高
-  const plainDecoded = await ImageDecoder.decodeBitmap(PNG);
+  const plainDecoded = await AImageDecoder.decodeBitmap(PNG);
   assert('decodeBitmap 得到 Bitmap', plainDecoded instanceof Bitmap, true);
   assert('Bitmap 的宽，px', plainDecoded.width, 40);
   assert('Bitmap 的高，px', plainDecoded.height, 30);
-  const hw = await ImageDecoder.decodeBitmap(PNG, { allocator: 'hardware' });
+  const hw = await AImageDecoder.decodeBitmap(PNG, { allocator: 'hardware' });
   assert("allocator: 'hardware' 解成放在显存里的图", hw.config, 'hardware');
   assert('显存里的图不可改', hw.isMutable, false);
   assert('显存里的图读不了像素：InvalidStateError', thrown(() => hw.getPixel(0, 0)), 'InvalidStateError');
 
-  const sw = await ImageDecoder.decodeBitmap(PNG, { allocator: 'software' });
+  const sw = await AImageDecoder.decodeBitmap(PNG, { allocator: 'software' });
   assert("allocator: 'software' 的 config", sw.config, 'argb8888');
   assert('左半边是红的', sw.getPixel(5, 5), '#ff0000');
   assert('右半边是蓝的', sw.getPixel(35, 25), '#0000ff');
@@ -221,14 +242,14 @@ export async function stepImage(ctx) {
                       'isPremultiplied', 'hasAlpha', 'isRecycled']) {
     assert(name + ' 只读', thrown(() => { /** @type {any} */ (sw)[name] = 1; }), 'TypeError');
   }
-  assert('同一个路径再解一次', (await ImageDecoder.decodeBitmap(PNG)).width, 40);
+  assert('同一个路径再解一次', (await AImageDecoder.decodeBitmap(PNG)).width, 40);
 
   // 从字节解码
-  const viaBlob = await ImageDecoder.decodeBitmap(new Blob([bytes]), { allocator: 'software' });
+  const viaBlob = await AImageDecoder.decodeBitmap(new Blob([bytes]), { allocator: 'software' });
   assert('从 Blob 解码，读到红', viaBlob.getPixel(1, 1), '#ff0000');
-  const viaBuffer = await ImageDecoder.decodeBitmap(bytes.buffer.slice(0), { allocator: 'software' });
+  const viaBuffer = await AImageDecoder.decodeBitmap(bytes.buffer.slice(0), { allocator: 'software' });
   assert('从 ArrayBuffer 解码，读到蓝', viaBuffer.getPixel(39, 0), '#0000ff');
-  const viaView = await ImageDecoder.decodeBitmap(bytes, { allocator: 'software' });
+  const viaView = await AImageDecoder.decodeBitmap(bytes, { allocator: 'software' });
   assert('从 Uint8Array 解码', viaView.width + '×' + viaView.height, '40×30');
 
   // 密度：每英寸多少像素，没设是 null
@@ -257,37 +278,37 @@ export async function stepImage(ctx) {
 
   // ===== 解码时的设置 =====
   console.log('  --- 图片：解码时的设置 ---');
-  const small = await ImageDecoder.decodeBitmap(PNG, { allocator: 'software', targetSize: { width: 20, height: 15 } });
+  const small = await AImageDecoder.decodeBitmap(PNG, { allocator: 'software', targetSize: { width: 20, height: 15 } });
   assert('targetSize 缩到 20×15', small.width + '×' + small.height, '20×15');
   assert('缩小后左边还是红', small.getPixel(2, 2), '#ff0000');
   assert('缩小后右边还是蓝', small.getPixel(17, 12), '#0000ff');
-  const sampled = await ImageDecoder.decodeBitmap(PNG, { allocator: 'software', targetSampleSize: 2 });
+  const sampled = await AImageDecoder.decodeBitmap(PNG, { allocator: 'software', targetSampleSize: 2 });
   assert('targetSampleSize 2 是 20×15', sampled.width + '×' + sampled.height, '20×15');
-  const cropped = await ImageDecoder.decodeBitmap(PNG, {
+  const cropped = await AImageDecoder.decodeBitmap(PNG, {
     allocator: 'software', crop: { x: 20, y: 0, width: 20, height: 30 } });
   assert('crop { x, y, width, height } 取右半边：20×30', cropped.width + '×' + cropped.height, '20×30');
   assert('crop 取右半边：是蓝的', cropped.getPixel(0, 0), '#0000ff');
-  const croppedSmall = await ImageDecoder.decodeBitmap(PNG, {
+  const croppedSmall = await AImageDecoder.decodeBitmap(PNG, {
     allocator: 'software', targetSize: { width: 20, height: 15 }, crop: { x: 0, y: 0, width: 10, height: 15 } });
   assert('先缩小再裁（crop 按缩小之后的大小算）：10×15 是红的',
          croppedSmall.width + '×' + croppedSmall.height + ' ' + croppedSmall.getPixel(9, 14), '10×15 #ff0000');
-  const mutable = await ImageDecoder.decodeBitmap(PNG, { mutableRequired: true });
+  const mutable = await AImageDecoder.decodeBitmap(PNG, { mutableRequired: true });
   assert('mutableRequired 得到可改的图', mutable.isMutable, true);
-  const premul = await ImageDecoder.decodeBitmap('images/alpha.png', { allocator: 'software' });
+  const premul = await AImageDecoder.decodeBitmap('images/alpha.png', { allocator: 'software' });
   assert('带透明度的图 hasAlpha', premul.hasAlpha, true);
   assert('带透明度的图默认 isPremultiplied 是 true', premul.isPremultiplied, true);
-  const unpremul = await ImageDecoder.decodeBitmap('images/alpha.png', {
+  const unpremul = await AImageDecoder.decodeBitmap('images/alpha.png', {
     allocator: 'software', unpremultipliedRequired: true });
   assert('unpremultipliedRequired 之后 isPremultiplied 是 false', unpremul.isPremultiplied, false);
-  const lowRam = await ImageDecoder.decodeBitmap(PNG, { allocator: 'software', memorySizePolicy: 'lowRam' });
+  const lowRam = await AImageDecoder.decodeBitmap(PNG, { allocator: 'software', memorySizePolicy: 'lowRam' });
   assert("memorySizePolicy: 'lowRam' 下不透明的图解成 rgb565", lowRam.config, 'rgb565');
-  const alphaMask = await ImageDecoder.decodeBitmap(PNG, { allocator: 'software', decodeAsAlphaMaskEnabled: true });
+  const alphaMask = await AImageDecoder.decodeBitmap(PNG, { allocator: 'software', decodeAsAlphaMaskEnabled: true });
   assert('decodeAsAlphaMaskEnabled 对三个通道的图不起作用', alphaMask.config, 'argb8888');
-  assert('options 给 null 当成空的', (await ImageDecoder.decodeBitmap(PNG, null)).width, 40);
+  assert('options 给 null 当成空的', (await AImageDecoder.decodeBitmap(PNG, null)).width, 40);
   assert('options 里是 undefined 的成员当没给',
-         (await ImageDecoder.decodeBitmap(PNG, { targetSize: undefined, allocator: undefined })).width, 40);
+         (await AImageDecoder.decodeBitmap(PNG, { targetSize: undefined, allocator: undefined })).width, 40);
   bad = 'big';
-  assert("options 是 'big' 以 TypeError 被拒", await rejected(() => ImageDecoder.decodeBitmap(PNG, bad)), 'TypeError');
+  assert("options 是 'big' 以 TypeError 被拒", await rejected(() => AImageDecoder.decodeBitmap(PNG, bad)), 'TypeError');
 
   // 写错：类型不对、名字不对是 TypeError，超出范围是 RangeError，都是 Promise 被拒
   /** @type {[string, any, string][]} */
@@ -314,17 +335,17 @@ export async function stepImage(ctx) {
   ];
   for (const [label, options, expected] of badOptions) {
     assert('decodeBitmap：' + label + ' 以 ' + expected + ' 被拒',
-           await rejected(() => ImageDecoder.decodeBitmap(PNG, options)), expected);
+           await rejected(() => AImageDecoder.decodeBitmap(PNG, options)), expected);
   }
   assert('allocator 写错时列出全部可选值',
-         await rejectMessage(() => ImageDecoder.decodeBitmap(PNG, { allocator: /** @type {any} */ ('gpu') })),
+         await rejectMessage(() => AImageDecoder.decodeBitmap(PNG, { allocator: /** @type {any} */ ('gpu') })),
          'allocator has no value "gpu"; expected one of: default / software / sharedMemory / hardware');
   assert('crop 超出图的范围：Java 的 IllegalStateException',
-         await rejected(() => ImageDecoder.decodeBitmap(PNG, { crop: { x: 30, y: 0, width: 20, height: 30 } })),
+         await rejected(() => AImageDecoder.decodeBitmap(PNG, { crop: { x: 30, y: 0, width: 20, height: 30 } })),
          'IllegalStateException');
-  assert('不是图片的字节解码以 DecodeException 被拒', await rejected(() => ImageDecoder.decodeBitmap(garbage)),
+  assert('不是图片的字节解码以 DecodeException 被拒', await rejected(() => AImageDecoder.decodeBitmap(garbage)),
          'DecodeException');
-  const firstFrame = await ImageDecoder.decodeBitmap(GIF, { allocator: 'software' });
+  const firstFrame = await AImageDecoder.decodeBitmap(GIF, { allocator: 'software' });
   assert('动图 decodeBitmap 得到第一帧：8×8', firstFrame.width + '×' + firstFrame.height, '8×8');
   assert('动图的第一帧是红的', firstFrame.getPixel(4, 4), '#ff0000');
 
@@ -509,16 +530,16 @@ export async function stepImage(ctx) {
 
   // ===== decodeDrawable 和动图（值对象，不用挂上） =====
   console.log('  --- 图片：decodeDrawable 和动图 ---');
-  const still = await ImageDecoder.decodeDrawable(PNG);
+  const still = await AImageDecoder.decodeDrawable(PNG);
   assert('静态图 decodeDrawable 得到 BitmapDrawable', still instanceof BitmapDrawable, true);
   assert('它的 bitmap 宽 40', /** @type {BitmapDrawable} */ (still).bitmap?.width, 40);
-  const stillSmall = await ImageDecoder.decodeDrawable(PNG, { targetSize: { width: 20, height: 15 } });
+  const stillSmall = await AImageDecoder.decodeDrawable(PNG, { targetSize: { width: 20, height: 15 } });
   assert('decodeDrawable 也认 targetSize', /** @type {BitmapDrawable} */ (stillSmall).bitmap?.width, 20);
   assert('decodeDrawable 加 mutableRequired 以 TypeError 被拒',
-         await rejected(() => ImageDecoder.decodeDrawable(PNG, { mutableRequired: true })), 'TypeError');
-  assert('decodeDrawable 不是图片以 DecodeException 被拒', await rejected(() => ImageDecoder.decodeDrawable(garbage)),
+         await rejected(() => AImageDecoder.decodeDrawable(PNG, { mutableRequired: true })), 'TypeError');
+  assert('decodeDrawable 不是图片以 DecodeException 被拒', await rejected(() => AImageDecoder.decodeDrawable(garbage)),
          'DecodeException');
-  const anim = /** @type {AnimatedImageDrawable} */ (await ImageDecoder.decodeDrawable(GIF));
+  const anim = /** @type {AnimatedImageDrawable} */ (await AImageDecoder.decodeDrawable(GIF));
   assert('动图 decodeDrawable 得到 AnimatedImageDrawable', anim instanceof AnimatedImageDrawable, true);
   assert('AnimatedImageDrawable 是 EventTarget', anim instanceof EventTarget, true);
   assert('动图的 alpha 默认 1（Drawable 的）', anim.alpha, 1);

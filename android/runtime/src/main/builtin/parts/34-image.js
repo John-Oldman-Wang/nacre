@@ -1,4 +1,4 @@
-// 图片：ImageDecoder（读头、解码成 Bitmap 或 Drawable）、Bitmap、BitmapDrawable、
+// 图片：AImageDecoder（读头、解码成 Bitmap 或 Drawable）、Bitmap、BitmapDrawable、
 // AnimatedImageDrawable（动图）、ImageView。原生那一侧是 ImageDomain.kt 和 AnimatedImagePlace.kt。
 //
 // 这是内置脚本的一个 part：整个文件就是一个函数表达式，运行时按文件名
@@ -117,7 +117,9 @@
   // 只有运行时自己能建的东西，构造函数认这个记号
   const kFactory = Symbol('image');
 
-  // ---- ImageDecoder ----
+  // ---- AImageDecoder ----
+  //
+  // Java 的 ImageDecoder。WebCodecs 也有一个 ImageDecoder，名字撞了，照规矩前面加 A（2026-11-28）
 
   // 图从哪来：路径（项目 assets/ 里的）、Blob、ArrayBuffer、typed array（拷成一个 Blob）。
   // 每次解码在原生那边建一个来源（Java 的 ImageDecoder.Source），用完就扔，不交给 JS
@@ -187,15 +189,15 @@
     return out;
   }
 
-  class ImageDecoder {
+  class AImageDecoder {
     constructor() {
-      throw new TypeError('Illegal constructor: ImageDecoder cannot be constructed; ' +
-                          'use ImageDecoder.decodeBitmap() or ImageDecoder.decodeDrawable()');
+      throw new TypeError('Illegal constructor: AImageDecoder cannot be constructed; ' +
+                          'use AImageDecoder.decodeBitmap() or AImageDecoder.decodeDrawable()');
     }
 
     // 只读图的开头：宽高（px）、类型、是不是动图。不解像素
     static decodeHeader(input) {
-      const where = "Failed to execute 'decodeHeader' on 'ImageDecoder'";
+      const where = "Failed to execute 'decodeHeader' on 'AImageDecoder'";
       return promised(() => {
         requireArgs(arguments, 1, where);
         return nativeCallAsync(sourceOf(input, where), 'decodeHeader', []).then((raw) => new ImageInfo(kFactory, raw));
@@ -204,7 +206,7 @@
 
     // 解成一张 Bitmap（动图是第一帧）
     static decodeBitmap(input, options) {
-      const where = "Failed to execute 'decodeBitmap' on 'ImageDecoder'";
+      const where = "Failed to execute 'decodeBitmap' on 'AImageDecoder'";
       return promised(() => {
         requireArgs(arguments, 1, where);
         const settings = settingsOf(options, where, false);
@@ -214,7 +216,7 @@
 
     // 解成一个 Drawable：动图是 AnimatedImageDrawable，别的是拿着解出来那张图的 BitmapDrawable
     static decodeDrawable(input, options) {
-      const where = "Failed to execute 'decodeDrawable' on 'ImageDecoder'";
+      const where = "Failed to execute 'decodeDrawable' on 'AImageDecoder'";
       return promised(() => {
         requireArgs(arguments, 1, where);
         const settings = settingsOf(options, where, true);
@@ -228,11 +230,11 @@
     }
 
     static isMimeTypeSupported(mimeType) {
-      requireArgs(arguments, 1, "Failed to execute 'isMimeTypeSupported' on 'ImageDecoder'");
-      return nativeClassCallValue('ImageDecoder', 'isMimeTypeSupported', [toText(mimeType)]);
+      requireArgs(arguments, 1, "Failed to execute 'isMimeTypeSupported' on 'AImageDecoder'");
+      return nativeClassCallValue('AImageDecoder', 'isMimeTypeSupported', [toText(mimeType)]);
     }
   }
-  define(globalThis, 'ImageDecoder', ImageDecoder);
+  define(globalThis, 'AImageDecoder', AImageDecoder);
 
   // decodeHeader 的结果：一份快照，字段只读
   class ImageInfo {
@@ -242,7 +244,7 @@
 
     constructor(token, raw) {
       if (token !== kFactory) {
-        throw new TypeError('Illegal constructor: ImageDecoder.ImageInfo is created by ImageDecoder.decodeHeader()');
+        throw new TypeError('Illegal constructor: AImageDecoder.ImageInfo is created by AImageDecoder.decodeHeader()');
       }
       this.#size = Object.freeze({ width: raw.width, height: raw.height });
       this.#mimeType = raw.mimeType;
@@ -254,7 +256,7 @@
     get mimeType() { return this.#mimeType; }
     get isAnimated() { return this.#isAnimated; }
   }
-  define(ImageDecoder, 'ImageInfo', ImageInfo);
+  define(AImageDecoder, 'ImageInfo', ImageInfo);
 
   // ---- Bitmap：值对象 ----
 
@@ -304,7 +306,7 @@
 
   class Bitmap {
     constructor() {
-      throw new TypeError('Illegal constructor: Bitmap is created by ImageDecoder.decodeBitmap(), ' +
+      throw new TypeError('Illegal constructor: Bitmap is created by AImageDecoder.decodeBitmap(), ' +
                           'Bitmap.createScaledBitmap() or Bitmap.createBitmap()');
     }
 
@@ -438,7 +440,7 @@
 
   class AnimatedImageDrawable extends Drawable {
     constructor() {
-      throw new TypeError('Illegal constructor: AnimatedImageDrawable is created by ImageDecoder.decodeDrawable()');
+      throw new TypeError('Illegal constructor: AnimatedImageDrawable is created by AImageDecoder.decodeDrawable()');
     }
 
     // 播完一遍之后再重复几遍；'infinite' 是一直播。默认照文件里写的

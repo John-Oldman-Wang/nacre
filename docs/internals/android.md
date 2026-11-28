@@ -377,6 +377,20 @@ iOS 真机连不到 Mac 上的本地测试服务（`acceptance/scripts/test-serv
 - 跑验收：`bash android/scripts/run-device.sh`（加 `--release` 是 Release）。手机只有一台，脚本用一把锁（`$TMPDIR/nacre-android-device.lock`）让几个会话排队，别的会话占着时会打「手机正被别的验收占着」并等着。
 - 文档：在这一页加自己的一节（怎么实现的、和 iOS 不同的地方、实测）。
 
+### 全局的名字：撞了加 A
+
+2026-11-28 定。Java 的类用简单类名挂在全局，简单类名撞了保留的名字就在前面加 `A`：`ImageDecoder` 撞了 WebCodecs 的 `ImageDecoder`，在 JS 里叫 `AImageDecoder`。不撞的不加。保留的名字有三种：JS 内置的、Web 全局的（以 `acceptance/` 钉住的 TypeScript 自带的 `lib.es*`、`lib.dom`、`lib.webworker` 为准）、上层自己定义的（`packages/types/nacre.d.ts`）。`android/scripts/check-globals.mjs` 核对，CI 的 static 里跑。原生那边 `classes` 里登记的 JS 类名、`classCall` 收到的类名，都是加了 A 的那个。
+
+为什么要管：iOS 的类带 `UI`、`NS` 这些前缀，碰不上；Java 的类没有前缀。拿 android-37 的 `android.jar` 里 2852 个 `android.*` 顶层类对了一遍（TypeScript 5.9.3）：撞 JS 内置的 1 个（`android.net.Proxy`），撞上层的 1 个（`android.app.Application`），撞 Web 全局的 20 个（`ImageDecoder`、`Event`、`InputEvent`、`DragEvent`、`Notification`、`Window`、`Location`、`Image`、`Animation`、`Element`、`Range`、`Selection`、`MediaSession`、`MediaRecorder`……）。照原来的写法接 `Proxy`、`Event`、`Application` 会直接盖掉运行时自己的类。加了 A 之后，这 2852 个一个都不再撞。
+
+想过、没选的：
+
+- 每个类都挂在完整包名下（`android.graphics.ImageDecoder`），撞了的只有完整包名：太长。
+- 所有类都加 A：一眼看得出是原生那一层，和 iOS 一样；但不撞的 `Activity`、`TextView` 也要改，A 开头的类有 268 个，会出现 `AActivity`。
+- 撞了的逐个起名：名字最好看，但对不回 Java 的文档，每撞一次要讨论一次。
+
+升级 TypeScript 之后 Web 多了新的全局：已经挂出去的不改名，新接的照新名单。Java 类之间同名的（`android.*` 里 29 个名字，比如 `android.graphics.Matrix` 和 `android.opengl.Matrix`）这条管不了，还是第 4 步统计完再定。
+
 ### 规矩
 
 `project.md` 第 4 节「接类的总则」（2026-11-26 定，取代原来的「接类的规矩」）。视图上的状态用 `ctx.defineViewState` 在自己的文件里登记，枚举表放进域的 `enums`，见上面[自由和挂上](#自由和挂上)。覆写点「能用属性就用属性」照旧。
@@ -477,7 +491,7 @@ ctx.defineModelSlot(ImageView, 'drawable', {
 - `initial` 必须等于新建的原生对象的默认值：建一处时没写过的不设。
 - 几个状态合成一次原生调用的（边框的四个、中心点的两个），`apply` 用 `ctx.stateValue(d, 名字)` 读别的，不走 getter。
 - 要求参数是 Drawable 时用 `ctx.requireModel(v, Drawable, what)`。
-- **原生先有的 Drawable 套不进来**：`ImageDecoder.decodeDrawable` 解出来的 `AnimatedImageDrawable` 不是「按状态建」的，没法每处建一个。图片组要单独想（比如每处重新解一次，或者限定只能用在一处），这一步没定。图片组 2026-11-28 定了：动图只有一个原生对象，每处是一个薄的原生 Drawable，见[图片](#动图一个原生对象每处一个薄-drawable)。
+- **原生先有的 Drawable 套不进来**：`AImageDecoder.decodeDrawable` 解出来的 `AnimatedImageDrawable` 不是「按状态建」的，没法每处建一个。图片组要单独想（比如每处重新解一次，或者限定只能用在一处），这一步没定。图片组 2026-11-28 定了：动图只有一个原生对象，每处是一个薄的原生 Drawable，见[图片](#动图一个原生对象每处一个薄-drawable)。
 
 ### 颜色：CSS 的字符串，原样读回
 
@@ -1189,7 +1203,7 @@ JS 打「`[acceptance] <命令> <参数>`」，`run-device.sh` 照做，和 `tap
 
 ## 图片
 
-`ImageDecoder`（读头、解码成 `Bitmap` 或 `Drawable`）、`Bitmap`、`BitmapDrawable`、`AnimatedImageDrawable`（动图）、`ImageView`。原生在 `ImageDomain.kt` 和 `AnimatedImagePlace.kt`，JS 在 `34-image.js`，验收是 `steps/image.js`，测试图由 `acceptance-android/scripts/make-test-images.py` 自己拼（不带任何现成的图），放在 `acceptance-android/assets/images/`。
+`AImageDecoder`（读头、解码成 `Bitmap` 或 `Drawable`）、`Bitmap`、`BitmapDrawable`、`AnimatedImageDrawable`（动图）、`ImageView`。原生在 `ImageDomain.kt` 和 `AnimatedImagePlace.kt`，JS 在 `34-image.js`，验收是 `steps/image.js`，测试图由 `acceptance-android/scripts/make-test-images.py` 自己拼（不带任何现成的图），放在 `acceptance-android/assets/images/`。
 
 2026-11-24 照 Java 接过一次（`createSource`、`setImageBitmap`、`setColorFilter` 这一版），2026-11-28 照「接类的总则」在原地重写。
 
@@ -1197,11 +1211,11 @@ JS 打「`[acceptance] <命令> <参数>`」，`run-device.sh` 照做，和 `tap
 
 `Bitmap` 和动图是**值对象**：建出来就有原生对象，不分自由和挂上，任何页面都能用，读写直接对着原生对象（和文字组的 `Typeface` 一样）。`BitmapDrawable` 和 `ImageView` 照总则只在 JS 里记状态。
 
-**`ImageDecoder`**：只有静态方法，不能 `new`。
+**`AImageDecoder`**：Java 的 `ImageDecoder`，名字撞了 Web 的，前面加 A（见[全局的名字](#全局的名字撞了加-a)）。只有静态方法，不能 `new`。
 
 | 成员 | 说明 |
 | --- | --- |
-| `decodeHeader(input)` | 只读图的开头，兑现成 `ImageDecoder.ImageInfo`：`size`（冻结的 `{ width, height }`，px）、`mimeType`、`isAnimated`。不解像素 |
+| `decodeHeader(input)` | 只读图的开头，兑现成 `AImageDecoder.ImageInfo`：`size`（冻结的 `{ width, height }`，px）、`mimeType`、`isAnimated`。不解像素 |
 | `decodeBitmap(input, options?)` | 兑现成 `Bitmap`；动图是第一帧 |
 | `decodeDrawable(input, options?)` | 动图兑现成 `AnimatedImageDrawable`，别的兑现成拿着解出来那张图的 `BitmapDrawable` |
 | `isMimeTypeSupported(mimeType)` | 同步，布尔 |
