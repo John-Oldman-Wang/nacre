@@ -263,6 +263,7 @@ press_requests() {
 #   night yes|no            切深色模式。改的是手机的设置，脚本退出时还原
 #   density <dpi>|restore   改显示密度（wm density），restore 改回原来的。改的是手机的设置，脚本退出时还原
 #   fontscale <倍数>|restore 改系统字号（settings 的 font_scale），restore 改回原来的。改的是手机的设置，脚本退出时还原
+#   animscale <倍数>|restore 改动画时长缩放（settings 的 animator_duration_scale），restore 改回原来的。改的是手机的设置，脚本退出时还原
 ACTED=0
 NIGHT_BEFORE=""
 restore_night() {
@@ -288,6 +289,16 @@ restore_fontscale() {
     "$ADB" shell settings put system font_scale "$FONTSCALE_BEFORE" >/dev/null 2>&1 || true
   fi
 }
+# 原来的动画时长缩放：settings 里有值就是那个数，没设过是 null（还原时删掉这一项）
+ANIMSCALE_BEFORE=""
+restore_animscale() {
+  [ -z "$ANIMSCALE_BEFORE" ] && return 0
+  if [ "$ANIMSCALE_BEFORE" = "null" ]; then
+    "$ADB" shell settings delete global animator_duration_scale >/dev/null 2>&1 || true
+  else
+    "$ADB" shell settings put global animator_duration_scale "$ANIMSCALE_BEFORE" >/dev/null 2>&1 || true
+  fi
+}
 # 从左边缘往里滑。一次 input 要几百毫秒，滑得慢，系统一样认
 back_swipe() {
   local size w h y
@@ -310,7 +321,7 @@ back_swipe() {
 }
 action_requests() {
   local requests count line cmd arg
-  requests="$(grep -E '^\[acceptance\] (key|backswipe|relaunch|open|trim-memory|night|density|fontscale)( |$)' "$LOG_FILE" |
+  requests="$(grep -E '^\[acceptance\] (key|backswipe|relaunch|open|trim-memory|night|density|fontscale|animscale)( |$)' "$LOG_FILE" |
               sed 's/^\[acceptance\] //' || true)"
   count="$(printf '%s' "$requests" | grep -c . || true)"
   while [ "$ACTED" -lt "$count" ]; do
@@ -349,11 +360,17 @@ action_requests() {
           [ -z "$FONTSCALE_BEFORE" ] && FONTSCALE_BEFORE="null"
         fi
         if [ "$arg" = "restore" ]; then restore_fontscale; else "$ADB" shell settings put system font_scale "$arg" >/dev/null; fi ;;
+      animscale)
+        if [ -z "$ANIMSCALE_BEFORE" ]; then
+          ANIMSCALE_BEFORE="$("$ADB" shell settings get global animator_duration_scale | tr -d '\r')"
+          [ -z "$ANIMSCALE_BEFORE" ] && ANIMSCALE_BEFORE="null"
+        fi
+        if [ "$arg" = "restore" ]; then restore_animscale; else "$ADB" shell settings put global animator_duration_scale "$arg" >/dev/null; fi ;;
     esac || echo "  （「$line」在手机上失败了）"
     echo "  $(date +%T) 做了「$line」"
   done
 }
-trap 'stop_log; restore_night; restore_density; restore_fontscale; cleanup_server; release_lock' EXIT
+trap 'stop_log; restore_night; restore_density; restore_fontscale; restore_animscale; cleanup_server; release_lock' EXIT
 
 STATUS="timeout"
 for _ in $(seq 1 "$TIMEOUT"); do

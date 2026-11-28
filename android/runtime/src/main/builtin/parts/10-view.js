@@ -102,6 +102,7 @@
       activity: null,       // 挂在哪个页面上；自由、拿下来时是 null
       standIn: null,        // 替身：挂上时建，拿下来留着
       values: new Map(),    // 写过的状态
+      layoutPending: false, // 挂着、在等原生排完版（afterLayout 的状态还没设）
     };
   }
 
@@ -138,6 +139,10 @@
   //   read     (替身, 页面, 视图) => 原生现在的值。系统也会改的状态（触摸组的 isPressed）：挂着时读
   //            原生；拿下来（或者页面销毁）时把原生的值读回 JS，和 JS 读到的不一样才记下（记下的
   //            算写过，下次挂上时设到原生）。自由时读 JS 的值
+  //   afterLayout  true：排完版才能设（滚动组的 scrollX / scrollY：排版之前 ScrollView 会把它夹成 0，实测）。
+  //            挂上时、配置变化重设时不和别的状态一起设，等原生这个视图下一次排完版（OnLayoutChangeListener，
+  //            当场派发 @laidout）再设；挂着时写，原生说还在等排版（刚换了内容）也等着。等着的期间读到的、
+  //            读回的都是 JS 的值
   const ownStates = new Map();    // 原型 -> 这个原型自己登记的
   const statesCache = new Map();  // 原型 -> 连同继承来的，排好序
   let serial = 0;
@@ -167,6 +172,7 @@
       applyInitial: spec.applyInitial === true,
       placement: spec.placement === true,
       read: spec.read,
+      afterLayout: spec.afterLayout === true,
       serial: serial++,
     };
     const proto = Cls.prototype;
@@ -176,6 +182,7 @@
     Object.defineProperty(proto, name, {
       get() {
         const st = stateOf(this, name);
+        if (entry.afterLayout && st.layoutPending) return st.values.has(name) ? st.values.get(name) : entry.initial;
         if (entry.read !== undefined && st.activity !== null) return entry.read(st.standIn, pageOf(st.activity), this);
         return st.values.has(name) ? st.values.get(name) : entry.initial;
       },
@@ -188,6 +195,7 @@
         const old = st.values.get(name);
         st.values.set(name, value);
         if (st.activity === null) return;
+        if (entry.afterLayout && !laidOut(this, st, false)) return;
         try {
           entry.apply(st.standIn, value, pageOf(st.activity), this);
         } catch (err) {
@@ -204,25 +212,79 @@
   // 把写过的状态设到原生。filter 给了就只设它挑的（配置变化时只设和长度、字号有关的）。
   // 每项单独 try：原生拒了（JS 没查住的）打一条警告跳过，不让挂上做到一半失败
   function applyStates(view, st, page, filter) {
+    let waiting = false;
     for (const entry of statesOf(Object.getPrototypeOf(view))) {
       const written = st.values.has(entry.name);
       if (!written && !entry.applyInitial) continue;
       if (filter !== undefined && !filter(entry)) continue;
+      // 排完版才能设的：这一轮不设，等原生下一次排完版（afterLaidOut）
+      if (entry.afterLayout) {
+        waiting = true;
+        continue;
+      }
       try {
         entry.apply(st.standIn, written ? st.values.get(entry.name) : entry.initial, page, view);
       } catch (err) {
         warnSkipped('could not apply ' + entry.name + ' to ' + view.constructor.name, err);
       }
     }
+    if (waiting) laidOut(view, st, true);
+  }
+
+  // ---- 排完版才能设的状态（afterLayout）----
+  //
+  // 原生这个视图排过版、也没在等排版，返回 true（可以当场设）。不然让原生在它下一次排完版时当场发
+  // @laidout（只发一次），返回 false，记下在等。force：不问，直接等下一次（挂上、密度变了时：原生的视图
+  // 这时候排没排过版不算数），并请求一次排版，保证一定有下一次
+  const waitingViews = new WeakSet();  // 装过 @laidout 监听器的视图
+
+  function laidOut(view, st, force) {
+    if (st.layoutPending) return false;
+    let ready;
+    try {
+      ready = nativeCall(st.standIn, '@whenLaidOut', [force]);
+    } catch (err) {
+      warnSkipped('could not wait for the layout of ' + view.constructor.name, err);
+      return true;
+    }
+    if (ready === true) return true;
+    st.layoutPending = true;
+    if (!waitingViews.has(view)) {
+      waitingViews.add(view);
+      view.addEventListener('@laidout', afterLaidOut);
+    }
+    return false;
+  }
+
+  // 原生排完版了（还在这一次排版里，画之前）：把写过的、排完版才能设的状态设上
+  function afterLaidOut(e) {
+    const view = e.target;
+    const st = view[kView];
+    if (!st.layoutPending) return;
+    st.layoutPending = false;
+    if (st.activity === null) return;
+    const page = pageOf(st.activity);
+    for (const entry of statesOf(Object.getPrototypeOf(view))) {
+      if (!entry.afterLayout || !st.values.has(entry.name)) continue;
+      try {
+        entry.apply(st.standIn, st.values.get(entry.name), page, view);
+      } catch (err) {
+        warnSkipped('could not apply ' + String(entry.name) + ' to ' + view.constructor.name, err);
+      }
+    }
   }
 
   // 视图要离开页面了（还挂着、替身还在）：系统也会改的状态（登记了 read 的）把原生现在的值读回 JS
-  function captureStates(view) {
+  // filter 给了就只读它挑的（密度变了时只读和长度有关的）
+  function captureStates(view, filter) {
     const st = view[kView];
     if (st.activity === null || st.standIn === null) return;
     const page = pageOf(st.activity);
     for (const entry of statesOf(Object.getPrototypeOf(view))) {
       if (entry.read === undefined) continue;
+      if (filter !== undefined && !filter(entry)) continue;
+      // 还在等排版的：原生那边还没设，JS 的值才是对的
+      if (entry.afterLayout && st.layoutPending) continue;
       try {
         const value = entry.read(st.standIn, page, view);
         const current = st.values.has(entry.name) ? st.values.get(entry.name) : entry.initial;
@@ -338,7 +400,7 @@
     else createStandIn(view, st, activity);
     for (const child of st.children) build(child, activity, page);
     applyStates(view, st, page, notPlacement);
-    if (view instanceof ViewGroup && (reused || st.children.length > 0)) {
+    if (view[kContainer] === true && (reused || st.children.length > 0)) {
       syncChildren(view, st);
       for (const child of st.children) place(child, page);
     }
@@ -353,6 +415,7 @@
     walk(view, (v) => {
       captureStates(v);
       v[kView].activity = null;
+      v[kView].layoutPending = false;
       releaseStates(v);
     });
   }
@@ -379,11 +442,13 @@
     const metrics = nativeGet(activity, '@metrics');
     const densityChanged = metrics.density !== page.density;
     const fontScaleChanged = metrics.fontScale !== page.fontScale;
+    const affected = (entry) => (entry.units === 'dp' ? densityChanged
+      : entry.units === 'sp' ? densityChanged || fontScaleChanged : false);
+    // 系统也会改的状态（滚动位置、动画改过的平移）先按旧的密度读回 JS，不然下面重设时会设回 JS 里旧的值
+    if (page.contentView !== null) walk(page.contentView, (v) => captureStates(v, affected));
     page.density = metrics.density;
     page.fontScale = metrics.fontScale;
     if (page.contentView === null || (!densityChanged && !fontScaleChanged)) return;
-    const affected = (entry) => (entry.units === 'dp' ? densityChanged
-      : entry.units === 'sp' ? densityChanged || fontScaleChanged : false);
     walk(page.contentView, (v) => applyStates(v, v[kView], page, affected));
   }
 
@@ -406,11 +471,54 @@
           st.standIn = null;
         }
         st.activity = null;
+        st.layoutPending = false;
         releaseStates(v);
       });
     }
     activity.removeEventListener('@metricschange', onMetricsChange);
     pages.delete(activity);
+  }
+
+  // ---- 容器 ----
+  //
+  // 有子视图的视图（原型上 kContainer 是 true）：ViewGroup，还有只放一份内容的滚动视图（JS 里不是
+  // ViewGroup、没有 addView，见 36-scroll.js：容器的限制用 API 的形状表达）。挂上时按 JS 的树排原生的
+  // 子视图。下面两个是树的操作本身（参数已经查过），ViewGroup 的 addView / removeView 和滚动视图的
+  // contentView 都用它们
+  const kContainer = Symbol('container');
+
+  // 把 child 放进 parent，排第 index 个。child 原来在别处（别的父视图下、某个页面的内容）就移过来；
+  // parent 挂着时 child 那棵子树当场在同一个页面上挂上
+  function adoptChild(parent, child, index) {
+    const st = parent[kView];
+    const cst = child[kView];
+    const wasAttached = cst.activity !== null;
+    unlink(child, cst);
+    st.children.splice(index, 0, child);
+    st.snapshot = null;
+    cst.parent = parent;
+    const activity = st.activity;
+    if (activity !== null) {
+      const page = pageOf(activity);
+      build(child, activity, page);
+      syncChildren(parent, st);
+      place(child, page);
+      markAttached(child, activity);
+    } else if (wasAttached) {
+      // 从挂着的地方移到自由的父视图下：原生那边拿下来
+      detachNative(child, cst);
+      markDetached(child);
+    }
+  }
+
+  // 把 parent 的子视图 child 拿下来
+  function dropChild(parent, child) {
+    const cst = child[kView];
+    unlink(child, cst);
+    if (cst.activity !== null) {
+      detachNative(child, cst);
+      markDetached(child);
+    }
   }
 
   // ---- 给各组的另外几个助手 ----
@@ -510,7 +618,7 @@
     // 挂在哪个页面的树上；自由、拿下来时是 null
     get activity() { return stateOf(this, 'activity').activity; }
 
-    // JS 里的父视图。页面的 contentView 的 parent 是 null
+    // JS 里的父视图：ViewGroup，或者滚动视图（这个视图是它的 contentView）。页面的 contentView 的 parent 是 null
     get parent() { return stateOf(this, 'parent').parent; }
 
     [kSubscribe](type, on) {
@@ -573,23 +681,7 @@
         throw new RangeError("Failed to execute 'addView' on 'ViewGroup': index " + at +
                              ' is out of range [0, ' + max + ']');
       }
-      const wasAttached = cst.activity !== null;
-      unlink(child, cst);
-      st.children.splice(at, 0, child);
-      st.snapshot = null;
-      cst.parent = this;
-      const activity = st.activity;
-      if (activity !== null) {
-        const page = pageOf(activity);
-        build(child, activity, page);
-        syncChildren(this, st);
-        place(child, page);
-        markAttached(child, activity);
-      } else if (wasAttached) {
-        // 从挂着的地方移到自由的父视图下：原生那边拿下来
-        detachNative(child, cst);
-        markDetached(child);
-      }
+      adoptChild(this, child, at);
     }
 
     // 拿下一个子视图。不是这个视图的子视图抛 NotFoundError
@@ -603,11 +695,7 @@
         throw new ctx.DOMException(
           "Failed to execute 'removeView' on 'ViewGroup': the view is not a child of this view", 'NotFoundError');
       }
-      unlink(child, cst);
-      if (cst.activity !== null) {
-        detachNative(child, cst);
-        markDetached(child);
-      }
+      dropChild(this, child);
     }
 
     // 全部拿下来
@@ -624,6 +712,7 @@
     }
   }
   defineNativeClass('ViewGroup', ViewGroup);
+  Object.defineProperty(ViewGroup.prototype, kContainer, { value: true });
 
   class LinearLayout extends ViewGroup {}
   defineNativeClass('LinearLayout', LinearLayout);
@@ -648,9 +737,12 @@
 
   Object.assign(ctx, {
     Activity,
+    adoptChild,
     attachedNative,
     defineViewState,
     dp,
+    dropChild,
+    kContainer,
     pageOf,
     px,
     pxFloat,

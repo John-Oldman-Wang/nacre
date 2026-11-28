@@ -190,6 +190,7 @@ JS 第一次给视图加 `click` 监听时，引擎经 `set_event_subscription` 
 - 原生的树只在挂着时跟着变。`@setChildren` 让原生的子视图正好是给的这一串：已经一样的位置不动，不一样的先从它原来的父视图上拿下来（可能就是这一个）再插进来，最后去掉多出来的。拿下来用 `@detach`，页面的内容用 `@setContent`（`null` 是清空系统放内容的那个 `FrameLayout`）。
 - 拿下来的子树里，JS 的树怎么变都只改 JS；下次挂上时 `@setChildren` 再对齐，原生上留着的旧父子关系由它拆掉。
 - 成环在 JS 里查（`HierarchyRequestError`）：Java 不查，排版时栈溢出。`addView` 一个已经有父视图（或者是某个页面内容）的视图是移过来；`index` 是「加完之后排第几」，所以同一个父视图里挪位置时上限少一个。
+- **有子视图的不只是 `ViewGroup`**（2026-11-28，滚动组加的）：只放一份内容的滚动视图在 JS 里不是 `ViewGroup`、没有 `addView`（容器的限制用 API 的形状表达，见「滚动」），内容是它的 `contentView`。所以 `parent` 可能是 `ViewGroup`，也可能是 `ScrollView` / `HorizontalScrollView`。有子视图的类在原型上带 `ctx.kContainer`，挂上时按它决定要不要排原生的子视图（原来看 `instanceof ViewGroup`）；树的操作本身（参数查过之后的那一段）抽成了 `ctx.adoptChild(parent, child, index)` / `ctx.dropChild(parent, child)`，`addView` / `removeView` 和 `contentView` 都用它们。
 
 ### 登记状态（给各组用）
 
@@ -216,9 +217,11 @@ ctx.defineViewState(TextView, 'text', {
 - 另外几个助手：`ctx.attachedNative(view)`（挂着时是替身，不然 `null`，页面值用）、`ctx.requireAttached(view, what)`（动作用，自由时抛 `InvalidStateError`）、`ctx.px(page, dp)` / `ctx.dp(page, px)`。
 - 事件照旧：`[kSubscribe]` 接在原来那一个后面，调 `subscribeNative`。
 - `placement: true`：给父视图读的状态（布局组的 `view.layout`）。挂上时不和别的状态一起设，子视图放进父视图、原生排好之后由 `place` 设，没写过的也设；`apply` 自己判断有没有父视图。见[布局](#机制子视图的布局参数随父视图重设)。
+- `afterLayout: true`：排完版才能设（滚动组加的，`scrollX` / `scrollY` 用）。挂上时、密度变了重设时不和别的状态一起设，等原生这个视图下一次排完版：`ViewDomain` 的 `@whenLaidOut` 装一个只跑一次的 `OnLayoutChangeListener`、请求一次排版，排完时当场发 `@laidout`（`plainNow`），JS 在同一次排版里、画之前设上。挂着时写，原生说排过版、也没在等排版就当场设，不然也等着（刚换了内容时）。等着的期间读到的、读回的都是 JS 的值。为什么要它见「滚动」。
+- 系统也会改的状态（`read`）在密度变了时也要先读回：`onMetricsChange` 改密度之前，先按旧的密度把带 `units` 的 `read` 状态读回 JS，再按新的密度重设。不然滚动位置、动画改过的平移会被设回 JS 里旧的值（滚动组加的）。
 - 在挂上的半途（别的视图的 `apply` 里）写一个也在这次挂上里的视图的状态：它有替身、但还没标成挂着，值只记在 JS 里，这一次不会设到原生；之后它要是走「已经挂着、只挪位置」那条路，也不会再设。布局组发 id 时碰到过，自己当场设了一次，见[布局](#constraints)。
 
-第二步才用得到的几样第一步没做，由第一个用到的组加进 `10-view.js`、用自己的成员验：排完版才能设的（ScrollView 的滚动位置）。子视图的布局参数随父视图重设是布局组加的（上面的 `placement`），系统也会改的状态是触摸组加的（上面的 `read`）。
+第二步才用得到的几样第一步没做，由第一个用到的组加进 `10-view.js`、用自己的成员验：系统也会改的状态（挂着读原生、拿下来时把原生的值读回 JS）是触摸组加的（`read`），滚动、动画两组也用；排完版才能设的是滚动组加的（上面的 `afterLayout`）；子视图的布局参数随父视图重设是布局组加的（上面的 `placement`）。
 
 ### 枚举的名字
 
@@ -260,13 +263,7 @@ ctx.defineViewState(TextView, 'text', {
 
 ### 过渡期
 
-第一步改了所有组都依赖的机制，已经合进来的滚动和动画第二步按新总则重写之前（布局、外观、App 层、文字、图片已经改完）：
-
-- 它们的内置脚本照样加载，构造照样能用（多给的 `context` 不管）。
-- 还没改的成员在挂着的视图上照样能用：`nativeGet` / `nativeSet` / `nativeCall` 这几个助手碰到公开的视图，挂着就走它的替身；自由或拿下来时抛 `InvalidStateError`。对象参数是自由的视图时传 `null`，原生按类型不对拒掉。
-- 外观改完之后，`Drawable` 没有原生对象了（每处一个，见「外观」）。还没改的组里收 `Drawable` 的成员收不了新写法的 `Drawable`：滚动的滚动条那几个（抛 `TypeError`）。滚动组重写时接「每处一个原生对象」那一套。
-- 外观的 `alpha`、`translationX`、`scaleX` 这些现在读的是 JS 写的值。动画（`view.animate()`、`ObjectAnimator`）在原生那边改了它们，JS 读不到；动画组重写时按「系统也会改的状态」处理（挂着时读原生）。
-- 验收里这几组的步骤先注释掉（`acceptance-android/src/main.js`），哪组改完打开自己那几行。布局、外观、App 层、文字、图片已经打开了。
+第一步改了所有组都依赖的机制，各组在第二步照新总则重写。布局、外观、App 层、文字、图片、触摸和手势、滚动、动画都改完了，没有还是旧写法的组，验收里的步骤全部打开。构造多给的参数（原来的 `context`）照旧不管。
 
 ### 验收
 
@@ -654,73 +651,182 @@ ConstraintLayout.LayoutParams 的字段怎么合进来的（「一件事只说�
 
 `View` 上的滚动位置、滚动条、越界效果、边缘渐隐、嵌套滚动和 `scroll` 事件；`ScrollView`、`HorizontalScrollView`。原生在 `ScrollDomain.kt`，JS 在 `36-scroll.js`，验收是 `steps/scroll.js`。不接 AndroidX 的 `NestedScrollView`（第 4 节只允许两个 AndroidX 的类）。
 
-- **任何视图都能滚。** Android 的滚动位置在 `View` 上（`scrollX` / `scrollY`、`scrollTo` / `scrollBy`），普通视图不限制范围（`scrollY` 可以是负的），`ScrollView` 覆写了 `scrollTo`，夹在内容的范围里。这些成员加在 `View.prototype` 上，没改 `10-view.js`。
-- **`scroll` 事件不带数据**，和 Web、iOS 一样，位置读 `scrollX` / `scrollY`。有人订才装 `setOnScrollChangeListener`，延后一轮派发；滚到同一个位置系统不通知。订阅接在 `View` 原来的 `kSubscribe` 后面（`click` 还是 `10-view.js` 管）。
-- **系统不通知的**：拖动开始和结束、滚动停下（Web 的 `scrollend`）。`ScrollView` 没有这几个回调，要靠覆写 `onTouchEvent` / `computeScroll`，按「继承」那条规矩不做。
-- **方向是字符串**：`fullScroll` / `pageScroll` / `arrowScroll` 的参数在 Java 里是焦点方向的常量（`FOCUS_UP` 这些），去掉前缀是 `'up'` / `'down'`（`ScrollView`）、`'left'` / `'right'`（`HorizontalScrollView`），给另一个方向的抛 `TypeError`。关了 `isSmoothScrollingEnabled` 它们当场到位，开着是带动画滚过去。
-- **`scrollIndicators` 是位掩码**，读写都是字符串数组，读出来按数值从小到大排；有一个名字不认识，整次赋值不生效，打一条警告。
-- **越界效果**：Android 12 起是拉伸，11 是光晕。拉伸只能用 `overScrollMode` 开关；`setEdgeEffectColor` 和四个边的颜色只对光晕有用（`ScrollView` 里拿着 `EdgeEffect` 的字段不是公开的接口）。
-- **父类**：Java 里两个滚动视图继承 `FrameLayout`。布局那一组定义了 `FrameLayout` 就接在它下面（那个 part 的文件名排在 `36` 前面），没定义就接在 `ViewGroup` 下面，合并时不用改代码。
-- **核对过签名**：照 `android.jar`（API 37）核对过每个成员。原来的候选里 `smoothScrollTo(x, y, 时长)` 不存在，去掉了；`ScrollView` 多出一个 `scrollToDescendant(view)`，补上。
+2026-11-28 照「接类的总则」重写（第二波）。
 
-验收里用手指划了一下（见下面「验收」一节的 `swipe`）：从「往上滑我」的中间往上划 1000 像素，内容滚过去，一路收到 `scroll`。
+### 成员，按四类
 
-## 动画
+| 类 | 成员 | 归哪类 | 说明 |
+| --- | --- | --- | --- |
+| `View` | `scrollX`、`scrollY` | 状态（系统也会改、排完版才能设） | dp，默认 0。普通视图不限制范围（可以是负的），滚动视图夹在内容的范围里 |
+| `View` | `overScrollMode` | 状态 | `'always'` / `'ifContentScrolls'` / `'never'`，默认 `'ifContentScrolls'` |
+| `View` | `isVerticalScrollBarEnabled`、`isHorizontalScrollBarEnabled`、`isScrollbarFadingEnabled` | 状态 | 默认都是 `false`（滚动视图也是） |
+| `View` | `scrollBarFadeDuration`、`scrollBarDefaultDelayBeforeFade` | 状态 | 毫秒，默认 250、300 |
+| `View` | `scrollBarSize` | 状态 | dp，默认 4 |
+| `View` | `scrollBarStyle`、`verticalScrollbarPosition` | 状态 | 默认 `'insideOverlay'`、`'default'` |
+| `View` | `verticalScrollbarThumbDrawable`、`verticalScrollbarTrackDrawable`、`horizontalScrollbarThumbDrawable`、`horizontalScrollbarTrackDrawable` | 状态 | `Drawable` 或 `null`，默认 `null` |
+| `View` | `scrollIndicators` | 状态 | `'top'` / `'bottom'` / `'left'` / `'right'` / `'start'` / `'end'` 的数组，默认 `[]`，照写进去的样子读回 |
+| `View` | `isVerticalFadingEdgeEnabled`、`isHorizontalFadingEdgeEnabled` | 状态 | 默认 `false` |
+| `View` | `fadingEdgeLength` | 状态 | dp，默认 12 |
+| `View` | `isNestedScrollingEnabled` | 状态 | 默认 `false` |
+| `View` | `canScroll(direction)` | 页面值（带参数） | `'up'` / `'down'` / `'left'` / `'right'`；自由时是 `null` |
+| `View` | `scroll` | 事件 | 普通的 `Event`，延后一轮派发，不可取消，不带数据 |
+| `ScrollView`、`HorizontalScrollView` | `contentView` | 状态 | 一个视图或 `null`，和 `activity.contentView` 一样 |
+| `ScrollView`、`HorizontalScrollView` | `isFillViewport`、`isSmoothScrollingEnabled` | 状态 | 默认 `false`、`true` |
+| `ScrollView`、`HorizontalScrollView` | `clipChildren`、`clipToPadding` | 状态 | 默认 `true`（ViewGroup 上那两个，见下面「不是 ViewGroup」） |
+| `ScrollView` | `topEdgeEffectColor`、`bottomEdgeEffectColor` | 状态 | 默认 `'#f5f5f533'` |
+| `HorizontalScrollView` | `leftEdgeEffectColor`、`rightEdgeEffectColor` | 状态 | 同上 |
+| `ScrollView`、`HorizontalScrollView` | `smoothScrollTo(位置)` | 动作（自由时是写滚动位置） | 只收自己那个方向，dp |
+| `ScrollView`、`HorizontalScrollView` | `fling(速度)`、`fullScroll(方向)`、`pageScroll(方向)`、`arrowScroll(方向)` | 动作 | 自由时抛 `InvalidStateError`；速度 dp/秒；竖的方向是 `'up'` / `'down'`，横的是 `'left'` / `'right'` |
+| `ScrollView` | `scrollToDescendant(view)` | 动作（自由时先记下） | 不是后代抛 `NotFoundError` |
 
-插值器（`BaseInterpolator` 和 10 个具体的类）；`Animator`（抽象）、`ValueAnimator`、`ObjectAnimator`；`view.animate()` 给的 `ViewPropertyAnimator`；全局的 `requestAnimationFrame` / `cancelAnimationFrame`；系统的动画时长缩放。原生在 `AnimationDomain.kt`，JS 在 `37-animation.js`，验收是 `steps/animation.js`。
+### 定了什么
 
-### 形状：照 Java 的链式写法，通知用事件（2026-11-24 定）
+照方案（2026-11-26 定的改法）：
 
-- `view.animate().alpha(0).translationY(40).setDuration(300)`，参数照 Java 按位置传。
-- **通知是事件，不是 Promise**：animator 会反复用——`view.animate()` 每次给同一个对象（`View` 自己缓存着它），`ValueAnimator` 能重新 `start()`——结束是会发生好几次的事，按「重复的通知用事件」。iOS 的 `CAAnimation` 也是 `start` / `stop` 事件。Promise 只能挂在「某一次播放」上，Java 里没有代表一次播放的对象。
-- 事件名照 `AnimatorListener`：`start`、`end`、`cancel`、`repeat`、`pause`、`resume`、`update`。**被取消时先 `cancel` 再 `end`**，照 Android。Web 的 `finish`、CSS 的 `animationend` 被取消时不发，含义不同，不借。
-- `withStartAction` / `withEndAction`（传回调的）、`setListener` / `setUpdateListener` 不接，用事件。
-- **返回 `this` 的 setter 两种写法都给**：`a.duration = 300` 和 `a.setDuration(300).alpha(0)` 都行，不然 Android 文档里的链式写法就断了（Kotlin 也是两样都能用）。只限 Java 里返回自己的：`ViewPropertyAnimator` 的 `setDuration` / `setStartDelay` / `setInterpolator`，`ValueAnimator` 的 `setDuration`。`ValueAnimator.setInterpolator` / `setStartDelay` 在 Java 里返回 `void`，只有属性。
+- `scrollTo` / `scrollBy` 改成直接写 `scrollX` / `scrollY`（dp）。
+- `canScrollVertically(±1)` / `canScrollHorizontally(±1)` 改成 `canScroll('up' | 'down' | 'left' | 'right')`。
+- `setFadingEdgeLength()` 和 `verticalFadingEdgeLength` / `horizontalFadingEdgeLength` 合成 `fadingEdgeLength`；`setEdgeEffectColor()` 删了（四个边的颜色还在）。
+- **容器的约束用 API 的形状表达**：滚动视图只能有一份内容，所以没有 `addView`，给可读写的 `contentView`。（用户 2026-11-28 定了它们在 JS 里不是 `ViewGroup`，见下面。）
+- `ScrollView.smoothScrollTo(y)` 只收一个方向；`fling`、`fullScroll`、`pageScroll` 自由时抛 `InvalidStateError`；`scrollToDescendant` 自由时先记下，挂上、排完版再滚。
 
-### 事件什么时候发
+照总则自己定的：
 
-- `start`、`end`、`cancel`、`repeat`、`pause`、`resume` 不常发，JS 建的 `ValueAnimator` 一建好就装上监听、总是发：JS 要靠 `end` 放开正在跑的 animator。`update` 每帧一次，有人订才装。都排到下一轮派发，不可取消。
-- **正在跑的 animator，JS 拿着它的包装到 `end` 为止**（`start()` / `end()` / `reverse()` 时放进一个集合，收到 `end` 拿出来）。Java 的动画调度拿着正在跑的 animator，镜像过来就是这样；不拿的话，JS 不留变量的 animator 跑着跑着包装被回收、监听器跟着没了。验收里有一个不留变量的 animator，制造垃圾之后照样收到 `end`。
-- `ViewPropertyAnimator` 只有一个监听的位子（`setListener`），有人订 `start` / `end` / `cancel` 时装上、都摘了拆掉。回调里拿到的是它内部的那个 `Animator`，事件发在 `ViewPropertyAnimator` 上。视图持有它（所有权边 `animator`）。
+- **一件事只说一次**：`smoothScrollBy`（= `smoothScrollTo(现在的位置 + 距离)`）、`maxScrollAmount`（= 高度的一半，能从 `frame` 推出来）、`verticalScrollbarWidth`（读出来的就是滚动条的粗细）去掉了。`arrowScroll` 留着，和 `fullScroll`、`pageScroll` 一样是动作。
+- `smoothScrollTo` 就是带动画地写滚动位置：挂着时 JS 里记下目标，原生滚到了之后读回的就是它（900 dp 在 420 dpi 上是 2362.5 像素，原生只能停在 2363，不记下的话读出来是 900.19，验收第一遍就挂在这里）。自由时（或者拿下来时）没有动画，就是写滚动位置，按「能表达成状态的一律改成状态」；挂着、还在等排版时也当成写（等排完版再设）。
+- `scrollToDescendant` 挂着时当场交给原生（Java 自己会等这次排完版）；自由时用一个不公开的、排完版才能设的状态记下。记下之后又写了滚动位置的，记下的作废（后写的算）。不是后代（包括它自己）抛 `NotFoundError`（总则第 7 条）。`HorizontalScrollView` 没有它，Java 里也没有。
+- **默认值照 Android 不带主题样式时的值**（总则第 8 条，实测见下面）：滚动视图改成 `ScrollView(context, null, 0)` 建，滚动条、渐隐都关着，滚动条也没有滑块。要看得见滚动条，除了打开还要给滑块一个 `Drawable`，样式由 JS 定。`scrollBarSize` 默认 4、`fadingEdgeLength` 默认 12（dp）：系统的这两个默认值是 4 dp、12 dp 按 `(int)(dp × 密度 + 0.5)` 换成的像素，和 `ctx.px` 的换法一样，所以没写过时不设到原生也对得上。
+- **写错时**：长度、毫秒是负数抛 `RangeError`；枚举名、颜色写错，属性位打警告、值不变；`scrollIndicators` 有一个名字不认识，整次不生效；方向写错抛 `TypeError`（参数先查，再查挂没挂）。
 
-### 值和类型
+### 不是 ViewGroup
 
-- `ofArgb` 的值是 CSS 的颜色字符串，`animatedValue` 读出来也是。Java 里颜色动画的值是 `Integer`，和 `ofInt` 分不开，所以原生记下哪些是颜色动画（`setFloatValues` / `setIntValues` 之后就不是了），交给 JS 时包成 `{"argb": n}`。
-- `repeatCount` 是次数或 `'infinite'`（`ValueAnimator.INFINITE` 这个哨兵），`totalDuration` 无限时是 `'infinite'`（`DURATION_INFINITE`）。
-- `interpolator` 写 `null` 时 Java 换成 `LinearInterpolator`，读出来就是它。
-- `ObjectAnimator` 的目标可以是任何原生对象，Java 用反射找 `setXxx`，属性名不存在时只打日志、不抛。Java 对目标是弱引用，所以不记所有权边。
-- 时长写负数由 Java 抛 `IllegalArgumentException`。`PathInterpolator` 的曲线往回绕也是 Java 抛的 `IllegalArgumentException`。
+`ScrollView`、`HorizontalScrollView` 在 Java 里继承 `FrameLayout`；JS 里继承 `View`（用户 2026-11-28 定的）。这样 `v instanceof ViewGroup` 就是「能 `addView`」，以后的网页、列表也照这样。为此 `10-view.js` 加了两样：
 
-### 插值器是原生类
+- **容器**：有子视图的视图在原型上带 `ctx.kContainer`（`ViewGroup` 和两个滚动视图），挂上时按 JS 的树排原生的子视图（原来按 `instanceof ViewGroup` 判断）。
+- **树的操作抽成 `ctx.adoptChild(parent, child, index)` / `ctx.dropChild(parent, child)`**（参数已经查过的那一段），`ViewGroup` 的 `addView` / `removeView` 和滚动视图的 `contentView` 都用它们。内容在 JS 的树里是滚动视图的子视图：`content.parent` 是滚动视图，挂上、拿下来、密度变了时整棵子树照常处理，内容的 `view.layout` 照常由滚动视图读。
 
-`new PathInterpolator(0.4, 0, 0.2, 1)`（三次贝塞尔，和 CSS 的 `cubic-bezier` 同一个写法）、`new OvershootInterpolator(2)`，构造参数照 Java，`getInterpolation(t)` 可以调。不认 `'ease-in'` 这样的字符串（那是上层的事）；JS 函数不能当插值器，因为 JS 不实现 Java 的类。`PathInterpolator(Path)` 要等 `Path` 接进来。JS 的类可以继承插值器，继承只在 JS 这一层，系统调的还是原生那个。
+`ViewGroup` 上的 `clipChildren` / `clipToPadding` 在两个滚动视图上另外登记了一份（原生那边 `LayoutDomain` 按 `ViewGroup` 处理，不用改）。
 
-### requestAnimationFrame
+### 滚动位置：系统也会改、排完版才能设
 
-- 全局的 `requestAnimationFrame(callback)` / `cancelAnimationFrame(handle)`，照 Web。不暴露 `Choreographer`：它的 `postFrameCallback` 要 JS 实现 Java 的接口。放在 Android 自己的脚本里，不进 `core/`：iOS 现在还是用 `CADisplayLink`。
-- 底下是一个帧时钟（`FrameClock`，JS 里是不挂在全局的 `NacreFrameClock`）。有回调在等时 JS 调一次 `request`，原生向 `Choreographer` 约下一帧；那一帧到了发一个 `frame` 事件，带这一帧的时刻（`frameTimeNanos`）。没有回调在等时不约，不花钱。
-- **时刻和 `performance.now()` 同一个起点**：`frameTimeNanos` 是 `System.nanoTime` 的时钟，`performance.now()` 是引擎里 libc++ 的 `steady_clock`，Android 上两个都是 `CLOCK_MONOTONIC`。JS 启动时各读一次，差是固定的，之后用它换算。验收里回调拿到的时刻不晚于回调里读的 `performance.now()`，差不到 100 毫秒。
-- 同一帧的回调拿到同一个时刻；回调里再请求的排到下一帧；一个回调抛了照未捕获的异常报，同一帧别的回调照样调；正在跑的这一帧里取消还没轮到的，就不再调（和 Web 一样）。
-- **延后一轮派发**：和 iOS 的 `CADisplayLink` 的 `tick` 一样，是普通事件，排到主线程队列的下一轮。代价是 JS 在回调里改的东西晚一帧画出来（`Choreographer` 这一帧的绘制已经做完了）。要当场派发得改 `NacreRuntime.kt` 的事件出口，按「能用就先用着」这次不改。
-- App 在后台时 `Choreographer` 不来叫，回调等着，和浏览器一样。
+- **系统也会改**：手指一划、`fling`、`smoothScrollTo`、`fullScroll` 都在原生那边改它。照总则第 2 条，`scrollX` / `scrollY` 登记了 `read`：挂着时读原生（像素和 JS 存的值换算后对得上就给 JS 的值，不然换算原生的），拿下来时读回 JS。密度变了时，`10-view.js` 先按旧的密度读回、再按新的密度设，滚动位置按 dp 留着。
+- **排完版才能设**（实测）：排版之前写滚动位置，`ScrollView` 把它夹成 0（`scrollTo` 按子视图现在的高度夹，还没排版时子视图高是 0，没有子视图时什么都不做），排完版也还是 0；挂着的滚动视图刚换了内容就写，也是 0；排完版再写就对了。所以 `10-view.js` 加了 `afterLayout`（见「登记状态」）：挂上时、密度变了时，这两个状态等原生这个视图下一次排完版再设；挂着时写，原生说还在等排版也等着。等着的期间读到的、读回的都是写进去的值。
+- 原生那边：`ViewDomain` 的 `@whenLaidOut` 在视图上装一个只跑一次的 `OnLayoutChangeListener`，排完时当场发 `@laidout`（`plainNow`），JS 在同一次排版里、画之前设上，第一帧就是对的。挂上时不问「排过没有」，直接等下一次并请求一次排版：放回同一个页面的视图大小没变，系统可能不重新排它。
 
-实测：连续 30 帧的平均间隔是 11.1 毫秒（Pixel 6 的屏幕是 90 Hz）。
+### scroll 事件
 
-### 动画时长缩放
+不带数据，和 Web、iOS 一样，位置读 `scrollX` / `scrollY`。有人订才装 `setOnScrollChangeListener`，延后一轮派发；滚到同一个位置系统不通知。系统不通知拖动开始和结束、滚动停下（Web 的 `scrollend`）：`ScrollView` 没有这几个回调，要靠覆写 `onTouchEvent` / `computeScroll`，按「继承」那条规矩不做。
 
-开发者选项里的「动画时长缩放」和无障碍里的「移除动画」改的都是它（相当于 Web 的 `prefers-reduced-motion`）。缩放是 0 时动画一开始就结束，`ViewPropertyAnimator` 也一样；`requestAnimationFrame` 不受它影响。
+### 实测（Pixel 6，Android 17，420 dpi）
 
-- 读：静态的 `ValueAnimator.durationScale` 和 `ValueAnimator.areAnimatorsEnabled()`。Android 13 起用系统的 `ValueAnimator.getDurationScale()`；11、12 读系统设置 `Settings.Global.ANIMATOR_DURATION_SCALE`。11、12 那一支没有设备，**未验证**。
-- 变化：`application` 上的 `animatordurationscalechange`（全局的设置，挂在 App 这一层的对象上）。有人订时原生才盯着：13 起 `registerDurationScaleChangeListener`，11、12 用 `ContentObserver` 盯那条设置；值真的变了才发。订阅接在 `application` 原来的 `kSubscribe` 后面，没改 `21-application.js`。
-- 验收脚本不改手机的系统设置，所以变化事件是手动验的：2026-11-24 在 Pixel 6（Android 17）上装一段只订这个事件的脚本，用 `adb shell settings put global animator_duration_scale` 依次改成 0.5、0、1，三次都收到了，事件里读到的 `durationScale` 是 0.5、0、1，`areAnimatorsEnabled()` 在 0 时是 `false`。改完设回 1。
+- **不带主题样式时的默认值**（临时探针读原生，量完删了）：`View(context)`、`ScrollView(context, null, 0)`、`HorizontalScrollView(context, null, 0)` 一样：`overScrollMode` 是 `IF_CONTENT_SCROLLS`、两个滚动条都关着、`isScrollbarFadingEnabled` 是 `false`、淡出 250 毫秒、延迟 300 毫秒、滚动条粗 11 像素（4 dp）、`SCROLLBARS_INSIDE_OVERLAY`、位置 `DEFAULT`、没有滑块和轨道（`getVerticalScrollbarThumbDrawable()` 直接抛空指针：滚动条的 Drawable 还没建）、`scrollIndicators` 0、两个渐隐关着、`isNestedScrollingEnabled` 是 `false`；滚动视图 `isFillViewport` 是 `false`、`isSmoothScrollingEnabled` 是 `true`、四个边的颜色 `0x33F5F5F5`。打开竖的渐隐之后长度是 32 像素（12 dp）。对照：带主题样式建的 `ScrollView(context)` 竖的滚动条开着、会淡出（延迟 400 毫秒）、滑块是 `GradientDrawable`。
+- **排版之前设滚动位置**：见上面（同一个探针：先挂上再当场写 500，读出 0，排完版还是 0；排完版再写是 500；刚换了内容当场写 800 是 0；拿下来再放回同一个页面、当场写是对的，原生那边子视图的大小还在）。
+- 代码滚、`fling`、`fullScroll` / `pageScroll` / `arrowScroll`、`scrollToDescendant`（挂着时和自由时记下的）、手指划（`swipe`）都真的滚了，一路收到 `scroll`；拿下来时读回的是手指划到的位置；密度改成 560 dpi 再还原，滚动位置都还是 640 dp（差不到 1）。
 
 ### 验收
 
-`steps/animation.js` 和 `steps/scroll.js`，排在外观之后。时长相关的断言假设手机的动画时长缩放是 1（没改过）。
+`steps/scroll.js`，排在文字之后、动画之前（用关了再开之后的新页面）。
 
-先在没有实现的运行时上跑了一遍：两步一开始就抛了（`ScrollView is not defined`、`LinearInterpolator is not defined`），判为失败。写实现时发现用例里有一条和定下的规矩不符：原来断言 `ValueAnimator.setInterpolator()` 返回自己，但 Java 的这个方法返回 `void`，按规矩只有属性。改成断言没有这个方法，API 没变。跑真机时又发现一条期望值写错了：`BounceInterpolator` 在 t = 1 不是正好 1，Android 的弹跳曲线用的是近似常数（t × 1.1226，最后一段 8(t − 1.0435)² + 0.95），照 float 算是 1.0000545，期望改成这个数。
+- 自由的视图上：全部成员的默认值、读写、Web IDL 的转换、写错时的 `TypeError` / `RangeError` / 警告、删掉的成员不在了；`contentView` 的读写、移来移去、成环；动作自由时抛 `InvalidStateError`，参数先查；`smoothScrollTo` 自由时就是写滚动位置；`scrollToDescendant` 不是后代抛 `NotFoundError`。
+- 挂上：自由时写的 500 刚挂上时读到 500、排完版滚到 500；夹在内容的范围里；刚换内容就写的等排完版再设；`scroll` 事件；动画着滚、甩、整页翻、方向键；挂着时和自由时记下的 `scrollToDescendant`；手指划；拿下来读回、拿下来时写的放回去设上；普通视图不限制范围；密度变了位置按 dp 留着；`HorizontalScrollView` 一套。
+- 先在旧的实现上跑了一遍：滚动这一步 10 条失败（滚动视图还是 `ViewGroup`、有 `addView`），接着在自由的视图上读 `scrollX` 抛 `InvalidStateError`，中途停了。实现之后第一遍 3 条失败：两条是手指划在了状态栏上（用例里那行字在内容的最上面，内容铺满全屏，它的正中在状态栏里；给它上下各留 400 dp，断言没改），一条是 `smoothScrollTo(900)` 读回 900.19（实现改成记下目标，见上面）。改完之后 2026-11-28 在 Pixel 6（Android 17）上 Debug 和 Release 都是 2495 条通过、0 条失败（这一组 219 条，动画 267 条）。
 
-实现之后 2026-11-24 在 Pixel 6（Android 17，API 37）上 Debug 和 Release 都是 1482 条通过、0 条失败。Release 第一遍挂过一条网络那一组的耗时断言（对着公网的 httpbin，10 个并发请求的耗时），和这两组无关，重跑通过。
+## 动画
+
+插值器（`BaseInterpolator` 和 10 个具体的类）；`Animator`（抽象）、`ValueAnimator`、`ObjectAnimator`；`view.animate()`；全局的 `requestAnimationFrame` / `cancelAnimationFrame`；系统的动画时长缩放（`application.animatorDurationScale`）。原生在 `AnimationDomain.kt`，JS 在 `37-animation.js`，验收是 `steps/animation.js`。
+
+2026-11-28 照「接类的总则」重写（第二波）。原来照搬 Java 的链式写法（`view.animate().alpha(0).setDuration(300)`）去掉了。
+
+### 成员，按四类
+
+插值器、`ValueAnimator`、`ObjectAnimator` 和页面无关：`new` 的时候就建原生对象，不分自由和挂上。四类照总则第 2 条分：设置是状态（读回写进去的值），播放中的读数读原生，开始、取消这些是动作。
+
+| 类 | 成员 | 归哪类 | 说明 |
+| --- | --- | --- | --- |
+| `BaseInterpolator`（抽象） | `getInterpolation(t)` | 动作 | 时间的进度 → 值的进度。没有可读的成员（建出来不能改，和 Java 一样） |
+| `AccelerateInterpolator`、`DecelerateInterpolator` | `new X({ factor })` | — | `factor` 默认 1 |
+| `AnticipateInterpolator`、`OvershootInterpolator` | `new X({ tension })` | — | 默认 2 |
+| `AnticipateOvershootInterpolator` | `new X({ tension, extraTension })` | — | 默认 2、1.5 |
+| `CycleInterpolator` | `new CycleInterpolator(cycles)` | — | 必填，只有一个参数，不用 options |
+| `PathInterpolator` | `new PathInterpolator({ x1, y1, x2, y2 })` | — | 三次贝塞尔，和 CSS 的 `cubic-bezier` 一样；`x1`、`x2` 要在 0–1 里 |
+| `LinearInterpolator`、`AccelerateDecelerateInterpolator`、`BounceInterpolator` | `new X()` | — | |
+| `ValueAnimator` | `values`、`duration`（300）、`startDelay`（0）、`interpolator`（`null`）、`repeatCount`（0）、`repeatMode`（`'restart'`） | 状态 | `new ValueAnimator({ values, … })`，`values` 必填 |
+| `ValueAnimator` | `animatedValue`、`animatedFraction`、`isRunning`、`isStarted`、`isPaused` | 读原生 | 只读 |
+| `ValueAnimator` | `currentPlayTime` | 读原生，可写 | 写它跳到那一刻 |
+| `ValueAnimator` | `start()`、`cancel()`、`end()`、`pause()`、`resume()`、`reverse()` | 动作 | |
+| `ValueAnimator` | `start`、`end`、`cancel`、`repeat`、`pause`、`resume`、`update` | 事件 | 普通的 `Event`，延后一轮派发，不可取消 |
+| `ObjectAnimator` | `target`（视图）、`propertyName`、`autoCancel`（`false`） | 状态 | 加上 `ValueAnimator` 的全部 |
+| `View` | `animate(to, options)` | 动作 | 返回 `Promise<boolean>`，见下面 |
+| `Application` | `animatorDurationScale` | 读原生 | 只读；变了发 `animatordurationscalechange` |
+| 全局 | `requestAnimationFrame`、`cancelAnimationFrame` | — | 照 Web |
+
+### 定了什么
+
+照方案（2026-11-26 定的改法）：
+
+- **`view.animate(to, options)` 返回 `Promise<boolean>`**。`to` 是要动到的值（`alpha`、`translationX/Y/Z`、`scaleX/Y`、`rotation/X/Y`，长度 dp），`options` 是 `{ duration, delay, interpolator, signal }`。跑完兑现 `true`，被打断兑现 `false`；视图自由时 reject `InvalidStateError`。`ViewPropertyAnimator` 这个类、它的 setter 和 4 个事件都删了。
+- 插值器的可选参数是 options；二次曲线的 `PathInterpolator(controlX, controlY)` 删了。
+- `ValueAnimator.ofFloat` / `ofInt` / `ofArgb` 改成 `new ValueAnimator({ values, … })`；`setDuration` 这类链式写法删了，只留属性。
+- `ObjectAnimator` 只认运行时登记过的属性：`alpha`、`translationX/Y/Z`、`scaleX/Y`、`rotation/X/Y`、`elevation`、`scrollX`、`scrollY`。不认识的属性名在构造里抛 `TypeError`，写 `propertyName` 时打警告、值不变。
+- `ValueAnimator.durationScale` 改成 `application.animatorDurationScale`。
+- 无限次数是 `Infinity`（原来是 `'infinite'`）。
+- 原来定的「动画结束用事件」只对 `ValueAnimator` / `ObjectAnimator` 成立：它们会反复用，结束是会发生好几次的事。
+
+照总则自己定的：
+
+- **一件事只说一次**：`totalDuration`（= `startDelay + duration × (repeatCount + 1)`，能推出来）、`areAnimatorsEnabled()`（= 缩放不是 0）、`setCurrentFraction()`（= 写 `currentPlayTime`）、`ofInt`（= 自己取整）、`setFloatValues` / `setIntValues`（= 写 `values`）、`setAutoCancel`（= `autoCancel`）都去掉了。`view.animate()` 的 `to` 没有 `x`、`y`、`z`（总则第 3 条：能从别的状态推出来的不单独给）和 `alphaBy` 这一类（= 读现在的值再加）。
+- **`interpolator` 是 `null` 时是 Android 默认的曲线**（先加速后减速）。Java 的 `setInterpolator(null)` 是线性的，那是哨兵，不照搬；要线性就写 `new LinearInterpolator()`。`view.animate()` 的 `interpolator` 也一样。
+- **`values`**：一串数，或者一串 CSS 的颜色字符串（颜色动画，`animatedValue` 读出来也是颜色字符串）；至少一个；数和字符串混着抛 `TypeError`，一个也没有抛 `RangeError`。属性位颜色写错打警告、值不变，构造里抛 `TypeError`。`ObjectAnimator` 的 `values` 只收数，`alpha` 的值要在 0–1 里。
+- **写错时**：`duration`、`startDelay`、`currentPlayTime` 是负数抛 `RangeError`，不是有限数抛 `TypeError`（`duration` 写 `Infinity` 也是：只有次数能无限）；`repeatCount` 是负数抛 `RangeError`，`'infinite'` 抛 `TypeError`；`repeatMode` 名字写错，属性位打警告，构造里抛 `TypeError`。`view.animate()` 的参数写错不抛，返回 reject 的 Promise（返回 Promise 的方法照 Web IDL 都这样）。
+- **`ObjectAnimator` 的 `start()` / `end()` / `reverse()` 是动作**：目标是自由的视图时抛 `InvalidStateError`。值在这时按目标所在页面的密度换成像素交给原生（目标放进过别的页面也对），`scrollX` / `scrollY` 在 Java 里收整数。读 `animatedValue` 换回 dp。
+- **`view.animate()` 被打断**的几种：同一个属性上后调的 `animate()` 接走先调的（一个动画的属性全被接走才算被打断，只被接走一部分的接着跑剩下的，照样兑现 `true`；和 `ViewPropertyAnimator` 的规矩一样）、`signal` 中止、视图离开页面。`signal` 已经中止时马上兑现 `false`，什么都不动；`to` 里一个认识的属性都没有时马上兑现 `true`。
+- **视图离开页面时，它身上的动画都取消**：`view.animate()` 兑现 `false`，以它为目标的 `ObjectAnimator` 发 `cancel`、`end`。不取消的话原生那边还在改一个已经不在页面上的视图，JS 里读回的值就对不上了。
+
+### 动画改的属性：系统也会改的状态
+
+动画在原生那边逐帧改视图的属性，JS 里存的是动画之前的值。照总则第 2 条，这些属性是「系统也会改的状态」：
+
+- `30-appearance.js` 给 `alpha`、`elevation`、`translationX/Y/Z`、`scaleX/Y`、`rotation/X/Y` 登记了 `read`（10-view.js 的机制，见「登记状态」）：挂着时读原生，动画中途读到的是中间值；拿下来时把原生的值读回 JS。原生的读放在 `AnimationDomain.kt`（外观组的 `AppearanceDomain` 只管设）。
+- **原生存的是 float**：`alpha = 0.3` 设下去，原生读出来是 0.30000001192092896。`read` 先把 JS 存的值照 float（dp 的先换成像素）算一遍，和原生的对得上就给 JS 的值，对不上才换算原生的。所以没在动的属性读回的还是写进去的值。
+- **一次动画结束时把 JS 里的值对上**：`view.animate()` 跑完的，还归它的属性写成终点（写进去的那个精确的值）；被打断的写成原生当时的值。`ObjectAnimator` 每次 `end` 时，原生的值是 `values` 里的某一个就记那个，不然记换算回来的。不对上的话，之后密度一变，重设 dp 状态时会把 JS 里旧的值设回去。
+- 动画中途 JS 自己写这个属性：照 Android，原生当场设上，下一帧又被动画盖掉；动画跑完时 JS 里的值是终点。
+
+### 实现
+
+- **`view.animate()`**：一次 `animate` 一个 `ValueAnimator`（0 → 1），每帧按进度把几个属性从起点插到终点（`View.ALPHA` 这些 `Property`；`elevation` 没有现成的，自己写了一个）。起点在真的开始时读（延迟之后）。原生按视图记「这个属性现在归哪一次」，后开始的接走先开始的。Promise 走 `callAsync`，结束时 `settle`。JS 给每一次发一个编号，取消（`signal`、视图离开页面）用 `@animation.cancelViewAnimation(编号)`：页面销毁时替身已经丢了，不能再从视图上调。
+- 没用 `ViewPropertyAnimator`：它一个视图一个，设置（时长、曲线）和监听器都是共享的，两次 `animate()` 叠在一起时分不清哪个结束了是哪一次；`withEndAction` 被取消时不调，也拿不到「被打断」。自己写的这一套照它的规矩（同一个属性后开始的接走先开始的）。
+- **视图离开页面时取消**：用一个不公开的视图状态（名字是 Symbol）接 10-view.js 的 `release`，有过动画的视图才写它。`release` 在读回之后调，取消时原生的值停在读回的那一刻。
+- **`values` 每次换一个新的 `PropertyValuesHolder`**：在原来的上面改，从整数换成小数时会留下旧的关键帧。颜色动画用 `ArgbEvaluator`，原生记下哪些是颜色动画，交给 JS 时包成 `{"argb": n}`。
+- 正在跑的 animator，JS 拿着它的包装到 `end` 为止（和原来一样）。
+
+### requestAnimationFrame
+
+和原来一样，没改。全局的 `requestAnimationFrame(callback)` / `cancelAnimationFrame(handle)`，照 Web。不暴露 `Choreographer`：它的 `postFrameCallback` 要 JS 实现 Java 的接口。放在 Android 自己的脚本里，不进 `core/`：iOS 现在还是用 `CADisplayLink`。
+
+- 底下是一个帧时钟（`FrameClock`，JS 里是不挂在全局的 `NacreFrameClock`）。有回调在等时 JS 调一次 `request`，原生向 `Choreographer` 约下一帧；那一帧到了发一个 `frame` 事件，带这一帧的时刻（`frameTimeNanos`）。没有回调在等时不约，不花钱。
+- **时刻和 `performance.now()` 同一个起点**：`frameTimeNanos` 是 `System.nanoTime` 的时钟，`performance.now()` 是引擎里 libc++ 的 `steady_clock`，Android 上两个都是 `CLOCK_MONOTONIC`。JS 启动时各读一次，差是固定的，之后用它换算。
+- 同一帧的回调拿到同一个时刻；回调里再请求的排到下一帧；一个回调抛了照未捕获的异常报，同一帧别的回调照样调；正在跑的这一帧里取消还没轮到的，就不再调（和 Web 一样）。
+- **延后一轮派发**：和 iOS 的 `CADisplayLink` 的 `tick` 一样，是普通事件。代价是 JS 在回调里改的东西晚一帧画出来。
+- App 在后台时 `Choreographer` 不来叫，回调等着，和浏览器一样。
+
+### 动画时长缩放
+
+开发者选项里的「动画时长缩放」和无障碍里的「移除动画」改的都是它（相当于 Web 的 `prefers-reduced-motion`）。缩放是 0 时动画一开始就结束，`view.animate()` 也一样；`requestAnimationFrame` 不受它影响。
+
+- 读：`application.animatorDurationScale`，只读，每次读原生。Android 13 起用系统的 `ValueAnimator.getDurationScale()`；11、12 读系统设置 `Settings.Global.ANIMATOR_DURATION_SCALE`，那一支没有设备，**没验过**。
+- 变化：`application` 上的 `animatordurationscalechange`。有人订时原生才盯着：13 起 `registerDurationScaleChangeListener`，11、12 用 `ContentObserver` 盯那条设置；值真的变了才发。
+- 验收脚本加了 `animscale <倍数>|restore`（`adb shell settings put global animator_duration_scale`），和 `density` 一样，脚本退出时（含中途失败）一定还原。
+
+### 验收
+
+`steps/animation.js`，排在滚动之后。时长相关的断言假设手机的动画时长缩放是 1。
+
+- 插值器：每个类的曲线值、options 的默认值和转换、照 Java 按位置传抛 `TypeError`、`PathInterpolator` 的 x 超出 0–1 抛 `RangeError`、没有可读的成员、JS 里继承。
+- `ValueAnimator`：构造、默认值、每个状态的读写和写错、删掉的成员不在了、`currentPlayTime` 跳到某一刻、颜色动画；真的跑：事件的顺序（`start, end`；取消是 `start, cancel, end`）、`update`、`end()`、`reverse()`、重复一次、无限次（取消才停）、暂停和继续、改了设置再跑、不留变量的 animator 照样收到 `end`。
+- `ObjectAnimator`：构造的参数和写错、只认登记过的属性、目标自由时 `start()` 抛 `InvalidStateError`；跑完 JS 里的值正好是终点（dp）、中途读到中间值、取消停在中途、只给一个值从现在的值动过去、`rotation`、`scrollY`、换属性；目标中途离开页面：发 `cancel`、`end`，JS 里是离开那一刻的值，放回去还是它。
+- `view.animate()`：自由时、参数写错都是 reject；跑完兑现 `true`、值正好是终点（`alpha` 0.3、`translationX` 0.1 dp 读回的也是写的）、中途读到中间值、`delay`、被接走兑现 `false`、只被接走一部分照样 `true`、`signal` 中止和已经中止、`duration` 0、中途离开页面兑现 `false`、整页拿下来兑现 `false`；没有 `ViewPropertyAnimator`。
+- `requestAnimationFrame`：照原来的。
+- 动画时长缩放：读 1、只读；打 `[acceptance] animscale 0` 收到 `animatordurationscalechange`，事件里读到 0，`view.animate()` 和 `ValueAnimator` 马上结束；`animscale restore` 之后又收到、读回 1。
+- 先在旧的实现上跑了一遍：一开始就抛（`new AccelerateInterpolator({ factor: 2 })` 把 options 当成数），判为失败。实现之后第一遍这一步全部通过；2026-11-28 在 Pixel 6（Android 17）上 Debug 和 Release 都是 2495 条通过、0 条失败（这一组 267 条）。连续 30 帧的平均间隔 11.07 毫秒（屏幕 90 Hz）。
 
 ## 文字
 

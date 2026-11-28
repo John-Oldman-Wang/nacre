@@ -1,14 +1,19 @@
-// 动画这一组：插值器（BaseInterpolator 一族）、Animator / ValueAnimator / ObjectAnimator、
-// view.animate() 的 ViewPropertyAnimator；requestAnimationFrame 用的帧时钟（Choreographer）；
-// 系统的动画时长缩放。JS 那一侧在 builtin/parts/37-animation.js。
+// 动画这一组：插值器（BaseInterpolator 一族）、Animator / ValueAnimator / ObjectAnimator、view.animate()；
+// requestAnimationFrame 用的帧时钟（Choreographer）；系统的动画时长缩放。JS 那一侧在 builtin/parts/37-animation.js。
 //
-// 时长和时刻是毫秒。动画的通知照 AnimatorListener 转成事件，排到下一轮派发，不可取消：
-// start、end、cancel、repeat、pause、resume 总是发（不常发，JS 要靠 end 放开正在跑的
-// animator 的包装）；update 每帧一次，有人订才装。
+// 时长和时刻是毫秒。长度 JS 那边已经按页面的密度换成了像素。animator 的通知照 AnimatorListener 转成事件，
+// 排到下一轮派发，不可取消：start、end、cancel、repeat、pause、resume 总是发（不常发，JS 要靠 end
+// 放开正在跑的 animator 的包装）；update 每帧一次，有人订才装。
+//
+// 视图上被动画改的那几个属性（alpha、translationX……）在这里读：它们是系统也会改的状态，挂着时 JS 读原生。
+// 读出来的是 float 原样的值（0.3f 读出来是 0.30000001192092896），JS 那边和自己存的值比过再决定用哪个。
 package nacre.runtime
 
 import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ArgbEvaluator
 import android.animation.ObjectAnimator
+import android.animation.PropertyValuesHolder
 import android.animation.TimeInterpolator
 import android.animation.ValueAnimator
 import android.database.ContentObserver
@@ -16,9 +21,9 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.util.Property
 import android.view.Choreographer
 import android.view.View
-import android.view.ViewPropertyAnimator
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.AnticipateInterpolator
@@ -31,7 +36,6 @@ import android.view.animation.LinearInterpolator
 import android.view.animation.OvershootInterpolator
 import android.view.animation.PathInterpolator
 import java.util.Collections
-import java.util.IdentityHashMap
 import java.util.WeakHashMap
 
 // requestAnimationFrame 背后的帧时钟。JS 那边是一个不挂在全局的内部类（NacreFrameClock）：
@@ -42,7 +46,7 @@ internal class FrameClock
 internal class AnimationDomain(host: DomainHost) : Domain(host) {
 
     override val classes: Map<Class<*>, String> = mapOf(
-        // View 由 ViewDomain 建；这里登记它，是为了 view.animate() 来问这一组
+        // View 由 ViewDomain 建；这里登记它，是为了 view.animate() 和读被动画改的属性来问这一组
         View::class.java to "View",
         BaseInterpolator::class.java to "BaseInterpolator",
         LinearInterpolator::class.java to "LinearInterpolator",
@@ -58,17 +62,16 @@ internal class AnimationDomain(host: DomainHost) : Domain(host) {
         Animator::class.java to "Animator",
         ValueAnimator::class.java to "ValueAnimator",
         ObjectAnimator::class.java to "ObjectAnimator",
-        ViewPropertyAnimator::class.java to "ViewPropertyAnimator",
         FrameClock::class.java to "NacreFrameClock",
     )
 
     // ---- 枚举 ----
 
     private val repeatModes = EnumTable("restart" to ValueAnimator.RESTART, "reverse" to ValueAnimator.REVERSE)
-    // repeatCount 是次数或者这个哨兵
-    private val repeatCounts = EnumTable("infinite" to ValueAnimator.INFINITE)
 
-    // ---- 值的转换（JS 那边已经照 Web IDL 转好了类型，这里只校验）----
+    override val enums: Map<String, EnumTable<*>> = mapOf("repeatMode" to repeatModes)
+
+    // ---- 值的转换（JS 那边已经照 Web IDL 转好、查过范围，这里只校验类型）----
 
     private fun float(v: Any?, what: String): Float =
         (v as? Double)?.toFloat() ?: throw NacreTypeError("$what must be a number")
@@ -82,12 +85,6 @@ internal class AnimationDomain(host: DomainHost) : Domain(host) {
     private fun bool(v: Any?, what: String): Boolean =
         v as? Boolean ?: throw NacreTypeError("$what must be a boolean")
 
-    private fun color(v: Any?, what: String): Int {
-        val d = v as? Double ?: throw NacreTypeError("$what must be a color")
-        if (d < 0 || d > 0xFFFFFFFFL.toDouble() || d != Math.floor(d)) throw NacreTypeError("$what must be a color")
-        return d.toLong().toInt()
-    }
-
     private fun list(v: Any?, what: String): List<*> {
         val l = v as? List<*> ?: throw NacreTypeError("$what must be an array")
         if (l.isEmpty()) throw NacreTypeError("$what needs at least one value")
@@ -96,77 +93,51 @@ internal class AnimationDomain(host: DomainHost) : Domain(host) {
 
     private fun floats(v: Any?, what: String): FloatArray = list(v, what).let { l -> FloatArray(l.size) { float(l[it], what) } }
     private fun ints(v: Any?, what: String): IntArray = list(v, what).let { l -> IntArray(l.size) { int(l[it], what) } }
-    private fun colors(v: Any?, what: String): IntArray = list(v, what).let { l -> IntArray(l.size) { color(l[it], what) } }
 
-    private fun interpolatorArg(objects: List<Any?>, i: Int, where: String): TimeInterpolator? {
-        val o = objects.getOrNull(i) ?: return null
+    // 颜色：ARGB 的无符号整数（JS 那边解析好的）
+    private fun colors(v: Any?, what: String): IntArray = list(v, what).let { l ->
+        IntArray(l.size) {
+            val d = l[it] as? Double ?: throw NacreTypeError("$what must be colors")
+            if (d < 0 || d > 0xFFFFFFFFL.toDouble() || d != Math.floor(d)) throw NacreTypeError("$what must be colors")
+            d.toLong().toInt()
+        }
+    }
+
+    // null 是 Android 默认的曲线（先加速后减速）。Java 的 setInterpolator(null) 是线性的，这里不照搬
+    private fun interpolatorArg(objects: List<Any?>, i: Int, where: String): TimeInterpolator {
+        val o = objects.getOrNull(i) ?: return AccelerateDecelerateInterpolator()
         return o as? TimeInterpolator ?: throw NacreTypeError("$where: argument ${i + 1} must be an interpolator")
     }
 
-    // Java 的 float 用最短的写法（0.3f 写成 0.3）
-    private fun num(f: Float): String = if (f.isFinite()) f.toString() else "null"
-
-    private fun quote(s: String): String = "\"$s\""
+    // float 原样写成 double（0.3f 写成 0.30000001192092896），JS 那边按 float 比
+    private fun exact(f: Float): String = if (f.isFinite()) f.toDouble().toString() else "null"
 
     // ---- 颜色动画 ----
     //
-    // ofArgb 的值是 Integer，和 ofInt 分不开，所以记下哪些是颜色动画；animatedValue 交给 JS 时
-    // 包成 {"argb": n}，JS 写成 CSS 的颜色字符串。setFloatValues / setIntValues 之后就不是了
+    // 颜色动画的值是 Integer，和整数动画分不开，所以记下哪些是颜色动画；animatedValue 交给 JS 时
+    // 包成 {"argb": n}，JS 写成 CSS 的颜色字符串
     private val argbAnimators: MutableSet<ValueAnimator> = Collections.newSetFromMap(WeakHashMap())
 
     // ---- 造对象 ----
 
     override fun construct(className: String, args: List<*>, objects: List<Any?>): Any? = when (className) {
         "LinearInterpolator" -> LinearInterpolator()
-        "AccelerateInterpolator" ->
-            if (args.isEmpty()) AccelerateInterpolator() else AccelerateInterpolator(float(args[0], "factor"))
-        "DecelerateInterpolator" ->
-            if (args.isEmpty()) DecelerateInterpolator() else DecelerateInterpolator(float(args[0], "factor"))
+        "AccelerateInterpolator" -> AccelerateInterpolator(float(args.getOrNull(0), "factor"))
+        "DecelerateInterpolator" -> DecelerateInterpolator(float(args.getOrNull(0), "factor"))
         "AccelerateDecelerateInterpolator" -> AccelerateDecelerateInterpolator()
-        "AnticipateInterpolator" ->
-            if (args.isEmpty()) AnticipateInterpolator() else AnticipateInterpolator(float(args[0], "tension"))
-        "OvershootInterpolator" ->
-            if (args.isEmpty()) OvershootInterpolator() else OvershootInterpolator(float(args[0], "tension"))
-        "AnticipateOvershootInterpolator" -> when (args.size) {
-            0 -> AnticipateOvershootInterpolator()
-            1 -> AnticipateOvershootInterpolator(float(args[0], "tension"))
-            else -> AnticipateOvershootInterpolator(float(args[0], "tension"), float(args[1], "extraTension"))
-        }
+        "AnticipateInterpolator" -> AnticipateInterpolator(float(args.getOrNull(0), "tension"))
+        "OvershootInterpolator" -> OvershootInterpolator(float(args.getOrNull(0), "tension"))
+        "AnticipateOvershootInterpolator" ->
+            AnticipateOvershootInterpolator(float(args.getOrNull(0), "tension"), float(args.getOrNull(1), "extraTension"))
         "BounceInterpolator" -> BounceInterpolator()
         "CycleInterpolator" -> CycleInterpolator(float(args.getOrNull(0), "cycles"))
-        "PathInterpolator" -> when (args.size) {
-            2 -> PathInterpolator(float(args[0], "controlX"), float(args[1], "controlY"))
-            4 -> PathInterpolator(float(args[0], "controlX1"), float(args[1], "controlY1"),
-                                  float(args[2], "controlX2"), float(args[3], "controlY2"))
-            else -> throw NacreTypeError("PathInterpolator expects 2 or 4 numbers")
-        }
-        // 第一个参数是哪一种造法：空的（new ValueAnimator()）、ofFloat / ofInt / ofArgb
-        "ValueAnimator" -> watched(valueAnimator(args))
-        "ObjectAnimator" -> watched(objectAnimator(args, objects))
-        // Animator、BaseInterpolator 是抽象类；ViewPropertyAnimator、帧时钟由系统和运行时建
+        "PathInterpolator" -> PathInterpolator(float(args.getOrNull(0), "x1"), float(args.getOrNull(1), "y1"),
+                                               float(args.getOrNull(2), "x2"), float(args.getOrNull(3), "y2"))
+        // 空的，JS 接着把 values 这些设上（ObjectAnimator 的目标和值在开始播时交）
+        "ValueAnimator" -> watched(ValueAnimator())
+        "ObjectAnimator" -> watched(ObjectAnimator())
+        // Animator、BaseInterpolator 是抽象类；帧时钟由运行时建
         else -> throw NacreTypeError("Illegal constructor: $className cannot be constructed")
-    }
-
-    private fun valueAnimator(args: List<*>): ValueAnimator = when (args.getOrNull(0)) {
-        null -> ValueAnimator()
-        "ofFloat" -> ValueAnimator.ofFloat(*floats(args.getOrNull(1), "ofFloat"))
-        "ofInt" -> ValueAnimator.ofInt(*ints(args.getOrNull(1), "ofInt"))
-        "ofArgb" -> ValueAnimator.ofArgb(*colors(args.getOrNull(1), "ofArgb")).also { argbAnimators.add(it) }
-        else -> throw NacreTypeError("unknown ValueAnimator factory")
-    }
-
-    // ObjectAnimator.ofXxx(target, propertyName, ...values)：args 是 [造法, 目标, 属性名, 值]，目标在 objects[1]
-    private fun objectAnimator(args: List<*>, objects: List<Any?>): ObjectAnimator {
-        val kind = args.getOrNull(0) ?: return ObjectAnimator()
-        val target = objects.getOrNull(1) ?: throw NacreTypeError("$kind: argument 1 must be a native object")
-        val property = args.getOrNull(2) as? String ?: throw NacreTypeError("$kind: propertyName must be a string")
-        return when (kind) {
-            "ofFloat" -> ObjectAnimator.ofFloat(target, property, *floats(args.getOrNull(3), "ofFloat"))
-            "ofInt" -> ObjectAnimator.ofInt(target, property, *ints(args.getOrNull(3), "ofInt"))
-            "ofArgb" -> ObjectAnimator.ofArgb(target, property, *colors(args.getOrNull(3), "ofArgb"))
-                .also { argbAnimators.add(it) }
-            else -> throw NacreTypeError("unknown ObjectAnimator factory")
-        }
     }
 
     // JS 建的 animator 一建好就装上监听：start、end 这几个总是发
@@ -187,30 +158,18 @@ internal class AnimationDomain(host: DomainHost) : Domain(host) {
     // ---- 读属性 ----
 
     override fun read(target: Any, name: String): String? = when (target) {
-        is ObjectAnimator -> readObjectAnimator(target, name) ?: readValueAnimator(target, name)
-        is ValueAnimator -> readValueAnimator(target, name)
-        is ViewPropertyAnimator -> when (name) {
-            "duration" -> target.duration.toString()
-            "startDelay" -> target.startDelay.toString()
-            else -> null
-        }
+        is ValueAnimator -> readAnimator(target, name)
+        is View -> readView(target, name)
         else -> null
     }
 
-    private fun readValueAnimator(a: ValueAnimator, name: String): String? = when (name) {
-        "duration" -> a.duration.toString()
-        "startDelay" -> a.startDelay.toString()
-        "repeatCount" -> repeatCounts.name(a.repeatCount)?.let(::quote) ?: a.repeatCount.toString()
-        "repeatMode" -> repeatModes.name(a.repeatMode)?.let(::quote)
-            ?: throw IllegalStateException("unknown repeatMode ${a.repeatMode}")
-        "totalDuration" -> if (a.totalDuration == Animator.DURATION_INFINITE) quote("infinite") else a.totalDuration.toString()
+    private fun readAnimator(a: ValueAnimator, name: String): String? = when (name) {
         "animatedValue" -> when (val v = a.animatedValue) {
-            null -> "null"
-            is Float -> num(v)
+            is Float -> exact(v)
             is Int -> if (a in argbAnimators) "{\"argb\":${v.toLong() and 0xFFFFFFFFL}}" else v.toString()
             else -> "null"
         }
-        "animatedFraction" -> num(a.animatedFraction)
+        "animatedFraction" -> exact(a.animatedFraction)
         "currentPlayTime" -> a.currentPlayTime.toString()
         "isRunning" -> a.isRunning.toString()
         "isStarted" -> a.isStarted.toString()
@@ -218,32 +177,21 @@ internal class AnimationDomain(host: DomainHost) : Domain(host) {
         else -> null
     }
 
-    private fun readObjectAnimator(a: ObjectAnimator, name: String): String? = when (name) {
-        "propertyName" -> a.propertyName?.let { org.json.JSONObject.quote(it) } ?: "null"
-        else -> null
-    }
+    // 被动画改的属性（像素、度、0–1），float 原样。外观组（AppearanceDomain）只管设，不读
+    private fun readView(v: View, name: String): String? = viewProperties[name]?.let { exact(it.get(v)) }
 
     // ---- 写属性 ----
 
     override fun write(target: Any, name: String, value: Any?): Boolean {
-        when {
-            target is ValueAnimator -> when (name) {
-                // 负数由 Java 抛 IllegalArgumentException
-                "duration" -> target.duration = long(value, name)
-                "startDelay" -> target.startDelay = long(value, name)
-                "repeatCount" -> target.repeatCount =
-                    if (value is String) repeatCounts.forProperty(name, value) else int(value, name)
-                "repeatMode" -> target.repeatMode = repeatModes.forProperty(name, value)
-                "currentPlayTime" -> target.currentPlayTime = long(value, name)
-                "propertyName" -> (target as? ObjectAnimator ?: return false).setPropertyName(
-                    value as? String ?: throw NacreTypeError("$name must be a string"))
-                else -> return false
-            }
-            target is ViewPropertyAnimator -> when (name) {
-                "duration" -> target.duration = long(value, name)
-                "startDelay" -> target.startDelay = long(value, name)
-                else -> return false
-            }
+        val a = target as? ValueAnimator ?: return false
+        when (name) {
+            "duration" -> a.duration = long(value, name)
+            "startDelay" -> a.startDelay = long(value, name)
+            // -1 是无限次（JS 那边的 Infinity）
+            "repeatCount" -> a.repeatCount = int(value, name).let { if (it < 0) ValueAnimator.INFINITE else it }
+            "repeatMode" -> a.repeatMode = repeatModes.forProperty(name, value)
+            "currentPlayTime" -> a.currentPlayTime = long(value, name)
+            "autoCancel" -> (a as? ObjectAnimator ?: return false).setAutoCancel(bool(value, name))
             else -> return false
         }
         return true
@@ -251,18 +199,11 @@ internal class AnimationDomain(host: DomainHost) : Domain(host) {
 
     // ---- 方法 ----
 
-    // ViewPropertyAnimator 上「设到某值」「加一个量」的那些，参数都是一个 float
-    private val vpaMethods = setOf(
-        "alpha", "alphaBy", "translationX", "translationXBy", "translationY", "translationYBy",
-        "translationZ", "translationZBy", "x", "xBy", "y", "yBy", "z", "zBy",
-        "scaleX", "scaleXBy", "scaleY", "scaleYBy", "rotation", "rotationBy",
-        "rotationX", "rotationXBy", "rotationY", "rotationYBy")
-
     override fun call(target: Any, name: String, args: List<*>, objects: List<Any?>): String? {
         when (target) {
             is TimeInterpolator -> {
                 if (name != "getInterpolation") return null
-                return num(target.getInterpolation(float(args.getOrNull(0), name)))
+                return exact(target.getInterpolation(float(args.getOrNull(0), name)))
             }
             is ValueAnimator -> when (name) {
                 "start" -> target.start()
@@ -271,28 +212,9 @@ internal class AnimationDomain(host: DomainHost) : Domain(host) {
                 "pause" -> target.pause()
                 "resume" -> target.resume()
                 "reverse" -> target.reverse()
-                "setCurrentFraction" -> target.setCurrentFraction(float(args.getOrNull(0), name))
-                "setFloatValues" -> {
-                    target.setFloatValues(*floats(args.getOrNull(0), name))
-                    argbAnimators.remove(target)
-                }
-                "setIntValues" -> {
-                    target.setIntValues(*ints(args.getOrNull(0), name))
-                    argbAnimators.remove(target)
-                }
-                // null 时 Java 换成 LinearInterpolator
                 "setInterpolator" -> target.interpolator = interpolatorArg(objects, 0, name)
-                "setAutoCancel" -> (target as? ObjectAnimator ?: return null).setAutoCancel(bool(args.getOrNull(0), name))
-                "setTarget" -> (target as? ObjectAnimator ?: return null).target =
-                    objects.getOrNull(0) ?: throw NacreTypeError("$name: argument 1 must be a native object")
-                else -> return null
-            }
-            is ViewPropertyAnimator -> when (name) {
-                in vpaMethods -> vpaCall(target, name, float(args.getOrNull(0), name))
-                "setInterpolator" -> target.interpolator = interpolatorArg(objects, 0, name)
-                "withLayer" -> target.withLayer()
-                "start" -> target.start()
-                "cancel" -> target.cancel()
+                "@values" -> setValues(target, args)
+                "@configure" -> configure(target as? ObjectAnimator ?: return null, args, objects)
                 else -> return null
             }
             is FrameClock -> when (name) {
@@ -304,48 +226,114 @@ internal class AnimationDomain(host: DomainHost) : Domain(host) {
         return "null"
     }
 
-    private fun vpaCall(a: ViewPropertyAnimator, name: String, v: Float) {
-        when (name) {
-            "alpha" -> a.alpha(v)
-            "alphaBy" -> a.alphaBy(v)
-            "translationX" -> a.translationX(v)
-            "translationXBy" -> a.translationXBy(v)
-            "translationY" -> a.translationY(v)
-            "translationYBy" -> a.translationYBy(v)
-            "translationZ" -> a.translationZ(v)
-            "translationZBy" -> a.translationZBy(v)
-            "x" -> a.x(v)
-            "xBy" -> a.xBy(v)
-            "y" -> a.y(v)
-            "yBy" -> a.yBy(v)
-            "z" -> a.z(v)
-            "zBy" -> a.zBy(v)
-            "scaleX" -> a.scaleX(v)
-            "scaleXBy" -> a.scaleXBy(v)
-            "scaleY" -> a.scaleY(v)
-            "scaleYBy" -> a.scaleYBy(v)
-            "rotation" -> a.rotation(v)
-            "rotationBy" -> a.rotationBy(v)
-            "rotationX" -> a.rotationX(v)
-            "rotationXBy" -> a.rotationXBy(v)
-            "rotationY" -> a.rotationY(v)
-            "rotationYBy" -> a.rotationYBy(v)
+    // values：每次换一个新的 PropertyValuesHolder（在原来的上面改，从整数换成小数时会留下旧的关键帧）
+    private fun setValues(a: ValueAnimator, args: List<*>) {
+        when (args.getOrNull(0)) {
+            "float" -> {
+                a.setValues(PropertyValuesHolder.ofFloat("", *floats(args.getOrNull(1), "values")))
+                argbAnimators.remove(a)
+            }
+            "argb" -> {
+                a.setValues(PropertyValuesHolder.ofInt("", *colors(args.getOrNull(1), "values")))
+                a.setEvaluator(ArgbEvaluator())
+                argbAnimators.add(a)
+            }
+            else -> throw NacreTypeError("@values: unknown kind")
         }
     }
 
-    override fun callObject(target: Any, name: String, args: List<*>, objects: List<Any?>): Any? = when {
-        // 同一个视图每次给的是同一个（View 自己缓存着它）
-        target is View && name == "animate" -> target.animate()
-        target is ValueAnimator && name == "getInterpolator" -> target.interpolator
-        target is ObjectAnimator && name == "getTarget" -> target.target
-        target is ViewPropertyAnimator && name == "getInterpolator" -> target.interpolator
-        else -> NOT_MINE
+    // ObjectAnimator 开始播之前：目标（视图）、属性名（就是 Java 的属性名，反射找 setXxx）、整数还是小数、值（像素）
+    private fun configure(a: ObjectAnimator, args: List<*>, objects: List<Any?>) {
+        val view = objects.getOrNull(0) as? View ?: throw NacreTypeError("@configure: target must be a View")
+        val property = args.getOrNull(1) as? String ?: throw NacreTypeError("@configure: propertyName must be a string")
+        a.setValues(when (args.getOrNull(2)) {
+            "int" -> PropertyValuesHolder.ofInt(property, *ints(args.getOrNull(3), "values"))
+            else -> PropertyValuesHolder.ofFloat(property, *floats(args.getOrNull(3), "values"))
+        })
+        a.target = view
+    }
+
+    // ---- view.animate() ----
+    //
+    // 一次 animate 一个 ValueAnimator（0 → 1），每帧按进度把几个属性从起点插到终点（起点在真的开始时读，
+    // 延迟之后）。同一个视图、同一个属性上后开始的接走先开始的：被接走的属性那个动画不再管；属性全被接走的
+    // 那个取消，兑现 false。和 ViewPropertyAnimator 的规矩一样，只是每一次有自己的结果
+    private val viewProperties: Map<String, Property<View, Float>> = mapOf(
+        "alpha" to View.ALPHA,
+        "translationX" to View.TRANSLATION_X,
+        "translationY" to View.TRANSLATION_Y,
+        "translationZ" to View.TRANSLATION_Z,
+        "scaleX" to View.SCALE_X,
+        "scaleY" to View.SCALE_Y,
+        "rotation" to View.ROTATION,
+        "rotationX" to View.ROTATION_X,
+        "rotationY" to View.ROTATION_Y,
+        "elevation" to object : Property<View, Float>(Float::class.java, "elevation") {
+            override fun get(v: View) = v.elevation
+            override fun set(v: View, value: Float) { v.elevation = value }
+        },
+    )
+
+    private inner class ViewAnimation(val id: Int, val view: View, val ends: MutableMap<String, Float>, val callId: Int) {
+        val animator: ValueAnimator = ValueAnimator.ofFloat(0f, 1f)
+        val starts = HashMap<String, Float>()
+        var cancelled = false
+
+        fun start(duration: Long, delay: Long, interpolator: TimeInterpolator) {
+            animator.duration = duration
+            animator.startDelay = delay
+            animator.interpolator = interpolator
+            animator.addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationStart(animation: Animator) {
+                    for ((name, _) in ends) starts[name] = viewProperties.getValue(name).get(view)
+                }
+                override fun onAnimationCancel(animation: Animator) { cancelled = true }
+                override fun onAnimationEnd(animation: Animator) = finish(this@ViewAnimation, !cancelled)
+            })
+            animator.addUpdateListener {
+                val f = it.animatedValue as Float
+                for ((name, end) in ends) {
+                    val start = starts[name] ?: continue
+                    viewProperties.getValue(name).set(view, start + (end - start) * f)
+                }
+            }
+            animator.start()
+        }
+    }
+
+    private val viewAnimations = HashMap<Int, ViewAnimation>()
+    private val owners = WeakHashMap<View, HashMap<String, ViewAnimation>>()
+
+    override fun callAsync(target: Any, name: String, args: List<*>, objects: List<Any?>, callId: Int): Boolean {
+        if (target !is View || name != "@animate") return false
+        val id = int(args.getOrNull(0), "id")
+        val names = list(args.getOrNull(1), "names").map { it as? String ?: throw NacreTypeError("names must be strings") }
+        val values = floats(args.getOrNull(2), "values")
+        val ends = LinkedHashMap<String, Float>()
+        for ((i, n) in names.withIndex()) {
+            if (n !in viewProperties) throw NacreTypeError("$n cannot be animated")
+            ends[n] = values[i]
+        }
+        val a = ViewAnimation(id, target, ends, callId)
+        // 接走同一个属性上先开始的
+        val mine = owners.getOrPut(target) { HashMap() }
+        for (n in ends.keys) {
+            val old = mine.put(n, a) ?: continue
+            old.ends.remove(n)
+            if (old.ends.isEmpty()) old.animator.cancel()
+        }
+        viewAnimations[id] = a
+        a.start(long(args.getOrNull(3), "duration"), long(args.getOrNull(4), "delay"), interpolatorArg(objects, 5, name))
+        return true
+    }
+
+    private fun finish(a: ViewAnimation, completed: Boolean) {
+        if (viewAnimations.remove(a.id) == null) return
+        owners[a.view]?.let { mine -> mine.entries.removeAll { it.value === a } }
+        host.settle.json(a.callId, completed.toString())
     }
 
     // ---- 事件 ----
-
-    // ViewPropertyAnimator 只有一个监听的位子（setListener），有人订 start / end / cancel 时装上
-    private val vpaSubscriptions = IdentityHashMap<ViewPropertyAnimator, MutableSet<String>>()
 
     override fun subscribe(target: Any, type: String, on: Boolean): Boolean {
         when (target) {
@@ -353,24 +341,6 @@ internal class AnimationDomain(host: DomainHost) : Domain(host) {
                 // 另外几个总是发，不用订
                 if (type != "update") return type in ANIMATOR_EVENTS
                 if (on) target.addUpdateListener(updateListener) else target.removeUpdateListener(updateListener)
-                return true
-            }
-            is ViewPropertyAnimator -> {
-                if (type == "update") {
-                    target.setUpdateListener(if (on) ValueAnimator.AnimatorUpdateListener {
-                        host.emitter.plain(target, "update")
-                    } else null)
-                    return true
-                }
-                if (type !in VPA_EVENTS) return false
-                val set = vpaSubscriptions.getOrPut(target) { HashSet() }
-                if (on) set.add(type) else set.remove(type)
-                if (set.isEmpty()) {
-                    vpaSubscriptions.remove(target)
-                    target.setListener(null)
-                } else if (on && set.size == 1) {
-                    target.setListener(vpaListener(target))
-                }
                 return true
             }
             is FrameClock -> when (type) {
@@ -387,14 +357,6 @@ internal class AnimationDomain(host: DomainHost) : Domain(host) {
     }
 
     private val updateListener = ValueAnimator.AnimatorUpdateListener { host.emitter.plain(it, "update") }
-
-    // 回调里拿到的是 ViewPropertyAnimator 内部的那个 Animator，事件发在 ViewPropertyAnimator 上
-    private fun vpaListener(owner: ViewPropertyAnimator) = object : Animator.AnimatorListener {
-        override fun onAnimationStart(animation: Animator) = host.emitter.plain(owner, "start")
-        override fun onAnimationEnd(animation: Animator) = host.emitter.plain(owner, "end")
-        override fun onAnimationCancel(animation: Animator) = host.emitter.plain(owner, "cancel")
-        override fun onAnimationRepeat(animation: Animator) {}
-    }
 
     // ---- 帧时钟 ----
 
@@ -468,8 +430,13 @@ internal class AnimationDomain(host: DomainHost) : Domain(host) {
         return when (name) {
             // 和 Choreographer 给的帧时刻同一个时钟，JS 用它换算到 performance.now() 的起点
             "now" -> (System.nanoTime() / 1e6).toString()
-            "durationScale" -> num(durationScale())
-            "areAnimatorsEnabled" -> ValueAnimator.areAnimatorsEnabled().toString()
+            // 照 float 写出来的样子（0.5f 是 0.5），不带 float 换成 double 的尾巴
+            "durationScale" -> durationScale().toString().toDouble().toString().let { if (it.endsWith(".0")) it.dropLast(2) else it }
+            // view.animate() 被 signal 中止、视图离开页面时取消。已经结束的不管
+            "cancelViewAnimation" -> {
+                viewAnimations[int(args.getOrNull(0), "id")]?.animator?.cancel()
+                "null"
+            }
             else -> null
         }
     }
@@ -477,10 +444,10 @@ internal class AnimationDomain(host: DomainHost) : Domain(host) {
     override fun close() {
         Choreographer.getInstance().removeFrameCallback(frameCallback)
         watchDurationScale(false)
+        for (a in viewAnimations.values.toList()) a.animator.cancel()
     }
 
     companion object {
         private val ANIMATOR_EVENTS = setOf("start", "end", "cancel", "repeat", "pause", "resume")
-        private val VPA_EVENTS = setOf("start", "end", "cancel")
     }
 }
