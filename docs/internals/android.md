@@ -249,7 +249,7 @@ ctx.defineViewState(TextView, 'text', {
 - **销毁的页面**：`contentView` 读出 `null`；写一个视图抛 `InvalidStateError`（写不进去的视图不动），写 `null` 什么都不做；写不是视图的值照样先抛 `TypeError`。拿下来时还留着这个页面替身的视图不在树上，下次挂上时 `build` 发现替身是别的页面的，丢掉重建。
 - **最后一个页面关了运行时照常跑**：定时器、网络照旧，直到系统回收进程。从桌面再点开是同一个进程里的新页面，`main.js` 不再跑，界面要在 `activitycreate` 里建。进程也可能被别的原因拉起（以后的推送、广播），那时 `main.js` 跑了，一个页面都没有。
 - **原生里「只有一个页面」的假设去掉了**：`DomainHost.activity` 换成 `app`（`Application`）。App 层（`AppDomain`）的返回、生命周期、配置、链接、内存告警的状态按页面分开存（`WeakHashMap`，`Page` 只弱引用着页面），包信息用 App 的；安全区域（`WindowInsetsDomain`）上次的边衬按页面分开存；动画读时长缩放、图片和文字读项目的 assets、建 `BitmapDrawable` 用 App 级的 `contentResolver`、`assets`、`resources`。只做了编得过、行为不变的最小改动，这几组的 API 没动。
-- 走引擎现成的 `EmitAppEventWithObject`（iOS 的 `sceneconnect` 也走它），JNI 加了一个入口；`21-application.js` 装了 App 级事件的出口（`setEventSink`），原来 Android 上没装。出口的返回值是「有没有人 `preventDefault`」，返回 `false` 才是调了。`error`、`unhandledrejection` 返回 `true`：Android 上还没有派发给 `application`，照原来的样子打默认的日志。
+- 走引擎现成的 `EmitAppEventWithObject`（iOS 的 `sceneconnect` 也走它），JNI 加了一个入口；`21-application.js` 装了 App 级事件的出口（`setEventSink`），原来 Android 上没装。出口的返回值是「有没有人 `preventDefault`」，返回 `false` 才是调了。`error`、`unhandledrejection` 原来直接返回 `true`、只打默认的日志，2026-11-28 补上了：和 iOS 一样派发成 `application` 上能取消的 `ErrorEvent` / `PromiseRejectionEvent`，调了 `preventDefault()` 引擎就不打默认的日志。验收是 `acceptance-android` 的 `error-events.js`，排在最后一步，只认自己抛的那几个值。
 - `ActivityEvent` 的 `activity` 必填，不是页面抛 `TypeError`。
 - 验收：`steps/activity-lifecycle.js` 按返回让页面结束（adb 启动的页面按返回会结束），验 `activitydestroy` 和销毁的页面、没有页面时定时器照跑；再 `relaunch`，验新的 `activitycreate`，把旧页面上的树放进新页面点得到，拿下来时留着旧替身的视图也在新页面上重建、点得到。
 

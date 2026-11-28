@@ -10,7 +10,9 @@
 (function (ctx) {
   'use strict';
 
-  const { Activity, Event, EventTarget, native, pageOf, releaseActivity } = ctx;
+  const {
+    Activity, ErrorEvent, Event, EventTarget, PromiseRejectionEvent, native, pageOf, releaseActivity,
+  } = ctx;
 
   const kToken = Symbol('application');
 
@@ -59,7 +61,16 @@
       activities = Object.freeze(activities.filter((a) => a !== activity));
       return true;
     }
-    // error、unhandledrejection：Android 上还没有派发给 application，照原来的样子打默认的那行日志
+    // 没接住的异常和没处理的拒绝：引擎在 JS 线程上同步交过来，照 Web 派发成能取消的
+    // ErrorEvent / PromiseRejectionEvent。调了 preventDefault() 引擎就不打默认的那行日志。
+    // 和 iOS 的同名文件一样
+    if (type === 'error') {
+      return application.dispatchEvent(new ErrorEvent(type, Object.assign({ cancelable: true }, payload)));
+    }
+    if (type === 'unhandledrejection') {
+      return application.dispatchEvent(
+        new PromiseRejectionEvent(type, Object.assign({ cancelable: true }, payload)));
+    }
     return true;
   });
 

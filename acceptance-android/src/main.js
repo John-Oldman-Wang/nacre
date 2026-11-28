@@ -50,6 +50,7 @@ import { stepScroll } from './steps/scroll.js';
 import { stepAnimation } from './steps/animation.js';
 import { stepApp, watchApp } from './steps/app.js';
 import { stepImage } from './steps/image.js';
+import { stepErrorEvents } from './steps/error-events.js';
 
 /**
  * 各步共享的上下文。页面那几步还要页面（从 activitycreate 拿到的）。
@@ -171,8 +172,10 @@ const tick = () => {
   console.log('[acceptance] done ' + JSON.stringify(assertStats()));
 };
 // App 层会离开 App（打开浏览器），最后还把页面关掉、带着网址打开一个新页面，等点击和网络都跑完再跑
+// 全局错误出口那一步会故意抛几个没接住的异常，放在最后，不和别的步骤掺在一起
 Promise.allSettled([sliceDone, networkDone]).then(async () => {
   await runAsync('stepApp', () => stepApp(ctx));
+  await runAsync('stepErrorEvents', () => stepErrorEvents(ctx));
 }).then(() => { setTimeout(tick, 1000); });
 
 topLevelFinished = true;
